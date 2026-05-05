@@ -1,0 +1,11 @@
+{% extends 'cloud_base.html' %}
+{% block content %}
+<div class="card">
+    <h1>Freeman Cloud Portal</h1>
+    <p>Register your school, then let teachers log in and post marks from any device connected to the internet.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr; gap:16px; margin-top:20px;">
+        <a class="button" href="{{ url_for('register') }}">Register School</a>
+        <a class="button" href="{{ url_for('login') }}">Teacher Login</a>
+    </div>
+</div>
+{% endblock %}

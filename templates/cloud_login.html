@@ -1,0 +1,19 @@
+{% extends 'cloud_base.html' %}
+{% block content %}
+<div class="card">
+    <h1>Teacher Login</h1>
+    <p>Enter your school code, username and password to open the cloud portal.</p>
+    <form method="post">
+        <label for="school_code">School Code</label>
+        <input id="school_code" name="school_code" placeholder="example: freeman" required>
+
+        <label for="username">Username</label>
+        <input id="username" name="username" placeholder="Your username" required>
+
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" placeholder="Your password" required>
+
+        <button class="button" type="submit">Login</button>
+    </form>
+</div>
+{% endblock %}

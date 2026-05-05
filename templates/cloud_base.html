@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Freeman Cloud Portal</title>
+    <style>
+        body { margin: 0; font-family: Arial, sans-serif; background: #0f172a; color: #e2e8f0; }
+        .page { max-width: 1100px; margin: 0 auto; padding: 25px; }
+        .card { background: #111827; border: 1px solid #1f2937; border-radius: 18px; padding: 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.25); }
+        h1, h2, h3 { margin: 0 0 18px; }
+        a, button, input, select, textarea { font-family: inherit; }
+        .button { display: inline-block; background: #10b981; color: #020617; border: 0; border-radius: 12px; padding: 12px 20px; text-decoration: none; cursor: pointer; font-weight: bold; }
+        .button-alt { background: transparent; border: 1px solid #94a3b8; color: #cbd5e1; }
+        label { display: block; margin-bottom: 6px; font-size: 0.9rem; color: #94a3b8; }
+        input, select, textarea { width: 100%; border-radius: 12px; border: 1px solid #334155; background: #111827; color: #e2e8f0; padding: 12px; margin-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+        th, td { border: 1px solid #1f2937; padding: 10px; text-align: left; }
+        th { background: #1f2937; }
+        .flash { padding: 12px 18px; border-radius: 12px; margin-bottom: 18px; }
+        .flash-success { background: #0f766e; color: #d1fae5; }
+        .flash-danger { background: #7f1d1d; color: #fee2e2; }
+        .nav { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+        .pill { display: inline-block; padding: 8px 14px; border-radius: 999px; background: #1e293b; color: #cbd5e1; font-size: 0.9rem; }
+        .field-row { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="nav">
+            <div>
+                <a href="/" class="button button-alt">Home</a>
+                {% if session.school_id %}
+                <a href="{{ url_for('dashboard') }}" class="button button-alt">Dashboard</a>
+                <a href="{{ url_for('logout') }}" class="button button-alt">Logout</a>
+                {% endif %}
+            </div>
+            {% if session.school_name %}
+            <div class="pill">School: {{ session.school_name }}</div>
+            <div class="pill">User: {{ session.username }}</div>
+            {% endif %}
+        </div>
+
+        {% for category, message in get_flashed_messages(with_categories=true) %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

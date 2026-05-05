@@ -1,0 +1,28 @@
+{% extends 'cloud_base.html' %}
+{% block content %}
+<div class="card">
+    <h1>School Registration</h1>
+    <p>Register your school and create the first teacher account. This will also create the portal credentials for your teachers.</p>
+    <form method="post">
+        <label for="school_name">School Name</label>
+        <input id="school_name" name="school_name" placeholder="Example: Freeman High School" required>
+
+        <label for="school_code">School Code</label>
+        <input id="school_code" name="school_code" placeholder="example: freeman" required>
+
+        <label for="email">School Email</label>
+        <input id="email" name="email" type="email" placeholder="admin@school.org">
+
+        <label for="teacher_email">Teacher Email</label>
+        <input id="teacher_email" name="teacher_email" type="email" placeholder="teacher@example.com">
+
+        <label for="username">Teacher Username</label>
+        <input id="username" name="username" placeholder="example: teacher1" required>
+
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" placeholder="Choose a strong password" required>
+
+        <button class="button" type="submit">Register School</button>
+    </form>
+</div>
+{% endblock %}

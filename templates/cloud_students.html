@@ -1,0 +1,48 @@
+{% extends 'cloud_base.html' %}
+{% block content %}
+<div class="card">
+    <h1>Manage Students</h1>
+    <p>Add students for {{ grade }} so teachers can enter marks for them.</p>
+    <form method="post">
+        <div class="field-row">
+            <div>
+                <label for="adm_no">Admission Number</label>
+                <input id="adm_no" name="adm_no" placeholder="e.g. 001" required>
+            </div>
+            <div>
+                <label for="student_name">Student Name</label>
+                <input id="student_name" name="student_name" placeholder="Student full name" required>
+            </div>
+            <div>
+                <label for="gender">Gender</label>
+                <input id="gender" name="gender" placeholder="Male / Female">
+            </div>
+            <div>
+                <label for="phone">Phone</label>
+                <input id="phone" name="phone" placeholder="Parent phone">
+            </div>
+        </div>
+        <button class="button" type="submit">Add Student</button>
+    </form>
+
+    <h2 style="margin-top:30px;">Registered Students</h2>
+    <table>
+        <thead>
+            <tr><th>ADM No</th><th>Name</th><th>Gender</th><th>Phone</th></tr>
+        </thead>
+        <tbody>
+            {% for student in students %}
+            <tr>
+                <td>{{ student.adm_no }}</td>
+                <td>{{ student.student_name }}</td>
+                <td>{{ student.gender or '-' }}</td>
+                <td>{{ student.phone or '-' }}</td>
+            </tr>
+            {% endfor %}
+            {% if not students %}
+            <tr><td colspan="4">No students registered yet for {{ grade }}.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

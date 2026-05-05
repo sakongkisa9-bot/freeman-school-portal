@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FreemanTech Portal</title>
+    <style>
+        body { 
+            margin: 0; background: #020617; color: #f8fafc; 
+            font-family: sans-serif; display: flex; 
+            flex-direction: column; align-items: center; 
+            justify-content: center; min-height: 100vh; overflow-x: hidden;
+        }
+        #canvas { position: fixed; top: 0; left: 0; z-index: -1; width: 100%; height: 100%; opacity: 0.7; }
+        
+        .portal-card {
+            background: #0f172a; border: 1px solid #1e293b;
+            width: 90%; max-width: 380px; border-radius: 28px;
+            padding: 25px; box-shadow: 0 25px 50px rgba(0, 0, 0, 0.7);
+            text-align: center; box-sizing: border-box;
+        }
+        
+        .header-title { margin: 0; font-size: 30px; font-weight: 900; color: #ffffff !important; letter-spacing: -1.5px; }
+        .highlight { color: #10b981; }
+        .subtitle { color: #475569; font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 3px; margin-top: 5px; margin-bottom: 25px; }
+
+        .form-group { text-align: left; margin-bottom: 20px; }
+        label { font-size: 10px; font-weight: 800; color: #10b981; text-transform: uppercase; }
+        
+        select, .score-box, .search-input {
+            width: 100%; background: #1e293b; border: 1px solid #334155;
+            color: white; padding: 14px; border-radius: 14px;
+            margin-top: 6px; font-weight: bold; font-size: 16px; outline: none;
+        }
+
+        .search-input { 
+            border-color: #10b981; 
+            margin-bottom: 15px; 
+            background: #020617;
+            /* ADD THESE LINES */
+            width: 90%;          /* Make it slightly smaller than the card */
+            margin-right: auto;  /* Pushes it to the left */
+            margin-left: 0;
+            padding-left: 15px;     
+        }
+        .btn-action {
+            background: #10b981; color: #020617; border: none;
+            width: 100%; padding: 16px; border-radius: 16px;
+            font-weight: 900; font-size: 16px; cursor: pointer; transition: 0.2s;
+        }
+        .btn-action:active { transform: scale(0.98); }
+
+        .btn-back {
+            display: block; width: 100%; background: transparent;
+            color: #ef4444; border: 2px solid #ef4444;
+            padding: 12px; border-radius: 16px;
+            font-weight: 900; font-size: 14px;
+            text-decoration: none; margin-top: 15px;
+            transition: 0.3s; box-sizing: border-box;
+        }
+        .btn-back:hover { background: #ef4444; color: white; }
+
+        .list-container { max-height: 350px; overflow-y: auto; margin: 10px 0; border-radius: 14px; }
+        .student-row {
+            display: flex; align-items: center; background: #1e293b;
+            margin-bottom: 10px; padding: 12px; border-radius: 18px; border: 1px solid #334155;
+        }
+        .student-details { flex-grow: 1; text-align: left; }
+        .student-name { font-size: 14px; font-weight: bold; margin: 0; color: #f1f5f9; }
+        .score-box { width: 70px !important; margin: 0 !important; text-align: center; color: #10b981; border-color: #10b981; }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    {% if mode == "home" %}
+    <div class="portal-card">
+        <h1 class="header-title">
+            {% set name_parts = school_name.split(' ') %}
+            {{ name_parts[0] }}<span class="highlight">{% if name_parts|length > 1 %} {{ name_parts[1:]|join(' ') }}{% endif %}</span>
+        </h1>
+        <div class="subtitle">{{ portal_title }}</div>
+        
+        <form action="/enter_marks" method="get">
+            <div class="form-group">
+                <label>Class / Grade</label>
+                <select name="grade" id="gradeSelect" onchange="filterSubjects()">
+                    <option value="" disabled selected>Select Grade</option>
+                    {% for grade in grade_options %}
+                        <option value="{{ grade }}">{{ grade }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Subject</label>
+                <select name="subject" id="subjectSelect">
+                    <option value="" disabled selected>Select subject</option>
+                    {% for sub in playgroup_subjects %}
+                        <option value="{{ sub }}" data-type="playgroup" class="sub-opt">{{ sub }}</option>
+                    {% endfor %}
+                    {% for sub in pp1_subjects %}
+                        <option value="{{ sub }}" data-type="pp1" class="sub-opt">{{ sub }}</option>
+                    {% endfor %}
+                    {% for sub in pp2_subjects %}
+                        <option value="{{ sub }}" data-type="pp2" class="sub-opt">{{ sub }}</option>
+                    {% endfor %}
+                    {% for sub in lower_subjects %}
+                        <option value="{{ sub }}" data-type="lower" class="sub-opt">{{ sub }}</option>
+                    {% endfor %}
+                    {% for sub in primary_subjects %}
+                        <option value="{{ sub }}" data-type="primary" class="sub-opt">{{ sub }}</option>
+                    {% endfor %}
+                    {% for sub in jss_subjects %}
+                        <option value="{{ sub }}" data-type="jss" class="sub-opt">{{ sub }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn-action">🚀 OPEN SYSTEM</button>
+        </form>
+    </div>
+
+    {% elif mode == "marking" %}
+    <div class="portal-card">
+        <h2 style="margin:0; color:#10b981;">{{ grade }}</h2>
+        <div class="subtitle">{{ subject|replace('_', ' ')|upper }} MARKING</div>
+
+        <input type="text" id="studentSearch" onkeyup="filterStudents()" placeholder="🔍 Search student name..." class="search-input">
+                                    
+        <form action="/submit" method="post">
+            <input type="hidden" name="subject" value="{{ subject }}">
+            <input type="hidden" name="grade" value="{{ grade }}">
+            <div class="list-container" id="studentList">
+                {% for student in students %}
+                <div class="student-row">
+                    <div class="student-details">
+                        <p class="student-name">{{ student.name }}</p>
+                    </div>
+                    <input type="number" name="{{ student.adm_no }}" class="score-box" placeholder="0" min="0" max="100">
+                </div>
+                {% endfor %}
+            </div>
+            <button type="submit" class="btn-action">SAVE TO SERVER</button>
+        </form>
+        <a href="/" class="btn-back">CANCEL & EXIT</a>
+    </div>
+    {% endif %}
+
+    <script>
+        function filterStudents() {
+            let input = document.getElementById('studentSearch').value.toUpperCase();
+            let rows = document.getElementsByClassName('student-row');
+            for (let i = 0; i < rows.length; i++) {
+                let name = rows[i].getElementsByClassName('student-name')[0].innerText;
+                rows[i].style.display = (name.toUpperCase().indexOf(input) > -1) ? "" : "none";
+            }
+        }
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        function init() {
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            particles = [];
+            for (let i = 0; i < 30; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width, y: Math.random() * canvas.height,
+                    vx: (Math.random() - 0.5) * 0.4, vy: (Math.random() - 0.5) * 0.4, size: 2.5
+                });
+            }
+        }
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "rgba(16, 185, 129, 0.6)";
+            ctx.strokeStyle = "rgba(16, 185, 129, 0.3)";
+            ctx.lineWidth = 1.5;
+            particles.forEach(p => {
+                p.x += p.vx; p.y += p.vy;
+                if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+                if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+                particles.forEach(p2 => {
+                    let dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+                    if (dist < 120) {
+                        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+                    }
+                });
+            });
+            requestAnimationFrame(animate);
+        }
+        init(); animate();
+        window.addEventListener('resize', init);
+        function filterSubjects() {
+            const gradeSelect = document.getElementById('gradeSelect');
+            const subjectSelect = document.getElementById('subjectSelect');
+            const options = document.getElementsByClassName('sub-opt');
+            
+            const gradeText = gradeSelect.value;
+            let selectedType = "primary";
+            if (gradeText.includes("Play") || gradeText.includes("play")) {
+                selectedType = "playgroup";
+            } else if (gradeText.includes("PP1") || gradeText.includes("Pre-Primary 1")) {
+                selectedType = "pp1";
+            } else if (gradeText.includes("PP2") || gradeText.includes("Pre-Primary 2")) {
+                selectedType = "pp2";
+            } else if (gradeText.includes("Grade 1") || gradeText.includes("Grade 2") || gradeText.includes("Grade 3")) {
+                selectedType = "lower";
+            } else if (gradeText.includes("Grade 7") || gradeText.includes("Grade 8") || gradeText.includes("Grade 9")) {
+                selectedType = "jss";
+            } else {
+                selectedType = "primary";
+            }
+
+            subjectSelect.selectedIndex = 0;
+            for (let opt of options) {
+                opt.style.display = (opt.getAttribute('data-type') === selectedType) ? "block" : "none";
+            }
+        }
+    </script>
+</body>
+</html>

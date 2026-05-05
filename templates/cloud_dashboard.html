@@ -1,0 +1,18 @@
+{% extends 'cloud_base.html' %}
+{% block content %}
+<div class="card">
+    <h1>Cloud Dashboard</h1>
+    <p>Welcome back, {{ username }}. Choose a class to manage students or enter marks.</p>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px; margin-top:20px;">
+        {% for grade in grades %}
+        <div class="card" style="background:#111827; border:none; padding:18px;">
+            <h3>{{ grade }}</h3>
+            <p style="margin:10px 0 18px; color:#94a3b8;">Manage students and marks for this class.</p>
+            <a class="button" href="{{ url_for('manage_students', grade=grade) }}">Students</a>
+            <a class="button button-alt" href="{{ url_for('enter_marks', grade=grade) }}">Enter Marks</a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

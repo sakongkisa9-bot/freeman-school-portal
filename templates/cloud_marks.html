@@ -1,0 +1,59 @@
+{% extends 'cloud_base.html' %}
+{% block content %}
+<div class="card">
+    <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
+        <div>
+            <h1>{{ grade }} Marks</h1>
+            <p>Enter marks and ratings for each student in this grade. Save to keep the record in the cloud.</p>
+        </div>
+        <div>
+            <a class="button button-alt" href="{{ url_for('manage_students', grade=grade) }}">Manage Students</a>
+        </div>
+    </div>
+    <form method="post">
+        <label for="exam_title">Exam Title</label>
+        <input id="exam_title" name="exam_title" value="{{ exam_title }}" placeholder="TERM 1 EXAM 2026">
+
+        <table>
+            <thead>
+                <tr>
+                    <th>ADM No</th>
+                    <th>Student Name</th>
+                    {% for subject in subjects %}
+                        <th>{{ subject }} Score</th>
+                        <th>{{ subject }} Rate</th>
+                        {% if grade.startswith('Grade 7') or grade.startswith('Grade 8') or grade.startswith('Grade 9') %}
+                        <th>{{ subject }} Pts</th>
+                        {% endif %}
+                    {% endfor %}
+                    <th>Total Points</th>
+                    <th>Average Level</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for student in students %}
+                {% set record = marks_map.get(student.adm_no, {}) %}
+                <tr>
+                    <td>{{ student.adm_no }}</td>
+                    <td>{{ student.student_name }}</td>
+                    {% for subject in subjects %}
+                    {% set scores = record.get(subject, {}) %}
+                    <td><input type="text" name="score_{{ student.adm_no }}_{{ subject }}" value="{{ scores.get('score', '') }}"></td>
+                    <td><input type="text" name="rating_{{ student.adm_no }}_{{ subject }}" value="{{ scores.get('rating', '') }}"></td>
+                    {% if grade.startswith('Grade 7') or grade.startswith('Grade 8') or grade.startswith('Grade 9') %}
+                    <td><input type="text" name="points_{{ student.adm_no }}_{{ subject }}" value="{{ scores.get('points', '') }}"></td>
+                    {% endif %}
+                    {% endfor %}
+                    <td><input type="text" name="total_{{ student.adm_no }}" value="{{ record.get('total_points', '') }}"></td>
+                    <td><input type="text" name="average_{{ student.adm_no }}" value="{{ record.get('average_level', '') }}"></td>
+                </tr>
+                {% endfor %}
+                {% if not students %}
+                <tr><td colspan="{{ 2 + subjects|length * (2 + (grade.startswith('Grade 7') or grade.startswith('Grade 8') or grade.startswith('Grade 9')) | int)) + 2 }}">Add students first before entering marks.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+        <button class="button" type="submit" style="margin-top:20px;">Save Marks to Cloud</button>
+    </form>
+</div>
+{% endblock %}
