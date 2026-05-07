@@ -48,6 +48,7 @@ Back in your Freeman desktop app:
 1. Click **⚙️ Setup School Branding**
 2. In **Cloud Portal URL**, paste your Railway URL:
    - Example: `https://yourapp-prod.railway.app`
+   
 3. Fill in:
    - Cloud School Code: `FREEMAN26`
    - Cloud Teacher Username: `portal`

@@ -4,12 +4,18 @@ import sqlite3
 import os
 import json
 from datetime import datetime
+import logging
 
 app = Flask(__name__, template_folder='templates')
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(PROJECT_DIR, 'cloud_portal.db')
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+EXAM_TITLE_DEFAULT = 'TERM 1 EXAM 2026'
 
 GRADE_OPTIONS = [
     'Playgroup', 'Pre-Primary 1', 'Pre-Primary 2',
@@ -113,44 +119,88 @@ def init_db():
 
 
 def get_school_by_code(school_code):
-    conn = get_db()
-    row = conn.execute('SELECT * FROM schools WHERE school_code = ?', (school_code,)).fetchone()
-    conn.close()
-    return row
+    conn = None
+    try:
+        conn = get_db()
+        row = conn.execute('SELECT * FROM schools WHERE school_code = ?', (school_code,)).fetchone()
+        if row:
+            logging.info(f"School found: {school_code}")
+        else:
+            logging.warning(f"School not found: {school_code}")
+        return row
+    except sqlite3.Error as e:
+        logging.error(f"Database error in get_school_by_code for school_code {school_code}: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
 
 
 def get_teacher(school_id, username):
-    conn = get_db()
-    row = conn.execute('SELECT * FROM teachers WHERE school_id = ? AND username = ?', (school_id, username)).fetchone()
-    conn.close()
-    return row
+    conn = None
+    try:
+        conn = get_db()
+        row = conn.execute('SELECT * FROM teachers WHERE school_id = ? AND username = ?', (school_id, username)).fetchone()
+        if row:
+            logging.info(f"Teacher {username} found for school_id {school_id}")
+        else:
+            logging.warning(f"Teacher {username} not found for school_id {school_id}")
+        return row
+    except sqlite3.Error as e:
+        logging.error(f"Database error in get_teacher for school_id {school_id}, username {username}: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
 
 
 def authenticate_user(school_code, username, password):
     school = get_school_by_code(school_code)
     if not school:
+        logging.warning(f"Authentication failed: School code {school_code} not found.")
         return None, 'School code not found.'
     teacher = get_teacher(school['id'], username)
-    if not teacher or not check_password_hash(teacher['password_hash'], password):
+    if not teacher:
+        logging.warning(f"Authentication failed: Username {username} not found for school {school_code}.")
         return None, 'Invalid username or password.'
+    if not check_password_hash(teacher['password_hash'], password):
+        logging.warning(f"Authentication failed: Invalid password for user {username} in school {school_code}.")
+        return None, 'Invalid username or password.'
+    logging.info(f"User {username} successfully authenticated for school {school_code}.")
     return {'school': school, 'teacher': teacher}, None
 
 
 def get_students_for_grade(school_id, grade):
-    conn = get_db()
-    rows = conn.execute('SELECT * FROM students WHERE school_id = ? AND grade = ? ORDER BY adm_no', (school_id, grade)).fetchall()
-    conn.close()
-    return rows
+    conn = None
+    try:
+        conn = get_db()
+        rows = conn.execute('SELECT * FROM students WHERE school_id = ? AND grade = ? ORDER BY adm_no', (school_id, grade)).fetchall()
+        logging.info(f"Fetched {len(rows)} students for school_id {school_id}, grade {grade}")
+        return rows
+    except sqlite3.Error as e:
+        logging.error(f"Database error in get_students_for_grade for school_id {school_id}, grade {grade}: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
 
 
 def get_marks_for_grade(school_id, grade, exam_title):
-    conn = get_db()
-    rows = conn.execute(
-        'SELECT * FROM marks WHERE school_id = ? AND grade = ? AND exam_title = ? ORDER BY adm_no',
-        (school_id, grade, exam_title)
-    ).fetchall()
-    conn.close()
-    return rows
+    conn = None
+    try:
+        conn = get_db()
+        rows = conn.execute(
+            'SELECT * FROM marks WHERE school_id = ? AND grade = ? AND exam_title = ? ORDER BY adm_no',
+            (school_id, grade, exam_title)
+        ).fetchall()
+        logging.info(f"Fetched {len(rows)} marks for school_id {school_id}, grade {grade}, exam_title {exam_title}")
+        return rows
+    except sqlite3.Error as e:
+        logging.error(f"Database error in get_marks_for_grade for school_id {school_id}, grade {grade}, exam_title {exam_title}: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
 
 
 def save_marks_records(school_id, grade, exam_title, records):
@@ -251,8 +301,8 @@ def login():
         school_code = request.form.get('school_code', '').strip().lower()
         username = request.form.get('username', '').strip().lower()
         password = request.form.get('password', '')
-        auth, error = authenticate_user(school_code, username, password)
-        if error:
+    auth, error = authenticate_user(school_code, username, password)
+    if error:
             flash(error, 'danger')
             return redirect(url_for('login'))
 
@@ -282,7 +332,6 @@ def dashboard():
 def manage_students(grade):
     if 'school_id' not in session:
         return redirect(url_for('login'))
-
     students = get_students_for_grade(session['school_id'], grade)
 
     if request.method == 'POST':
@@ -329,8 +378,8 @@ def enter_marks(grade):
 
     if request.method == 'POST':
         exam_title = request.form.get('exam_title', '').strip() or 'TERM 1 EXAM 2026'
-        records = []
-        for student in students:
+    records = []
+    for student in students:
             adm_no = student['adm_no']
             row_scores = {}
             for subject in subjects:
@@ -342,13 +391,13 @@ def enter_marks(grade):
 
             total_points = request.form.get(f'total_{adm_no}', '').strip()
             average_level = request.form.get(f'average_{adm_no}', '').strip()
-            records.append({
+        records.append({
                 'adm_no': adm_no,
-                'name': student['student_name'],
+            'name': student['student_name'],
                 'scores': row_scores,
                 'total_points': total_points,
                 'average_level': average_level
-            })
+        })
 
         save_marks_records(session['school_id'], grade, exam_title, records)
         flash('Marks saved successfully.', 'success')
@@ -473,3 +522,5 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 7000))
     debug = os.environ.get('FLASK_ENV') == 'development'
     app.run(host='0.0.0.0', port=port, debug=debug)
+
+

@@ -6,7 +6,7 @@
     "signatures": {
         "headteacher": ""
     },
-    "cloud_portal_url": "http://localhost:7000",
+    "cloud_portal_url": "https://freeman-school-portal-production.up.railway.app",
     "cloud_school_code": "FREEMAN26",
     "cloud_teacher_username": "portal",
     "cloud_teacher_password": "FREEMAN26",
