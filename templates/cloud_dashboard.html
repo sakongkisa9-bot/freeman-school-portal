@@ -9,7 +9,9 @@
         <div class="card" style="background:#111827; border:none; padding:18px;">
             <h3>{{ grade }}</h3>
             <p style="margin:10px 0 18px; color:#94a3b8;">Manage students and marks for this class.</p>
-            <a class="button" href="{{ url_for('manage_students', grade=grade) }}">Students</a>
+            {% if session.get('role') == 'admin' %}
+                <a class="button" href="{{ url_for('manage_students', grade=grade) }}">Students</a>
+            {% endif %}
             <a class="button button-alt" href="{{ url_for('enter_marks', grade=grade) }}">Enter Marks</a>
         </div>
         {% endfor %}

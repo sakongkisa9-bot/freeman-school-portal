@@ -7,7 +7,9 @@
             <p>Enter marks and ratings for each student in this grade. Save to keep the record in the cloud.</p>
         </div>
         <div>
-            <a class="button button-alt" href="{{ url_for('manage_students', grade=grade) }}">Manage Students</a>
+            {% if can_manage_students %}
+                <a class="button button-alt" href="{{ url_for('manage_students', grade=grade) }}">Manage Students</a>
+            {% endif %}
         </div>
     </div>
     <form method="post">

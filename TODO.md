@@ -1,0 +1,17 @@
+- [ ] Enforce admin-only “add students” (backend + UI)
+  - [ ] Store teacher role in session on login
+  - [ ] Block /students/<grade> and /api/upload_students for non-admin
+  - [ ] Hide Students link and “Manage Students” button for non-admin
+- [ ] Add admin ability to remove a school
+  - [ ] Add route to list schools + delete button (admin-only)
+  - [ ] Add POST delete endpoint that deletes school + related rows
+- [ ] Improve look &amp; feel slightly (templates)
+  - [ ] Add footer/nav tweaks
+- [ ] Add PWA install support (“download as app”)
+  - [ ] Create static/manifest.json and static/sw.js
+  - [ ] Wire into templates/cloud_base.html
+- [ ] Verify by running cloud_portal.py and basic flows:
+  - [ ] Non-admin cannot access manage students or upload students
+  - [ ] Admin can delete a school
+  - [ ] Register still hashes passwords
+  - [ ] PWA install prompt appears in supported browsers

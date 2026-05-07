@@ -1,0 +1,46 @@
+{% extends 'cloud_base.html' %}
+{% block content %}
+<div class="card">
+    <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
+        <div>
+            <h1>Admin - Schools</h1>
+            <p>Delete a school (this will remove its teachers, students, and marks).</p>
+        </div>
+        <div>
+            <a class="button button-alt" href="{{ url_for('dashboard') }}">Back</a>
+        </div>
+    </div>
+
+    <table style="margin-top:18px;">
+        <thead>
+            <tr>
+                <th>School Name</th>
+                <th>School Code</th>
+                <th>Email</th>
+                <th>Created At</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in schools %}
+            <tr>
+                <td>{{ s.school_name }}</td>
+                <td>{{ s.school_code }}</td>
+                <td>{{ s.email or '-' }}</td>
+                <td>{{ s.created_at }}</td>
+                <td>
+                    <form method="post" action="{{ url_for('admin_delete_school', school_code=s.school_code) }}" onsubmit="return confirm('Delete school {{ s.school_code }}? This cannot be undone.');">
+                        <button class="button button-alt" type="submit" style="border-color:#ef4444; color:#fecaca;">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not schools %}
+            <tr>
+                <td colspan="5">No schools found.</td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
