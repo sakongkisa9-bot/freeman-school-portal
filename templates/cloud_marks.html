@@ -8,7 +8,7 @@
         </div>
         <div>
             {% if can_manage_students %}
-                <a class="button button-alt" href="{{ url_for('manage_students', grade=grade) }}">Manage Students</a>
+            <a class="button button-alt" href="{{ url_for('manage_students', grade=grade) }}">Manage Students</a>
             {% endif %}
         </div>
     </div>
@@ -22,11 +22,11 @@
                     <th>ADM No</th>
                     <th>Student Name</th>
                     {% for subject in subjects %}
-                        <th>{{ subject }} Score</th>
-                        <th>{{ subject }} Rate</th>
-                        {% if grade.startswith('Grade 7') or grade.startswith('Grade 8') or grade.startswith('Grade 9') %}
-                        <th>{{ subject }} Pts</th>
-                        {% endif %}
+                    <th>{{ subject }} Score</th>
+                    <th>{{ subject }} Rate</th>
+                    {% if grade.startswith('Grade 7') or grade.startswith('Grade 8') or grade.startswith('Grade 9') %}
+                    <th>{{ subject }} Pts</th>
+                    {% endif %}
                     {% endfor %}
                     <th>Total Points</th>
                     <th>Average Level</th>
@@ -40,18 +40,27 @@
                     <td>{{ student.student_name }}</td>
                     {% for subject in subjects %}
                     {% set scores = record.get(subject, {}) %}
-                    <td><input type="text" name="score_{{ student.adm_no }}_{{ subject }}" value="{{ scores.get('score', '') }}"></td>
-                    <td><input type="text" name="rating_{{ student.adm_no }}_{{ subject }}" value="{{ scores.get('rating', '') }}"></td>
+                    <td><input type="text" name="score_{{ student.adm_no }}_{{ subject }}"
+                            value="{{ scores.get('score', '') }}"></td>
+                    <td><input type="text" name="rating_{{ student.adm_no }}_{{ subject }}"
+                            value="{{ scores.get('rating', '') }}"></td>
                     {% if grade.startswith('Grade 7') or grade.startswith('Grade 8') or grade.startswith('Grade 9') %}
-                    <td><input type="text" name="points_{{ student.adm_no }}_{{ subject }}" value="{{ scores.get('points', '') }}"></td>
+                    <td><input type="text" name="points_{{ student.adm_no }}_{{ subject }}"
+                            value="{{ scores.get('points', '') }}"></td>
                     {% endif %}
                     {% endfor %}
-                    <td><input type="text" name="total_{{ student.adm_no }}" value="{{ record.get('total_points', '') }}"></td>
-                    <td><input type="text" name="average_{{ student.adm_no }}" value="{{ record.get('average_level', '') }}"></td>
+                    <td><input type="text" name="total_{{ student.adm_no }}"
+                            value="{{ record.get('total_points', '') }}"></td>
+                    <td><input type="text" name="average_{{ student.adm_no }}"
+                            value="{{ record.get('average_level', '') }}"></td>
                 </tr>
                 {% endfor %}
                 {% if not students %}
-                <tr><td colspan="{{ 2 + (subjects|length * (2 + (1 if grade.startswith('Grade 7') or grade.startswith('Grade 8') or grade.startswith('Grade 9') else 0))) + 2 }}"></td>>Add students first before entering marks.</td></tr>
+                <tr>
+                    <td
+                        colspan="{{ 2 + (subjects|length * (2 + (1 if grade.startswith('Grade 7') or grade.startswith('Grade 8') or grade.startswith('Grade 9') else 0))) + 2 }}">
+                    </td>>Add students first before entering marks.</td>
+                </tr>
                 {% endif %}
             </tbody>
         </table>

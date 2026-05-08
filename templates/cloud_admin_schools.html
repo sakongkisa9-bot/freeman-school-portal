@@ -29,8 +29,10 @@
                 <td>{{ s.email or '-' }}</td>
                 <td>{{ s.created_at }}</td>
                 <td>
-                    <form method="post" action="{{ url_for('admin_delete_school', school_code=s.school_code) }}" onsubmit="return confirm('Delete school {{ s.school_code }}? This cannot be undone.');">
-                        <button class="button button-alt" type="submit" style="border-color:#ef4444; color:#fecaca;">Delete</button>
+                    <form method="post" action="{{ url_for('admin_delete_school', school_code=s.school_code) }}"
+                        onsubmit="return confirm('Delete school {{ s.school_code }}? This cannot be undone.');">
+                        <button class="button button-alt" type="submit"
+                            style="border-color:#ef4444; color:#fecaca;">Delete</button>
                     </form>
                 </td>
             </tr>

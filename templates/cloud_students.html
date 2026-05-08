@@ -28,7 +28,12 @@
     <h2 style="margin-top:30px;">Registered Students</h2>
     <table>
         <thead>
-            <tr><th>ADM No</th><th>Name</th><th>Gender</th><th>Phone</th></tr>
+            <tr>
+                <th>ADM No</th>
+                <th>Name</th>
+                <th>Gender</th>
+                <th>Phone</th>
+            </tr>
         </thead>
         <tbody>
             {% for student in students %}
@@ -40,7 +45,9 @@
             </tr>
             {% endfor %}
             {% if not students %}
-            <tr><td colspan="4">No students registered yet for {{ grade }}.</td></tr>
+            <tr>
+                <td colspan="4">No students registered yet for {{ grade }}.</td>
+            </tr>
             {% endif %}
         </tbody>
     </table>
