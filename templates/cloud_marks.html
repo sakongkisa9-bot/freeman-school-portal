@@ -51,7 +51,7 @@
                 </tr>
                 {% endfor %}
                 {% if not students %}
-                <tr><td colspan="{{ 2 + subjects|length * (2 + (grade.startswith('Grade 7') or grade.startswith('Grade 8') or grade.startswith('Grade 9')) | int)) + 2 }}">Add students first before entering marks.</td></tr>
+                <tr><td colspan="{{ 2 + (subjects|length * (2 + (1 if grade.startswith('Grade 7') or grade.startswith('Grade 8') or grade.startswith('Grade 9') else 0))) + 2 }}"></td>>Add students first before entering marks.</td></tr>
                 {% endif %}
             </tbody>
         </table>

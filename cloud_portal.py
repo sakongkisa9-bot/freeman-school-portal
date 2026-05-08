@@ -1,4 +1,3 @@
-
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
@@ -42,12 +41,10 @@ GRADE_SUBJECTS = {
     'Grade 9': ['MATH', 'ENG', 'KISW', 'INT SCIE', 'PRE-TECH', 'SST', 'CRE', 'AGRI', 'C/A']
 }
 
-
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
-
 
 def init_db():
     conn = get_db()
@@ -105,77 +102,54 @@ def init_db():
         )
     ''')
     conn.commit()
+    # Migration handling
     try:
         cursor.execute('ALTER TABLE teachers ADD COLUMN email TEXT')
-    except Exception:
-        pass
+    except Exception: pass
     try:
         cursor.execute('ALTER TABLE students ADD COLUMN gender TEXT')
-    except Exception:
-        pass
+    except Exception: pass
     try:
         cursor.execute('ALTER TABLE students ADD COLUMN phone TEXT')
-    except Exception:
-        pass
+    except Exception: pass
     conn.commit()
     conn.close()
-
 
 def get_school_by_code(school_code):
     conn = None
     try:
         conn = get_db()
         row = conn.execute('SELECT * FROM schools WHERE school_code = ?', (school_code,)).fetchone()
-        if row:
-            logging.info(f"School found: {school_code}")
-        else:
-            logging.warning(f"School not found: {school_code}")
         return row
     except sqlite3.Error as e:
-        logging.error(f"Database error in get_school_by_code for school_code {school_code}: {e}")
+        logging.error(f"Database error: {e}")
         return None
     finally:
-        if conn:
-            conn.close()
-
+        if conn: conn.close()
 
 def get_teacher(school_id, username):
     conn = None
     try:
         conn = get_db()
         row = conn.execute('SELECT * FROM teachers WHERE school_id = ? AND username = ?', (school_id, username)).fetchone()
-        if row:
-            logging.info(f"Teacher {username} found for school_id {school_id}")
-        else:
-            logging.warning(f"Teacher {username} not found for school_id {school_id}")
         return row
     except sqlite3.Error as e:
-        logging.error(f"Database error in get_teacher for school_id {school_id}, username {username}: {e}")
+        logging.error(f"Database error: {e}")
         return None
     finally:
-        if conn:
-            conn.close()
-
+        if conn: conn.close()
 
 def authenticate_user(school_code, username, password):
     school = get_school_by_code(school_code)
     if not school:
-        logging.warning(f"Authentication failed: School code {school_code} not found.")
         return None, 'School code not found.'
     teacher = get_teacher(school['id'], username)
-    if not teacher:
-        logging.warning(f"Authentication failed: Username {username} not found for school {school_code}.")
+    if not teacher or not check_password_hash(teacher['password_hash'], password):
         return None, 'Invalid username or password.'
-    if not check_password_hash(teacher['password_hash'], password):
-        logging.warning(f"Authentication failed: Invalid password for user {username} in school {school_code}.")
-        return None, 'Invalid username or password.'
-    logging.info(f"User {username} successfully authenticated for school {school_code}.")
     return {'school': school, 'teacher': teacher}, None
-
 
 def is_admin():
     return session.get('role') == 'admin'
-
 
 def require_admin(fn):
     @wraps(fn)
@@ -188,21 +162,17 @@ def require_admin(fn):
         return fn(*args, **kwargs)
     return wrapper
 
-
 def get_students_for_grade(school_id, grade):
     conn = None
     try:
         conn = get_db()
         rows = conn.execute('SELECT * FROM students WHERE school_id = ? AND grade = ? ORDER BY adm_no', (school_id, grade)).fetchall()
-        logging.info(f"Fetched {len(rows)} students for school_id {school_id}, grade {grade}")
         return rows
     except sqlite3.Error as e:
-        logging.error(f"Database error in get_students_for_grade for school_id {school_id}, grade {grade}: {e}")
+        logging.error(f"Database error: {e}")
         return []
     finally:
-        if conn:
-            conn.close()
-
+        if conn: conn.close()
 
 def get_marks_for_grade(school_id, grade, exam_title):
     conn = None
@@ -212,15 +182,12 @@ def get_marks_for_grade(school_id, grade, exam_title):
             'SELECT * FROM marks WHERE school_id = ? AND grade = ? AND exam_title = ? ORDER BY adm_no',
             (school_id, grade, exam_title)
         ).fetchall()
-        logging.info(f"Fetched {len(rows)} marks for school_id {school_id}, grade {grade}, exam_title {exam_title}")
         return rows
     except sqlite3.Error as e:
-        logging.error(f"Database error in get_marks_for_grade for school_id {school_id}, grade {grade}, exam_title {exam_title}: {e}")
+        logging.error(f"Database error: {e}")
         return []
     finally:
-        if conn:
-            conn.close()
-
+        if conn: conn.close()
 
 def save_marks_records(school_id, grade, exam_title, records):
     conn = get_db()
@@ -245,7 +212,6 @@ def save_marks_records(school_id, grade, exam_title, records):
     conn.commit()
     conn.close()
 
-
 def save_students_records(school_id, students):
     conn = get_db()
     cursor = conn.cursor()
@@ -268,20 +234,14 @@ def save_students_records(school_id, students):
     conn.commit()
     conn.close()
 
-
 def get_all_schools():
     conn = None
     try:
         conn = get_db()
-        rows = conn.execute('SELECT * FROM schools ORDER BY created_at DESC').fetchall()
-        return rows
-    except sqlite3.Error as e:
-        logging.error(f"Database error in get_all_schools: {e}")
-        return []
+        return conn.execute('SELECT * FROM schools ORDER BY created_at DESC').fetchall()
+    except sqlite3.Error: return []
     finally:
-        if conn:
-            conn.close()
-
+        if conn: conn.close()
 
 def delete_school_by_code(school_code):
     conn = None
@@ -289,343 +249,154 @@ def delete_school_by_code(school_code):
         conn = get_db()
         conn.execute('BEGIN')
         row = conn.execute('SELECT id FROM schools WHERE school_code = ?', (school_code,)).fetchone()
-        if not row:
-            conn.rollback()
-            return False
-
-        school_id = row['id']
-        conn.execute('DELETE FROM marks WHERE school_id = ?', (school_id,))
-        conn.execute('DELETE FROM students WHERE school_id = ?', (school_id,))
-        conn.execute('DELETE FROM teachers WHERE school_id = ?', (school_id,))
-        conn.execute('DELETE FROM schools WHERE id = ?', (school_id,))
+        if not row: return False
+        sid = row['id']
+        conn.execute('DELETE FROM marks WHERE school_id = ?', (sid,))
+        conn.execute('DELETE FROM students WHERE school_id = ?', (sid,))
+        conn.execute('DELETE FROM teachers WHERE school_id = ?', (sid,))
+        conn.execute('DELETE FROM schools WHERE id = ?', (sid,))
         conn.commit()
         return True
-    except Exception as e:
-        logging.error(f"Database error in delete_school_by_code for {school_code}: {e}")
-        try:
-            if conn:
-                conn.rollback()
-        except Exception:
-            pass
+    except Exception:
+        if conn: conn.rollback()
         return False
     finally:
-        if conn:
-            conn.close()
+        if conn: conn.close()
 
-
-# Initialize DB once at startup (avoid running init/DDL on every request in production)
+# Start DB
 init_db()
-
 
 @app.route('/')
 def home():
     return render_template('cloud_home.html')
 
-
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        school_name = request.form.get('school_name', '').strip()
-        school_code = request.form.get('school_code', '').strip().lower()
-        school_email = request.form.get('email', '').strip()
-        username = request.form.get('username', '').strip().lower()
-        teacher_email = request.form.get('teacher_email', '').strip().lower()
-        password = request.form.get('password', '')
+        sn = request.form.get('school_name', '').strip()
+        sc = request.form.get('school_code', '').strip().lower()
+        se = request.form.get('email', '').strip()
+        un = request.form.get('username', '').strip().lower()
+        te = request.form.get('teacher_email', '').strip().lower()
+        pw = request.form.get('password', '')
 
-        if not school_name or not school_code or not username or not password:
-            flash('School name, school code, username and password are required.', 'danger')
+        if not sn or not sc or not un or not pw:
+            flash('Required fields missing.', 'danger')
             return redirect(url_for('register'))
 
         conn = get_db()
         try:
-            password_hash = generate_password_hash(password)
+            ph = generate_password_hash(pw)
             now = datetime.utcnow().isoformat()
             conn.execute('INSERT INTO schools (school_name, school_code, email, password_hash, created_at) VALUES (?, ?, ?, ?, ?)',
-                         (school_name, school_code, school_email, password_hash, now))
-            school_id = conn.execute('SELECT id FROM schools WHERE school_code = ?', (school_code,)).fetchone()['id']
+                         (sn, sc, se, ph, now))
+            row = conn.execute('SELECT id FROM schools WHERE school_code = ?', (sc,)).fetchone()
             conn.execute('INSERT INTO teachers (school_id, username, password_hash, email, role, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-                         (school_id, username, password_hash, teacher_email, 'admin', now))
+                         (row['id'], un, ph, te, 'admin', now))
             conn.commit()
-            flash('School registration completed. Use your teacher login to sign in.', 'success')
+            flash('Registered! Please login.', 'success')
             return redirect(url_for('login'))
         except sqlite3.IntegrityError:
-            flash('The school code or username is already in use. Choose a different code.', 'danger')
-            return redirect(url_for('register'))
-        finally:
-            conn.close()
-
+            flash('Code already exists.', 'danger')
+        finally: conn.close()
     return render_template('cloud_register.html')
-
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        school_code = request.form.get('school_code', '').strip().lower()
-        username = request.form.get('username', '').strip().lower()
-        password = request.form.get('password', '')
-
-        auth, error = authenticate_user(school_code, username, password)
-        if error:
-            flash(error, 'danger')
+        sc = request.form.get('school_code', '').strip().lower()
+        un = request.form.get('username', '').strip().lower()
+        pw = request.form.get('password', '')
+        
+        auth, err = authenticate_user(sc, un, pw)
+        if err:
+            flash(err, 'danger')
             return redirect(url_for('login'))
-
+            
         session['school_id'] = auth['school']['id']
         session['school_name'] = auth['school']['school_name']
         session['username'] = auth['teacher']['username']
-        session['role'] = auth['teacher'].get('role', 'teacher') or 'teacher'
-        session['grade'] = 'Grade 1'
+        session['role'] = auth['teacher'].get('role', 'teacher')
         return redirect(url_for('dashboard'))
-
+        
     return render_template('cloud_login.html')
-
 
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('home'))
 
-
 @app.route('/dashboard')
 def dashboard():
-    if 'school_id' not in session:
-        return redirect(url_for('login'))
+    if 'school_id' not in session: return redirect(url_for('login'))
     return render_template('cloud_dashboard.html', school_name=session.get('school_name'), username=session.get('username'), grades=GRADE_OPTIONS)
-
 
 @app.route('/students/<grade>', methods=['GET', 'POST'])
 def manage_students(grade):
-    if 'school_id' not in session:
-        return redirect(url_for('login'))
-    if not is_admin():
-        flash('Only admins can add students.', 'danger')
-        return redirect(url_for('dashboard'))
-
-    students = get_students_for_grade(session['school_id'], grade)
-
+    if 'school_id' not in session: return redirect(url_for('login'))
+    if not is_admin(): return redirect(url_for('dashboard'))
     if request.method == 'POST':
-        student_name = request.form.get('student_name', '').strip()
-        adm_no = request.form.get('adm_no', '').strip()
-        gender = request.form.get('gender', '').strip()
-        phone = request.form.get('phone', '').strip()
-        if not student_name or not adm_no:
-            flash('Student name and admission number are required.', 'danger')
-            return redirect(url_for('manage_students', grade=grade))
-
+        name = request.form.get('student_name', '').strip()
+        adm = request.form.get('adm_no', '').strip()
+        gen = request.form.get('gender', '').strip()
+        ph = request.form.get('phone', '').strip()
         conn = get_db()
         try:
-            conn.execute('''
-                INSERT INTO students (school_id, grade, adm_no, student_name, gender, phone)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(school_id, grade, adm_no) DO UPDATE SET
-                    student_name = excluded.student_name,
-                    gender = excluded.gender,
-                    phone = excluded.phone
-            ''', (session['school_id'], grade, adm_no, student_name, gender, phone))
+            conn.execute('INSERT INTO students (school_id, grade, adm_no, student_name, gender, phone) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO UPDATE SET student_name=excluded.student_name', 
+                         (session['school_id'], grade, adm, name, gen, ph))
             conn.commit()
-            flash('Student added successfully.', 'success')
-        except Exception as e:
-            flash(f'Could not add student: {e}', 'danger')
-        finally:
-            conn.close()
-
-        return redirect(url_for('manage_students', grade=grade))
-
+            flash('Student updated.', 'success')
+        finally: conn.close()
+    students = get_students_for_grade(session['school_id'], grade)
     return render_template('cloud_students.html', grade=grade, students=students)
-
 
 @app.route('/marks/<grade>', methods=['GET', 'POST'])
 def enter_marks(grade):
-    if 'school_id' not in session:
-        return redirect(url_for('login'))
-
+    if 'school_id' not in session: return redirect(url_for('login'))
     subjects = GRADE_SUBJECTS.get(grade, [])
     students = get_students_for_grade(session['school_id'], grade)
-    exam_title = request.args.get('exam_title', 'TERM 1 EXAM 2026')
-
+    exam_title = request.args.get('exam_title', EXAM_TITLE_DEFAULT)
+    if request.method == 'POST':
+        recs = []
+        for s in students:
+            adm = s['adm_no']
+            scores = {sub: {'score': request.form.get(f'score_{adm}_{sub}'), 'rating': request.form.get(f'rating_{adm}_{sub}')} for sub in subjects}
+            recs.append({'adm_no': adm, 'name': s['student_name'], 'scores': scores})
+        save_marks_records(session['school_id'], grade, request.form.get('exam_title', EXAM_TITLE_DEFAULT), recs)
+        flash('Saved.', 'success')
     marks = get_marks_for_grade(session['school_id'], grade, exam_title)
     marks_map = {row['adm_no']: json.loads(row['subject_scores_json']) for row in marks}
+    return render_template('cloud_marks.html', grade=grade, subjects=subjects, students=students, marks_map=marks_map, exam_title=exam_title)
 
-    if request.method == 'POST':
-        exam_title = request.form.get('exam_title', '').strip() or 'TERM 1 EXAM 2026'
-        records = []
-        for student in students:
-            adm_no = student['adm_no']
-            row_scores = {}
-            for subject in subjects:
-                score = request.form.get(f'score_{adm_no}_{subject}', '').strip()
-                rating = request.form.get(f'rating_{adm_no}_{subject}', '').strip()
-                points = request.form.get(f'points_{adm_no}_{subject}', '').strip()
-                if score or rating or points:
-                    row_scores[subject] = {'score': score, 'rating': rating, 'points': points}
-
-            total_points = request.form.get(f'total_{adm_no}', '').strip()
-            average_level = request.form.get(f'average_{adm_no}', '').strip()
-
-            records.append({
-                'adm_no': adm_no,
-                'name': student['student_name'],
-                'scores': row_scores,
-                'total_points': total_points,
-                'average_level': average_level
-            })
-
-        save_marks_records(session['school_id'], grade, exam_title, records)
-        flash('Marks saved successfully.', 'success')
-        return redirect(url_for('enter_marks', grade=grade, exam_title=exam_title))
-
-    return render_template(
-        'cloud_marks.html',
-        grade=grade,
-        subjects=subjects,
-        students=students,
-        marks_map=marks_map,
-        exam_title=exam_title,
-        can_manage_students=is_admin()
-    )
-
-
+# API Routes
 @app.route('/api/fetch_marks', methods=['POST'])
 def api_fetch_marks():
     data = request.get_json(force=True)
-    if not data:
-        return jsonify({'success': False, 'message': 'JSON body is required.'}), 400
-
-    school_code = data.get('school_code', '').strip().lower()
-    username = data.get('username', '').strip().lower()
-    password = data.get('password', '')
-    grade = data.get('grade', '')
-
-    auth, error = authenticate_user(school_code, username, password)
-    if error:
-        return jsonify({'success': False, 'message': error}), 401
-
+    auth, err = authenticate_user(data.get('school_code'), data.get('username'), data.get('password'))
+    if err: return jsonify({'success': False, 'message': err}), 401
+    grade = data.get('grade')
     students = get_students_for_grade(auth['school']['id'], grade)
-    exam_title = data.get('exam_title', 'TERM 1 EXAM 2026')
-    marks = get_marks_for_grade(auth['school']['id'], grade, exam_title)
+    marks = get_marks_for_grade(auth['school']['id'], grade, data.get('exam_title', EXAM_TITLE_DEFAULT))
     marks_map = {row['adm_no']: json.loads(row['subject_scores_json']) for row in marks}
-
-    records = []
-    for student in students:
-        record = {
-            'adm_no': student['adm_no'],
-            'name': student['student_name'],
-            'scores': marks_map.get(student['adm_no'], {}),
-            'total_points': '',
-            'average_level': ''
-        }
-        matching_mark = next((m for m in marks if m['adm_no'] == student['adm_no']), None)
-        if matching_mark:
-            record['total_points'] = matching_mark['total_points']
-            record['average_level'] = matching_mark['average_level']
-        records.append(record)
-
-    return jsonify({'success': True, 'grade': grade, 'exam_title': exam_title, 'records': records, 'subjects': GRADE_SUBJECTS.get(grade, [])})
-
+    records = [{'adm_no': s['adm_no'], 'name': s['student_name'], 'scores': marks_map.get(s['adm_no'], {})} for s in students]
+    return jsonify({'success': True, 'records': records, 'subjects': GRADE_SUBJECTS.get(grade, [])})
 
 @app.route('/api/save_marks', methods=['POST'])
 def api_save_marks():
     data = request.get_json(force=True)
-    if not data:
-        return jsonify({'success': False, 'message': 'JSON body is required.'}), 400
-
-    school_code = data.get('school_code', '').strip().lower()
-    username = data.get('username', '').strip().lower()
-    password = data.get('password', '')
-    grade = data.get('grade', '')
-    exam_title = data.get('exam_title', 'TERM 1 EXAM 2026')
-    records = data.get('records', [])
-
-    auth, error = authenticate_user(school_code, username, password)
-    if error:
-        return jsonify({'success': False, 'message': error}), 401
-
-    if not grade or not records:
-        return jsonify({'success': False, 'message': 'Grade and records are required.'}), 400
-
-    save_marks_records(auth['school']['id'], grade, exam_title, records)
-    return jsonify({'success': True, 'message': 'Marks saved to cloud portal.'})
-
+    auth, err = authenticate_user(data.get('school_code'), data.get('username'), data.get('password'))
+    if err: return jsonify({'success': False, 'message': err}), 401
+    save_marks_records(auth['school']['id'], data.get('grade'), data.get('exam_title'), data.get('records', []))
+    return jsonify({'success': True})
 
 @app.route('/api/upload_students', methods=['POST'])
 def api_upload_students():
     data = request.get_json(force=True)
-    if not data:
-        return jsonify({'success': False, 'message': 'JSON body is required.'}), 400
-
-    school_code = data.get('school_code', '').strip().lower()
-    username = data.get('username', '').strip().lower()
-    password = data.get('password', '')
-    students = data.get('students', [])
-
-    auth, error = authenticate_user(school_code, username, password)
-    if error:
-        return jsonify({'success': False, 'message': error}), 401
-
-    role = auth['teacher'].get('role', 'teacher') or 'teacher'
-    if role != 'admin':
-        return jsonify({'success': False, 'message': 'Only admins can upload students.'}), 403
-
-    if not students:
-        return jsonify({'success': False, 'message': 'Student list is required.'}), 400
-
-    save_students_records(auth['school']['id'], students)
-    return jsonify({'success': True, 'message': 'Student roster synced to cloud portal.'})
-
-
-@app.route('/api/fetch_students', methods=['POST'])
-def api_fetch_students():
-    data = request.get_json(force=True)
-    if not data:
-        return jsonify({'success': False, 'message': 'JSON body is required.'}), 400
-
-    school_code = data.get('school_code', '').strip().lower()
-    username = data.get('username', '').strip().lower()
-    password = data.get('password', '')
-    grade = data.get('grade', '')
-
-    auth, error = authenticate_user(school_code, username, password)
-    if error:
-        return jsonify({'success': False, 'message': error}), 401
-
-    students = get_students_for_grade(auth['school']['id'], grade)
-    records = []
-    for student in students:
-        records.append({
-            'adm_no': student['adm_no'],
-            'name': student['student_name'],
-            'gender': student.get('gender', ''),
-            'phone': student.get('phone', ''),
-            'grade': student['grade']
-        })
-    return jsonify({'success': True, 'grade': grade, 'records': records})
-
-
-@app.route('/admin/schools', methods=['GET'])
-@require_admin
-def admin_schools():
-    schools = get_all_schools()
-    return render_template('cloud_admin_schools.html', schools=schools)
-
-
-@app.route('/admin/schools/<school_code>/delete', methods=['POST'])
-@require_admin
-def admin_delete_school(school_code):
-    school_code = (school_code or '').strip().lower()
-    if not school_code:
-        flash('Invalid school code.', 'danger')
-        return redirect(url_for('admin_schools'))
-
-    ok = delete_school_by_code(school_code)
-    if ok:
-        flash(f'School "{school_code}" deleted.', 'success')
-    else:
-        flash(f'Could not delete school "{school_code}".', 'danger')
-    return redirect(url_for('admin_schools'))
-
+    auth, err = authenticate_user(data.get('school_code'), data.get('username'), data.get('password'))
+    if err: return jsonify({'success': False, 'message': err}), 401
+    save_students_records(auth['school']['id'], data.get('students', []))
+    return jsonify({'success': True})
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 7000))
-    debug = os.environ.get('FLASK_ENV') == 'development'
-    app.run(host='0.0.0.0', port=port, debug=debug)
-
-
+    app.run(host='0.0.0.0', port=port)
