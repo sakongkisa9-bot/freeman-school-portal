@@ -8,10 +8,11 @@ from datetime import datetime
 import logging
 from functools import wraps
 
-app = Flask(__name__, template_folder='templates')
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+TEMPLATES_DIR = os.path.join(PROJECT_DIR, 'templates')
+app = Flask(__name__, template_folder=TEMPLATES_DIR)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
-PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(PROJECT_DIR, 'cloud_portal.db')
 
 # Configure logging
@@ -312,9 +313,8 @@ def delete_school_by_code(school_code):
             conn.close()
 
 
-@app.before_request
-def ensure_database():
-    init_db()
+# Initialize DB once at startup (avoid running init/DDL on every request in production)
+init_db()
 
 
 @app.route('/')
