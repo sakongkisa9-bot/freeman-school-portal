@@ -185,6 +185,44 @@ def home():
     return render_template("cloud_home.html")
 
 
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        sn = request.form.get("school_name", "").strip()
+        sc = request.form.get("school_code", "").strip().lower()
+        se = request.form.get("email", "").strip()
+        un = request.form.get("username", "").strip().lower()
+        pw = request.form.get("password", "")
+
+        if not sn or not sc or not un or not pw:
+            flash("Required fields missing.", "danger")
+            return redirect(url_for("register"))
+
+        conn = get_db()
+        try:
+            ph = generate_password_hash(pw)
+            now = datetime.utcnow().isoformat()
+            conn.execute(
+                "INSERT INTO schools (school_name, school_code, email, password_hash, created_at) VALUES (?, ?, ?, ?, ?)",
+                (sn, sc, se, ph, now),
+            )
+            row = conn.execute(
+                "SELECT id FROM schools WHERE school_code = ?", (sc,)
+            ).fetchone()
+            conn.execute(
+                "INSERT INTO teachers (school_id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)",
+                (row["id"], un, ph, "admin", now),
+            )
+            conn.commit()
+            flash("Registered! Please login.", "success")
+            return redirect(url_for("login"))
+        except sqlite3.IntegrityError:
+            flash("School code already exists.", "danger")
+        finally:
+            conn.close()
+    return render_template("cloud_register.html")
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
