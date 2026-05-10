@@ -4,7 +4,7 @@
     "builder": "nixpacks"
   },
   "deploy": {
-    "startCommand": "python cloud_portal.py",
+    "startCommand": "python cloud_portal_v2.py",
     "restartPolicyType": "on_failure",
     "restartPolicyMaxRetries": 5
   }
