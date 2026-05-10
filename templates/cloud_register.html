@@ -37,15 +37,21 @@
 </div>
 <script>
     function unlockForm() {
-        const key = document.getElementById('dev_key').value;
-        const correctKey = "{{ SYSTEM_ADMIN_KEY }}"; // This pulls from Python
+        const keyInput = document.getElementById('dev_key').value.trim(); // Trim removes accidental spaces at the end
+        const correctKey = "{{ admin_key }}";
 
-        if (key === correctKey) {
+        // This helps you debug. Press F12 in your browser to see this!
+        console.log("Input:", keyInput);
+        console.log("Expected:", correctKey);
+
+        if (keyInput === correctKey) {
             document.getElementById('dev-auth-section').style.display = 'none';
             document.getElementById('registration-form').style.display = 'block';
-            document.getElementById('hidden_master_key').value = key;
+            document.getElementById('hidden_master_key').value = keyInput;
         } else {
-            document.getElementById('error-msg').style.display = 'block';
+            const error = document.getElementById('error-msg');
+            error.style.display = 'block';
+            document.getElementById('dev_key').style.borderColor = '#d9534f';
         }
     }
 </script>

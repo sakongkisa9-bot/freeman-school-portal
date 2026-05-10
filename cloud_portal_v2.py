@@ -227,7 +227,7 @@ def register():
             flash("School code already exists.", "danger")
         finally:
             conn.close()
-    return render_template("cloud_register.html")
+    return render_template("cloud_register.html", admin_key=SYSTEM_ADMIN_KEY)
 
 
 @app.route("/delete_school/<school_code>", methods=["POST"])
