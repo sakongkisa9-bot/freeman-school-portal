@@ -2,9 +2,18 @@
 {% block content %}
 <div class="card">
     <h1>School Registration</h1>
+    <div id="dev-auth-section">
+        <label for="dev_key">Developer Access Password</label>
+        <input type="password" id="dev_key" placeholder="Enter Developer Key to Unlock">
+        <button class="button" onclick="unlockForm()">Unlock Registration</button>
+        <p id="error-msg" style="color: red; display: none; margin-top: 10px;">Invalid Developer Key</p>
+    </div>
     <p>Register your school and create the first teacher account. This will also create the portal credentials for your
         teachers.</p>
-    <form method="post">
+    <form id="registration-form" method="post"
+        style="display: none; margin-top: 20px; border-top: 2px solid #eee; padding-top: 20px;">
+        <input type="hidden" name="master_key" id="hidden_master_key">
+
         <label for="school_name">School Name</label>
         <input id="school_name" name="school_name" placeholder="Example: Freeman High School" required>
 
@@ -26,4 +35,18 @@
         <button class="button" type="submit">Register School</button>
     </form>
 </div>
+<script>
+    function unlockForm() {
+        const key = document.getElementById('dev_key').value;
+        const correctKey = "{{ admin_key }}"; // This pulls from Python
+
+        if (key === correctKey) {
+            document.getElementById('dev-auth-section').style.display = 'none';
+            document.getElementById('registration-form').style.display = 'block';
+            document.getElementById('hidden_master_key').value = key;
+        } else {
+            document.getElementById('error-msg').style.display = 'block';
+        }
+    }
+</script>
 {% endblock %}

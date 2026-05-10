@@ -88,6 +88,7 @@ GRADE_SUBJECTS = {
         "C/A",
     ],
 }
+SYSTEM_ADMIN_KEY = "16592@FREE man"
 
 
 def get_db():
@@ -188,15 +189,17 @@ def home():
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
+        # Check the Master Key first
+        master_key = request.form.get("master_key")
+        if master_key != SYSTEM_ADMIN_KEY:
+            flash("Unauthorized: Invalid System Admin Key.", "danger")
+            return redirect(url_for("register"))
+
         sn = request.form.get("school_name", "").strip()
         sc = request.form.get("school_code", "").strip().lower()
         se = request.form.get("email", "").strip()
         un = request.form.get("username", "").strip().lower()
         pw = request.form.get("password", "")
-
-        if not sn or not sc or not un or not pw:
-            flash("Required fields missing.", "danger")
-            return redirect(url_for("register"))
 
         conn = get_db()
         try:
@@ -209,18 +212,32 @@ def register():
             row = conn.execute(
                 "SELECT id FROM schools WHERE school_code = ?", (sc,)
             ).fetchone()
+            # This makes the first user an 'admin' (The Principal/Owner)
             conn.execute(
                 "INSERT INTO teachers (school_id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)",
                 (row["id"], un, ph, "admin", now),
             )
             conn.commit()
-            flash("Registered! Please login.", "success")
+            flash(f"School {sn} Registered Successfully!", "success")
             return redirect(url_for("login"))
         except sqlite3.IntegrityError:
             flash("School code already exists.", "danger")
         finally:
             conn.close()
     return render_template("cloud_register.html")
+
+
+@app.route("/delete_school/<school_code>", methods=["POST"])
+def delete_school(school_code):
+    # Only you should call this via a tool or manual entry
+    master_key = request.form.get("master_key")
+    if master_key == SYSTEM_ADMIN_KEY:
+        conn = get_db()
+        conn.execute("DELETE FROM schools WHERE school_code = ?", (school_code,))
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True, "message": "School removed"})
+    return jsonify({"success": False, "message": "Unauthorized"}), 401
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -308,6 +325,22 @@ def enter_marks(grade):
         marks_map=marks_map,
         exam_title=exam_title,
     )
+
+
+@app.route("/students/<grade>")
+def manage_students(grade):
+    if "school_id" not in session:
+        return redirect(url_for("login"))
+
+    # Teachers can view the list, but there is no 'POST' to add/delete
+    conn = get_db()
+    students = conn.execute(
+        "SELECT * FROM students WHERE school_id = ? AND grade = ? ORDER BY student_name ASC",
+        (session["school_id"], grade),
+    ).fetchall()
+    conn.close()
+
+    return render_template("cloud_students.html", grade=grade, students=students)
 
 
 @app.route("/logout")
