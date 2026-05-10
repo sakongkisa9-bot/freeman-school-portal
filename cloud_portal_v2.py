@@ -183,7 +183,10 @@ init_db()
 
 @app.route("/")
 def home():
-    return render_template("cloud_home.html")
+    # If they aren't logged in, send them straight to login
+    if "school_id" not in session:
+        return redirect(url_for("login"))
+    return redirect(url_for("dashboard"))
 
 
 @app.route("/register", methods=["GET", "POST"])

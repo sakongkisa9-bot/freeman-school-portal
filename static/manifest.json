@@ -1,9 +1,15 @@
 {
-  "name": "Freeman Cloud Portal",
-  "short_name": "Freeman Cloud",
+  "name": "Freeman School Portal",
+  "short_name": "Freeman",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#10b981",
-  "icons": []
+  "background_color": "#2c3e50",
+  "theme_color": "#2c3e50",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2940/2940651.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
 }
