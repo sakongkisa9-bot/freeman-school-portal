@@ -270,6 +270,53 @@ def dashboard():
     return render_template("cloud_dashboard.html", grades=GRADE_OPTIONS)
 
 
+@app.route("/api/sync_students", methods=["POST"])
+def sync_students():
+    # We use a simple school_code check for basic security
+    data = request.json
+    school_code = data.get("school_code")
+    students_list = data.get("students", [])
+
+    conn = get_db()
+    school = conn.execute(
+        "SELECT id FROM schools WHERE school_code = ?", (school_code,)
+    ).fetchone()
+
+    if not school:
+        conn.close()
+        return jsonify({"success": False, "message": "School not found"}), 404
+
+    try:
+        for s in students_list:
+            conn.execute(
+                """
+                INSERT INTO students (school_id, grade, adm_no, student_name, gender, phone)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(school_id, grade, adm_no) DO UPDATE SET
+                student_name = excluded.student_name,
+                gender = excluded.gender,
+                phone = excluded.phone
+            """,
+                (
+                    school["id"],
+                    s["grade"],
+                    s["adm_no"],
+                    s["name"],
+                    s.get("gender"),
+                    s.get("phone"),
+                ),
+            )
+
+        conn.commit()
+        return jsonify(
+            {"success": True, "message": f"Synced {len(students_list)} students"}
+        )
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        conn.close()
+
+
 @app.route("/marks/<grade>", methods=["GET", "POST"])
 def enter_marks(grade):
     if "school_id" not in session:
