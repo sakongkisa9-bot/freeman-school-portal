@@ -38,7 +38,7 @@
 <script>
     function unlockForm() {
         const key = document.getElementById('dev_key').value;
-        const correctKey = "{{ admin_key }}"; // This pulls from Python
+        const correctKey = "{{ SYSTEM_ADMIN_KEY }}"; // This pulls from Python
 
         if (key === correctKey) {
             document.getElementById('dev-auth-section').style.display = 'none';
