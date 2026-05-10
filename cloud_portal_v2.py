@@ -317,6 +317,68 @@ def sync_students():
         conn.close()
 
 
+@app.route("/api/sync_students", methods=["POST"])
+def api_sync_students():
+    data = request.json
+    school_code = data.get("school_code")
+    students_list = data.get("students", [])
+
+    if not school_code:
+        return jsonify({"success": False, "message": "Missing school code"}), 400
+
+    conn = get_db()
+    try:
+        # 1. Verify the school exists
+        school = conn.execute(
+            "SELECT id FROM schools WHERE school_code = ?", (school_code,)
+        ).fetchone()
+        if not school:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": f"School code '{school_code}' not registered on cloud.",
+                    }
+                ),
+                404,
+            )
+
+        # 2. Insert/Update students
+        for s in students_list:
+            conn.execute(
+                """
+                INSERT INTO students (school_id, grade, adm_no, student_name, gender, phone)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(school_id, grade, adm_no) DO UPDATE SET
+                    student_name = excluded.student_name,
+                    gender = excluded.gender,
+                    phone = excluded.phone
+            """,
+                (
+                    school["id"],
+                    s["grade"],
+                    s["adm_no"],
+                    s["name"],
+                    s.get("gender"),
+                    s.get("phone"),
+                ),
+            )
+
+        conn.commit()
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Successfully synced {len(students_list)} students.",
+            }
+        )
+
+    except Exception as e:
+        logging.error(f"Sync error: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        conn.close()
+
+
 @app.route("/marks/<grade>", methods=["GET", "POST"])
 def enter_marks(grade):
     if "school_id" not in session:
