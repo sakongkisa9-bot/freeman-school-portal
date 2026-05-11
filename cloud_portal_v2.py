@@ -168,19 +168,25 @@ def init_db():
 
 def authenticate_user(school_code, username, password):
     conn = get_db()
+    # Normalize school_code to lowercase to match your register logic
+    sc = school_code.strip().lower()
     school = conn.execute(
-        "SELECT * FROM schools WHERE school_code = ?", (school_code,)
+        "SELECT * FROM schools WHERE school_code = ?", (sc,)
     ).fetchone()
+
     if not school:
         conn.close()
         return None, "School code not found."
+
     teacher = conn.execute(
         "SELECT * FROM teachers WHERE school_id = ? AND username = ?",
-        (school["id"], username),
+        (school["id"], username.strip().lower()),  # Use [] instead of .get()
     ).fetchone()
     conn.close()
+
     if not teacher or not check_password_hash(teacher["password_hash"], password):
         return None, "Invalid username or password."
+
     return {"school": school, "teacher": teacher}, None
 
 
@@ -266,14 +272,22 @@ def login():
                 flash(err, "danger")
                 return redirect(url_for("login"))
 
-            session["school_id"] = auth["school"]["id"]
-            session["school_name"] = auth["school"]["school_name"]
-            session["username"] = auth["teacher"]["username"]
-            session["role"] = auth["teacher"].get("role", "teacher")
+            # --- THE FIX IS HERE ---
+            # Convert the Row objects to real dictionaries so .get() works elsewhere
+            school_data = dict(auth["school"])
+            teacher_data = dict(auth["teacher"])
+
+            session["school_id"] = school_data["id"]
+            session["school_name"] = school_data["school_name"]
+            session["username"] = teacher_data["username"]
+            session["role"] = teacher_data.get("role", "teacher")  # .get() works now!
+
             return redirect(url_for("dashboard"))
+
     except Exception as e:
-        # Instead of 'Internal Server Error', this shows the actual problem
+        # This will tell us exactly which key is missing if it happens again
         return f"Database Error: {str(e)}"
+
     return render_template("cloud_login.html")
 
 
@@ -288,7 +302,7 @@ def dashboard():
 @app.route("/api/upload_students", methods=["POST"])
 def api_sync_students():
     data = request.json
-    school_code = data.get("school_code").strip()
+    school_code = data.get("school_code").strip().lower()
     students_list = data.get("students", [])
 
     if not school_code:
