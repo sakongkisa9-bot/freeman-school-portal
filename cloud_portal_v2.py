@@ -361,30 +361,37 @@ def api_sync_students():
         conn.close()
 
 
-@app.route("/marks/<grade>", methods=["GET", "POST"])
-def enter_marks(grade):
+@app.route("/marks/<grade>/<subject>", methods=["GET", "POST"])
+def enter_marks(grade, subject):
     if "school_id" not in session:
         return redirect(url_for("login"))
 
     conn = get_db()
-    subjects = GRADE_SUBJECTS.get(grade, [])
+    # Fetch students for this grade
     students = conn.execute(
-        "SELECT * FROM students WHERE school_id = ? AND grade = ?",
+        "SELECT * FROM students WHERE school_id = ? AND grade = ? ORDER BY student_name ASC",
         (session["school_id"], grade),
     ).fetchall()
+
     exam_title = request.args.get("exam_title", EXAM_TITLE_DEFAULT)
 
     if request.method == "POST":
         now = datetime.utcnow().isoformat()
         for s in students:
             adm = s["adm_no"]
-            scores = {
-                sub: {
-                    "score": request.form.get(f"score_{adm}_{sub}"),
-                    "rating": request.form.get(f"rating_{adm}_{sub}"),
-                }
-                for sub in subjects
-            }
+            score = request.form.get(f"score_{adm}")
+
+            # 1. Get existing marks first so we don't overwrite other subjects
+            existing = conn.execute(
+                "SELECT subject_scores_json FROM marks WHERE school_id=? AND grade=? AND adm_no=? AND exam_title=?",
+                (session["school_id"], grade, adm, exam_title),
+            ).fetchone()
+
+            scores = json.loads(existing["subject_scores_json"]) if existing else {}
+
+            # 2. Update only the specific subject being edited
+            scores[subject] = {"score": score}
+
             conn.execute(
                 """
                 INSERT INTO marks (school_id, grade, adm_no, student_name, exam_title, subject_scores_json, updated_at)
@@ -402,23 +409,47 @@ def enter_marks(grade):
                     now,
                 ),
             )
-        conn.commit()
-        flash("Marks saved successfully.", "success")
 
-    marks = conn.execute(
-        "SELECT * FROM marks WHERE school_id = ? AND grade = ? AND exam_title = ?",
+        conn.commit()
+        flash(f"Marks for {subject} saved successfully.", "success")
+
+    # Fetch existing marks to display in the input boxes
+    marks_records = conn.execute(
+        "SELECT adm_no, subject_scores_json FROM marks WHERE school_id=? AND grade=? AND exam_title=?",
         (session["school_id"], grade, exam_title),
     ).fetchall()
     conn.close()
-    marks_map = {row["adm_no"]: json.loads(row["subject_scores_json"]) for row in marks}
+
+    # Map scores so the HTML can find them: marks_map[adm_no] = score_value
+    marks_map = {}
+    for row in marks_records:
+        data = json.loads(row["subject_scores_json"])
+        if subject in data:
+            marks_map[row["adm_no"]] = data[subject].get("score", "")
+
     return render_template(
         "cloud_marks.html",
         grade=grade,
-        subjects=subjects,
+        subject=subject,
         students=students,
         marks_map=marks_map,
         exam_title=exam_title,
     )
+
+
+@app.route("/select_subject/<grade>")
+def select_subject(grade):
+    if "school_id" not in session:
+        return redirect(url_for("login"))
+
+    # Get the subjects for this grade from your dictionary
+    subjects = GRADE_SUBJECTS.get(grade, [])
+
+    if not subjects:
+        flash(f"No subjects configured for {grade}.", "warning")
+        return redirect(url_for("dashboard"))
+
+    return render_template("cloud_select_subject.html", grade=grade, subjects=subjects)
 
 
 @app.route("/students/<grade>")

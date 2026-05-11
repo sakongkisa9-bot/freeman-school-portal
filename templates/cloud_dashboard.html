@@ -12,7 +12,7 @@
             {% if session.get('role') == 'admin' %}
             <a class="button" href="{{ url_for('manage_students', grade=grade) }}">Students</a>
             {% endif %}
-            <a class="button button-alt" href="{{ url_for('enter_marks', grade=grade) }}">Enter Marks</a>
+            <a class="button button-alt" href="{{ url_for('select_subject', grade=grade) }}">Enter Marks</a>
         </div>
         {% endfor %}
     </div>

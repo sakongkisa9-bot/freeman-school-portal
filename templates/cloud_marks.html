@@ -1,70 +1,50 @@
-{% extends 'cloud_base.html' %}
-{% block content %}
-<div class="card">
-    <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
-        <div>
-            <h1>{{ grade }} Marks</h1>
-            <p>Enter marks and ratings for each student in this grade. Save to keep the record in the cloud.</p>
-        </div>
-        <div>
-            {% if can_manage_students %}
-            <a class="button button-alt" href="{{ url_for('manage_students', grade=grade) }}">Manage Students</a>
-            {% endif %}
-        </div>
-    </div>
-    <form method="post">
-        <label for="exam_title">Exam Title</label>
-        <input id="exam_title" name="exam_title" value="{{ exam_title }}" placeholder="TERM 1 EXAM 2026">
+<div class="container mt-4">
+    <h3>Enter Marks: {{ subject }} ({{ grade }})</h3>
 
-        <table>
+    <div class="mb-3">
+        <input type="text" id="studentSearch" class="form-control"
+            placeholder="🔍 Search student name or admission number...">
+    </div>
+
+    <form method="POST">
+        <table class="table table-hover" id="marksTable">
             <thead>
                 <tr>
-                    <th>ADM No</th>
+                    <th>ADM NO</th>
                     <th>Student Name</th>
-                    {% for subject in subjects %}
-                    <th>{{ subject }} Score</th>
-                    <th>{{ subject }} Rate</th>
-                    {% if grade.startswith('Grade 7') or grade.startswith('Grade 8') or grade.startswith('Grade 9') %}
-                    <th>{{ subject }} Pts</th>
-                    {% endif %}
-                    {% endfor %}
-                    <th>Total Points</th>
-                    <th>Average Level</th>
+                    <th>Score ({{ subject }})</th>
                 </tr>
             </thead>
             <tbody>
-                {% for student in students %}
-                {% set record = marks_map.get(student.adm_no, {}) %}
-                <tr>
-                    <td>{{ student.adm_no }}</td>
-                    <td>{{ student.student_name }}</td>
-                    {% for subject in subjects %}
-                    {% set scores = record.get(subject, {}) %}
-                    <td><input type="text" name="score_{{ student.adm_no }}_{{ subject }}"
-                            value="{{ scores.get('score', '') }}"></td>
-                    <td><input type="text" name="rating_{{ student.adm_no }}_{{ subject }}"
-                            value="{{ scores.get('rating', '') }}"></td>
-                    {% if grade.startswith('Grade 7') or grade.startswith('Grade 8') or grade.startswith('Grade 9') %}
-                    <td><input type="text" name="points_{{ student.adm_no }}_{{ subject }}"
-                            value="{{ scores.get('points', '') }}"></td>
-                    {% endif %}
-                    {% endfor %}
-                    <td><input type="text" name="total_{{ student.adm_no }}"
-                            value="{{ record.get('total_points', '') }}"></td>
-                    <td><input type="text" name="average_{{ student.adm_no }}"
-                            value="{{ record.get('average_level', '') }}"></td>
+                {% for s in students %}
+                <tr class="student-row">
+                    <td>{{ s.adm_no }}</td>
+                    <td class="student-name">{{ s.student_name }}</td>
+                    <td>
+                        <input type="number" name="score_{{ s.adm_no }}" value="{{ marks_map.get(s.adm_no, '') }}"
+                            class="form-control" style="width: 100px;">
+                    </td>
                 </tr>
                 {% endfor %}
-                {% if not students %}
-                <tr>
-                    <td
-                        colspan="{{ 2 + (subjects|length * (2 + (1 if grade.startswith('Grade 7') or grade.startswith('Grade 8') or grade.startswith('Grade 9') else 0))) + 2 }}">
-                    </td>>Add students first before entering marks.</td>
-                </tr>
-                {% endif %}
             </tbody>
         </table>
-        <button class="button" type="submit" style="margin-top:20px;">Save Marks to Cloud</button>
+        <button type="submit" class="btn btn-primary">Save All Marks</button>
     </form>
 </div>
-{% endblock %}
+
+<script>
+    document.getElementById('studentSearch').addEventListener('keyup', function () {
+        let filter = this.value.toLowerCase();
+        let rows = document.querySelectorAll('.student-row');
+
+        rows.forEach(row => {
+            let name = row.querySelector('.student-name').textContent.toLowerCase();
+            let adm = row.cells[0].textContent.toLowerCase();
+            if (name.includes(filter) || adm.includes(filter)) {
+                row.style.display = "";
+            } else {
+                row.style.display = "none";
+            }
+        });
+    });
+</script>
