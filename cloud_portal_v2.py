@@ -102,7 +102,7 @@ SYSTEM_ADMIN_KEY = "16592@FREE man"
 
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -255,21 +255,25 @@ def delete_school(school_code):
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    if request.method == "POST":
-        sc = request.form.get("school_code", "").strip().lower()
-        un = request.form.get("username", "").strip().lower()
-        pw = request.form.get("password", "")
+    try:
+        if request.method == "POST":
+            sc = request.form.get("school_code", "").strip().lower()
+            un = request.form.get("username", "").strip().lower()
+            pw = request.form.get("password", "")
 
-        auth, err = authenticate_user(sc, un, pw)
-        if err:
-            flash(err, "danger")
-            return redirect(url_for("login"))
+            auth, err = authenticate_user(sc, un, pw)
+            if err:
+                flash(err, "danger")
+                return redirect(url_for("login"))
 
-        session["school_id"] = auth["school"]["id"]
-        session["school_name"] = auth["school"]["school_name"]
-        session["username"] = auth["teacher"]["username"]
-        session["role"] = auth["teacher"].get("role", "teacher")
-        return redirect(url_for("dashboard"))
+            session["school_id"] = auth["school"]["id"]
+            session["school_name"] = auth["school"]["school_name"]
+            session["username"] = auth["teacher"]["username"]
+            session["role"] = auth["teacher"].get("role", "teacher")
+            return redirect(url_for("dashboard"))
+    except Exception as e:
+        # Instead of 'Internal Server Error', this shows the actual problem
+        return f"Database Error: {str(e)}"
     return render_template("cloud_login.html")
 
 
