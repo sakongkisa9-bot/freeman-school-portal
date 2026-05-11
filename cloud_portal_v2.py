@@ -471,7 +471,7 @@ def api_get_marks():
     rows = conn.execute(
         "SELECT * FROM marks WHERE school_id = ? AND grade = ?", (school["id"], gr)
     ).fetchall()
-
+    print(f"DEBUG: Found {len(rows)} marks in DB for school {sc} grade {gr}")
     # 3. Package them up
     marks_list = []
     for r in rows:

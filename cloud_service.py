@@ -143,6 +143,7 @@ class CloudService:
 def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_subject=2):
     # Map by student_name (ensure it matches cloud output)
     record_map = {r.get("student_name", "").strip().lower(): r for r in records}
+    print(f"DEBUG: Cloud Names: {list(record_map.keys())}")
 
     for row_frame in table_frame.winfo_children():
         if not hasattr(row_frame, "grid_slaves"):
@@ -157,6 +158,7 @@ def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_sub
         # widgets[0] is the Name Label. We skip it for inserting but use it for mapping.
         try:
             student_name = widgets[0].cget("text").strip().lower()
+            print(f"DEBUG: Looking for local student: '{student_name}'")
         except:
             continue
 
