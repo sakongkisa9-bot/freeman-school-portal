@@ -320,7 +320,7 @@ def sync_students():
 @app.route("/api/sync_students", methods=["POST"])
 def api_sync_students():
     data = request.json
-    school_code = data.get("school_code")
+    school_code = data.get("school_code").strip().lower()
     students_list = data.get("students", [])
 
     if not school_code:
