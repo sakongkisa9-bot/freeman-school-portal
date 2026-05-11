@@ -310,7 +310,7 @@ def api_sync_students():
                 ),
                 404,
             )
-
+        school_id = school["id"]
         # 2. Insert/Update students
         for s in students_list:
             conn.execute(
@@ -323,7 +323,7 @@ def api_sync_students():
                     phone = excluded.phone
             """,
                 (
-                    school["id"],
+                    school_id,
                     s["grade"],
                     s["adm_no"],
                     s["name"],
