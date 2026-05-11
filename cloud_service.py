@@ -141,21 +141,20 @@ class CloudService:
 
 
 def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_subject=2):
-    # FIX 1: Use 'student_name' (matching cloud output) instead of 'name'
+    # Map by student_name (ensure it matches cloud output)
     record_map = {r.get("student_name", "").strip().lower(): r for r in records}
 
     for row_frame in table_frame.winfo_children():
         if not hasattr(row_frame, "grid_slaves"):
             continue
 
+        # Get all widgets in this row and sort them by their column index
         widgets = row_frame.grid_slaves(row=0)
         if not widgets:
             continue
-
-        # Sort widgets by column position
         widgets.sort(key=lambda w: int(w.grid_info()["column"]))
 
-        # Get student name from the first label
+        # widgets[0] is the Name Label. We skip it for inserting but use it for mapping.
         try:
             student_name = widgets[0].cget("text").strip().lower()
         except:
@@ -166,56 +165,44 @@ def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_sub
             continue
 
         scores = record.get("scores", {})
-
-        # FIX 2: Add bounds checking to prevent IndexError
         num_widgets = len(widgets)
 
+        def safe_write(widget_idx, value):
+            """Internal helper to prevent TclErrors and out-of-bounds crashes."""
+            if widget_idx < num_widgets:
+                w = widgets[widget_idx]
+                # Check if widget is an Entry/TextBox (has delete/insert) and NOT a Label
+                if hasattr(w, "delete") and hasattr(w, "insert"):
+                    # CustomTkinter Labels sometimes have 'insert' but they throw errors
+                    # so we check the widget type string to be safe
+                    if "label" not in str(w).lower():
+                        try:
+                            w.delete(0, "end")
+                            w.insert(0, str(value) if value is not None else "")
+                        except:
+                            pass
+
+        # Loop through subjects based on the columns_per_subject passed (2 or 3)
         for i, subject in enumerate(subjects):
             subject_data = scores.get(subject, {})
-            score_value = subject_data.get("score", "")
-            rating_value = subject_data.get("rating", "")
-            point_value = subject_data.get("points", "")
 
-            # Calculate indices
+            # 1. Score Index (Always 1, 3, 5...)
             score_idx = 1 + i * columns_per_subject
+            safe_write(score_idx, subject_data.get("score", ""))
+
+            # 2. Rating/Grade Index (Always 2, 4, 6...)
             rating_idx = score_idx + 1
+            safe_write(rating_idx, subject_data.get("rating", ""))
 
-            # Only update if the widget index actually exists in this row
-            if score_idx < num_widgets:
-                w = widgets[score_idx]
-                if hasattr(w, "delete"):
-                    w.delete(0, "end")
-                    w.insert(0, str(score_value))
-
-            if rating_idx < num_widgets:
-                w = widgets[rating_idx]
-                if hasattr(w, "delete"):
-                    w.delete(0, "end")
-                    w.insert(0, str(rating_value))
-
+            # 3. Points Index (Only if columns_per_subject is 3, e.g., Junior School)
             if columns_per_subject == 3:
                 point_idx = score_idx + 2
-                if point_idx < num_widgets:
-                    w = widgets[point_idx]
-                    if hasattr(w, "delete"):
-                        w.delete(0, "end")
-                        w.insert(0, str(point_value))
+                safe_write(point_idx, subject_data.get("points", ""))
 
-        # Update Totals and Average (usually the last few columns)
-        # Using negative indices (-3, -2) is safe if total columns >= 3
+        # Update Totals and Average (Usually the last few columns)
         if num_widgets >= 3:
-            try:
-                total_widget = widgets[-3]
-                avg_widget = widgets[-2]
-
-                if hasattr(total_widget, "delete"):
-                    total_widget.delete(0, "end")
-                    total_widget.insert(0, str(record.get("total_points", "")))
-
-                if hasattr(avg_widget, "delete"):
-                    avg_widget.delete(0, "end")
-                    avg_widget.insert(0, str(record.get("average_level", "")))
-            except:
-                pass  # Skip if these aren't entry widgets
+            # We use negative indexing to find the columns from the right side
+            safe_write(num_widgets - 3, record.get("total_points", ""))
+            safe_write(num_widgets - 2, record.get("average_level", ""))
 
     return True
