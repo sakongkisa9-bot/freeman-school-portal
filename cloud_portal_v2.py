@@ -31,7 +31,7 @@ def log_request_info():
 
 from functools import wraps
 
-DB_PATH = os.path.join(PROJECT_DIR, "cloud_portal.db")
+DB_PATH = "/data/freeman_cloud.db"
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
