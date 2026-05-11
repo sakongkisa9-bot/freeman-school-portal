@@ -140,14 +140,10 @@ class CloudService:
         return self._post_json("/api/fetch_students", payload)
 
 
-def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_subject=2):
-    # 1. Create the map from Cloud Data
+def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_subject=3):
+    # 1. Map cloud data by student name
     record_map = {r.get("student_name", "").strip().lower(): r for r in records}
-
-    # Track how many students we successfully fill
     filled_count = 0
-    if record:
-        widgets[0].configure(text_color="green")
 
     for row_frame in table_frame.winfo_children():
         if not hasattr(row_frame, "grid_slaves"):
@@ -157,76 +153,83 @@ def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_sub
         if not widgets:
             continue
 
-        # Sort widgets by column
         widgets.sort(key=lambda w: int(w.grid_info()["column"]))
+        num_widgets = len(widgets)
 
         try:
-            # Get the text from the first widget (usually the name label)
             raw_name = widgets[0].cget("text").strip().lower()
 
-            # CRITICAL: Skip headers or empty rows
+            # Skip headers/empty rows
             if not raw_name or raw_name in [
                 "student name",
                 "math",
                 "eng",
-                "kisw",
                 "s",
                 "r",
                 "p",
                 "tot",
-                "avg",
-                "rank",
             ]:
                 continue
 
+            # Define record here so it is never "unbound"
             record = record_map.get(raw_name)
+
             if not record:
-                # If the name isn't in our cloud data, skip this row entirely
                 continue
 
-            # If we reach here, we found a real student!
+            # SUCCESS: We found a match!
             filled_count += 1
+            # Flash Test: Turn the name green so we know the UI is being hit
+            widgets[0].configure(text_color="#2ecc71")
 
-        except Exception as e:
+        except Exception:
             continue
 
-        # Now we fill the boxes for this specific student
-        scores = record.get("scores", {})
-        num_widgets = len(widgets)
-
-        def safe_write(widget_idx, value):
-            if widget_idx < num_widgets:
-                w = widgets[widget_idx]
+        # Helper function to unlock, write, and relock
+        def safe_write(idx, val):
+            if idx < num_widgets:
+                w = widgets[idx]
                 if hasattr(w, "delete") and hasattr(w, "insert"):
                     if "label" not in str(w).lower():
                         try:
-                            # 1. Temporarily set to normal to allow writing
-                            original_state = w.cget("state")
+                            # UNLOCK the box in case it's readonly
+                            old_state = w.cget("state")
                             w.configure(state="normal")
 
                             w.delete(0, "end")
-                            w.insert(0, str(value) if value is not None else "")
+                            w.insert(0, str(val) if val is not None else "")
 
-                            # 2. Put it back to how it was
-                            w.configure(state=original_state)
+                            # RELOCK to original state
+                            w.configure(state=old_state)
                         except:
                             pass
 
+        # Fill subject marks
+        scores = record.get("scores", {})
         for i, subject in enumerate(subjects):
+            # Check if cloud data is nested: {"MATH": {"score": 80}}
+            # or flat: {"MATH": 80}
             sub_data = scores.get(subject, {})
+
+            if isinstance(sub_data, dict):
+                score_val = sub_data.get("score", "")
+                rating_val = sub_data.get("rating", "")
+                point_val = sub_data.get("points", "")
+            else:
+                # If cloud data is just a single value
+                score_val = sub_data
+                rating_val = ""
+                point_val = ""
+
             base_idx = 1 + (i * columns_per_subject)
-
-            # Fill Score
-            safe_write(base_idx, sub_data.get("score", ""))
-            # Fill Rating
-            safe_write(base_idx + 1, sub_data.get("rating", ""))
-            # Fill Points (if Junior)
+            safe_write(base_idx, score_val)
+            safe_write(base_idx + 1, rating_val)
             if columns_per_subject == 3:
-                safe_write(base_idx + 2, sub_data.get("points", ""))
+                safe_write(base_idx + 2, point_val)
 
-        # Fill Totals/Average from the right side
+        # Totals and Average
         safe_write(num_widgets - 3, record.get("total_points", ""))
         safe_write(num_widgets - 2, record.get("average_level", ""))
 
-    print(f"SUCCESS: Matched and filled {filled_count} students in the table.")
+    print(f"TERMINAL: Successfully updated {filled_count} students.")
     return True
