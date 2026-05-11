@@ -149,11 +149,11 @@ def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_sub
         if not hasattr(row_frame, "grid_slaves"):
             continue
 
-        widgets = row_frame.grid_slaves(row=0)
+        widgets = row_frame.winfo_children()  # Get all children directl
         if not widgets:
             continue
 
-        widgets.sort(key=lambda w: int(w.grid_info()["column"]))
+        widgets.sort(key=lambda w: w.grid_info().get("column", 0))
         num_widgets = len(widgets)
 
         try:
@@ -210,6 +210,9 @@ def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_sub
             # Check if cloud data is nested: {"MATH": {"score": 80}}
             # or flat: {"MATH": 80}
             sub_data = scores.get(subject, {})
+            score_val = ""
+            rating_val = ""
+            point_val = ""
 
             if isinstance(sub_data, dict):
                 score_val = sub_data.get("score", "")
@@ -222,6 +225,9 @@ def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_sub
                 point_val = ""
 
             base_idx = 1 + (i * columns_per_subject)
+            print(
+                f"DEBUG: Student: {raw_name} | Subject: {subject} | Value to Insert: '{score_val}'"
+            )
             safe_write(base_idx, score_val)
             safe_write(base_idx + 1, rating_val)
             if columns_per_subject == 3:
