@@ -141,7 +141,9 @@ class CloudService:
 
 
 def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_subject=2):
-    record_map = {r.get("name", "").strip().lower(): r for r in records}
+    # FIX 1: Use 'student_name' (matching cloud output) instead of 'name'
+    record_map = {r.get("student_name", "").strip().lower(): r for r in records}
+
     for row_frame in table_frame.winfo_children():
         if not hasattr(row_frame, "grid_slaves"):
             continue
@@ -150,44 +152,70 @@ def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_sub
         if not widgets:
             continue
 
+        # Sort widgets by column position
         widgets.sort(key=lambda w: int(w.grid_info()["column"]))
-        student_name = widgets[0].cget("text").strip().lower()
+
+        # Get student name from the first label
+        try:
+            student_name = widgets[0].cget("text").strip().lower()
+        except:
+            continue
+
         record = record_map.get(student_name)
         if not record:
             continue
 
         scores = record.get("scores", {})
+
+        # FIX 2: Add bounds checking to prevent IndexError
+        num_widgets = len(widgets)
+
         for i, subject in enumerate(subjects):
             subject_data = scores.get(subject, {})
             score_value = subject_data.get("score", "")
             rating_value = subject_data.get("rating", "")
             point_value = subject_data.get("points", "")
 
-            score_widget = widgets[1 + i * columns_per_subject]
-            rating_widget = widgets[1 + i * columns_per_subject + 1]
+            # Calculate indices
+            score_idx = 1 + i * columns_per_subject
+            rating_idx = score_idx + 1
 
-            if hasattr(score_widget, "delete"):
-                score_widget.delete(0, "end")
-                score_widget.insert(0, str(score_value))
+            # Only update if the widget index actually exists in this row
+            if score_idx < num_widgets:
+                w = widgets[score_idx]
+                if hasattr(w, "delete"):
+                    w.delete(0, "end")
+                    w.insert(0, str(score_value))
 
-            if hasattr(rating_widget, "delete"):
-                rating_widget.delete(0, "end")
-                rating_widget.insert(0, str(rating_value))
+            if rating_idx < num_widgets:
+                w = widgets[rating_idx]
+                if hasattr(w, "delete"):
+                    w.delete(0, "end")
+                    w.insert(0, str(rating_value))
 
             if columns_per_subject == 3:
-                point_widget = widgets[1 + i * columns_per_subject + 2]
-                if hasattr(point_widget, "delete"):
-                    point_widget.delete(0, "end")
-                    point_widget.insert(0, str(point_value))
+                point_idx = score_idx + 2
+                if point_idx < num_widgets:
+                    w = widgets[point_idx]
+                    if hasattr(w, "delete"):
+                        w.delete(0, "end")
+                        w.insert(0, str(point_value))
 
-        if len(widgets) >= 3:
-            total_widget = widgets[-3]
-            avg_widget = widgets[-2]
-            if hasattr(total_widget, "delete"):
-                total_widget.delete(0, "end")
-                total_widget.insert(0, str(record.get("total_points", "")))
-            if hasattr(avg_widget, "delete"):
-                avg_widget.delete(0, "end")
-                avg_widget.insert(0, str(record.get("average_level", "")))
+        # Update Totals and Average (usually the last few columns)
+        # Using negative indices (-3, -2) is safe if total columns >= 3
+        if num_widgets >= 3:
+            try:
+                total_widget = widgets[-3]
+                avg_widget = widgets[-2]
+
+                if hasattr(total_widget, "delete"):
+                    total_widget.delete(0, "end")
+                    total_widget.insert(0, str(record.get("total_points", "")))
+
+                if hasattr(avg_widget, "delete"):
+                    avg_widget.delete(0, "end")
+                    avg_widget.insert(0, str(record.get("average_level", "")))
+            except:
+                pass  # Skip if these aren't entry widgets
 
     return True
