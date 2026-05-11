@@ -86,20 +86,20 @@ class CloudService:
 
         try:
             url = f"{self.base_url}{endpoint}"
+            # --- DEBUG PRINT ---
+            print(f"SYNC ATTEMPT: Sending data to {url}")
+
             response = self.session.post(url, json=payload, timeout=20)
+
             if response.status_code != 200:
-                return {
-                    "success": False,
-                    "message": f"Cloud portal returned {response.status_code}: {response.text}",
-                }
+                # This will pop up a window telling us exactly what Railway said
+                error_detail = f"Status: {response.status_code}\nURL: {url}\nResponse: {response.text}"
+                print(f"SYNC ERROR:\n{error_detail}")
+                return {"success": False, "message": error_detail}
+
             return response.json()
-        except requests.exceptions.RequestException as e:
-            return {
-                "success": False,
-                "message": f"Could not connect to cloud portal at {self.base_url}: {e}",
-            }
         except Exception as e:
-            return {"success": False, "message": str(e)}
+            return {"success": False, "message": f"Connection Failed: {e}"}
 
     def fetch_marks(self, grade, credentials):
         payload = {

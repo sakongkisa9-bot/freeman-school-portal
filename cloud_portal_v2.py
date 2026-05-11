@@ -14,12 +14,22 @@ import os
 import json
 from datetime import datetime
 import logging
-from functools import wraps
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(PROJECT_DIR, "templates")
 app = Flask(__name__, template_folder=TEMPLATES_DIR)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-2026")
+
+
+@app.before_request
+def log_request_info():
+    # This prints to your Railway "Deployments > View Logs" tab
+    app.logger.debug("Headers: %s", request.headers)
+    app.logger.debug("Body: %s", request.get_data())
+    print(f"DEBUG: Request received at {request.path} from {request.remote_addr}")
+
+
+from functools import wraps
 
 DB_PATH = os.path.join(PROJECT_DIR, "cloud_portal.db")
 
