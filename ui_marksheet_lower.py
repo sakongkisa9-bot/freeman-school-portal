@@ -183,26 +183,48 @@ class LowerMarkSheetView(ctk.CTkFrame):
         self.btn_back.pack(side="right", padx=20, pady=15)
 
     def fetch_cloud_data(self):
+        # 1. Get login details
         credentials = ask_cloud_credentials(self)
         if not credentials:
             return
+
         service = CloudService()
+
+        # 2. Call the cloud API
+        # Ensure this method in cloud_service.py uses the '/api/get_marks' endpoint
         result = service.fetch_marks(self.class_name, credentials)
-        if not result.get("success"):
+
+        # 3. Handle the response
+        if result.get("success"):
+            # The cloud sends data in the "marks" key
+            marks_data = result.get("marks", [])
+
+            if not marks_data:
+                messagebox.showinfo(
+                    "Cloud Fetch", "No marks found on the cloud for this class."
+                )
+                return
+
+            # Get subjects to align columns correctly
+            subjects = self.get_subjects_from_json()
+
+            # 4. Fill the table (Junior uses 3 columns per subject)
+            apply_cloud_records_to_table(
+                self.table_inner_frame, marks_data, subjects, columns_per_subject=2
+            )
+
+            # 5. Success Message
+            messagebox.showinfo(
+                "Cloud Fetch",
+                f"Successfully synchronized {len(marks_data)} student records.",
+            )
+
+        else:
+            # If result['success'] is False
             messagebox.showerror(
                 "Cloud Fetch Failed",
                 result.get("message", "Could not fetch cloud marks."),
             )
-            return
-        subjects = self.get_subjects_from_json()
-        marks_data = result.get("marks", [])
-        apply_cloud_records_to_table(
-            self.table_inner, marks_data, subjects, columns_per_subject=2
-        )
-        messagebox.showinfo(
-            "Cloud Fetch",
-            f"Fetched {len(result.get('records', []))} records from cloud.",
-        )
 
     def refresh_local_data(self):
         # Simply reload the students and marks from the local sqlite db
