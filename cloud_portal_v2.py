@@ -284,7 +284,7 @@ def dashboard():
 @app.route("/api/upload_students", methods=["POST"])
 def api_sync_students():
     data = request.json
-    school_code = data.get("school_code").strip().lower()
+    school_code = data.get("school_code").strip()
     students_list = data.get("students", [])
 
     if not school_code:
