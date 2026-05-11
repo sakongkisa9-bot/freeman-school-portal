@@ -108,7 +108,7 @@ class CloudService:
             "password": credentials["password"],
             "grade": grade,
         }
-        return self._post_json("/api/sync_students", payload)
+        return self._post_json("/api/get_marks", payload)
 
     def upload_marks(self, grade, exam_title, records, credentials):
         payload = {

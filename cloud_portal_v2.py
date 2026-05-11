@@ -452,6 +452,43 @@ def select_subject(grade):
     return render_template("cloud_select_subject.html", grade=grade, subjects=subjects)
 
 
+@app.route("/api/get_marks", methods=["POST"])
+def api_get_marks():
+    data = request.json
+    sc = data.get("school_code", "").strip().lower()
+    gr = data.get("grade")
+
+    conn = get_db()
+    # 1. Find school
+    school = conn.execute(
+        "SELECT id FROM schools WHERE school_code=?", (sc,)
+    ).fetchone()
+
+    if not school:
+        return jsonify({"success": False, "message": "School not found"}), 404
+
+    # 2. Get marks for that grade
+    rows = conn.execute(
+        "SELECT * FROM marks WHERE school_id = ? AND grade = ?", (school["id"], gr)
+    ).fetchall()
+
+    # 3. Package them up
+    marks_list = []
+    for r in rows:
+        marks_list.append(
+            {
+                "adm_no": r["adm_no"],
+                "student_name": r["student_name"],
+                "grade": r["grade"],
+                "exam_title": r["exam_title"],
+                "scores": json.loads(r["subject_scores_json"]),
+            }
+        )
+
+    # Return with the key 'marks'
+    return jsonify({"success": True, "marks": marks_list})
+
+
 @app.route("/students/<grade>")
 def manage_students(grade):
     if "school_id" not in session:
