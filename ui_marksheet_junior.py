@@ -504,6 +504,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             apply_cloud_records_to_table(
                 self.table_inner_frame, marks_data, subjects, columns_per_subject=3
             )
+            self.update_idletasks()
 
             # 5. Success Message
             messagebox.showinfo(

@@ -146,6 +146,8 @@ def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_sub
 
     # Track how many students we successfully fill
     filled_count = 0
+    if record:
+        widgets[0].configure(text_color="green")
 
     for row_frame in table_frame.winfo_children():
         if not hasattr(row_frame, "grid_slaves"):
@@ -195,12 +197,18 @@ def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_sub
         def safe_write(widget_idx, value):
             if widget_idx < num_widgets:
                 w = widgets[widget_idx]
-                # Double check it's an entry box and not a label
                 if hasattr(w, "delete") and hasattr(w, "insert"):
                     if "label" not in str(w).lower():
                         try:
+                            # 1. Temporarily set to normal to allow writing
+                            original_state = w.cget("state")
+                            w.configure(state="normal")
+
                             w.delete(0, "end")
                             w.insert(0, str(value) if value is not None else "")
+
+                            # 2. Put it back to how it was
+                            w.configure(state=original_state)
                         except:
                             pass
 
