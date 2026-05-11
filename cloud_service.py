@@ -141,15 +141,38 @@ class CloudService:
 
 
 def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_subject=3):
-    # 1. Map cloud data by student name
-    record_map = {r.get("student_name", "").strip().lower(): r for r in records}
+    """
+    Synchronizes cloud data into the local Tkinter table.
+    - Junior School: columns_per_subject=3 (Score, Rating, Points)
+    - Primary/Lower: columns_per_subject=2 (Score, Rating)
+    """
+    # 1. Map cloud data using a 'Normalized' name (no spaces, all lowercase)
+    # This prevents mismatches due to accidental double spaces or casing.
+    record_map = {
+        "".join(r.get("student_name", "").split()).lower(): r for r in records
+    }
     filled_count = 0
 
+    # Header/System labels to ignore if found in the first column
+    ignore_list = [
+        "studentname",
+        "math",
+        "eng",
+        "kisw",
+        "s",
+        "r",
+        "p",
+        "tot",
+        "avg",
+        "rank",
+    ]
+
     for row_frame in table_frame.winfo_children():
-        if not hasattr(row_frame, "grid_slaves"):
+        if not hasattr(row_frame, "winfo_children"):
             continue
 
-        widgets = row_frame.winfo_children()  # Get all children directl
+        # Get all widgets in the row and sort them strictly by column index
+        widgets = row_frame.winfo_children()
         if not widgets:
             continue
 
@@ -157,83 +180,74 @@ def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_sub
         num_widgets = len(widgets)
 
         try:
-            raw_name = widgets[0].cget("text").strip().lower()
+            # 2. Get and Normalize the local name for matching
+            raw_text = widgets[0].cget("text")
+            clean_local_name = "".join(raw_text.split()).lower()
 
-            # Skip headers/empty rows
-            if not raw_name or raw_name in [
-                "student name",
-                "math",
-                "eng",
-                "s",
-                "r",
-                "p",
-                "tot",
-            ]:
+            # Skip header rows or empty rows
+            if not clean_local_name or clean_local_name in ignore_list:
                 continue
 
-            # Define record here so it is never "unbound"
-            record = record_map.get(raw_name)
-
+            # 3. Search for student in the Cloud Map
+            record = record_map.get(clean_local_name)
             if not record:
+                # Debugging mismatch (Optional)
+                # print(f"DEBUG: No cloud match for local student: '{clean_local_name}'")
                 continue
 
-            # SUCCESS: We found a match!
-            filled_count += 1
-            # Flash Test: Turn the name green so we know the UI is being hit
+            # MATCH FOUND: Turn name green to visually confirm sync is hitting the UI
             widgets[0].configure(text_color="#2ecc71")
+            filled_count += 1
 
-        except Exception:
+        except Exception as e:
+            print(f"DEBUG: Error processing row: {e}")
             continue
 
-        # Helper function to unlock, write, and relock
+        # 4. Helper function to handle writing to Entry widgets safely
         def safe_write(idx, val):
             if idx < num_widgets:
                 w = widgets[idx]
+                # Check if widget is a text-entry type (Entry or CTkEntry)
                 if hasattr(w, "delete") and hasattr(w, "insert"):
                     if "label" not in str(w).lower():
                         try:
-                            # UNLOCK the box in case it's readonly
-                            old_state = w.cget("state")
+                            # Force state to normal to ensure we can write
+                            current_state = w.cget("state")
                             w.configure(state="normal")
 
                             w.delete(0, "end")
                             w.insert(0, str(val) if val is not None else "")
 
-                            # RELOCK to original state
-                            w.configure(state=old_state)
+                            # Restore original state (readonly/disabled/normal)
+                            w.configure(state=current_state)
                         except:
                             pass
 
-        # Fill subject marks
+        # 5. Fill subject scores
         scores = record.get("scores", {})
         for i, subject in enumerate(subjects):
-            # Check if cloud data is nested: {"MATH": {"score": 80}}
-            # or flat: {"MATH": 80}
             sub_data = scores.get(subject, {})
-            score_val = ""
-            rating_val = ""
-            point_val = ""
 
+            # Extract data regardless of whether cloud format is nested or flat
             if isinstance(sub_data, dict):
                 score_val = sub_data.get("score", "")
                 rating_val = sub_data.get("rating", "")
                 point_val = sub_data.get("points", "")
             else:
-                # If cloud data is just a single value
                 score_val = sub_data
                 rating_val = ""
                 point_val = ""
 
+            # Standard positioning logic: Name is index 0, so subjects start at index 1
             base_idx = 1 + (i * columns_per_subject)
-            print(
-                f"DEBUG: Student: {raw_name} | Subject: {subject} | Value to Insert: '{score_val}'"
-            )
+
             safe_write(base_idx, score_val)
             safe_write(base_idx + 1, rating_val)
             if columns_per_subject == 3:
                 safe_write(base_idx + 2, point_val)
 
-        # Totals and Average
+        # 6. Update Totals and Averages (usually at the end of the row)
+        # Using negative indexing to count back from the right side
         safe_write(num_widgets - 3, record.get("total_points", ""))
         safe_write(num_widgets - 2, record.get("average_level", ""))
 
