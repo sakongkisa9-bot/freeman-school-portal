@@ -141,42 +141,62 @@ class CloudService:
 
 
 def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_subject=2):
-    # Map by student_name (ensure it matches cloud output)
+    # 1. Create the map from Cloud Data
     record_map = {r.get("student_name", "").strip().lower(): r for r in records}
-    print(f"DEBUG: Cloud Names: {list(record_map.keys())}")
+
+    # Track how many students we successfully fill
+    filled_count = 0
 
     for row_frame in table_frame.winfo_children():
         if not hasattr(row_frame, "grid_slaves"):
             continue
 
-        # Get all widgets in this row and sort them by their column index
         widgets = row_frame.grid_slaves(row=0)
         if not widgets:
             continue
+
+        # Sort widgets by column
         widgets.sort(key=lambda w: int(w.grid_info()["column"]))
 
-        # widgets[0] is the Name Label. We skip it for inserting but use it for mapping.
         try:
-            student_name = widgets[0].cget("text").strip().lower()
-            print(f"DEBUG: Looking for local student: '{student_name}'")
-        except:
+            # Get the text from the first widget (usually the name label)
+            raw_name = widgets[0].cget("text").strip().lower()
+
+            # CRITICAL: Skip headers or empty rows
+            if not raw_name or raw_name in [
+                "student name",
+                "math",
+                "eng",
+                "kisw",
+                "s",
+                "r",
+                "p",
+                "tot",
+                "avg",
+                "rank",
+            ]:
+                continue
+
+            record = record_map.get(raw_name)
+            if not record:
+                # If the name isn't in our cloud data, skip this row entirely
+                continue
+
+            # If we reach here, we found a real student!
+            filled_count += 1
+
+        except Exception as e:
             continue
 
-        record = record_map.get(student_name)
-        if not record:
-            continue
-
+        # Now we fill the boxes for this specific student
         scores = record.get("scores", {})
         num_widgets = len(widgets)
 
         def safe_write(widget_idx, value):
-            """Internal helper to prevent TclErrors and out-of-bounds crashes."""
             if widget_idx < num_widgets:
                 w = widgets[widget_idx]
-                # Check if widget is an Entry/TextBox (has delete/insert) and NOT a Label
+                # Double check it's an entry box and not a label
                 if hasattr(w, "delete") and hasattr(w, "insert"):
-                    # CustomTkinter Labels sometimes have 'insert' but they throw errors
-                    # so we check the widget type string to be safe
                     if "label" not in str(w).lower():
                         try:
                             w.delete(0, "end")
@@ -184,27 +204,21 @@ def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_sub
                         except:
                             pass
 
-        # Loop through subjects based on the columns_per_subject passed (2 or 3)
         for i, subject in enumerate(subjects):
-            subject_data = scores.get(subject, {})
+            sub_data = scores.get(subject, {})
+            base_idx = 1 + (i * columns_per_subject)
 
-            # 1. Score Index (Always 1, 3, 5...)
-            score_idx = 1 + i * columns_per_subject
-            safe_write(score_idx, subject_data.get("score", ""))
-
-            # 2. Rating/Grade Index (Always 2, 4, 6...)
-            rating_idx = score_idx + 1
-            safe_write(rating_idx, subject_data.get("rating", ""))
-
-            # 3. Points Index (Only if columns_per_subject is 3, e.g., Junior School)
+            # Fill Score
+            safe_write(base_idx, sub_data.get("score", ""))
+            # Fill Rating
+            safe_write(base_idx + 1, sub_data.get("rating", ""))
+            # Fill Points (if Junior)
             if columns_per_subject == 3:
-                point_idx = score_idx + 2
-                safe_write(point_idx, subject_data.get("points", ""))
+                safe_write(base_idx + 2, sub_data.get("points", ""))
 
-        # Update Totals and Average (Usually the last few columns)
-        if num_widgets >= 3:
-            # We use negative indexing to find the columns from the right side
-            safe_write(num_widgets - 3, record.get("total_points", ""))
-            safe_write(num_widgets - 2, record.get("average_level", ""))
+        # Fill Totals/Average from the right side
+        safe_write(num_widgets - 3, record.get("total_points", ""))
+        safe_write(num_widgets - 2, record.get("average_level", ""))
 
+    print(f"SUCCESS: Matched and filled {filled_count} students in the table.")
     return True
