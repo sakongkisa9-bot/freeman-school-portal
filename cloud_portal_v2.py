@@ -281,6 +281,7 @@ def dashboard():
 
 
 @app.route("/api/sync_students", methods=["POST"])
+@app.route("/api/upload_students", methods=["POST"])
 def api_sync_students():
     data = request.json
     school_code = data.get("school_code").strip().lower()
