@@ -141,19 +141,12 @@ class CloudService:
 
 
 def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_subject=3):
-    """
-    Synchronizes cloud data into the local Tkinter table.
-    - Junior School: columns_per_subject=3 (Score, Rating, Points)
-    - Primary/Lower: columns_per_subject=2 (Score, Rating)
-    """
-    # 1. Map cloud data using a 'Normalized' name (no spaces, all lowercase)
-    # This prevents mismatches due to accidental double spaces or casing.
+    # 1. Map cloud data
     record_map = {
         "".join(r.get("student_name", "").split()).lower(): r for r in records
     }
     filled_count = 0
 
-    # Header/System labels to ignore if found in the first column
     ignore_list = [
         "studentname",
         "math",
@@ -168,10 +161,6 @@ def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_sub
     ]
 
     for row_frame in table_frame.winfo_children():
-        if not hasattr(row_frame, "winfo_children"):
-            continue
-
-        # Get all widgets in the row and sort them strictly by column index
         widgets = row_frame.winfo_children()
         if not widgets:
             continue
@@ -180,13 +169,11 @@ def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_sub
         num_widgets = len(widgets)
 
         try:
-            # 1. Find the first widget with a 'text' attribute
+            # Finding the name widget
             name_widget = None
             raw_text = ""
-
             for w in widgets:
                 try:
-                    # Check if it has a text attribute
                     raw_text = w.cget("text")
                     name_widget = w
                     break
@@ -196,96 +183,70 @@ def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_sub
             if not name_widget:
                 continue
 
-            # 2. Normalize the name
             clean_local_name = "".join(str(raw_text).split()).lower()
-
-            # Skip system headers
             if not clean_local_name or clean_local_name in ignore_list:
                 continue
 
-            # 3. Match against the Cloud Map
             record = record_map.get(clean_local_name)
             if not record:
                 continue
 
-            # SUCCESS: Match found!
-            # Safely try to change color for visual feedback
+            # Visual Feedback
             try:
-                # Try CustomTkinter style first
                 name_widget.configure(text_color="#2ecc71")
             except:
                 try:
-                    # Fallback for standard Tkinter labels
                     name_widget.configure(foreground="green")
                 except:
-                    pass  # If color change fails, don't stop the sync!
+                    pass
 
-            filled_count += 1
+            # --- THE FIX STARTS HERE ---
+            scores = record.get("scores", {})
 
-        except Exception as e:
-            print(f"DEBUG: Row Error: {e}")
-            continue
+            for i, subject in enumerate(subjects):
+                # Try every variation of the subject name to find a match
+                val_data = (
+                    scores.get(subject)
+                    or scores.get(subject.upper())
+                    or scores.get(subject.lower())
+                )
 
-        # 4. Helper function to handle writing to Entry widgets safely
-        def safe_write(idx, val):
-            if idx < num_widgets:
-                w = widgets[idx]
-                # Check if widget is a text-entry type (Entry or CTkEntry)
-                if hasattr(w, "delete") and hasattr(w, "insert"):
-                    if "label" not in str(w).lower():
-                        try:
-                            # Force state to normal to ensure we can write
-                            current_state = w.cget("state")
-                            w.configure(state="normal")
-
-                            w.delete(0, "end")
-                            w.insert(0, str(val) if val is not None else "")
-
-                            # Restore original state (readonly/disabled/normal)
-                            w.configure(state=current_state)
-                        except:
-                            pass
-
-        # 5. Fill subject scores
-        scores = record.get("scores", {})
-
-        # DEBUG: Let's see what keys are coming from the cloud
-        # print(f"Cloud keys for {clean_local_name}: {list(scores.keys())}")
-
-        for i, subject in enumerate(subjects):
-            # Try to find the subject mark.
-            # We check the exact name, and then a lowercase version just in case.
-            sub_data = (
-                scores.get(subject)
-                or scores.get(subject.upper())
-                or scores.get(subject.lower(), {})
-            )
-
-            # Extract values from nested or flat JSON
-            if isinstance(sub_data, dict):
-                score_val = sub_data.get("score", "")
-                rating_val = sub_data.get("rating", "")
-                point_val = sub_data.get("points", "")
-            else:
-                score_val = sub_data
+                score_val = ""
                 rating_val = ""
                 point_val = ""
 
-            # Calculate where the entry boxes start
-            # Usually: Name(0), Sub1_Score(1), Sub1_Rating(2), Sub1_Points(3)...
-            base_idx = 1 + (i * columns_per_subject)
+                if isinstance(val_data, dict):
+                    score_val = val_data.get("score", "")
+                    rating_val = val_data.get("rating", "")
+                    point_val = val_data.get("points", "")
+                elif val_data is not None:
+                    score_val = val_data
 
-            # Use the safe_write helper we built
-            safe_write(base_idx, score_val)
-            safe_write(base_idx + 1, rating_val)
+                # Calculate indices
+                base_idx = 1 + (i * columns_per_subject)
 
-            if columns_per_subject == 3:
-                safe_write(base_idx + 2, point_val)
+                # Manual inline write to avoid function call overhead/errors
+                for offset, value in enumerate([score_val, rating_val, point_val]):
+                    target_idx = base_idx + offset
+                    if target_idx < num_widgets and offset < columns_per_subject:
+                        w = widgets[target_idx]
+                        if hasattr(w, "delete") and hasattr(w, "insert"):
+                            try:
+                                # Standard CTk/Tkinter Entry Update
+                                curr_state = w.cget("state")
+                                w.configure(state="normal")
+                                w.delete(0, "end")
+                                w.insert(0, str(value) if value is not None else "")
+                                w.configure(state=curr_state)
+                            except:
+                                pass
 
-        # 6. Update Totals and Averages (The last columns)
-        # Often these are the last 3 widgets: Total, Avg, Rank
-        try:
-            safe_write(num_widgets - 3, record.get("total_points", ""))
-            safe_write(num_widgets - 2, record.get("average_level", ""))
-        except:
-            pass
+            filled_count += 1
+            print(f"✅ Filled marks for: {clean_local_name}")
+
+        except Exception as e:
+            print(f"❌ Error on student row: {e}")
+            continue
+
+    print(f"--- SYNC COMPLETE: Updated {filled_count} students ---")
+    return True
