@@ -248,10 +248,20 @@ def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_sub
 
         # 5. Fill subject scores
         scores = record.get("scores", {})
-        for i, subject in enumerate(subjects):
-            sub_data = scores.get(subject, {})
 
-            # Extract data regardless of whether cloud format is nested or flat
+        # DEBUG: Let's see what keys are coming from the cloud
+        # print(f"Cloud keys for {clean_local_name}: {list(scores.keys())}")
+
+        for i, subject in enumerate(subjects):
+            # Try to find the subject mark.
+            # We check the exact name, and then a lowercase version just in case.
+            sub_data = (
+                scores.get(subject)
+                or scores.get(subject.upper())
+                or scores.get(subject.lower(), {})
+            )
+
+            # Extract values from nested or flat JSON
             if isinstance(sub_data, dict):
                 score_val = sub_data.get("score", "")
                 rating_val = sub_data.get("rating", "")
@@ -261,18 +271,21 @@ def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_sub
                 rating_val = ""
                 point_val = ""
 
-            # Standard positioning logic: Name is index 0, so subjects start at index 1
+            # Calculate where the entry boxes start
+            # Usually: Name(0), Sub1_Score(1), Sub1_Rating(2), Sub1_Points(3)...
             base_idx = 1 + (i * columns_per_subject)
 
+            # Use the safe_write helper we built
             safe_write(base_idx, score_val)
             safe_write(base_idx + 1, rating_val)
+
             if columns_per_subject == 3:
                 safe_write(base_idx + 2, point_val)
 
-        # 6. Update Totals and Averages (usually at the end of the row)
-        # Using negative indexing to count back from the right side
-        safe_write(num_widgets - 3, record.get("total_points", ""))
-        safe_write(num_widgets - 2, record.get("average_level", ""))
-
-    print(f"TERMINAL: Successfully updated {filled_count} students.")
-    return True
+        # 6. Update Totals and Averages (The last columns)
+        # Often these are the last 3 widgets: Total, Avg, Rank
+        try:
+            safe_write(num_widgets - 3, record.get("total_points", ""))
+            safe_write(num_widgets - 2, record.get("average_level", ""))
+        except:
+            pass
