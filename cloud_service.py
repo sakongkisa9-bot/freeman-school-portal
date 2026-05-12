@@ -180,27 +180,46 @@ def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_sub
         num_widgets = len(widgets)
 
         try:
-            # 2. Get and Normalize the local name for matching
-            raw_text = widgets[0].cget("text")
-            clean_local_name = "".join(raw_text.split()).lower()
+            # 1. Find the first widget in the row that actually has a 'text' attribute
+            # This skips over frames, canvases, or spacers that were causing the crash.
+            name_widget = None
+            raw_text = ""
 
-            # Skip header rows or empty rows
+            for w in widgets:
+                # Check if the widget supports the 'text' option
+                # Most CustomTkinter text widgets (Labels, Buttons) have this.
+                try:
+                    raw_text = w.cget("text")
+                    name_widget = w
+                    break  # Found it! Stop looking at other widgets in this row.
+                except:
+                    continue  # Not a text widget, try the next one
+
+            if not name_widget:
+                continue
+
+            # 2. Normalize the text for matching
+            clean_local_name = "".join(str(raw_text).split()).lower()
+
+            # Skip header rows, empty rows, or system keywords
             if not clean_local_name or clean_local_name in ignore_list:
                 continue
 
-            # 3. Search for student in the Cloud Map
+            # 3. Match against the Cloud Map
             record = record_map.get(clean_local_name)
             if not record:
-                # Debugging mismatch (Optional)
-                # print(f"DEBUG: No cloud match for local student: '{clean_local_name}'")
+                # Use this to see what the app is seeing vs what you expect
+                # print(f"DEBUG: No Cloud match for: '{clean_local_name}'")
                 continue
 
-            # MATCH FOUND: Turn name green to visually confirm sync is hitting the UI
-            widgets[0].configure(text_color="#2ecc71")
+            # SUCCESS: Match found!
+            # Turn the name green so we know the UI is active.
+            name_widget.configure(text_color="#2ecc71")
             filled_count += 1
 
         except Exception as e:
-            print(f"DEBUG: Error processing row: {e}")
+            # Catch-all for unexpected UI structure issues
+            print(f"DEBUG: Row Error: {e}")
             continue
 
         # 4. Helper function to handle writing to Entry widgets safely
