@@ -198,18 +198,26 @@ def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_sub
                 try:
                     name_widget.configure(foreground="green")
                 except:
+                    # Inside the student loop in cloud_service.py
+                    print(
+                        f"DEBUG: Found keys in Cloud for {clean_local_name}: {list(scores.keys())}"
+                    )
+                    print(f"DEBUG: Local subjects we are looking for: {subjects}")
                     pass
 
             # --- THE FIX STARTS HERE ---
             scores = record.get("scores", {})
 
             for i, subject in enumerate(subjects):
-                # Try every variation of the subject name to find a match
-                val_data = (
-                    scores.get(subject)
-                    or scores.get(subject.upper())
-                    or scores.get(subject.lower())
-                )
+                # Try to find a match by comparing 'cleaned' versions of the subject names
+                # This matches 'MATH' to 'Math' or 'Mathematics' if it starts with the same letters
+                val_data = None
+                clean_sub = subject.strip().lower()
+
+                for cloud_key in scores.keys():
+                    if clean_sub in cloud_key.lower() or cloud_key.lower() in clean_sub:
+                        val_data = scores[cloud_key]
+                        break
 
                 score_val = ""
                 rating_val = ""
