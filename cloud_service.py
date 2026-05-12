@@ -180,45 +180,49 @@ def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_sub
         num_widgets = len(widgets)
 
         try:
-            # 1. Find the first widget in the row that actually has a 'text' attribute
-            # This skips over frames, canvases, or spacers that were causing the crash.
+            # 1. Find the first widget with a 'text' attribute
             name_widget = None
             raw_text = ""
 
             for w in widgets:
-                # Check if the widget supports the 'text' option
-                # Most CustomTkinter text widgets (Labels, Buttons) have this.
                 try:
+                    # Check if it has a text attribute
                     raw_text = w.cget("text")
                     name_widget = w
-                    break  # Found it! Stop looking at other widgets in this row.
+                    break
                 except:
-                    continue  # Not a text widget, try the next one
+                    continue
 
             if not name_widget:
                 continue
 
-            # 2. Normalize the text for matching
+            # 2. Normalize the name
             clean_local_name = "".join(str(raw_text).split()).lower()
 
-            # Skip header rows, empty rows, or system keywords
+            # Skip system headers
             if not clean_local_name or clean_local_name in ignore_list:
                 continue
 
             # 3. Match against the Cloud Map
             record = record_map.get(clean_local_name)
             if not record:
-                # Use this to see what the app is seeing vs what you expect
-                # print(f"DEBUG: No Cloud match for: '{clean_local_name}'")
                 continue
 
             # SUCCESS: Match found!
-            # Turn the name green so we know the UI is active.
-            name_widget.configure(text_color="#2ecc71")
+            # Safely try to change color for visual feedback
+            try:
+                # Try CustomTkinter style first
+                name_widget.configure(text_color="#2ecc71")
+            except:
+                try:
+                    # Fallback for standard Tkinter labels
+                    name_widget.configure(foreground="green")
+                except:
+                    pass  # If color change fails, don't stop the sync!
+
             filled_count += 1
 
         except Exception as e:
-            # Catch-all for unexpected UI structure issues
             print(f"DEBUG: Row Error: {e}")
             continue
 
