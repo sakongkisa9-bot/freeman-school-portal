@@ -210,7 +210,7 @@ class PP2MarkSheetView(ctk.CTkFrame):
 
             # 4. Fill the table (Junior uses 3 columns per subject)
             apply_cloud_records_to_table(
-                self.table_inner_frame, marks_data, subjects, columns_per_subject=2
+                self.table_inner, marks_data, subjects, columns_per_subject=2
             )
             self.update_idletasks()
 
