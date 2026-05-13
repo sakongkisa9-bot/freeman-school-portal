@@ -140,121 +140,97 @@ class CloudService:
         return self._post_json("/api/fetch_students", payload)
 
 
-def apply_cloud_records_to_table(table_frame, records, subjects, columns_per_subject=3):
-    # 1. Map cloud data
+def apply_cloud_records_to_table(
+    table_inner_frame, records, subjects, columns_per_subject=3
+):
+    # 1. Map cloud data for easy lookup
     record_map = {
         "".join(r.get("student_name", "").split()).lower(): r for r in records
     }
+
+    # 2. Get all widgets and group them by row
+    all_widgets = table_inner_frame.winfo_children()
+    rows = {}
+
+    for w in all_widgets:
+        info = w.grid_info()
+        r_idx = info.get("row")
+        if r_idx is not None and r_idx >= 2:  # Skip the 2 header rows
+            if r_idx not in rows:
+                rows[r_idx] = []
+            rows[r_idx].append(w)
+
     filled_count = 0
 
-    ignore_list = [
-        "studentname",
-        "math",
-        "eng",
-        "kisw",
-        "s",
-        "r",
-        "p",
-        "tot",
-        "avg",
-        "rank",
-    ]
+    # 3. Process each row
+    for r_idx in sorted(rows.keys()):
+        widgets = sorted(rows[r_idx], key=lambda w: w.grid_info().get("column", 0))
 
-    for row_frame in table_frame.winfo_children():
-        widgets = row_frame.winfo_children()
-        if not widgets:
-            continue
+        # In your Junior UI, Column 0 is the Name Label
+        name_widget = widgets[0]
 
-        widgets.sort(key=lambda w: w.grid_info().get("column", 0))
-        num_widgets = len(widgets)
-
-        try:
-            # Finding the name widget
-            name_widget = None
-            raw_text = ""
-            for w in widgets:
-                try:
-                    raw_text = w.cget("text")
-                    name_widget = w
-                    break
-                except:
-                    continue
-
-            if not name_widget:
-                continue
-
-            clean_local_name = "".join(str(raw_text).split()).lower()
-            if not clean_local_name or clean_local_name in ignore_list:
-                continue
-
-            record = record_map.get(clean_local_name)
-            if not record:
-                continue
-
-            # Visual Feedback
+        # If it's a CTkFrame (from the 'Fixed Row Alignment' fix), get the label inside it
+        if hasattr(name_widget, "winfo_children") and name_widget.winfo_children():
+            name_label = name_widget.winfo_children()[0]
             try:
-                name_widget.configure(text_color="#2ecc71")
+                raw_name = name_label.cget("text")
             except:
-                try:
-                    name_widget.configure(foreground="green")
-                except:
-                    # Inside the student loop in cloud_service.py
-                    print(
-                        f"DEBUG: Found keys in Cloud for {clean_local_name}: {list(scores.keys())}"
-                    )
-                    print(f"DEBUG: Local subjects we are looking for: {subjects}")
-                    pass
+                continue
+        else:
+            try:
+                raw_name = name_widget.cget("text")
+            except:
+                continue
 
-            # --- THE FIX STARTS HERE ---
+        clean_local_name = "".join(str(raw_name).split()).lower()
+        record = record_map.get(clean_local_name)
+
+        if record:
             scores = record.get("scores", {})
 
+            # Highlight name to show sync worked
+            try:
+                name_widget.configure(fg_color="#1e3a24")  # Dark green background
+            except:
+                pass
+
             for i, subject in enumerate(subjects):
-                # Try to find a match by comparing 'cleaned' versions of the subject names
-                # This matches 'MATH' to 'Math' or 'Mathematics' if it starts with the same letters
+                # Match subject names flexibly
                 val_data = None
                 clean_sub = subject.strip().lower()
-
                 for cloud_key in scores.keys():
                     if clean_sub in cloud_key.lower() or cloud_key.lower() in clean_sub:
                         val_data = scores[cloud_key]
                         break
 
-                score_val = ""
-                rating_val = ""
-                point_val = ""
-
+                # Extract values
                 if isinstance(val_data, dict):
-                    score_val = val_data.get("score", "")
-                    rating_val = val_data.get("rating", "")
-                    point_val = val_data.get("points", "")
-                elif val_data is not None:
-                    score_val = val_data
+                    vals = [
+                        val_data.get("score", ""),
+                        val_data.get("rating", ""),
+                        val_data.get("points", ""),
+                    ]
+                else:
+                    vals = [val_data if val_data is not None else "", "", ""]
 
-                # Calculate indices
-                base_idx = 1 + (i * columns_per_subject)
+                # Target the correct entry boxes
+                # Column 0 = Name, 1-3 = Subj1, 4-6 = Subj2...
+                base_col = 1 + (i * columns_per_subject)
 
-                # Manual inline write to avoid function call overhead/errors
-                for offset, value in enumerate([score_val, rating_val, point_val]):
-                    target_idx = base_idx + offset
-                    if target_idx < num_widgets and offset < columns_per_subject:
-                        w = widgets[target_idx]
-                        if hasattr(w, "delete") and hasattr(w, "insert"):
-                            try:
-                                # Standard CTk/Tkinter Entry Update
+                for offset in range(columns_per_subject):
+                    target_col = base_col + offset
+                    # Find the widget sitting in this specific column
+                    for w in widgets:
+                        if int(w.grid_info().get("column")) == target_col:
+                            if hasattr(w, "delete"):
                                 curr_state = w.cget("state")
                                 w.configure(state="normal")
                                 w.delete(0, "end")
-                                w.insert(0, str(value) if value is not None else "")
+                                w.insert(0, str(vals[offset]))
                                 w.configure(state=curr_state)
-                            except:
-                                pass
+                            break
 
             filled_count += 1
-            print(f"✅ Filled marks for: {clean_local_name}")
+            print(f"✅ Sync Successful: {raw_name}")
 
-        except Exception as e:
-            print(f"❌ Error on student row: {e}")
-            continue
-
-    print(f"--- SYNC COMPLETE: Updated {filled_count} students ---")
     return True

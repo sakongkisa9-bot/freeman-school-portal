@@ -720,55 +720,29 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                 # 4. Collect Marks for each subject
                 update_parts = []
                 values = []
-
+                # Replace the manual logic in save_all_marks with this:
                 for i, sub in enumerate(subjects):
                     col_start = 1 + (i * 3)
-                    # Clean the subject name for database column names
-                    b = (
-                        sub.replace(" ", "_")
-                        .replace("-", "_")
-                        .lower()
-                        .replace("/", "_")
+                    # CLEANER & SAFER: Use the existing helper function
+                    base = get_clean_col_name(sub)
+
+                    # Get values from grid
+                    s_widgets = self.table_inner_frame.grid_slaves(
+                        row=r, column=col_start
+                    )
+                    r_widgets = self.table_inner_frame.grid_slaves(
+                        row=r, column=col_start + 1
+                    )
+                    p_widgets = self.table_inner_frame.grid_slaves(
+                        row=r, column=col_start + 2
                     )
 
-                    # Get Score(s), Remark(r), and Points(p) from the grid cells
-                    s_val = (
-                        self.table_inner_frame.grid_slaves(row=r, column=col_start)[
-                            0
-                        ].get()
-                        or "0"
-                    )
-                    r_val = (
-                        self.table_inner_frame.grid_slaves(row=r, column=col_start + 1)[
-                            0
-                        ].get()
-                        or "BE2"
-                    )
-                    p_val = (
-                        self.table_inner_frame.grid_slaves(row=r, column=col_start + 2)[
-                            0
-                        ].get()
-                        or "0"
-                    )
+                    s_val = s_widgets[0].get() if s_widgets else "0"
+                    r_val = r_widgets[0].get() if r_widgets else "BE2"
+                    p_val = p_widgets[0].get() if p_widgets else "0"
 
-                    update_parts.extend([f"{b}_s=?", f"{b}_r=?", f"{b}_p=?"])
+                    update_parts.extend([f"{base}_s=?", f"{base}_r=?", f"{base}_p=?"])
                     values.extend([s_val, r_val, p_val])
-
-                # 5. Add the 'total_points' and 'avg_level' for storage (Optional but good)
-                total_col = 1 + (num_subs * 3)
-                total_points = (
-                    self.table_inner_frame.grid_slaves(row=r, column=total_col)[0].get()
-                    or "0"
-                )
-                average_points = (
-                    self.table_inner_frame.grid_slaves(row=r, column=total_col + 1)[
-                        0
-                    ].get()
-                    or ""
-                )
-
-                update_parts.extend(["total_points=?", "average_points=?"])
-                values.extend([total_points, average_points])
 
                 # 6. Execute Update
                 values.append(adm_no)
@@ -796,18 +770,16 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         self.load_students_from_registry()
 
     def calculate_rankings(self):
-        """Calculates totals and assigns numerical rank 1, 2, 3..."""
         subjects = self.get_subjects_from_json()
 
-        # Build the sum string for all point columns (e.g., maths_p + eng_p + ...)
-        point_cols = [
-            f"{s.replace(' ', '_').replace('-', '_').lower().replace('/', '_')}_p"
-            for s in subjects
-        ]
-        sum_query = " + ".join(point_cols)
+        # Use the cleaning function here too!
+        point_cols = [f"{get_clean_col_name(s)}_p" for s in subjects]
 
-        # 1. Update total_points for everyone
+        # Use COALESCE to treat empty/null marks as 0, otherwise the sum becomes NULL
+        sum_query = " + ".join([f"COALESCE({col}, 0)" for col in point_cols])
+
         self.db._cursor.execute(f"UPDATE marksheet SET total_points = ({sum_query})")
+        # ... rest of your ranking logic
 
         # 2. Get all students sorted by total_points descending
         self.db._cursor.execute(
