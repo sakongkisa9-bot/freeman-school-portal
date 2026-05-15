@@ -218,52 +218,104 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             )
 
     def add_student_row(self, student_data, row_index):
-        grid_row = row_index + 2
+        # Create a frame for this row to hold all widgets
+        row_frame = ctk.CTkFrame(self.table_inner_frame, fg_color="transparent")
+        # Calculate total columns: name (1) + subjects*3 + totals*3
+        total_columns = 1 + (len(self.subjects) * 3) + 3
+        row_frame.grid(row=row_index, column=0, columnspan=total_columns, sticky="nsew")
+
+        # Configure columns in the row_frame
         NAME_W = 180
         BOX_SIZE = 45
+        TOT_W = 65
 
-        # 1. Name Label - CRITICAL: width=NAME_W and anchor="w"
-        # This stops long names from pushing the squares to the right
+        # Column 0: Name label
+        row_frame.grid_columnconfigure(0, weight=0, minsize=NAME_W)
+
+        # Subjects: each subject has three columns (score, rating, points)
+        num_subjects = len(self.subjects)
+        for i in range(num_subjects):
+            col_start = 1 + (i * 3)
+            row_frame.grid_columnconfigure(col_start, weight=0, minsize=BOX_SIZE)
+            row_frame.grid_columnconfigure(col_start + 1, weight=0, minsize=BOX_SIZE)
+            row_frame.grid_columnconfigure(col_start + 2, weight=0, minsize=BOX_SIZE)
+
+        # Totals: three columns (total, average, rank)
+        total_start = 1 + (num_subjects * 3)
+        row_frame.grid_columnconfigure(total_start, weight=0, minsize=TOT_W)
+        row_frame.grid_columnconfigure(total_start + 1, weight=0, minsize=TOT_W)
+        row_frame.grid_columnconfigure(total_start + 2, weight=0, minsize=TOT_W)
+
+        # 1. Name Label (column 0, row 0 of row_frame)
         ctk.CTkLabel(
-            self.table_inner_frame,
+            row_frame,
             text=student_data[0],
             anchor="w",
             padx=10,
             width=NAME_W,
             font=("Arial", 12),
             fg_color="transparent",
-        ).grid(row=grid_row, column=0, sticky="nsew", padx=1, pady=1)
+        ).grid(row=0, column=0, sticky="nsew", padx=1, pady=1)
 
         # 2. Subject Entry Boxes (Square)
-        num_subjects = len(self.subjects)
-        for i in range(1, (num_subjects * 3) + 1):
-            color = ["#1a1a1a", "#2c3e50", "#1e3a24"][(i - 1) % 3]
-
-            # Added width=BOX_SIZE here
-            e = ctk.CTkEntry(
-                self.table_inner_frame,
+        for i in range(num_subjects):
+            col_start = 1 + (i * 3)
+            # Score column (editable)
+            score_col = col_start
+            score_entry = ctk.CTkEntry(
+                row_frame,
                 width=BOX_SIZE,
                 height=BOX_SIZE,
                 font=("Arial Bold", 12),
-                fg_color=color,
+                fg_color="#1a1a1a",
                 border_width=0,
                 corner_radius=0,
                 justify="center",
             )
-            e.grid(row=grid_row, column=i, sticky="nsew", padx=1, pady=1)
+            score_entry.grid(row=0, column=score_col, sticky="nsew", padx=1, pady=1)
+            if len(student_data) > score_col and student_data[score_col] is not None:
+                score_entry.insert(0, str(student_data[score_col]))
+            # Bind focusout to auto_fill_results, passing the row_frame
+            score_entry.bind(
+                "<FocusOut>",
+                lambda event, ent=score_entry, col=score_col, r_frame=row_frame: self.auto_fill_results(
+                    ent, col, r_frame
+                ),
+            )
 
-            if len(student_data) > i and student_data[i] is not None:
-                e.insert(0, str(student_data[i]))
-                if i % 3 != 1:
-                    e.configure(state="disabled")
+            # Rating column (disabled)
+            rating_col = col_start + 1
+            rating_entry = ctk.CTkEntry(
+                row_frame,
+                width=BOX_SIZE,
+                height=BOX_SIZE,
+                font=("Arial Bold", 12),
+                fg_color="#2c3e50",
+                border_width=0,
+                corner_radius=0,
+                justify="center",
+            )
+            rating_entry.grid(row=0, column=rating_col, sticky="nsew", padx=1, pady=1)
+            if len(student_data) > rating_col and student_data[rating_col] is not None:
+                rating_entry.insert(0, str(student_data[rating_col]))
+            rating_entry.configure(state="disabled")
 
-            if i % 3 == 1:
-                e.bind(
-                    "<FocusOut>",
-                    lambda event, ent=e, col=i, r=grid_row: self.auto_fill_results(
-                        ent, col, r
-                    ),
-                )
+            # Points column (disabled)
+            points_col = col_start + 2
+            points_entry = ctk.CTkEntry(
+                row_frame,
+                width=BOX_SIZE,
+                height=BOX_SIZE,
+                font=("Arial Bold", 12),
+                fg_color="#1e3a24",
+                border_width=0,
+                corner_radius=0,
+                justify="center",
+            )
+            points_entry.grid(row=0, column=points_col, sticky="nsew", padx=1, pady=1)
+            if len(student_data) > points_col and student_data[points_col] is not None:
+                points_entry.insert(0, str(student_data[points_col]))
+            points_entry.configure(state="disabled")
 
         # 3. Totals Boxes
         total_start = 1 + (num_subjects * 3)
@@ -271,10 +323,8 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         for j in range(3):
             col_idx = total_start + j
             val = student_data[col_idx] if len(student_data) > col_idx else ""
-
-            # Added width=65 here
             box = ctk.CTkEntry(
-                self.table_inner_frame,
+                row_frame,
                 width=65,
                 height=BOX_SIZE,
                 fg_color=summary_colors[j],
@@ -283,33 +333,22 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                 corner_radius=0,
                 justify="center",
             )
+            box.grid(row=0, column=col_idx, sticky="nsew", padx=1, pady=1)
             box.insert(0, str(val))
             box.configure(state="disabled")
-            box.grid(row=grid_row, column=col_idx, sticky="nsew", padx=1, pady=1)
 
-    def auto_fill_results(self, score_entry, col, row_index):
+    def auto_fill_results(self, score_entry, col, row_frame):
         # 1. Get the score
         score_val = score_entry.get()
 
         # 2. Calculate the Grade (Remark) and Points
-        # (Assuming your calculate_junior_grade function is available)
         rating_val, points_val = calculate_junior_grade(score_val)
 
-        # 3. Find the Remark (R) and Point (P) widgets
-        # We look in the MASTER frame using the absolute row_index and column
+        # 3. Find the Remark (R) and Point (P) widgets in the same row_frame
         try:
-            r_entry = [
-                w
-                for w in self.table_inner_frame.grid_slaves(
-                    row=row_index, column=col + 1
-                )
-            ][0]
-            p_entry = [
-                w
-                for w in self.table_inner_frame.grid_slaves(
-                    row=row_index, column=col + 2
-                )
-            ][0]
+            # Get all widgets in the row_frame
+            r_entry = [w for w in row_frame.grid_slaves(row=0, column=col + 1)][0]
+            p_entry = [w for w in row_frame.grid_slaves(row=0, column=col + 2)][0]
 
             # 4. Update the widgets
             for ent, val in [(r_entry, rating_val), (p_entry, str(points_val))]:
@@ -319,7 +358,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                 ent.configure(state="disabled")
 
             # 5. Trigger the totals update for this specific row
-            self.update_totals(row_index)
+            self.update_totals(row_frame)
 
         except IndexError:
             # This prevents a crash if the grid isn't fully rendered yet
