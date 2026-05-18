@@ -148,8 +148,16 @@ def apply_cloud_records_to_table(
         "".join(r.get("student_name", "").split()).lower(): r for r in records
     }
 
-    # 2. Get all widgets and group them by row
-    all_widgets = table_inner_frame.winfo_children()
+    # 2. Get all widgets recursively and group them by row
+    def get_all_widgets(widget):
+        """Recursively get all widgets including nested ones"""
+        widgets = []
+        for child in widget.winfo_children():
+            widgets.append(child)
+            widgets.extend(get_all_widgets(child))
+        return widgets
+
+    all_widgets = get_all_widgets(table_inner_frame)
     rows = {}
 
     for w in all_widgets:
