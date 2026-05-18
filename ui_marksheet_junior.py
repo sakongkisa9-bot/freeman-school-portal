@@ -489,13 +489,6 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         ).pack(side="left", padx=5)
         ctk.CTkButton(
             self.bottom_bar,
-            text="☁ Push to Cloud",
-            fg_color="#7b1fa2",
-            hover_color="#6a1b9a",
-            command=self.push_cloud_data,
-        ).pack(side="left", padx=5)
-        ctk.CTkButton(
-            self.bottom_bar,
             text="🖨 Print PDF",
             fg_color="#f57c00",
             text_color="black",
