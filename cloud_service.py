@@ -148,25 +148,34 @@ def apply_cloud_records_to_table(
         "".join(r.get("student_name", "").split()).lower(): r for r in records
     }
 
-    # 2. Get all widgets recursively and group them by row
-    def get_all_widgets(widget):
-        """Recursively get all widgets including nested ones"""
-        widgets = []
-        for child in widget.winfo_children():
-            widgets.append(child)
-            widgets.extend(get_all_widgets(child))
-        return widgets
-
-    all_widgets = get_all_widgets(table_inner_frame)
+    # 2. Get all widgets and group them by row
+    # For junior marksheet with row_frames, we need to handle nested structure
     rows = {}
-
-    for w in all_widgets:
-        info = w.grid_info()
+    
+    # First, get direct children of table_inner_frame
+    direct_children = table_inner_frame.winfo_children()
+    
+    for child in direct_children:
+        info = child.grid_info()
         r_idx = info.get("row")
-        if r_idx is not None and r_idx >= 2:  # Skip the 2 header rows
-            if r_idx not in rows:
-                rows[r_idx] = []
-            rows[r_idx].append(w)
+        
+        # Skip header rows (0 and 1)
+        if r_idx is None or r_idx < 2:
+            continue
+            
+        if r_idx not in rows:
+            rows[r_idx] = []
+        
+        # If this is a row_frame (has children), add its internal widgets
+        if hasattr(child, "winfo_children") and child.winfo_children():
+            # Add the row_frame itself (for name extraction)
+            rows[r_idx].append(child)
+            # Add all internal widgets
+            for internal_widget in child.winfo_children():
+                rows[r_idx].append(internal_widget)
+        else:
+            # Direct widget (for PP1 style)
+            rows[r_idx].append(child)
 
     filled_count = 0
 
@@ -179,10 +188,18 @@ def apply_cloud_records_to_table(
 
         # If it's a CTkFrame (from the 'Fixed Row Alignment' fix), get the label inside it
         if hasattr(name_widget, "winfo_children") and name_widget.winfo_children():
-            name_label = name_widget.winfo_children()[0]
-            try:
-                raw_name = name_label.cget("text")
-            except:
+            # For junior marksheet, find the label widget inside the row_frame
+            name_label = None
+            for child in name_widget.winfo_children():
+                if hasattr(child, "cget") and "text" in child.keys():
+                    name_label = child
+                    break
+            if name_label:
+                try:
+                    raw_name = name_label.cget("text")
+                except:
+                    continue
+            else:
                 continue
         else:
             try:

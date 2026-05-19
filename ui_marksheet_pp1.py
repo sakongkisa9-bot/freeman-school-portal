@@ -214,7 +214,10 @@ class PP1MarkSheetView(ctk.CTkFrame):
             )
             self.update_idletasks()
 
-            # 5. Success Message
+            # 5. Save the fetched marks to database
+            self.save_pp1_marks()
+
+            # 6. Success Message
             messagebox.showinfo(
                 "Cloud Fetch",
                 f"Successfully synchronized {len(marks_data)} student records.",
