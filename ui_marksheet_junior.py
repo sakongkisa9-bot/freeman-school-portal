@@ -545,7 +545,10 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             )
             self.update_idletasks()
 
-            # 5. Success Message
+            # 5. Save the fetched marks to database
+            self.save_all_marks()
+
+            # 6. Success Message
             messagebox.showinfo(
                 "Cloud Fetch",
                 f"Successfully synchronized {len(marks_data)} student records.",
@@ -742,10 +745,20 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         for r in range(2, max_row + 1):
             try:
                 # 2. Find the Student Name Label in this row
-                name_widgets = self.table_inner_frame.grid_slaves(row=r, column=0)
-                if not name_widgets:
+                row_frames = self.table_inner_frame.grid_slaves(row=r, column=0)
+                if not row_frames:
                     continue
-                student_name = name_widgets[0].cget("text")
+                
+                # Junior marksheet uses row_frame structure - get name label from inside the frame
+                row_frame = row_frames[0]
+                if hasattr(row_frame, "winfo_children"):
+                    # Get the name label at column 0 inside the row_frame
+                    name_widgets = row_frame.grid_slaves(row=0, column=0)
+                    if not name_widgets:
+                        continue
+                    student_name = name_widgets[0].cget("text")
+                else:
+                    continue
 
                 # 3. Get Admission Number from database
                 self.db._cursor.execute(
@@ -765,16 +778,10 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                     # CLEANER & SAFER: Use the existing helper function
                     base = get_clean_col_name(sub)
 
-                    # Get values from grid
-                    s_widgets = self.table_inner_frame.grid_slaves(
-                        row=r, column=col_start
-                    )
-                    r_widgets = self.table_inner_frame.grid_slaves(
-                        row=r, column=col_start + 1
-                    )
-                    p_widgets = self.table_inner_frame.grid_slaves(
-                        row=r, column=col_start + 2
-                    )
+                    # Get values from grid (inside the row_frame)
+                    s_widgets = row_frame.grid_slaves(row=0, column=col_start)
+                    r_widgets = row_frame.grid_slaves(row=0, column=col_start + 1)
+                    p_widgets = row_frame.grid_slaves(row=0, column=col_start + 2)
 
                     s_val = s_widgets[0].get() if s_widgets else "0"
                     r_val = r_widgets[0].get() if r_widgets else "BE2"
