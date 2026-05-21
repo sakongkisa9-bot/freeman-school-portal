@@ -14,7 +14,6 @@ from cloud_service import (
     apply_cloud_records_to_table,
 )
 import os
-import json
 
 
 class PlaygroupMarkSheetView(ctk.CTkFrame):
@@ -46,7 +45,7 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
                         "playgroup_exam_title", "PLAYGROUP ASSESSMENT 2026"
                     )
         except Exception as e:
-            print(f"Init playgroup JSON Load Error: {e}")
+            print(f"Init JSON Load Error: {e}")
 
         # 2. Build UI (Make sure these are called in this order)
         self.ensure_table_exists()
@@ -59,28 +58,26 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
         self.load_students_from_registry()
 
     def get_subjects_from_json(self):
-        # 1. Normalize the target name to match JSON keys
-        # "Play group" becomes "playgroup"
-        target = self.class_name.replace(" ", "").lower()
+        import json
 
         try:
-            path = os.path.join(os.path.dirname(__file__), "school_config.json")
-            with open(path, "r") as f:
+            json_path = self.get_json_path()
+            with open(json_path, "r") as f:
                 config = json.load(f)
 
-                # 2. Use .get() with a safe fallback
-                subjects_dict = config.get("subjects", {})
+                # Navigate the nested dictionary: subjects -> playgroup
+                if "subjects" in config and "playgroup" in config["subjects"]:
+                    return config["subjects"]["playgroup"]
 
-                if "playgroup" in target:
-                    return subjects_dict.get("playgroup", [])
-                elif "grade" in target:
-                    return subjects_dict.get("primary", [])
-                else:
-                    return subjects_dict.get("jss", [])
+                # Fallback for old flat JSON format
+                if "playgroup_subjects" in config:
+                    return config["playgroup_subjects"]
 
         except Exception as e:
-            print(f"Error reading subjects: {e}")
-            return []
+            print(f"Warning: Could not read JSON: {e}")
+
+        # Default fallback if file is missing or broken
+        return ["LANG", "MATH", "CREAT", "ENV"]
 
     def create_header_section(self):
         header_text = (
@@ -136,7 +133,7 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
             fg_color="#2e7d32",
             hover_color="#1b5e20",
             width=120,
-            command=self.save_primary_marks,
+            command=self.save_playgroup_marks,
         )
         self.btn_save.pack(side="left", padx=10, pady=15)
 
@@ -148,6 +145,7 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
             command=self.fetch_cloud_data,
         )
         self.btn_cloud.pack(side="left", padx=10, pady=15)
+
         self.btn_refresh = ctk.CTkButton(
             self.bottom_bar,
             text="refresh",
@@ -267,110 +265,122 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
         h_frame = ctk.CTkFrame(self.table_inner, fg_color="gray25", corner_radius=0)
         h_frame.pack(fill="x")
 
-        STUDENT_NAME_WIDTH = 180
-        SUBJECT_COL_WIDTH = 24
-        TOTAL_COL_WIDTH = 65
+        # FIXED DIMENSIONS
+        NAME_W = 180
+        BOX_SIZE = 45
+        TOT_W = 65
 
-        h_frame.grid_columnconfigure(
-            0, weight=0, minsize=STUDENT_NAME_WIDTH, uniform="primary_col"
-        )
+        # 1. LOCK THE COLUMNS
+        h_frame.grid_columnconfigure(0, weight=0, minsize=NAME_W)
 
         subjects = self.get_subjects_from_json()
         num_subs = len(subjects)
 
+        # Header: Name (Use width=NAME_W to prevent expansion)
         ctk.CTkLabel(
             h_frame,
             text="STUDENT NAME",
-            font=("Arial Bold", 11),
-            width=STUDENT_NAME_WIDTH,
-        ).grid(row=0, column=0, rowspan=2, sticky="nsew")
+            font=("Arial Bold", 12),
+            width=NAME_W,
+            fg_color="gray25",
+            corner_radius=0,
+        ).grid(row=0, column=0, rowspan=2, sticky="nsew", padx=1, pady=1)
 
         for i, sub in enumerate(subjects):
             col_start = 1 + (i * 2)
             h_frame.grid_columnconfigure(
                 (col_start, col_start + 1),
                 weight=0,
-                minsize=SUBJECT_COL_WIDTH,
-                uniform="primary_col",
+                minsize=BOX_SIZE,
+                uniform="subs",
             )
 
+            # Subject Heading (Locked width)
+            display_name = sub.upper()[:6]
             ctk.CTkLabel(
                 h_frame,
-                text=sub[:8],
+                text=display_name,
                 fg_color="gray30",
+                corner_radius=0,
+                width=BOX_SIZE * 2,
                 font=("Arial Bold", 10),
-                width=SUBJECT_COL_WIDTH * 2,
-            ).grid(row=0, column=col_start, columnspan=2, sticky="nsew", padx=0, pady=0)
-            ctk.CTkLabel(
-                h_frame,
-                text="Score",
-                font=("Arial", 9),
-                fg_color="#1a1a1a",
-                width=SUBJECT_COL_WIDTH,
-            ).grid(row=1, column=col_start, sticky="nsew", padx=0, pady=0)
-            ctk.CTkLabel(
-                h_frame,
-                text="Rate",
-                font=("Arial", 9),
-                fg_color="#2c3e50",
-                width=SUBJECT_COL_WIDTH,
-            ).grid(row=1, column=col_start + 1, sticky="nsew", padx=0, pady=0)
+            ).grid(
+                row=0,
+                column=col_start,
+                columnspan=2,
+                sticky="nsew",
+                padx=1,
+                pady=(1, 0),
+            )
 
-        t_idx = 1 + (num_subs * 2)
+            # Score, Rate Labels
+            labels = [("Score", "#1a1a1a"), ("Rate", "#2c3e50")]
+            for j, (txt, color) in enumerate(labels):
+                ctk.CTkLabel(
+                    h_frame,
+                    text=txt,
+                    fg_color=color,
+                    corner_radius=0,
+                    width=BOX_SIZE,
+                    height=BOX_SIZE,
+                    font=("Arial Bold", 10),
+                ).grid(row=1, column=col_start + j, sticky="nsew", padx=1, pady=1)
+
+        # Totals
+        total_start = 1 + (num_subs * 2)
         h_frame.grid_columnconfigure(
-            (t_idx, t_idx + 1, t_idx + 2),
-            weight=0,
-            minsize=TOTAL_COL_WIDTH,
-            uniform="primary_col",
+            (total_start, total_start + 1, total_start + 2), weight=0, minsize=TOT_W
         )
-        ctk.CTkLabel(
-            h_frame, text="TOTAL SCORES", font=("Arial Bold", 9), width=TOTAL_COL_WIDTH
-        ).grid(row=0, column=t_idx, rowspan=2, sticky="nsew", padx=0, pady=0)
-        ctk.CTkLabel(
-            h_frame, text="AVERAGE LEVEL", font=("Arial Bold", 9), width=TOTAL_COL_WIDTH
-        ).grid(row=0, column=t_idx + 1, rowspan=2, sticky="nsew", padx=0, pady=0)
-        ctk.CTkLabel(
-            h_frame, text="POS", font=("Arial Bold", 9), width=TOTAL_COL_WIDTH
-        ).grid(row=0, column=t_idx + 2, rowspan=2, sticky="nsew", padx=0, pady=0)
+
+        for j, txt in enumerate(["TOT", "AVG", "RANK"]):
+            ctk.CTkLabel(
+                h_frame,
+                text=txt,
+                font=("Arial Bold", 11),
+                width=TOT_W,
+                fg_color="gray20",
+                corner_radius=0,
+            ).grid(
+                row=0, column=total_start + j, rowspan=2, sticky="nsew", padx=1, pady=1
+            )
 
     def add_student_row_with_data(self, row_data, rank):
         subjects = self.get_subjects_from_json()
         num_subs = len(subjects)
 
-        STUDENT_NAME_WIDTH = 180
-        SUBJECT_COL_WIDTH = 24
-        TOTAL_COL_WIDTH = 65
+        # FIXED DIMENSIONS (matching header)
+        NAME_W = 180
+        BOX_SIZE = 45
+        TOT_W = 65
 
         row_frame = ctk.CTkFrame(self.table_inner, fg_color="transparent")
         row_frame.pack(fill="x", pady=1)
-        row_frame.grid_columnconfigure(
-            0, weight=0, minsize=STUDENT_NAME_WIDTH, uniform="primary_col"
-        )
+        row_frame.grid_columnconfigure(0, weight=0, minsize=NAME_W, uniform="subs")
         ctk.CTkLabel(
             row_frame,
             text=row_data[0],
             anchor="w",
-            padx=5,
-            font=("Arial", 10),
-            width=STUDENT_NAME_WIDTH,
-        ).grid(row=0, column=0, sticky="nsew")
+            padx=10,
+            font=("Arial", 12),
+            width=NAME_W,
+            fg_color="transparent",
+        ).grid(row=0, column=0, sticky="nsew", padx=1, pady=1)
 
         for i in range(num_subs * 2):
             col_idx = i + 1
-            row_frame.grid_columnconfigure(
-                col_idx, weight=0, minsize=SUBJECT_COL_WIDTH, uniform="primary_col"
-            )
+            row_frame.grid_columnconfigure(col_idx, weight=0, minsize=BOX_SIZE, uniform="subs")
             color = "#1a1a1a" if i % 2 == 0 else "#2c3e50"
             e = ctk.CTkEntry(
                 row_frame,
-                width=SUBJECT_COL_WIDTH,
-                height=24,
+                width=BOX_SIZE,
+                height=BOX_SIZE,
                 fg_color=color,
-                border_width=1,
+                border_width=0,
                 corner_radius=0,
                 justify="center",
+                font=("Arial Bold", 12),
             )
-            e.grid(row=0, column=col_idx, sticky="nsew", padx=0, pady=0)
+            e.grid(row=0, column=col_idx, sticky="nsew", padx=1, pady=1)
 
             val = row_data[col_idx]
             if val is not None:
@@ -388,51 +398,28 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
         t_idx = 1 + (num_subs * 2)
         row_frame.grid_columnconfigure(
-            (t_idx, t_idx + 1, t_idx + 2),
-            weight=0,
-            minsize=TOTAL_COL_WIDTH,
-            uniform="primary_col",
+            (t_idx, t_idx + 1, t_idx + 2), weight=0, minsize=TOT_W, uniform="subs"
         )
 
-        t_box = ctk.CTkEntry(
-            row_frame,
-            width=TOTAL_COL_WIDTH,
-            height=24,
-            fg_color="gray30",
-            corner_radius=0,
-            justify="center",
-        )
-        if row_data[t_idx] is not None:
-            t_box.insert(0, str(row_data[t_idx]))
-        t_box.configure(state="disabled")
-        t_box.grid(row=0, column=t_idx, sticky="nsew", padx=0, pady=0)
-
-        l_box = ctk.CTkEntry(
-            row_frame,
-            width=TOTAL_COL_WIDTH,
-            height=24,
-            fg_color="#1f538d",
-            corner_radius=0,
-            justify="center",
-        )
-        if row_data[t_idx + 1] is not None:
-            l_box.insert(0, str(row_data[t_idx + 1]))
-        l_box.configure(state="disabled")
-        l_box.grid(row=0, column=t_idx + 1, sticky="nsew", padx=0, pady=0)
-
-        p_box = ctk.CTkEntry(
-            row_frame,
-            width=TOTAL_COL_WIDTH,
-            height=24,
-            fg_color="#455a64",
-            text_color="white",
-            corner_radius=0,
-            justify="center",
-            font=("Arial Bold", 10),
-        )
-        p_box.insert(0, str(rank))
-        p_box.configure(state="disabled")
-        p_box.grid(row=0, column=t_idx + 2, sticky="nsew", padx=0, pady=0)
+        summary_colors = ["gray30", "#1f538d", "#4a1515"]
+        for j in range(3):
+            col_idx = t_idx + j
+            val = row_data[col_idx] if len(row_data) > col_idx else ""
+            if j == 2:
+                val = str(rank)
+            box = ctk.CTkEntry(
+                row_frame,
+                width=TOT_W,
+                height=BOX_SIZE,
+                fg_color=summary_colors[j],
+                font=("Arial Bold", 12),
+                border_width=0,
+                corner_radius=0,
+                justify="center",
+            )
+            box.grid(row=0, column=col_idx, sticky="nsew", padx=1, pady=1)
+            box.insert(0, str(val))
+            box.configure(state="disabled")
 
     def auto_calculate(self, entry_widget, col_index, row_frame):
         """Validates the input and triggers the dynamic total calculation."""
@@ -639,7 +626,7 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
         except Exception as e:
             print(f"Loading/Sorting Error: {e}")
 
-    def save_primary_marks(self):
+    def save_playgroup_marks(self):
         success_count = 0
         subjects = self.get_subjects_from_json()
         num_subs = len(subjects)
@@ -834,7 +821,7 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
             messagebox.showerror("PDF Error", f"Failed to generate report: {e}")
 
     def handle_new_exam(self):
-        self.save_primary_marks()
+        self.save_playgroup_marks()
         dialog = ctk.CTkInputDialog(
             text="Enter New Exam Title:", title="New Performance Record"
         )

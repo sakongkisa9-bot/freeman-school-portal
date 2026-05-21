@@ -143,10 +143,17 @@ class CloudService:
 def apply_cloud_records_to_table(
     table_inner_frame, records, subjects, columns_per_subject=3
 ):
+    # DEBUG: Print incoming data
+    print(f"DEBUG: apply_cloud_records_to_table called")
+    print(f"DEBUG: Number of records from cloud: {len(records)}")
+    print(f"DEBUG: Subjects: {subjects}")
+    print(f"DEBUG: Columns per subject: {columns_per_subject}")
+    
     # 1. Map cloud data for easy lookup
     record_map = {
         "".join(r.get("student_name", "").split()).lower(): r for r in records
     }
+    print(f"DEBUG: Record map keys: {list(record_map.keys())}")
 
     # 2. Get all widgets and group them by row
     # For junior marksheet with row_frames, we need to handle nested structure
@@ -154,34 +161,77 @@ def apply_cloud_records_to_table(
     
     # First, get direct children of table_inner_frame
     direct_children = table_inner_frame.winfo_children()
+    print(f"DEBUG: Direct children found: {len(direct_children)}")
     
+    # Check if widgets are packed (PP2 style) or gridded (Junior style)
+    has_grid_info = False
     for child in direct_children:
         info = child.grid_info()
-        r_idx = info.get("row")
-        
-        # Skip header rows (0 and 1)
-        if r_idx is None or r_idx < 2:
-            continue
+        if info.get("row") is not None:
+            has_grid_info = True
+            break
+    
+    if has_grid_info:
+        # Grid-based layout (Junior marksheet)
+        for child in direct_children:
+            info = child.grid_info()
+            r_idx = info.get("row")
             
-        if r_idx not in rows:
-            rows[r_idx] = []
-        
-        # If this is a row_frame (has children), add its internal widgets
-        if hasattr(child, "winfo_children") and child.winfo_children():
-            # Add the row_frame itself (for name extraction)
-            rows[r_idx].append(child)
-            # Add all internal widgets
-            for internal_widget in child.winfo_children():
-                rows[r_idx].append(internal_widget)
-        else:
-            # Direct widget (for PP1 style)
-            rows[r_idx].append(child)
+            # Skip header rows (0 and 1)
+            if r_idx is None or r_idx < 2:
+                continue
+                
+            if r_idx not in rows:
+                rows[r_idx] = []
+            
+            # If this is a row_frame (has children), add its internal widgets
+            if hasattr(child, "winfo_children") and child.winfo_children():
+                # Add the row_frame itself (for name extraction)
+                rows[r_idx].append(child)
+                # Add all internal widgets
+                for internal_widget in child.winfo_children():
+                    rows[r_idx].append(internal_widget)
+            else:
+                # Direct widget (for PP1 style)
+                rows[r_idx].append(child)
+    else:
+        # Pack-based layout (PP2 marksheet) - assign row indices based on order
+        row_idx = 2  # Start after header rows
+        for child in direct_children:
+            # Skip header frames
+            if hasattr(child, "winfo_children"):
+                widgets_in_child = child.winfo_children()
+                if widgets_in_child:
+                    # Check if this looks like a header (has "STUDENT NAME" label)
+                    is_header = False
+                    for w in widgets_in_child:
+                        try:
+                            if w.cget("text") == "STUDENT NAME":
+                                is_header = True
+                                break
+                        except:
+                            continue
+                    if is_header:
+                        continue
+                    
+                    # This is a data row
+                    if row_idx not in rows:
+                        rows[row_idx] = []
+                    rows[row_idx].append(child)
+                    # Add all internal widgets
+                    for internal_widget in widgets_in_child:
+                        rows[row_idx].append(internal_widget)
+                    row_idx += 1
+    
+    print(f"DEBUG: Rows detected: {list(rows.keys())}")
+    print(f"DEBUG: Total widgets in rows: {sum(len(w) for w in rows.values())}")
 
     filled_count = 0
 
     # 3. Process each row
     for r_idx in sorted(rows.keys()):
         widgets = sorted(rows[r_idx], key=lambda w: w.grid_info().get("column", 0))
+        print(f"DEBUG: Processing row {r_idx}, widgets: {len(widgets)}")
 
         # In your Junior UI, Column 0 is the Name Label
         name_widget = widgets[0]
@@ -191,24 +241,33 @@ def apply_cloud_records_to_table(
             # For junior marksheet, find the label widget inside the row_frame
             name_label = None
             for child in name_widget.winfo_children():
-                if hasattr(child, "cget") and "text" in child.keys():
+                # Try to get text from any widget that supports it
+                try:
+                    raw_name = child.cget("text")
                     name_label = child
                     break
+                except:
+                    continue
             if name_label:
                 try:
                     raw_name = name_label.cget("text")
                 except:
+                    print(f"DEBUG: Row {r_idx} - Could not get text from label")
                     continue
             else:
+                print(f"DEBUG: Row {r_idx} - No name label found in row_frame")
                 continue
         else:
             try:
                 raw_name = name_widget.cget("text")
             except:
+                print(f"DEBUG: Row {r_idx} - Could not get text from name_widget")
                 continue
 
         clean_local_name = "".join(str(raw_name).split()).lower()
+        print(f"DEBUG: Row {r_idx} - Local name: '{raw_name}' -> Cleaned: '{clean_local_name}'")
         record = record_map.get(clean_local_name)
+        print(f"DEBUG: Row {r_idx} - Match found: {record is not None}")
 
         if record:
             scores = record.get("scores", {})
@@ -246,7 +305,8 @@ def apply_cloud_records_to_table(
                     target_col = base_col + offset
                     # Find the widget sitting in this specific column
                     for w in widgets:
-                        if int(w.grid_info().get("column")) == target_col:
+                        col = w.grid_info().get("column")
+                        if col is not None and int(col) == target_col:
                             if hasattr(w, "delete"):
                                 curr_state = w.cget("state")
                                 w.configure(state="normal")

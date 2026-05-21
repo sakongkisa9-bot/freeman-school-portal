@@ -263,72 +263,123 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
     def create_table_headers(self):
         h_frame = ctk.CTkFrame(self.table_inner, fg_color="gray25", corner_radius=0)
         h_frame.pack(fill="x")
-        h_frame.grid_columnconfigure(0, weight=0, minsize=180, uniform="primary_col")
+
+        # FIXED DIMENSIONS
+        NAME_W = 180
+        BOX_SIZE = 45
+        TOT_W = 65
+
+        # 1. LOCK THE COLUMNS
+        h_frame.grid_columnconfigure(0, weight=0, minsize=NAME_W)
 
         subjects = self.get_subjects_from_json()
         num_subs = len(subjects)
 
-        ctk.CTkLabel(h_frame, text="STUDENT NAME", font=("Arial Bold", 11)).grid(
-            row=0, column=0, rowspan=2
-        )
+        # Header: Name (Use width=NAME_W to prevent expansion)
+        ctk.CTkLabel(
+            h_frame,
+            text="STUDENT NAME",
+            font=("Arial Bold", 12),
+            width=NAME_W,
+            fg_color="gray25",
+            corner_radius=0,
+        ).grid(row=0, column=0, rowspan=2, sticky="nsew", padx=1, pady=1)
 
         for i, sub in enumerate(subjects):
             col_start = 1 + (i * 2)
             h_frame.grid_columnconfigure(
-                (col_start, col_start + 1), weight=0, minsize=45, uniform="primary_col"
+                (col_start, col_start + 1),
+                weight=0,
+                minsize=BOX_SIZE,
+                uniform="subs",
             )
 
+            # Subject Heading (Locked width)
+            display_name = sub.upper()[:6]
             ctk.CTkLabel(
-                h_frame, text=sub[:8], fg_color="gray30", font=("Arial Bold", 10)
-            ).grid(row=0, column=col_start, columnspan=2, sticky="nsew", padx=1, pady=1)
-            ctk.CTkLabel(
-                h_frame, text="Score", font=("Arial", 9), fg_color="#1a1a1a"
-            ).grid(row=1, column=col_start, sticky="nsew")
-            ctk.CTkLabel(
-                h_frame, text="Rate", font=("Arial", 9), fg_color="#2c3e50"
-            ).grid(row=1, column=col_start + 1, sticky="nsew")
+                h_frame,
+                text=display_name,
+                fg_color="gray30",
+                corner_radius=0,
+                width=BOX_SIZE * 2,
+                font=("Arial Bold", 10),
+            ).grid(
+                row=0,
+                column=col_start,
+                columnspan=2,
+                sticky="nsew",
+                padx=1,
+                pady=(1, 0),
+            )
 
-        t_idx = 1 + (num_subs * 2)
+            # Score, Rate Labels
+            labels = [("Score", "#1a1a1a"), ("Rate", "#2c3e50")]
+            for j, (txt, color) in enumerate(labels):
+                ctk.CTkLabel(
+                    h_frame,
+                    text=txt,
+                    fg_color=color,
+                    corner_radius=0,
+                    width=BOX_SIZE,
+                    height=BOX_SIZE,
+                    font=("Arial Bold", 10),
+                ).grid(row=1, column=col_start + j, sticky="nsew", padx=1, pady=1)
+
+        # Totals
+        total_start = 1 + (num_subs * 2)
         h_frame.grid_columnconfigure(
-            (t_idx, t_idx + 1, t_idx + 2), weight=0, minsize=65, uniform="primary_col"
+            (total_start, total_start + 1, total_start + 2), weight=0, minsize=TOT_W
         )
-        ctk.CTkLabel(h_frame, text="TOTAL SCORES", font=("Arial Bold", 9)).grid(
-            row=0, column=t_idx, rowspan=2, sticky="nsew"
-        )
-        ctk.CTkLabel(h_frame, text="AVERAGE LEVEL", font=("Arial Bold", 9)).grid(
-            row=0, column=t_idx + 1, rowspan=2, sticky="nsew"
-        )
-        ctk.CTkLabel(h_frame, text="POS", font=("Arial Bold", 9)).grid(
-            row=0, column=t_idx + 2, rowspan=2, sticky="nsew"
-        )
+
+        for j, txt in enumerate(["TOT", "AVG", "RANK"]):
+            ctk.CTkLabel(
+                h_frame,
+                text=txt,
+                font=("Arial Bold", 11),
+                width=TOT_W,
+                fg_color="gray20",
+                corner_radius=0,
+            ).grid(
+                row=0, column=total_start + j, rowspan=2, sticky="nsew", padx=1, pady=1
+            )
 
     def add_student_row_with_data(self, row_data, rank):
         subjects = self.get_subjects_from_json()
         num_subs = len(subjects)
 
+        # FIXED DIMENSIONS (matching header)
+        NAME_W = 180
+        BOX_SIZE = 45
+        TOT_W = 65
+
         row_frame = ctk.CTkFrame(self.table_inner, fg_color="transparent")
         row_frame.pack(fill="x", pady=1)
-        row_frame.grid_columnconfigure(0, weight=0, minsize=180, uniform="primary_col")
+        row_frame.grid_columnconfigure(0, weight=0, minsize=NAME_W, uniform="subs")
         ctk.CTkLabel(
-            row_frame, text=row_data[0], anchor="w", padx=5, font=("Arial", 10)
-        ).grid(row=0, column=0)
+            row_frame,
+            text=row_data[0],
+            anchor="w",
+            padx=10,
+            font=("Arial", 12),
+            width=NAME_W,
+            fg_color="transparent",
+        ).grid(row=0, column=0, sticky="nsew", padx=1, pady=1)
 
         for i in range(num_subs * 2):
             col_idx = i + 1
-            row_frame.grid_columnconfigure(
-                col_idx, weight=0, minsize=45, uniform="primary_col"
-            )
+            row_frame.grid_columnconfigure(col_idx, weight=0, minsize=BOX_SIZE, uniform="subs")
             color = "#1a1a1a" if i % 2 == 0 else "#2c3e50"
             e = ctk.CTkEntry(
                 row_frame,
-                width=43,
-                height=24,
+                width=BOX_SIZE,
+                height=BOX_SIZE,
                 fg_color=color,
-                border_width=1,
+                border_width=0,
                 corner_radius=0,
                 justify="center",
+                font=("Arial Bold", 12),
             )
-            e.grid(row=0, column=col_idx, sticky="nsew")
+            e.grid(row=0, column=col_idx, sticky="nsew", padx=1, pady=1)
 
             val = row_data[col_idx]
             if val is not None:
@@ -346,37 +397,28 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
         t_idx = 1 + (num_subs * 2)
         row_frame.grid_columnconfigure(
-            (t_idx, t_idx + 1, t_idx + 2), weight=0, minsize=65, uniform="primary_col"
+            (t_idx, t_idx + 1, t_idx + 2), weight=0, minsize=TOT_W, uniform="subs"
         )
 
-        t_box = ctk.CTkEntry(
-            row_frame, height=24, fg_color="gray30", corner_radius=0, justify="center"
-        )
-        if row_data[t_idx] is not None:
-            t_box.insert(0, str(row_data[t_idx]))
-        t_box.configure(state="disabled")
-        t_box.grid(row=0, column=t_idx, sticky="nsew")
-
-        l_box = ctk.CTkEntry(
-            row_frame, height=24, fg_color="#1f538d", corner_radius=0, justify="center"
-        )
-        if row_data[t_idx + 1] is not None:
-            l_box.insert(0, str(row_data[t_idx + 1]))
-        l_box.configure(state="disabled")
-        l_box.grid(row=0, column=t_idx + 1, sticky="nsew")
-
-        p_box = ctk.CTkEntry(
-            row_frame,
-            height=24,
-            fg_color="#455a64",
-            text_color="white",
-            corner_radius=0,
-            justify="center",
-            font=("Arial Bold", 10),
-        )
-        p_box.insert(0, str(rank))
-        p_box.configure(state="disabled")
-        p_box.grid(row=0, column=t_idx + 2, sticky="nsew")
+        summary_colors = ["gray30", "#1f538d", "#4a1515"]
+        for j in range(3):
+            col_idx = t_idx + j
+            val = row_data[col_idx] if len(row_data) > col_idx else ""
+            if j == 2:
+                val = str(rank)
+            box = ctk.CTkEntry(
+                row_frame,
+                width=TOT_W,
+                height=BOX_SIZE,
+                fg_color=summary_colors[j],
+                font=("Arial Bold", 12),
+                border_width=0,
+                corner_radius=0,
+                justify="center",
+            )
+            box.grid(row=0, column=col_idx, sticky="nsew", padx=1, pady=1)
+            box.insert(0, str(val))
+            box.configure(state="disabled")
 
     def auto_calculate(self, entry_widget, col_index, row_frame):
         """Validates the input and triggers the dynamic total calculation."""

@@ -524,11 +524,17 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         # 2. Call the cloud API
         # Ensure this method in cloud_service.py uses the '/api/get_marks' endpoint
         result = service.fetch_marks(self.class_name, credentials)
+        
+        # DEBUG: Print the full result
+        print(f"DEBUG JUNIOR: Cloud fetch result: {result}")
 
         # 3. Handle the response
         if result.get("success"):
             # The cloud sends data in the "marks" key
             marks_data = result.get("marks", [])
+            print(f"DEBUG JUNIOR: Marks data received: {len(marks_data)} records")
+            if marks_data:
+                print(f"DEBUG JUNIOR: First record sample: {marks_data[0]}")
 
             if not marks_data:
                 messagebox.showinfo(
@@ -538,6 +544,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
 
             # Get subjects to align columns correctly
             subjects = self.get_subjects_from_json()
+            print(f"DEBUG JUNIOR: Subjects: {subjects}")
 
             # 4. Fill the table (Junior uses 3 columns per subject)
             apply_cloud_records_to_table(
@@ -556,6 +563,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
 
         else:
             # If result['success'] is False
+            print(f"DEBUG JUNIOR: Cloud fetch failed: {result.get('message')}")
             messagebox.showerror(
                 "Cloud Fetch Failed",
                 result.get("message", "Could not fetch cloud marks."),
