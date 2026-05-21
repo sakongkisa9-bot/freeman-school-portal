@@ -498,7 +498,7 @@ class PP1MarkSheetView(ctk.CTkFrame):
         try:
             subjects = self.get_subjects_from_json()
 
-            # 1. Ensure base table exists
+            # 1. Ensure base table exists (created in database.py)
             self.db._cursor.execute(
                 "CREATE TABLE IF NOT EXISTS pp1_marks (adm_no TEXT PRIMARY KEY)"
             )

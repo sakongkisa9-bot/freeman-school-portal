@@ -15,7 +15,10 @@ class FreemanDB:
             self._cursor = self.conn.cursor() 
             self.create_table()
             self.create_marksheet_table()
-            self.create_primary_table()   # Add this new one!
+            self.create_playgroup_table()
+            self.create_pp1_table()
+            self.create_pp2_table()
+            self.create_primary_table()
             self.create_settings_table()
             # Temporary fix in database.py
             self.create_marksheet_table() # Ensure this runs at start too
@@ -73,6 +76,56 @@ class FreemanDB:
                 rank INTEGER
             )
         ''')
+        self.conn.commit()
+
+    def create_playgroup_table(self):
+        query = """
+        CREATE TABLE IF NOT EXISTS playgroup_marks (
+            adm_no TEXT PRIMARY KEY,
+            lang_s INTEGER, lang_r TEXT,
+            math_s INTEGER, math_r TEXT,
+            env_s INTEGER, env_r TEXT,
+            creat_s INTEGER, creat_r TEXT,
+            total_points INTEGER,
+            average_level TEXT,
+            FOREIGN KEY (adm_no) REFERENCES students (adm_no)
+        )
+        """
+        self._cursor.execute(query)
+        self.conn.commit()
+
+    def create_pp1_table(self):
+        query = """
+        CREATE TABLE IF NOT EXISTS pp1_marks (
+            adm_no TEXT PRIMARY KEY,
+            lang_s INTEGER, lang_r TEXT,
+            math_s INTEGER, math_r TEXT,
+            env_s INTEGER, env_r TEXT,
+            psych_s INTEGER, psych_r TEXT,
+            rel_s INTEGER, rel_r TEXT,
+            total_points INTEGER,
+            average_level TEXT,
+            FOREIGN KEY (adm_no) REFERENCES students (adm_no)
+        )
+        """
+        self._cursor.execute(query)
+        self.conn.commit()
+
+    def create_pp2_table(self):
+        query = """
+        CREATE TABLE IF NOT EXISTS pp2_marks (
+            adm_no TEXT PRIMARY KEY,
+            lang_s INTEGER, lang_r TEXT,
+            math_s INTEGER, math_r TEXT,
+            env_s INTEGER, env_r TEXT,
+            psych_s INTEGER, psych_r TEXT,
+            rel_s INTEGER, rel_r TEXT,
+            total_points INTEGER,
+            average_level TEXT,
+            FOREIGN KEY (adm_no) REFERENCES students (adm_no)
+        )
+        """
+        self._cursor.execute(query)
         self.conn.commit()
 
     def create_primary_table(self):
