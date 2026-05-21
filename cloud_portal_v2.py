@@ -40,9 +40,9 @@ logging.basicConfig(
 EXAM_TITLE_DEFAULT = "TERM 1 EXAM 2026"
 
 GRADE_OPTIONS = [
-    "Playgroup",
-    "Pre-Primary 1",
-    "Pre-Primary 2",
+    "playgroup",
+    "pp1",
+    "pp2",
     "Grade 1",
     "Grade 2",
     "Grade 3",
@@ -55,9 +55,9 @@ GRADE_OPTIONS = [
 ]
 
 GRADE_SUBJECTS = {
-    "Playgroup": ["LANG", "MATH", "ENV", "CREAT"],
-    "Pre-Primary 1": ["LANG", "MATH", "ENV", "PSYCH", "REL"],
-    "Pre-Primary 2": ["LANG", "MATH", "ENV", "PSYCH", "REL"],
+    "playgroup": ["LANG", "MATH", "ENV", "CREAT"],
+    "pp1": ["LANG", "MATH", "ENV", "PSYCH", "REL"],
+    "pp2": ["LANG", "MATH", "ENV", "PSYCH", "REL"],
     "Grade 1": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
     "Grade 2": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
     "Grade 3": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
