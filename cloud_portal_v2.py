@@ -269,6 +269,83 @@ def delete_school(school_code):
     return jsonify({"success": False, "message": "Unauthorized"}), 401
 
 
+@app.route("/admin/schools")
+def admin_schools():
+    # Admin page to view and manage all registered schools
+    conn = get_db()
+    schools = conn.execute("SELECT * FROM schools ORDER BY created_at DESC").fetchall()
+    conn.close()
+    return render_template("cloud_admin_schools.html", schools=schools)
+
+
+@app.route("/admin/schools/<school_code>/delete", methods=["POST"])
+def admin_delete_school(school_code):
+    # Delete a school and all its data
+    conn = get_db()
+    try:
+        # Delete marks first
+        conn.execute("DELETE FROM marks WHERE school_id = (SELECT id FROM schools WHERE school_code = ?)", (school_code,))
+        # Delete students
+        conn.execute("DELETE FROM students WHERE school_id = (SELECT id FROM schools WHERE school_code = ?)", (school_code,))
+        # Delete teachers
+        conn.execute("DELETE FROM teachers WHERE school_id = (SELECT id FROM schools WHERE school_code = ?)", (school_code,))
+        # Delete school
+        conn.execute("DELETE FROM schools WHERE school_code = ?", (school_code,))
+        conn.commit()
+        flash(f"School '{school_code}' deleted successfully.", "success")
+    except Exception as e:
+        conn.rollback()
+        flash(f"Error deleting school: {e}", "danger")
+    finally:
+        conn.close()
+    return redirect(url_for("admin_schools"))
+
+
+@app.route("/admin/schools/<school_code>/edit", methods=["GET", "POST"])
+def admin_edit_school(school_code):
+    # Edit school details
+    conn = get_db()
+    if request.method == "POST":
+        try:
+            school_name = request.form.get("school_name", "").strip()
+            email = request.form.get("email", "").strip()
+            password = request.form.get("password", "")
+
+            if not school_name:
+                flash("School name is required.", "danger")
+                return redirect(url_for("admin_edit_school", school_code=school_code))
+
+            if password:
+                # Update password if provided
+                password_hash = generate_password_hash(password)
+                conn.execute(
+                    "UPDATE schools SET school_name = ?, email = ?, password_hash = ? WHERE school_code = ?",
+                    (school_name, email, password_hash, school_code)
+                )
+            else:
+                # Update only name and email
+                conn.execute(
+                    "UPDATE schools SET school_name = ?, email = ? WHERE school_code = ?",
+                    (school_name, email, school_code)
+                )
+
+            conn.commit()
+            flash(f"School '{school_code}' updated successfully.", "success")
+            return redirect(url_for("admin_schools"))
+        except Exception as e:
+            conn.rollback()
+            flash(f"Error updating school: {e}", "danger")
+        finally:
+            conn.close()
+    else:
+        school = conn.execute("SELECT * FROM schools WHERE school_code = ?", (school_code,)).fetchone()
+        conn.close()
+        if not school:
+            flash("School not found.", "danger")
+            return redirect(url_for("admin_schools"))
+        return render_template("cloud_edit_school.html", school=school)
+
+
 @app.route("/teacher/login", methods=["GET", "POST"])
 def teacher_login():
     try:
@@ -384,16 +461,15 @@ def api_sync_students():
                 404,
             )
         school_id = school["id"]
-        # 2. Insert/Update students
+        # 2. Delete all existing students for this school
+        conn.execute("DELETE FROM students WHERE school_id = ?", (school_id,))
+
+        # 3. Insert new students
         for s in students_list:
             conn.execute(
                 """
                 INSERT INTO students (school_id, grade, adm_no, student_name, gender, phone)
                 VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(school_id, grade, adm_no) DO UPDATE SET
-                    student_name = excluded.student_name,
-                    gender = excluded.gender,
-                    phone = excluded.phone
             """,
                 (
                     school_id,

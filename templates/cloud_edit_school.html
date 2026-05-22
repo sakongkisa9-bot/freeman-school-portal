@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Admin - Schools | Freeman Portal</title>
+    <title>Edit School | Freeman Portal</title>
     <link rel="manifest" href="/static/manifest.json">
     <style>
         * {
@@ -31,9 +31,9 @@
             opacity: 0.7;
         }
 
-        .admin-container {
+        .edit-container {
             padding: 20px;
-            max-width: 1200px;
+            max-width: 600px;
             margin: 0 auto;
             position: relative;
             z-index: 1;
@@ -65,115 +65,76 @@
             line-height: 1.6;
         }
 
-        .schools-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 20px;
-            padding: 10px;
-        }
-
-        @media (max-width: 768px) {
-            .schools-grid {
-                grid-template-columns: 1fr;
-                gap: 16px;
-                padding: 5px;
-            }
-        }
-
-        .school-card {
+        .form-card {
             background: #0f172a;
             border: 1px solid #1e293b;
             border-radius: 20px;
-            padding: 28px 24px;
-            transition: all 0.3s ease;
+            padding: 32px 28px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-            display: flex;
-            flex-direction: column;
         }
 
-        .school-card:hover {
-            transform: translateY(-5px);
-            border-color: #10b981;
-            box-shadow: 0 15px 30px rgba(16, 185, 129, 0.2);
+        .form-group {
+            margin-bottom: 24px;
         }
 
-        .school-icon {
-            width: 60px;
-            height: 60px;
-            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-            border-radius: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 28px;
-            margin-bottom: 16px;
-        }
-
-        .school-title {
-            font-size: 20px;
-            font-weight: 800;
-            color: #ffffff;
-            margin-bottom: 8px;
-        }
-
-        .school-code {
-            color: #64748b;
-            font-size: 14px;
-            margin-bottom: 12px;
-            font-family: monospace;
-        }
-
-        .school-detail {
-            color: #94a3b8;
-            font-size: 14px;
-            margin-bottom: 8px;
-        }
-
-        .school-detail strong {
+        .form-label {
+            display: block;
             color: #cbd5e1;
-        }
-
-        .card-buttons {
-            display: flex;
-            gap: 12px;
-            margin-top: 20px;
-            flex-wrap: wrap;
-        }
-
-        .btn-card {
-            padding: 12px 20px;
-            border-radius: 12px;
             font-weight: 700;
             font-size: 14px;
-            text-decoration: none;
-            text-align: center;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 14px 16px;
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 12px;
+            color: #f8fafc;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+
+        .form-input:disabled {
+            background: #0f172a;
+            color: #64748b;
+            cursor: not-allowed;
+        }
+
+        .form-hint {
+            color: #64748b;
+            font-size: 12px;
+            margin-top: 6px;
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 16px 24px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #020617;
+            border: none;
+            border-radius: 12px;
+            font-weight: 900;
+            font-size: 16px;
+            cursor: pointer;
             transition: all 0.3s ease;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            flex: 1;
-            min-width: 100px;
+            margin-top: 12px;
         }
 
-        .btn-edit {
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-            color: #ffffff;
-            border: none;
-        }
-
-        .btn-edit:hover {
+        .btn-submit:hover {
             transform: scale(1.02);
-            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
-        }
-
-        .btn-delete {
-            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-            color: #ffffff;
-            border: none;
-        }
-
-        .btn-delete:hover {
-            transform: scale(1.02);
-            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
         }
 
         .btn-back {
@@ -203,20 +164,30 @@
             margin-top: 40px;
         }
 
-        .no-schools {
-            text-align: center;
-            padding: 60px 20px;
-            color: #64748b;
-            font-size: 18px;
-        }
-
-        .no-schools-icon {
-            font-size: 64px;
+        .flash-messages {
             margin-bottom: 20px;
         }
 
+        .flash-message {
+            padding: 16px 24px;
+            border-radius: 16px;
+            margin-bottom: 12px;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .flash-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #020617;
+        }
+
+        .flash-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: #ffffff;
+        }
+
         @media (max-width: 480px) {
-            .admin-container {
+            .edit-container {
                 padding: 15px;
             }
 
@@ -225,26 +196,13 @@
                 margin-bottom: 30px;
             }
 
-            .school-card {
+            .form-card {
                 padding: 24px 20px;
             }
 
-            .school-icon {
-                width: 50px;
-                height: 50px;
-                font-size: 24px;
-            }
-
-            .school-title {
-                font-size: 18px;
-            }
-
-            .card-buttons {
-                flex-direction: column;
-            }
-
-            .btn-card {
-                width: 100%;
+            .form-input {
+                padding: 12px 14px;
+                font-size: 14px;
             }
         }
     </style>
@@ -252,41 +210,54 @@
 <body>
     <canvas id="canvas"></canvas>
 
-    <div class="admin-container">
+    <div class="edit-container">
         <div class="header-section">
-            <h1 class="header-title">Admin <span class="highlight">Schools</span></h1>
-            <p class="welcome-text">Manage registered schools. You can edit school details or delete schools along with all their data.</p>
+            <h1 class="header-title">Edit <span class="highlight">School</span></h1>
+            <p class="welcome-text">Update school details. Leave password blank to keep it unchanged.</p>
         </div>
 
-        {% if schools %}
-        <div class="schools-grid">
-            {% for s in schools %}
-            <div class="school-card">
-                <div class="school-icon">🏫</div>
-                <h3 class="school-title">{{ s.school_name }}</h3>
-                <p class="school-code">Code: {{ s.school_code }}</p>
-                <p class="school-detail"><strong>Email:</strong> {{ s.email or 'Not provided' }}</p>
-                <p class="school-detail"><strong>Created:</strong> {{ s.created_at }}</p>
-                <p class="school-detail"><strong>Portal:</strong> {{ 'Open' if s.portal_open == 1 else 'Closed' }}</p>
-                <div class="card-buttons">
-                    <a href="{{ url_for('admin_edit_school', school_code=s.school_code) }}" class="btn-card btn-edit">✎ Edit</a>
-                    <form method="post" action="{{ url_for('admin_delete_school', school_code=s.school_code) }}"
-                          onsubmit="return confirm('Delete school {{ s.school_name }}? This will permanently remove all teachers, students, and marks. This action cannot be undone.');">
-                        <button type="submit" class="btn-card btn-delete">🗑 Delete</button>
-                    </form>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
                 </div>
-            </div>
-            {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="form-card">
+            <form method="POST">
+                <div class="form-group">
+                    <label class="form-label">School Code</label>
+                    <input type="text" class="form-input" value="{{ school.school_code }}" disabled>
+                    <p class="form-hint">School code cannot be changed</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="school_name">School Name</label>
+                    <input type="text" id="school_name" name="school_name" class="form-input" value="{{ school.school_name }}" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="email">Email</label>
+                    <input type="email" id="email" name="email" class="form-input" value="{{ school.email or '' }}">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="password">Password</label>
+                    <input type="password" id="password" name="password" class="form-input" placeholder="Leave blank to keep current password">
+                    <p class="form-hint">Only enter a new password if you want to change it</p>
+                </div>
+
+                <button type="submit" class="btn-submit">Save Changes</button>
+            </form>
         </div>
-        {% else %}
-        <div class="no-schools">
-            <div class="no-schools-icon">📭</div>
-            <p>No schools registered yet.</p>
-        </div>
-        {% endif %}
 
         <div class="back-container">
-            <a href="{{ url_for('dashboard') }}" class="btn-back">← Back to Dashboard</a>
+            <a href="{{ url_for('admin_schools') }}" class="btn-back">← Back to Schools</a>
         </div>
     </div>
 
