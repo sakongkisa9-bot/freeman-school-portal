@@ -237,7 +237,7 @@ def register():
             )
             conn.commit()
             flash(f"School {sn} Registered Successfully!", "success")
-            return redirect(url_for("login"))
+            return redirect(url_for("teacher_login"))
         except sqlite3.IntegrityError:
             flash("School code already exists.", "danger")
         finally:
@@ -369,7 +369,7 @@ def api_sync_students():
 @app.route("/marks/<grade>/<subject>", methods=["GET", "POST"])
 def enter_marks(grade, subject):
     if "school_id" not in session:
-        return redirect(url_for("login"))
+        return redirect(url_for("teacher_login"))
 
     conn = get_db()
     # Fetch students for this grade
