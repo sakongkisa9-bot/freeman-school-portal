@@ -636,18 +636,37 @@ class PP1MarkSheetView(ctk.CTkFrame):
         num_subs = len(subjects)
 
         try:
-            for row_frame in self.table_inner.winfo_children():
-                if not isinstance(row_frame, ctk.CTkFrame):
-                    continue
+            # PP1 marksheet uses direct grid layout, not row frames
+            # Get all widgets and group them by row
+            all_widgets = self.table_inner.grid_slaves()
+            if not all_widgets:
+                return
 
-                # Get Student Name
-                widgets = row_frame.grid_slaves(row=0)
-                # Sort widgets by column to ensure we read them in order
+            # Group widgets by row
+            rows = {}
+            for w in all_widgets:
+                row = w.grid_info()["row"]
+                if row < 2:  # Skip header rows (0 and 1)
+                    continue
+                if row not in rows:
+                    rows[row] = []
+                rows[row].append(w)
+
+            for row_idx in sorted(rows.keys()):
+                widgets = rows[row_idx]
+                # Sort widgets by column
                 widgets.sort(key=lambda w: int(w.grid_info()["column"]))
 
-                if not widgets or widgets[0].cget("text") == "STUDENT NAME":
+                if not widgets:
                     continue
-                student_name = widgets[0].cget("text")
+
+                # Get Student Name (column 0)
+                name_widget = widgets[0]
+                if not hasattr(name_widget, "cget"):
+                    continue
+                student_name = name_widget.cget("text")
+                if student_name == "STUDENT NAME":
+                    continue
 
                 # Get Admission Number
                 self.db._cursor.execute(

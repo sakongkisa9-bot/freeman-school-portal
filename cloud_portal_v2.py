@@ -200,10 +200,8 @@ init_db()
 
 @app.route("/")
 def home():
-    # If they aren't logged in, send them straight to login
-    if "school_id" not in session:
-        return redirect(url_for("login"))
-    return redirect(url_for("dashboard"))
+    # Show role selection page
+    return render_template("cloud_home.html")
 
 
 @app.route("/register", methods=["GET", "POST"])
@@ -260,8 +258,8 @@ def delete_school(school_code):
     return jsonify({"success": False, "message": "Unauthorized"}), 401
 
 
-@app.route("/login", methods=["GET", "POST"])
-def login():
+@app.route("/teacher/login", methods=["GET", "POST"])
+def teacher_login():
     try:
         if request.method == "POST":
             sc = request.form.get("school_code", "").strip().lower()
@@ -271,7 +269,7 @@ def login():
             auth, err = authenticate_user(sc, un, pw)
             if err:
                 flash(err, "danger")
-                return redirect(url_for("login"))
+                return redirect(url_for("teacher_login"))
 
             # --- THE FIX IS HERE ---
             # Convert the Row objects to real dictionaries so .get() works elsewhere
@@ -292,10 +290,16 @@ def login():
     return render_template("cloud_login.html")
 
 
+@app.route("/parent/login", methods=["GET", "POST"])
+def parent_login():
+    # Placeholder for parent login - to be implemented later
+    return render_template("cloud_home.html")
+
+
 @app.route("/dashboard")
 def dashboard():
     if "school_id" not in session:
-        return redirect(url_for("login"))
+        return redirect(url_for("teacher_login"))
     return render_template("cloud_dashboard.html", grades=GRADE_OPTIONS)
 
 
@@ -498,7 +502,7 @@ def enter_marks(grade, subject):
 @app.route("/select_subject/<grade>")
 def select_subject(grade):
     if "school_id" not in session:
-        return redirect(url_for("login"))
+        return redirect(url_for("teacher_login"))
 
     # Get the subjects for this grade from your dictionary
     subjects = GRADE_SUBJECTS.get(grade, [])
@@ -658,7 +662,7 @@ def api_get_marks():
 @app.route("/students/<grade>")
 def manage_students(grade):
     if "school_id" not in session:
-        return redirect(url_for("login"))
+        return redirect(url_for("teacher_login"))
 
     # Teachers can view the list, but there is no 'POST' to add/delete
     conn = get_db()
