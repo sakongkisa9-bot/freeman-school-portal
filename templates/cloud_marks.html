@@ -1,50 +1,483 @@
-<div class="container mt-4">
-    <h3>Enter Marks: {{ subject }} ({{ grade }})</h3>
+<!DOCTYPE html>
+<html lang="en">
 
-    <div class="mb-3">
-        <input type="text" id="studentSearch" class="form-control"
-            placeholder="🔍 Search student name or admission number...">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Enter Marks - {{ subject }} - Freeman Portal</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #020617;
+            color: #f8fafc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        #canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: -1;
+            width: 100%;
+            height: 100%;
+            opacity: 0.7;
+        }
+
+        .container {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .page-title {
+            font-size: clamp(24px, 4vw, 32px);
+            font-weight: 900;
+            color: #ffffff;
+            letter-spacing: -1px;
+        }
+
+        .highlight {
+            color: #10b981;
+        }
+
+        .btn-back {
+            background: transparent;
+            color: #64748b;
+            border: 2px solid #334155;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 14px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-back:hover {
+            background: #334155;
+            color: #f8fafc;
+            border-color: #475569;
+        }
+
+        .search-container {
+            margin-bottom: 25px;
+        }
+
+        .search-input {
+            width: 100%;
+            background: #1e293b;
+            border: 2px solid #334155;
+            color: white;
+            padding: 16px 20px;
+            border-radius: 14px;
+            font-weight: 600;
+            font-size: 15px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+
+        .search-input::placeholder {
+            color: #64748b;
+        }
+
+        .marks-section {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .student-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 25px;
+        }
+
+        .student-row {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 100px 1fr 120px;
+            gap: 20px;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        .student-row:hover {
+            border-color: #10b981;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.1);
+        }
+
+        .student-field {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .field-label {
+            font-size: 10px;
+            font-weight: 800;
+            color: #10b981;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        .field-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #f8fafc;
+        }
+
+        .adm-no {
+            color: #10b981;
+            font-weight: 800;
+            font-size: 16px;
+        }
+
+        .student-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .score-input {
+            width: 100%;
+            background: #020617;
+            border: 2px solid #334155;
+            color: white;
+            padding: 12px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 16px;
+            text-align: center;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .score-input:focus {
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+
+        .btn-save {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #020617;
+            border: none;
+            width: 100%;
+            padding: 18px;
+            border-radius: 16px;
+            font-weight: 900;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-save:active {
+            transform: scale(0.98);
+        }
+
+        .success-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .success-modal.active {
+            display: flex;
+        }
+
+        .success-frame {
+            background: #0f172a;
+            border: 2px solid #10b981;
+            border-radius: 24px;
+            padding: 40px;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 25px 50px rgba(16, 185, 129, 0.3);
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .success-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .success-title {
+            font-size: 24px;
+            font-weight: 900;
+            color: #ffffff;
+            margin-bottom: 10px;
+        }
+
+        .success-message {
+            color: #94a3b8;
+            font-size: 14px;
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }
+
+        .btn-close-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #020617;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 12px;
+            font-weight: 900;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-close-success:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .header-section {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .btn-back {
+                width: 100%;
+                text-align: center;
+            }
+
+            .student-row {
+                grid-template-columns: 1fr;
+                gap: 12px;
+                padding: 16px;
+            }
+
+            .student-field {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+                padding-bottom: 8px;
+                border-bottom: 1px solid #334155;
+            }
+
+            .student-field:last-child {
+                border-bottom: none;
+                padding-bottom: 0;
+            }
+
+            .field-label {
+                margin-bottom: 0;
+            }
+
+            .score-input {
+                padding: 14px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 15px;
+            }
+
+            .marks-section {
+                padding: 20px;
+            }
+
+            .success-frame {
+                padding: 30px 24px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="canvas"></canvas>
+
+    <div class="container">
+        <div class="header-section">
+            <h1 class="page-title">Enter Marks: <span class="highlight">{{ subject }}</span> ({{ grade }})</h1>
+            <a href="{{ url_for('dashboard') }}" class="btn-back">← Back to Dashboard</a>
+        </div>
+
+        <div class="search-container">
+            <input type="text" id="studentSearch" class="search-input"
+                placeholder="🔍 Search student name or admission number...">
+        </div>
+
+        <div class="marks-section">
+            <form method="POST" id="marksForm">
+                <div class="student-list" id="studentList">
+                    {% for s in students %}
+                    <div class="student-row">
+                        <div class="student-field">
+                            <span class="field-label">ADM No</span>
+                            <span class="field-value adm-no">{{ s.adm_no }}</span>
+                        </div>
+                        <div class="student-field">
+                            <span class="field-label">Student Name</span>
+                            <span class="field-value student-name">{{ s.student_name }}</span>
+                        </div>
+                        <div class="student-field">
+                            <span class="field-label">Score</span>
+                            <input type="number" name="score_{{ s.adm_no }}" value="{{ marks_map.get(s.adm_no, '') }}"
+                                class="score-input" min="0" max="100" placeholder="0">
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button type="submit" class="btn-save">💾 Save All Marks</button>
+            </form>
+        </div>
     </div>
 
-    <form method="POST">
-        <table class="table table-hover" id="marksTable">
-            <thead>
-                <tr>
-                    <th>ADM NO</th>
-                    <th>Student Name</th>
-                    <th>Score ({{ subject }})</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for s in students %}
-                <tr class="student-row">
-                    <td>{{ s.adm_no }}</td>
-                    <td class="student-name">{{ s.student_name }}</td>
-                    <td>
-                        <input type="number" name="score_{{ s.adm_no }}" value="{{ marks_map.get(s.adm_no, '') }}"
-                            class="form-control" style="width: 100px;">
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        <button type="submit" class="btn btn-primary">Save All Marks</button>
-    </form>
-</div>
+    <div class="success-modal" id="successModal">
+        <div class="success-frame">
+            <div class="success-icon">✅</div>
+            <h2 class="success-title">Marks Saved Successfully!</h2>
+            <p class="success-message">All marks have been saved to the server. You can now continue with other tasks.</p>
+            <button class="btn-close-success" onclick="closeSuccessModal()">Continue</button>
+        </div>
+    </div>
 
-<script>
-    document.getElementById('studentSearch').addEventListener('keyup', function () {
-        let filter = this.value.toLowerCase();
-        let rows = document.querySelectorAll('.student-row');
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
 
-        rows.forEach(row => {
-            let name = row.querySelector('.student-name').textContent.toLowerCase();
-            let adm = row.cells[0].textContent.toLowerCase();
-            if (name.includes(filter) || adm.includes(filter)) {
-                row.style.display = "";
-            } else {
-                row.style.display = "none";
+        function init() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            particles = [];
+            for (let i = 0; i < 30; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    vx: (Math.random() - 0.5) * 0.4,
+                    vy: (Math.random() - 0.5) * 0.4,
+                    size: 2.5
+                });
             }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "rgba(16, 185, 129, 0.6)";
+            ctx.strokeStyle = "rgba(16, 185, 129, 0.3)";
+            ctx.lineWidth = 1.5;
+
+            particles.forEach(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+                if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+
+                particles.forEach(p2 => {
+                    let dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+                    if (dist < 120) {
+                        ctx.beginPath();
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.stroke();
+                    }
+                });
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        init();
+        animate();
+        window.addEventListener('resize', init);
+
+        // Search functionality
+        document.getElementById('studentSearch').addEventListener('keyup', function () {
+            let filter = this.value.toLowerCase();
+            let rows = document.querySelectorAll('.student-row');
+
+            rows.forEach(row => {
+                let name = row.querySelector('.student-name').textContent.toLowerCase();
+                let adm = row.querySelector('.adm-no').textContent.toLowerCase();
+                if (name.includes(filter) || adm.includes(filter)) {
+                    row.style.display = "";
+                } else {
+                    row.style.display = "none";
+                }
+            });
         });
-    });
-</script>
+
+        // Form submission with success modal
+        document.getElementById('marksForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            // Show success modal
+            document.getElementById('successModal').classList.add('active');
+        });
+
+        function closeSuccessModal() {
+            document.getElementById('successModal').classList.remove('active');
+            // Optionally redirect to dashboard
+            window.location.href = "{{ url_for('dashboard') }}";
+        }
+    </script>
+</body>
+
+</html>
