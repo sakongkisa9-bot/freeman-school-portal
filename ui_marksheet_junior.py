@@ -554,8 +554,8 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             )
             self.update_idletasks()
 
-            # 5. Save the fetched marks to database
-            self.save_all_marks()
+            # 5. Save the fetched marks to database (skip reload to preserve cloud values)
+            self.save_all_marks(skip_reload=True)
 
             # 6. Success Message
             messagebox.showinfo(
@@ -738,7 +738,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         except Exception as e:
             messagebox.showerror("Error", f"PDF Generation Failed: {e}")
 
-    def save_all_marks(self):
+    def save_all_marks(self, skip_reload=False):
         success_count = 0
         subjects = self.get_subjects_from_json()
         num_subs = len(subjects)
@@ -823,7 +823,8 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         self.db.conn.commit()
         self.calculate_rankings()
         messagebox.showinfo("Success", f"Saved {success_count} students.")
-        self.load_students_from_registry()
+        if not skip_reload:
+            self.load_students_from_registry()
 
     def calculate_rankings(self):
         subjects = self.get_subjects_from_json()

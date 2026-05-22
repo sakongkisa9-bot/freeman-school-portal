@@ -352,14 +352,21 @@ def apply_cloud_records_to_table(
             for w in widgets:
                 col = w.grid_info().get("column")
                 if col is not None and int(col) == total_start_col + 1:
+                    # Handle both Entry and Label widgets
                     if hasattr(w, "delete"):
+                        # Entry widget
                         curr_state = w.cget("state")
                         w.configure(state="normal")
                         w.delete(0, "end")
                         w.insert(0, str(average_level))
                         w.configure(state=curr_state)
                         avg_found = True
-                        print(f"DEBUG: Filled average_level at column {col}")
+                        print(f"DEBUG: Filled average_level (Entry) at column {col}")
+                    elif hasattr(w, "configure"):
+                        # Label widget
+                        w.configure(text=str(average_level))
+                        avg_found = True
+                        print(f"DEBUG: Filled average_level (Label) at column {col}")
                     break
             if not avg_found:
                 print(f"DEBUG: Could not find widget at column {total_start_col + 1} for average_level")
