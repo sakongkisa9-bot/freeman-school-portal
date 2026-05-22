@@ -366,8 +366,9 @@ def api_sync_students():
         conn.close()
 
 
-@app.route("/marks/<grade>/<subject>", methods=["GET", "POST"])
-def enter_marks(grade, subject):
+@app.route("/marks/<grade>", methods=["GET", "POST"])
+def enter_marks(grade):
+    subject = request.args.get("subject")
     if "school_id" not in session:
         return redirect(url_for("teacher_login"))
 
