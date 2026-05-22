@@ -355,6 +355,16 @@
             <a href="{{ url_for('dashboard') }}" class="btn-back">← Back to Dashboard</a>
         </div>
 
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #020617; padding: 16px 24px; border-radius: 16px; margin-bottom: 20px; font-weight: 700; text-align: center; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
+                        ✅ {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
         <div class="search-container">
             <input type="text" id="studentSearch" class="search-input"
                 placeholder="🔍 Search student name or admission number...">
