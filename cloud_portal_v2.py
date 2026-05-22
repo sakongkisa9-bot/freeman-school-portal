@@ -625,8 +625,8 @@ def api_get_marks():
             print(f"DEBUG API: Calculated total_score={total_score}, avg_level={avg_level}")
         
         # Use calculated values if database values are missing or empty
-        db_total_points = r.get("total_points", "0")
-        db_avg_level = r.get("average_level", "")
+        db_total_points = r["total_points"] if r["total_points"] is not None else "0"
+        db_avg_level = r["average_level"] if r["average_level"] is not None else ""
         
         print(f"DEBUG API: DB values - total_points={db_total_points}, avg_level={db_avg_level}")
         
