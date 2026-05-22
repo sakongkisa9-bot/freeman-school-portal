@@ -1,20 +1,295 @@
-{% extends 'cloud_base.html' %}
-{% block content %}
-<div class="card">
-    <h1>Cloud Dashboard</h1>
-    <p>Welcome back, {{ username }}. Choose a class to manage students or enter marks.</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dashboard - Freeman Portal</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body { 
+            margin: 0; background: #020617; color: #f8fafc; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            min-height: 100vh; overflow-x: hidden;
+        }
+        
+        #canvas { 
+            position: fixed; top: 0; left: 0; z-index: -1; 
+            width: 100%; height: 100%; opacity: 0.7; 
+        }
+        
+        .dashboard-container {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .header-section {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px 20px;
+        }
+        
+        .header-title { 
+            font-size: clamp(28px, 5vw, 42px); font-weight: 900; 
+            color: #ffffff; letter-spacing: -1.5px;
+            margin-bottom: 10px;
+        }
+        
+        .highlight { color: #10b981; }
+        
+        .welcome-text {
+            color: #94a3b8; 
+            font-size: clamp(14px, 2.5vw, 16px);
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
 
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px; margin-top:20px;">
-        {% for grade in grades %}
-        <div class="card" style="background:#111827; border:none; padding:18px;">
-            <h3>{{ grade }}</h3>
-            <p style="margin:10px 0 18px; color:#94a3b8;">Manage students and marks for this class.</p>
-            {% if session.get('role') == 'admin' %}
-            <a class="button" href="{{ url_for('manage_students', grade=grade) }}">Students</a>
-            {% endif %}
-            <a class="button button-alt" href="{{ url_for('select_subject', grade=grade) }}">Enter Marks</a>
+        .grades-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            padding: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .grades-grid {
+                grid-template-columns: 1fr;
+                gap: 16px;
+                padding: 5px;
+            }
+        }
+
+        .grade-card {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 20px;
+            padding: 28px 24px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .grade-card:hover {
+            transform: translateY(-5px);
+            border-color: #10b981;
+            box-shadow: 0 15px 30px rgba(16, 185, 129, 0.2);
+        }
+
+        .grade-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin-bottom: 16px;
+        }
+
+        .grade-title {
+            font-size: 20px;
+            font-weight: 800;
+            color: #ffffff;
+            margin-bottom: 8px;
+        }
+
+        .grade-description {
+            color: #64748b;
+            font-size: 14px;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .card-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+        }
+
+        .btn-card {
+            padding: 14px 20px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 14px;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #020617;
+            border: none;
+        }
+
+        .btn-primary:hover {
+            transform: scale(1.02);
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: #10b981;
+            border: 2px solid #10b981;
+        }
+
+        .btn-secondary:hover {
+            background: #10b981;
+            color: #020617;
+        }
+
+        .btn-back {
+            display: inline-block;
+            background: transparent;
+            color: #64748b;
+            border: 2px solid #334155;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 14px;
+            text-decoration: none;
+            margin-top: 30px;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-back:hover {
+            background: #334155;
+            color: #f8fafc;
+            border-color: #475569;
+        }
+
+        .back-container {
+            text-align: center;
+            margin-top: 40px;
+        }
+
+        @media (max-width: 480px) {
+            .dashboard-container {
+                padding: 15px;
+            }
+            
+            .header-section {
+                padding: 20px 15px;
+                margin-bottom: 30px;
+            }
+            
+            .grade-card {
+                padding: 24px 20px;
+            }
+            
+            .grade-icon {
+                width: 50px;
+                height: 50px;
+                font-size: 24px;
+            }
+            
+            .grade-title {
+                font-size: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <div class="dashboard-container">
+        <div class="header-section">
+            <h1 class="header-title">Dashboard <span class="highlight">Portal</span></h1>
+            <p class="welcome-text">Welcome back, {{ username }}. Select a class to manage students or enter marks.</p>
         </div>
-        {% endfor %}
+
+        <div class="grades-grid">
+            {% for grade in grades %}
+            <div class="grade-card">
+                <div class="grade-icon">📚</div>
+                <h3 class="grade-title">{{ grade }}</h3>
+                <p class="grade-description">Manage students and marks for this class</p>
+                <div class="card-buttons">
+                    {% if session.get('role') == 'admin' %}
+                    <a href="{{ url_for('manage_students', grade=grade) }}" class="btn-card btn-primary">👥 Students</a>
+                    {% endif %}
+                    <a href="{{ url_for('select_subject', grade=grade) }}" class="btn-card btn-secondary">✏️ Enter Marks</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="back-container">
+            <a href="{{ url_for('home') }}" class="btn-back">← Back to Home</a>
+        </div>
     </div>
-</div>
-{% endblock %}
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        
+        function init() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            particles = [];
+            for (let i = 0; i < 30; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    vx: (Math.random() - 0.5) * 0.4,
+                    vy: (Math.random() - 0.5) * 0.4,
+                    size: 2.5
+                });
+            }
+        }
+        
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "rgba(16, 185, 129, 0.6)";
+            ctx.strokeStyle = "rgba(16, 185, 129, 0.3)";
+            ctx.lineWidth = 1.5;
+            
+            particles.forEach(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+                if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+                
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+                
+                particles.forEach(p2 => {
+                    let dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+                    if (dist < 120) {
+                        ctx.beginPath();
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.stroke();
+                    }
+                });
+            });
+            
+            requestAnimationFrame(animate);
+        }
+        
+        init();
+        animate();
+        window.addEventListener('resize', init);
+    </script>
+</body>
+</html>
