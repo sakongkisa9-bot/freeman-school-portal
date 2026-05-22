@@ -477,13 +477,18 @@ class Dashboard(ctk.CTk):
         phone = phone_entry.get()
 
         # --- THE CRITICAL FIX ---
-        # This pulls the actual text "Play group" from your title label
+        # This pulls the actual text from your title label
         # so it matches the database perfectly.
-        raw_title = self.registry_title.cget("text") # Result: "Student Registry: Play group"
+        raw_title = self.registry_title.cget("text") # Result: "Student Registry: playgroup"
         current_class = raw_title.replace("Student Registry: ", "").strip()
-        
-        # We ignore grade_entry.get() because it's returning '4'
-        grade = current_class 
+
+        # Normalize grade names to match database format
+        grade_mapping = {
+            "Play group": "playgroup",
+            "Pre-Primary 1": "pp1",
+            "Pre-Primary 2": "pp2",
+        }
+        grade = grade_mapping.get(current_class, current_class)
 
         if not adm or not name:
             messagebox.showwarning("Input Error", "ADM and Name are required!")
@@ -492,17 +497,17 @@ class Dashboard(ctk.CTk):
         try:
             # 1. Save to Database
             self.db.add_student(adm, name, grade, gender, phone)
-            
+
             # 2. Lock the Row visually
             for entry in [adm_entry, name_entry, grade_entry, gender_entry, phone_entry]:
                 entry.configure(state="disabled", fg_color="gray30", text_color="white")
-            
+
             # 3. Update Button
             btn.configure(text="Saved", state="disabled", fg_color="gray")
-            
+
             # 4. Success Message in Terminal
             print(f"Verified Save: {name} added to {grade}")
-            
+
         except Exception as e:
             messagebox.showerror("Database Error", f"Could not save: {e}")
 
@@ -903,7 +908,7 @@ class Dashboard(ctk.CTk):
                 self.class_frame.pack(pady=40, expand=True)
 
                 classes = [
-                    "Play group", "Pre-Primary 1", "Pre-Primary 2",
+                    "playgroup", "pp1", "pp2",
                     "Grade 1", "Grade 2", "Grade 3", "Grade 4",
                     "Grade 5", "Grade 6", "Grade 7", "Grade 8", "Grade 9"
                     ]
@@ -935,15 +940,15 @@ class Dashboard(ctk.CTk):
 
             # 1. Clean up the class name for easier comparison
             name_upper = class_selected.upper().strip()
-            
+
             # 2. Route to the correct view based on the name
-            if "PLAY GROUP" in name_upper:
+            if "PLAYGROUP" in name_upper or "PLAY GROUP" in name_upper:
                 self.current_view = PlaygroupMarkSheetView(self.content_panel, self.db, class_selected)
-                
-            elif "PRE-PRIMARY 1" in name_upper:
+
+            elif "PP1" in name_upper or "PRE-PRIMARY 1" in name_upper:
                 self.current_view = PP1MarkSheetView(self.content_panel, self.db, class_selected)
-                
-            elif "PRE-PRIMARY 2" in name_upper:
+
+            elif "PP2" in name_upper or "PRE-PRIMARY 2" in name_upper:
                 self.current_view = PP2MarkSheetView(self.content_panel, self.db, class_selected)
                 
             elif any(g in name_upper for g in ["GRADE 1", "GRADE 2", "GRADE 3"]):

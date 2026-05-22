@@ -14,6 +14,7 @@ import os
 import json
 from datetime import datetime
 import logging
+from grading_logic import get_grade_7_8_rating, get_grade_4_6_rating, calculate_final_level
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(PROJECT_DIR, "templates")
@@ -377,6 +378,13 @@ def enter_marks(grade, subject):
 
     if request.method == "POST":
         now = datetime.utcnow().isoformat()
+        
+        # Determine grading logic based on grade level
+        grade_lower = grade.lower()
+        is_jss = any(g in grade_lower for g in ["grade 7", "grade 8", "grade 9"])
+        is_primary = any(g in grade_lower for g in ["grade 4", "grade 5", "grade 6"])
+        is_lower = any(g in grade_lower for g in ["grade 1", "grade 2", "grade 3"])
+        
         for s in students:
             adm = s["adm_no"]
             score = request.form.get(f"score_{adm}")
@@ -389,15 +397,63 @@ def enter_marks(grade, subject):
 
             scores = json.loads(existing["subject_scores_json"]) if existing else {}
 
-            # 2. Update only the specific subject being edited
-            scores[subject] = {"score": score}
+            # 2. Calculate rating and points based on grade level
+            rating = ""
+            points = 0
+            if score and score.strip():
+                try:
+                    score_int = int(score)
+                    if is_jss:
+                        rating, points = get_grade_7_8_rating(score_int)
+                    elif is_primary or is_lower:
+                        rating = get_grade_4_6_rating(score_int)
+                        # For primary, map rating to points using the same scale
+                        level_points = {"EE1": 8, "EE2": 7, "ME1": 6, "ME2": 5, "AE1": 4, "AE2": 3, "BE1": 2, "BE2": 1}
+                        points = level_points.get(rating, 0)
+                    else:
+                        # For early years (playgroup, pp1, pp2), use primary logic as fallback
+                        rating = get_grade_4_6_rating(score_int)
+                        level_points = {"EE1": 8, "EE2": 7, "ME1": 6, "ME2": 5, "AE1": 4, "AE2": 3, "BE1": 2, "BE2": 1}
+                        points = level_points.get(rating, 0)
+                except ValueError:
+                    rating = ""
+                    points = 0
+
+            # 3. Update the specific subject with score, rating, and points
+            scores[subject] = {"score": score, "rating": rating, "points": points}
+
+            # 4. Calculate total points and average level across all subjects
+            total_points = 0
+            subject_count = 0
+            for subj, data in scores.items():
+                if data.get("points"):
+                    total_points += int(data["points"])
+                    subject_count += 1
+
+            # Calculate average level
+            if is_jss:
+                # JSS uses points sum for final level
+                avg_level = calculate_final_level(total_points, is_primary=False)
+            else:
+                # Primary uses raw score sum for final level
+                total_score = 0
+                for subj, data in scores.items():
+                    if data.get("score"):
+                        try:
+                            total_score += int(data["score"])
+                        except ValueError:
+                            pass
+                avg_level = calculate_final_level(total_score, is_primary=True)
 
             conn.execute(
                 """
-                INSERT INTO marks (school_id, grade, adm_no, student_name, exam_title, subject_scores_json, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO marks (school_id, grade, adm_no, student_name, exam_title, subject_scores_json, total_points, average_level, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(school_id, grade, adm_no, exam_title) DO UPDATE SET
-                subject_scores_json = excluded.subject_scores_json, updated_at = excluded.updated_at
+                subject_scores_json = excluded.subject_scores_json,
+                total_points = excluded.total_points,
+                average_level = excluded.average_level,
+                updated_at = excluded.updated_at
             """,
                 (
                     session["school_id"],
@@ -406,6 +462,8 @@ def enter_marks(grade, subject):
                     s["student_name"],
                     exam_title,
                     json.dumps(scores),
+                    str(total_points),
+                    avg_level,
                     now,
                 ),
             )
@@ -472,16 +530,122 @@ def api_get_marks():
         "SELECT * FROM marks WHERE school_id = ? AND grade = ?", (school["id"], gr)
     ).fetchall()
     print(f"DEBUG: Found {len(rows)} marks in DB for school {sc} grade {gr}")
-    # 3. Package them up
+    
+    # Determine grading logic based on grade level
+    grade_lower = gr.lower() if gr else ""
+    is_jss = any(g in grade_lower for g in ["grade 7", "grade 8", "grade 9"])
+    is_primary = any(g in grade_lower for g in ["grade 4", "grade 5", "grade 6"])
+    is_lower = any(g in grade_lower for g in ["grade 1", "grade 2", "grade 3"])
+    
+    # 3. Package them up with calculated rating/points if missing
     marks_list = []
     for r in rows:
+        scores = json.loads(r["subject_scores_json"])
+        print(f"DEBUG API: Processing record for {r['student_name']}, original scores: {scores}")
+        
+        # Calculate missing rating and points for each subject
+        for subject, data in scores.items():
+            # Handle old format where data might be just a string score
+            if isinstance(data, str):
+                score = data
+                rating = ""
+                points = 0
+                if score and str(score).strip():
+                    try:
+                        score_int = int(score)
+                        if is_jss:
+                            rating, points = get_grade_7_8_rating(score_int)
+                        elif is_primary or is_lower:
+                            rating = get_grade_4_6_rating(score_int)
+                            level_points = {"EE1": 8, "EE2": 7, "ME1": 6, "ME2": 5, "AE1": 4, "AE2": 3, "BE1": 2, "BE2": 1}
+                            points = level_points.get(rating, 0)
+                        else:
+                            rating = get_grade_4_6_rating(score_int)
+                            level_points = {"EE1": 8, "EE2": 7, "ME1": 6, "ME2": 5, "AE1": 4, "AE2": 3, "BE1": 2, "BE2": 1}
+                            points = level_points.get(rating, 0)
+                        print(f"DEBUG API: Converted old format {subject}: score={score_int} -> rating={rating}, points={points}")
+                    except ValueError:
+                        rating = ""
+                        points = 0
+                
+                # Convert to new dict format
+                scores[subject] = {"score": score, "rating": rating, "points": points}
+            elif isinstance(data, dict):
+                # If rating or points are missing, calculate them
+                if "rating" not in data or "points" not in data or not data.get("rating"):
+                    score = data.get("score", "")
+                    rating = ""
+                    points = 0
+                    if score and str(score).strip():
+                        try:
+                            score_int = int(score)
+                            if is_jss:
+                                rating, points = get_grade_7_8_rating(score_int)
+                            elif is_primary or is_lower:
+                                rating = get_grade_4_6_rating(score_int)
+                                level_points = {"EE1": 8, "EE2": 7, "ME1": 6, "ME2": 5, "AE1": 4, "AE2": 3, "BE1": 2, "BE2": 1}
+                                points = level_points.get(rating, 0)
+                            else:
+                                rating = get_grade_4_6_rating(score_int)
+                                level_points = {"EE1": 8, "EE2": 7, "ME1": 6, "ME2": 5, "AE1": 4, "AE2": 3, "BE1": 2, "BE2": 1}
+                                points = level_points.get(rating, 0)
+                            print(f"DEBUG API: Calculated missing {subject}: score={score_int} -> rating={rating}, points={points}")
+                        except ValueError:
+                            rating = ""
+                            points = 0
+                    
+                    # Update the data with calculated values
+                    data["rating"] = rating
+                    data["points"] = points
+                    scores[subject] = data
+        
+        # Calculate total_points and average_level if missing
+        total_points = 0
+        for subject, data in scores.items():
+            if isinstance(data, dict) and data.get("points"):
+                try:
+                    total_points += int(data["points"])
+                except ValueError:
+                    pass
+        
+        print(f"DEBUG API: Calculated total_points={total_points} from scores: {scores}")
+        
+        # Calculate average level
+        if is_jss:
+            avg_level = calculate_final_level(total_points, is_primary=False)
+        else:
+            total_score = 0
+            for subject, data in scores.items():
+                if isinstance(data, dict) and data.get("score"):
+                    try:
+                        total_score += int(data["score"])
+                    except ValueError:
+                        pass
+            avg_level = calculate_final_level(total_score, is_primary=True)
+            print(f"DEBUG API: Calculated total_score={total_score}, avg_level={avg_level}")
+        
+        # Use calculated values if database values are missing or empty
+        db_total_points = r.get("total_points", "0")
+        db_avg_level = r.get("average_level", "")
+        
+        print(f"DEBUG API: DB values - total_points={db_total_points}, avg_level={db_avg_level}")
+        
+        if not db_total_points or db_total_points == "0":
+            db_total_points = str(total_points)
+            print(f"DEBUG API: Using calculated total_points={db_total_points}")
+        if not db_avg_level:
+            db_avg_level = avg_level
+            print(f"DEBUG API: Using calculated avg_level={db_avg_level}")
+        
         marks_list.append(
             {
                 "adm_no": r["adm_no"],
                 "student_name": r["student_name"],
                 "grade": r["grade"],
                 "exam_title": r["exam_title"],
-                "scores": json.loads(r["subject_scores_json"]),
+                "scores": scores,
+                "total_points": db_total_points,
+                "average_level": db_avg_level,
             }
         )
 

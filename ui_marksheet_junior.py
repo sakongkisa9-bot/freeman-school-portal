@@ -358,7 +358,9 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                 ent.configure(state="disabled")
 
             # 5. Trigger the totals update for this specific row
-            self.update_totals(row_frame)
+            # Get the row index from the row_frame's grid info
+            row_index = row_frame.grid_info()["row"]
+            self.update_totals(row_index)
 
         except IndexError:
             # This prevents a crash if the grid isn't fully rendered yet
@@ -368,15 +370,19 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         total_points_sum = 0
         num_subjects = len(self.subjects)
 
+        # Get the row_frame first (it's at column 0, spanning all columns)
+        row_frames = self.table_inner_frame.grid_slaves(row=row_index, column=0)
+        if not row_frames:
+            return
+        row_frame = row_frames[0]
+
         # 1. Sum up the Points (P) columns
         # Points are in columns 3, 6, 9... (multiples of 3)
         for sub_idx in range(1, num_subjects + 1):
             p_col = sub_idx * 3
             try:
-                # We look in the master frame (self.table_inner_frame) using row_index
-                widgets = self.table_inner_frame.grid_slaves(
-                    row=row_index, column=p_col
-                )
+                # Look inside the row_frame for the point widget
+                widgets = row_frame.grid_slaves(row=0, column=p_col)
                 if widgets:
                     val = widgets[0].get()
                     if val.isdigit():
@@ -389,10 +395,8 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         total_box_col = (num_subjects * 3) + 1
 
         try:
-            # Update Total Points Box
-            total_widgets = self.table_inner_frame.grid_slaves(
-                row=row_index, column=total_box_col
-            )
+            # Update Total Points Box (inside row_frame)
+            total_widgets = row_frame.grid_slaves(row=0, column=total_box_col)
             if total_widgets:
                 total_box = total_widgets[0]
                 total_box.configure(state="normal")
@@ -414,10 +418,8 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             ]
             avg_grade = next((g for p, g in grades if mean_points >= p), "BE2")
 
-            # Update Average Level Box (total_box_col + 1)
-            avg_widgets = self.table_inner_frame.grid_slaves(
-                row=row_index, column=total_box_col + 1
-            )
+            # Update Average Level Box (inside row_frame)
+            avg_widgets = row_frame.grid_slaves(row=0, column=total_box_col + 1)
             if avg_widgets:
                 avg_box = avg_widgets[0]
                 avg_box.configure(state="normal")

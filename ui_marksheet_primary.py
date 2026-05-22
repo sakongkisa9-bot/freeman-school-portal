@@ -261,23 +261,20 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
         self.create_table_headers()
 
     def create_table_headers(self):
-        h_frame = ctk.CTkFrame(self.table_inner, fg_color="gray25", corner_radius=0)
-        h_frame.pack(fill="x")
-
         # FIXED DIMENSIONS
         NAME_W = 180
         BOX_SIZE = 45
         TOT_W = 65
 
-        # 1. LOCK THE COLUMNS
-        h_frame.grid_columnconfigure(0, weight=0, minsize=NAME_W)
+        # 1. LOCK THE COLUMNS on table_inner (shared with rows)
+        self.table_inner.grid_columnconfigure(0, weight=0, minsize=NAME_W)
 
         subjects = self.get_subjects_from_json()
         num_subs = len(subjects)
 
         # Header: Name (Use width=NAME_W to prevent expansion)
         ctk.CTkLabel(
-            h_frame,
+            self.table_inner,
             text="STUDENT NAME",
             font=("Arial Bold", 12),
             width=NAME_W,
@@ -287,7 +284,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
         for i, sub in enumerate(subjects):
             col_start = 1 + (i * 2)
-            h_frame.grid_columnconfigure(
+            self.table_inner.grid_columnconfigure(
                 (col_start, col_start + 1),
                 weight=0,
                 minsize=BOX_SIZE,
@@ -297,7 +294,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
             # Subject Heading (Locked width)
             display_name = sub.upper()[:6]
             ctk.CTkLabel(
-                h_frame,
+                self.table_inner,
                 text=display_name,
                 fg_color="gray30",
                 corner_radius=0,
@@ -316,7 +313,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
             labels = [("Score", "#1a1a1a"), ("Rate", "#2c3e50")]
             for j, (txt, color) in enumerate(labels):
                 ctk.CTkLabel(
-                    h_frame,
+                    self.table_inner,
                     text=txt,
                     fg_color=color,
                     corner_radius=0,
@@ -327,13 +324,13 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
         # Totals
         total_start = 1 + (num_subs * 2)
-        h_frame.grid_columnconfigure(
+        self.table_inner.grid_columnconfigure(
             (total_start, total_start + 1, total_start + 2), weight=0, minsize=TOT_W
         )
 
         for j, txt in enumerate(["TOT", "AVG", "RANK"]):
             ctk.CTkLabel(
-                h_frame,
+                self.table_inner,
                 text=txt,
                 font=("Arial Bold", 11),
                 width=TOT_W,
@@ -352,25 +349,26 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
         BOX_SIZE = 45
         TOT_W = 65
 
-        row_frame = ctk.CTkFrame(self.table_inner, fg_color="transparent")
-        row_frame.pack(fill="x", pady=1)
-        row_frame.grid_columnconfigure(0, weight=0, minsize=NAME_W, uniform="subs")
+        # Calculate row index based on existing rows in table_inner
+        # Header takes rows 0-1, so student rows start at row 2
+        row_index = 2 + (len(self.table_inner.grid_slaves()) // (1 + num_subs * 2 + 3))
+
+        # Name label (column 0)
         ctk.CTkLabel(
-            row_frame,
+            self.table_inner,
             text=row_data[0],
             anchor="w",
             padx=10,
             font=("Arial", 12),
             width=NAME_W,
             fg_color="transparent",
-        ).grid(row=0, column=0, sticky="nsew", padx=1, pady=1)
+        ).grid(row=row_index, column=0, sticky="nsew", padx=1, pady=1)
 
         for i in range(num_subs * 2):
             col_idx = i + 1
-            row_frame.grid_columnconfigure(col_idx, weight=0, minsize=BOX_SIZE, uniform="subs")
             color = "#1a1a1a" if i % 2 == 0 else "#2c3e50"
             e = ctk.CTkEntry(
-                row_frame,
+                self.table_inner,
                 width=BOX_SIZE,
                 height=BOX_SIZE,
                 fg_color=color,
@@ -379,7 +377,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
                 justify="center",
                 font=("Arial Bold", 12),
             )
-            e.grid(row=0, column=col_idx, sticky="nsew", padx=1, pady=1)
+            e.grid(row=row_index, column=col_idx, sticky="nsew", padx=1, pady=1)
 
             val = row_data[col_idx]
             if val is not None:
@@ -389,17 +387,13 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
                 e.bind(
                     "<FocusOut>",
                     lambda event, ent=e, idx=i: self.auto_calculate(
-                        ent, idx, row_frame
+                        ent, idx, self.table_inner
                     ),
                 )
             else:
                 e.configure(state="disabled")
 
         t_idx = 1 + (num_subs * 2)
-        row_frame.grid_columnconfigure(
-            (t_idx, t_idx + 1, t_idx + 2), weight=0, minsize=TOT_W, uniform="subs"
-        )
-
         summary_colors = ["gray30", "#1f538d", "#4a1515"]
         for j in range(3):
             col_idx = t_idx + j
@@ -407,7 +401,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
             if j == 2:
                 val = str(rank)
             box = ctk.CTkEntry(
-                row_frame,
+                self.table_inner,
                 width=TOT_W,
                 height=BOX_SIZE,
                 fg_color=summary_colors[j],
@@ -416,7 +410,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
                 corner_radius=0,
                 justify="center",
             )
-            box.grid(row=0, column=col_idx, sticky="nsew", padx=1, pady=1)
+            box.grid(row=row_index, column=col_idx, sticky="nsew", padx=1, pady=1)
             box.insert(0, str(val))
             box.configure(state="disabled")
 
@@ -443,16 +437,18 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
                 return
 
         # 2. If the input is good, tell the row to recalculate!
-        self.refresh_totals(row_frame)
+        # Get the row index from the entry widget
+        row_idx = entry_widget.grid_info()["row"]
+        self.refresh_totals(row_frame, row_idx)
 
-    def refresh_totals(self, row_frame):
+    def refresh_totals(self, row_frame, row_idx):
         import grading_logic as gl  # Ensure your file is imported
 
         subjects = self.get_subjects_from_json()
         num_subs = len(subjects)
         total_score = 0
 
-        widgets = row_frame.grid_slaves(row=0)
+        widgets = row_frame.grid_slaves(row=row_idx)
         widgets.sort(key=lambda w: int(w.grid_info()["column"]))
 
         # 1. Calculate Subject Ratings using get_grade_4_6_rating

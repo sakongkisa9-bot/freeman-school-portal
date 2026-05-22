@@ -232,6 +232,13 @@ def apply_cloud_records_to_table(
     for r_idx in sorted(rows.keys()):
         widgets = sorted(rows[r_idx], key=lambda w: w.grid_info().get("column", 0))
         print(f"DEBUG: Processing row {r_idx}, widgets: {len(widgets)}")
+        
+        # Print column numbers of all widgets for debugging
+        col_numbers = []
+        for w in widgets:
+            col = w.grid_info().get("column")
+            col_numbers.append(col)
+        print(f"DEBUG: Row {r_idx} widget columns: {col_numbers}")
 
         # In your Junior UI, Column 0 is the Name Label
         name_widget = widgets[0]
@@ -314,6 +321,48 @@ def apply_cloud_records_to_table(
                                 w.insert(0, str(vals[offset]))
                                 w.configure(state=curr_state)
                             break
+
+            # Fill in total_points and average_level in the summary columns
+            total_points = record.get("total_points", "0")
+            average_level = record.get("average_level", "")
+            
+            # Summary columns start after all subject columns
+            total_start_col = 1 + (len(subjects) * columns_per_subject)
+            print(f"DEBUG: Filling totals for {raw_name}, total_start_col={total_start_col}, total_points={total_points}, avg_level={average_level}")
+            
+            # Fill total_points column
+            tot_found = False
+            for w in widgets:
+                col = w.grid_info().get("column")
+                if col is not None and int(col) == total_start_col:
+                    if hasattr(w, "delete"):
+                        curr_state = w.cget("state")
+                        w.configure(state="normal")
+                        w.delete(0, "end")
+                        w.insert(0, str(total_points))
+                        w.configure(state=curr_state)
+                        tot_found = True
+                        print(f"DEBUG: Filled total_points at column {col}")
+                    break
+            if not tot_found:
+                print(f"DEBUG: Could not find widget at column {total_start_col} for total_points")
+            
+            # Fill average_level column
+            avg_found = False
+            for w in widgets:
+                col = w.grid_info().get("column")
+                if col is not None and int(col) == total_start_col + 1:
+                    if hasattr(w, "delete"):
+                        curr_state = w.cget("state")
+                        w.configure(state="normal")
+                        w.delete(0, "end")
+                        w.insert(0, str(average_level))
+                        w.configure(state=curr_state)
+                        avg_found = True
+                        print(f"DEBUG: Filled average_level at column {col}")
+                    break
+            if not avg_found:
+                print(f"DEBUG: Could not find widget at column {total_start_col + 1} for average_level")
 
             filled_count += 1
             print(f"✅ Sync Successful: {raw_name}")
