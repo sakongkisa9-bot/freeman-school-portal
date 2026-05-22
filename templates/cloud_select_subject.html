@@ -181,7 +181,7 @@
 
         <div class="subjects-grid">
             {% for sub in subjects %}
-            <a href="{{ url_for('enter_marks', grade=grade, subject=sub) }}" class="subject-card">
+            <a href="{{ url_for('enter_marks', grade=grade, subject=sub|urlencode) }}" class="subject-card">
                 <div class="subject-icon">📖</div>
                 <div class="subject-name">{{ sub }}</div>
             </a>
