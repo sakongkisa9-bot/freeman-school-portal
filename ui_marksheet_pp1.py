@@ -221,7 +221,10 @@ class PP1MarkSheetView(ctk.CTkFrame):
             )
             self.update_idletasks()
 
-            # 5. Success Message
+            # 5. Save the fetched marks to database (skip reload to preserve cloud values)
+            self.save_pp1_marks(skip_reload=True)
+
+            # 6. Success Message
             messagebox.showinfo(
                 "Cloud Fetch",
                 f"Successfully synchronized {len(marks_data)} student records.",
@@ -627,7 +630,7 @@ class PP1MarkSheetView(ctk.CTkFrame):
         except Exception as e:
             print(f"Loading/Sorting Error: {e}")
 
-    def save_pp1_marks(self):
+    def save_pp1_marks(self, skip_reload=False):
         success_count = 0
         subjects = self.get_subjects_from_json()
         num_subs = len(subjects)
@@ -693,7 +696,8 @@ class PP1MarkSheetView(ctk.CTkFrame):
 
             self.db.conn.commit()
             messagebox.showinfo("Success", f"Saved marks for {success_count} students.")
-            self.load_students_from_registry()  # Refresh to update rankings
+            if not skip_reload:
+                self.load_students_from_registry()  # Refresh to update rankings
 
         except Exception as e:
             messagebox.showerror("Database Error", f"Could not save: {e}")

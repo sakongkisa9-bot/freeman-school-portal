@@ -600,29 +600,32 @@ def api_get_marks():
                     scores[subject] = data
         
         # Calculate total_points and average_level if missing
-        total_points = 0
-        for subject, data in scores.items():
-            if isinstance(data, dict) and data.get("points"):
-                try:
-                    total_points += int(data["points"])
-                except ValueError:
-                    pass
-        
-        print(f"DEBUG API: Calculated total_points={total_points} from scores: {scores}")
+        # Junior (JSS) uses points for total, all other grades use scores
+        if is_jss:
+            total_points = 0
+            for subject, data in scores.items():
+                if isinstance(data, dict) and data.get("points"):
+                    try:
+                        total_points += int(data["points"])
+                    except ValueError:
+                        pass
+            print(f"DEBUG API: Calculated total_points (from points)={total_points} for JSS")
+        else:
+            total_points = 0
+            for subject, data in scores.items():
+                if isinstance(data, dict) and data.get("score"):
+                    try:
+                        total_points += int(data["score"])
+                    except ValueError:
+                        pass
+            print(f"DEBUG API: Calculated total_points (from scores)={total_points} for non-JSS")
         
         # Calculate average level
         if is_jss:
             avg_level = calculate_final_level(total_points, is_primary=False)
         else:
-            total_score = 0
-            for subject, data in scores.items():
-                if isinstance(data, dict) and data.get("score"):
-                    try:
-                        total_score += int(data["score"])
-                    except ValueError:
-                        pass
-            avg_level = calculate_final_level(total_score, is_primary=True)
-            print(f"DEBUG API: Calculated total_score={total_score}, avg_level={avg_level}")
+            avg_level = calculate_final_level(total_points, is_primary=True)
+            print(f"DEBUG API: Calculated avg_level={avg_level} from total_points={total_points}")
         
         # Use calculated values if database values are missing or empty
         db_total_points = r["total_points"] if r["total_points"] is not None else "0"
