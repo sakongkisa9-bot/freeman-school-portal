@@ -361,7 +361,8 @@
         </div>
 
         <div class="marks-section">
-            <form method="POST" id="marksForm">
+            <form method="POST" id="marksForm" action="{{ url_for('enter_marks', grade=grade) }}?subject={{ subject|urlencode }}">
+                <input type="hidden" name="subject" value="{{ subject }}">
                 <div class="student-list" id="studentList">
                     {% for s in students %}
                     <div class="student-row">
@@ -467,9 +468,8 @@
 
         // Form submission with success modal
         document.getElementById('marksForm').addEventListener('submit', function (e) {
-            e.preventDefault();
-            // Show success modal
-            document.getElementById('successModal').classList.add('active');
+            // Let the form submit normally to the server
+            // Success modal will be shown after redirect if flash message exists
         });
 
         function closeSuccessModal() {
