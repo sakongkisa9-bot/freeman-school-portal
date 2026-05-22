@@ -181,6 +181,59 @@
             margin-top: 40px;
         }
 
+        .portal-section {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 16px;
+        }
+
+        .portal-button {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #020617;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-weight: 900;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .portal-button:hover {
+            transform: scale(1.02);
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+        }
+
+        .portal-button.closed {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: #ffffff;
+        }
+
+        .portal-button.closed:hover {
+            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);
+        }
+
+        .portal-status {
+            margin-bottom: 12px;
+            font-size: 14px;
+            color: #94a3b8;
+        }
+
+        .portal-status.open {
+            color: #10b981;
+            font-weight: 700;
+        }
+
+        .portal-status.closed {
+            color: #ef4444;
+            font-weight: 700;
+        }
+
         @media (max-width: 480px) {
             .dashboard-container {
                 padding: 15px;
@@ -215,6 +268,25 @@
             <h1 class="header-title">Dashboard <span class="highlight">Portal</span></h1>
             <p class="welcome-text">Welcome back, {{ username }}. Select a class to manage students or enter marks.</p>
         </div>
+
+        {% if session.get('role') == 'admin' %}
+        <div class="portal-section">
+            <div class="portal-status {% if portal_open == 1 %}open{% else %}closed{% endif %}">
+                {% if portal_open == 1 %}
+                    ✅ Portal is OPEN - Teachers can enter marks
+                {% else %}
+                    🔒 Portal is CLOSED - Teachers cannot enter marks
+                {% endif %}
+            </div>
+            <button id="portalToggleBtn" class="portal-button {% if portal_open == 0 %}closed{% endif %}" onclick="togglePortal()">
+                {% if portal_open == 1 %}
+                    Close Teachers Portal
+                {% else %}
+                    Launch Teachers Portal
+                {% endif %}
+            </button>
+        </div>
+        {% endif %}
 
         <div class="grades-grid">
             {% for grade in grades %}
@@ -290,6 +362,44 @@
         init();
         animate();
         window.addEventListener('resize', init);
+
+        // Portal toggle functionality
+        async function togglePortal() {
+            const btn = document.getElementById('portalToggleBtn');
+            const statusDiv = document.querySelector('.portal-status');
+
+            try {
+                const response = await fetch('/api/toggle_portal', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Update button text and style
+                    if (data.portal_open === 1) {
+                        btn.textContent = 'Close Teachers Portal';
+                        btn.classList.remove('closed');
+                        statusDiv.textContent = '✅ Portal is OPEN - Teachers can enter marks';
+                        statusDiv.classList.remove('closed');
+                        statusDiv.classList.add('open');
+                    } else {
+                        btn.textContent = 'Launch Teachers Portal';
+                        btn.classList.add('closed');
+                        statusDiv.textContent = '🔒 Portal is CLOSED - Teachers cannot enter marks';
+                        statusDiv.classList.remove('open');
+                        statusDiv.classList.add('closed');
+                    }
+                } else {
+                    alert('Failed to toggle portal: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error toggling portal: ' + error.message);
+            }
+        }
     </script>
 </body>
 </html>

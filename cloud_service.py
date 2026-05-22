@@ -139,6 +139,35 @@ class CloudService:
         }
         return self._post_json("/api/fetch_students", payload)
 
+    def toggle_portal(self, credentials):
+        """Toggle the cloud portal open/closed state"""
+        if not self._ensure_requests():
+            return {"success": False, "message": "Requests library not installed."}
+
+        try:
+            url = f"{self.base_url}/api/toggle_portal"
+            # Need to authenticate with session first
+            login_url = f"{self.base_url}/teacher/login"
+            login_data = {
+                "school_code": credentials["school_code"],
+                "username": credentials["username"],
+                "password": credentials["password"],
+            }
+
+            # Login to get session
+            login_response = self.session.post(login_url, data=login_data, timeout=20)
+            if login_response.status_code != 302:
+                return {"success": False, "message": "Authentication failed"}
+
+            # Now toggle portal
+            response = self.session.post(url, timeout=20)
+            if response.status_code != 200:
+                return {"success": False, "message": f"Status: {response.status_code}, Response: {response.text}"}
+
+            return response.json()
+        except Exception as e:
+            return {"success": False, "message": f"Connection Failed: {e}"}
+
 
 def apply_cloud_records_to_table(
     table_inner_frame, records, subjects, columns_per_subject=3

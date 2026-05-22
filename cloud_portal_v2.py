@@ -118,9 +118,16 @@ def init_db():
             school_code TEXT NOT NULL UNIQUE,
             email TEXT,
             password_hash TEXT NOT NULL,
+            portal_open INTEGER DEFAULT 1,
             created_at TEXT NOT NULL
         )
     """)
+    # Add portal_open column if it doesn't exist (for existing databases)
+    cursor.execute("PRAGMA table_info(schools)")
+    columns = [column[1] for column in cursor.fetchall()]
+    if 'portal_open' not in columns:
+        cursor.execute("ALTER TABLE schools ADD COLUMN portal_open INTEGER DEFAULT 1")
+        conn.commit()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS teachers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -300,7 +307,50 @@ def parent_login():
 def dashboard():
     if "school_id" not in session:
         return redirect(url_for("teacher_login"))
-    return render_template("cloud_dashboard.html", grades=GRADE_OPTIONS)
+
+    conn = get_db()
+    school = conn.execute(
+        "SELECT portal_open FROM schools WHERE id = ?", (session["school_id"],)
+    ).fetchone()
+    conn.close()
+
+    portal_open = school["portal_open"] if school else 1
+    return render_template("cloud_dashboard.html", grades=GRADE_OPTIONS, portal_open=portal_open)
+
+
+@app.route("/api/toggle_portal", methods=["POST"])
+def api_toggle_portal():
+    if "school_id" not in session:
+        return jsonify({"success": False, "message": "Not authenticated"}), 401
+
+    conn = get_db()
+    try:
+        # Get current portal state
+        school = conn.execute(
+            "SELECT portal_open FROM schools WHERE id = ?", (session["school_id"],)
+        ).fetchone()
+
+        if not school:
+            return jsonify({"success": False, "message": "School not found"}), 404
+
+        # Toggle portal state
+        new_state = 0 if school["portal_open"] == 1 else 1
+        conn.execute(
+            "UPDATE schools SET portal_open = ? WHERE id = ?",
+            (new_state, session["school_id"])
+        )
+        conn.commit()
+
+        return jsonify({
+            "success": True,
+            "portal_open": new_state,
+            "message": "Portal opened" if new_state == 1 else "Portal closed"
+        })
+    except Exception as e:
+        logging.error(f"Toggle portal error: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        conn.close()
 
 
 @app.route("/api/sync_students", methods=["POST"])
@@ -373,6 +423,15 @@ def enter_marks(grade):
         return redirect(url_for("teacher_login"))
 
     conn = get_db()
+    # Check if portal is open
+    school = conn.execute(
+        "SELECT portal_open FROM schools WHERE id = ?", (session["school_id"],)
+    ).fetchone()
+
+    if not school or school["portal_open"] == 0:
+        conn.close()
+        flash("The teachers portal is currently closed. Please contact your administrator.", "danger")
+        return redirect(url_for("dashboard"))
     # Fetch students for this grade
     students = conn.execute(
         "SELECT * FROM students WHERE school_id = ? AND grade = ? ORDER BY student_name ASC",

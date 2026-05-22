@@ -24,8 +24,9 @@ class Dashboard(ctk.CTk):
         self.db = FreemanDB()
 
         # --- ADD THESE TWO LINES HERE ---
-        self.search_var = ctk.StringVar() 
-        self.all_student_rows = [] 
+        self.search_var = ctk.StringVar()
+        self.all_student_rows = []
+        self.portal_open = False  # Track portal state
         # --------------------------------
 
         self.overrideredirect(True)
@@ -316,37 +317,39 @@ class Dashboard(ctk.CTk):
         return True
 
     def handle_portal_button(self):
-        school = self.load_school_name()
-        success, message = network_manager.launch_sync_portal(school)
-
         cloud_config = self.load_school_config()
         cloud_url = cloud_config.get('cloud_portal_url', '').strip()
         cloud_school_code = cloud_config.get('cloud_school_code', '').strip()
         cloud_teacher_username = cloud_config.get('cloud_teacher_username', '').strip()
 
-        if success:
-            portal_text = []
-            if message.startswith('HOTSPOT|'):
-                _, ssid, password, server_url = message.split('|', 3)
-                portal_text.append(f"WiFi Name: {ssid}")
-                portal_text.append(f"Password: {password}")
-                portal_text.append(f"Offline Portal: {server_url}")
-            elif message.startswith('SERVER_ONLY|'):
-                _, server_url, error_message = message.split('|', 2)
-                portal_text.append(f"Offline Portal: {server_url}")
-                portal_text.append(f"Hotspot error: {error_message}")
-                portal_text.append("Enable Windows Mobile Hotspot manually if you want a local Wi-Fi network.")
-            else:
-                portal_text.append(f"Offline Portal: {message}")
+        # Toggle portal state
+        if not self.portal_open:
+            # Launch portal
+            school = self.load_school_name()
+            success, message = network_manager.launch_sync_portal(school)
 
-            if cloud_url:
-                portal_text.append(f"Cloud Portal: {cloud_url}")
+            if success:
+                portal_text = []
+                if message.startswith('HOTSPOT|'):
+                    _, ssid, password, server_url = message.split('|', 3)
+                    portal_text.append(f"WiFi Name: {ssid}")
+                    portal_text.append(f"Password: {password}")
+                    portal_text.append(f"Offline Portal: {server_url}")
+                elif message.startswith('SERVER_ONLY|'):
+                    _, server_url, error_message = message.split('|', 2)
+                    portal_text.append(f"Offline Portal: {server_url}")
+                    portal_text.append(f"Hotspot error: {error_message}")
+                    portal_text.append("Enable Windows Mobile Hotspot manually if you want a local Wi-Fi network.")
+                else:
+                    portal_text.append(f"Offline Portal: {message}")
 
-            messagebox.showinfo("Portal Active", "\n".join(portal_text))
+                if cloud_url:
+                    portal_text.append(f"Cloud Portal: {cloud_url}")
 
-            if cloud_school_code and cloud_teacher_username and cloud_url:
-                use_cloud = messagebox.askyesno('Sync Cloud', 'This school appears to be registered in the cloud. Sync local students and open the cloud portal now?')
-                if use_cloud:
+                messagebox.showinfo("Portal Active", "\n".join(portal_text))
+
+                # Toggle cloud portal if configured
+                if cloud_school_code and cloud_teacher_username and cloud_url:
                     cloud_teacher_password = cloud_config.get('cloud_teacher_password', '').strip()
                     if cloud_teacher_password:
                         credentials = {
@@ -357,21 +360,72 @@ class Dashboard(ctk.CTk):
                     else:
                         credentials = ask_cloud_credentials(self)
                         if not credentials:
+                            # Still update local state even if cloud auth fails
+                            self.portal_open = True
+                            self.update_portal_button()
                             return
+
+                    # Toggle cloud portal to open
+                    service = CloudService()
+                    result = service.toggle_portal(credentials)
+                    if result.get('success'):
+                        print(f"Cloud portal opened: {result.get('message')}")
+                    else:
+                        print(f"Failed to open cloud portal: {result.get('message')}")
 
                     self.sync_students_to_cloud(credentials)
                     try:
                         webbrowser.open(cloud_url)
                     except Exception:
                         pass
-            elif cloud_url and not cloud_school_code:
-                if messagebox.askyesno('Cloud Portal', 'Open the cloud portal in the browser?'):
-                    try:
-                        webbrowser.open(cloud_url)
-                    except Exception:
-                        pass
+                elif cloud_url and not cloud_school_code:
+                    if messagebox.askyesno('Cloud Portal', 'Open the cloud portal in the browser?'):
+                        try:
+                            webbrowser.open(cloud_url)
+                        except Exception:
+                            pass
+
+                # Update state and button
+                self.portal_open = True
+                self.update_portal_button()
+            else:
+                messagebox.showerror("Portal Error", f"Failed to start: {message}")
         else:
-            messagebox.showerror("Portal Error", f"Failed to start: {message}")
+            # Close portal
+            if cloud_school_code and cloud_teacher_username and cloud_url:
+                cloud_teacher_password = cloud_config.get('cloud_teacher_password', '').strip()
+                if cloud_teacher_password:
+                    credentials = {
+                        'school_code': cloud_school_code,
+                        'username': cloud_teacher_username,
+                        'password': cloud_teacher_password
+                    }
+                else:
+                    credentials = ask_cloud_credentials(self)
+                    if not credentials:
+                        return
+
+                # Toggle cloud portal to close
+                service = CloudService()
+                result = service.toggle_portal(credentials)
+                if result.get('success'):
+                    messagebox.showinfo("Portal Closed", "Teachers portal has been closed. Teachers can no longer enter marks.")
+                else:
+                    messagebox.showerror("Portal Error", f"Failed to close cloud portal: {result.get('message')}")
+                    return
+            else:
+                messagebox.showinfo("Portal Closed", "Teachers portal has been closed. Teachers can no longer enter marks.")
+
+            # Update state and button
+            self.portal_open = False
+            self.update_portal_button()
+
+    def update_portal_button(self):
+        """Update portal button text and color based on state"""
+        if self.portal_open:
+            self.btn_portal.configure(text="🔒 Close Teacher Portal", fg_color="#e74c3c")
+        else:
+            self.btn_portal.configure(text="📡 Launch Teacher Portal", fg_color="green")
 
     def handle_cloud_sync_button(self):
         config = self.load_school_config()
