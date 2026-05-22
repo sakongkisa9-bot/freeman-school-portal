@@ -629,11 +629,12 @@ def api_get_marks():
         db_avg_level = r["average_level"] if r["average_level"] is not None else ""
         
         print(f"DEBUG API: DB values - total_points={db_total_points}, avg_level={db_avg_level}")
+        print(f"DEBUG API: Calculated values - total_points={total_points}, avg_level={avg_level}")
         
         if not db_total_points or db_total_points == "0":
             db_total_points = str(total_points)
             print(f"DEBUG API: Using calculated total_points={db_total_points}")
-        if not db_avg_level:
+        if not db_avg_level or db_avg_level == "":
             db_avg_level = avg_level
             print(f"DEBUG API: Using calculated avg_level={db_avg_level}")
         
