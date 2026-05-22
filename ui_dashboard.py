@@ -26,7 +26,7 @@ class Dashboard(ctk.CTk):
         # --- ADD THESE TWO LINES HERE ---
         self.search_var = ctk.StringVar()
         self.all_student_rows = []
-        self.portal_open = False  # Track portal state
+        self.portal_open = self.load_portal_state()  # Track portal state from config
         # --------------------------------
 
         self.overrideredirect(True)
@@ -170,14 +170,15 @@ class Dashboard(ctk.CTk):
         )
         self.setup_btn.pack(pady=(0, 30))
         self.btn_portal = ctk.CTkButton(
-            self.menu_panel, 
-            text="📡 Launch Teacher Portal", 
+            self.menu_panel,
+            text="📡 Launch Teacher Portal",
             command=self.handle_portal_button,
             fg_color="green",
             width=btn_width,
             height=btn_height
         )
         self.btn_portal.pack(pady=10)
+        self.update_portal_button()  # Set initial button state based on loaded config
 
         self.btn_cloud_sync = ctk.CTkButton(
             self.menu_panel,
@@ -271,6 +272,21 @@ class Dashboard(ctk.CTk):
         except Exception:
             pass
         return {}
+
+    def load_portal_state(self):
+        """Load portal state from config file"""
+        try:
+            config = self.load_school_config()
+            return config.get('portal_open', False)
+        except Exception:
+            return False
+
+    def save_portal_state(self, state):
+        """Save portal state to config file"""
+        try:
+            self.save_school_config({'portal_open': state})
+        except Exception as e:
+            print(f'Unable to save portal state: {e}')
 
     def save_school_config(self, updates):
         try:
@@ -387,6 +403,7 @@ class Dashboard(ctk.CTk):
 
                 # Update state and button
                 self.portal_open = True
+                self.save_portal_state(True)
                 self.update_portal_button()
             else:
                 messagebox.showerror("Portal Error", f"Failed to start: {message}")
@@ -418,6 +435,7 @@ class Dashboard(ctk.CTk):
 
             # Update state and button
             self.portal_open = False
+            self.save_portal_state(False)
             self.update_portal_button()
 
     def update_portal_button(self):
