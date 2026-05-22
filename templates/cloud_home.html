@@ -1,6 +1,12 @@
 {% extends 'cloud_base.html' %}
 {% block content %}
 <style>
+    body {
+        margin: 0;
+        padding: 0;
+        overflow-x: hidden;
+    }
+
     .hero-section {
         background: linear-gradient(135deg, rgba(44, 62, 80, 0.95), rgba(52, 152, 219, 0.9)),
                     url('https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1920') center/cover;
@@ -10,7 +16,13 @@
         align-items: center;
         justify-content: center;
         padding: 20px;
-        margin: -20px;
+        margin: 0;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        overflow-y: auto;
     }
 
     .hero-content {
