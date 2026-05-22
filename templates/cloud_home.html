@@ -5,11 +5,13 @@
     <p>Please select your role to continue</p>
     <div style="display:grid;grid-template-columns:1fr 1fr; gap:16px; margin-top:20px;">
         <a class="button" href="{{ url_for('teacher_login') }}">Teacher</a>
-        <a class="button" href="{{ url_for('parent_login') }}" style="background-color:#6c757d; cursor:not-allowed; opacity:0.6;">Parent (Coming Soon)</a>
+        <a class="button" href="{{ url_for('parent_login') }}"
+            style="background-color:#6c757d; cursor:not-allowed; opacity:0.6;">Parent (Coming Soon)</a>
     </div>
     <div style="margin-top:30px; border-top:1px solid #ddd; padding-top:20px;">
-        <p style="font-size:14px; color:#666;">School Administrator?</p>
-        <a class="button" href="{{ url_for('register') }}" style="background-color:#17a2b8; font-size:14px; padding:10px 20px;">Register School</a>
+        <p style="font-size:14px; color:#666;">developer access?</p>
+        <a class="button" href="{{ url_for('register') }}"
+            style="background-color:#17a2b8; font-size:14px; padding:10px 20px;">Register School</a>
     </div>
 </div>
 {% endblock %}
