@@ -154,10 +154,10 @@ class CloudService:
                 "password": credentials["password"],
             }
 
-            # Login to get session
-            login_response = self.session.post(login_url, data=login_data, timeout=20)
-            if login_response.status_code != 302:
-                return {"success": False, "message": "Authentication failed"}
+            # Login to get session (use form data, not JSON)
+            login_response = self.session.post(login_url, data=login_data, timeout=20, allow_redirects=False)
+            if login_response.status_code not in (302, 200):
+                return {"success": False, "message": f"Authentication failed: Status {login_response.status_code}"}
 
             # Now toggle portal
             response = self.session.post(url, timeout=20)

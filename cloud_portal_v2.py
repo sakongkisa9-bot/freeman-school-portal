@@ -118,7 +118,7 @@ def init_db():
             school_code TEXT NOT NULL UNIQUE,
             email TEXT,
             password_hash TEXT NOT NULL,
-            portal_open INTEGER DEFAULT 1,
+            portal_open INTEGER DEFAULT 0,
             created_at TEXT NOT NULL
         )
     """)
@@ -126,7 +126,11 @@ def init_db():
     cursor.execute("PRAGMA table_info(schools)")
     columns = [column[1] for column in cursor.fetchall()]
     if 'portal_open' not in columns:
-        cursor.execute("ALTER TABLE schools ADD COLUMN portal_open INTEGER DEFAULT 1")
+        cursor.execute("ALTER TABLE schools ADD COLUMN portal_open INTEGER DEFAULT 0")
+        conn.commit()
+    else:
+        # Update existing schools to have portal_open = 0 (closed) by default
+        cursor.execute("UPDATE schools SET portal_open = 0 WHERE portal_open IS NULL")
         conn.commit()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS teachers (
