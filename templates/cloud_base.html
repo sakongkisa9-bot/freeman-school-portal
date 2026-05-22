@@ -174,9 +174,10 @@
     <div class="side-menu" id="side-menu">
         <div class="menu-header">Menu</div>
         <div class="menu-items">
-            <a href="{{ url_for('login') }}" class="menu-link"><i class="fas fa-chalkboard-teacher"></i> Teacher
+            <a href="{{ url_for('home') }}" class="menu-link"><i class="fas fa-home"></i> Home</a>
+            <a href="{{ url_for('teacher_login') }}" class="menu-link"><i class="fas fa-chalkboard-teacher"></i> Teacher
                 Login</a>
-            <a href="#" class="menu-link" style="color: #999;"><i class="fas fa-user-friends"></i> Parents (Coming
+            <a href="{{ url_for('parent_login') }}" class="menu-link" style="color: #999;"><i class="fas fa-user-friends"></i> Parents (Coming
                 Soon)</a>
         </div>
         <div class="menu-footer">
