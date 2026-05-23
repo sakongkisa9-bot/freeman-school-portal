@@ -143,10 +143,18 @@ class FreemanDB:
             phe_s INTEGER, phe_r TEXT,
             total_points INTEGER,
             average_level TEXT,
+            rank INTEGER,
             FOREIGN KEY (adm_no) REFERENCES students (adm_no)
         )
         """
         self._cursor.execute(query)
+        
+        # Add rank column if it doesn't exist (for existing databases)
+        try:
+            self._cursor.execute("ALTER TABLE primary_marks ADD COLUMN rank INTEGER")
+        except:
+            pass
+        
         self.conn.commit()
 
     def create_settings_table(self):

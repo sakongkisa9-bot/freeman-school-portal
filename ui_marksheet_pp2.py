@@ -223,10 +223,13 @@ class PP2MarkSheetView(ctk.CTkFrame):
             # 5. Save the fetched marks to database (skip reload to preserve cloud values)
             self.save_pp2_marks(skip_reload=True)
 
-            # 6. Success Message
+            # 6. Consume marks from cloud (delete them after successful fetch)
+            service.consume_marks(self.class_name, credentials)
+
+            # 7. Success Message
             messagebox.showinfo(
                 "Cloud Fetch",
-                f"Successfully synchronized {len(marks_data)} student records.",
+                f"Successfully synchronized {len(marks_data)} student records. Marks have been removed from cloud.",
             )
 
         else:

@@ -217,10 +217,13 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
             # 5. Save the fetched marks to database (skip reload to preserve cloud values)
             self.save_primary_marks(skip_reload=True)
 
-            # 6. Success Message
+            # 6. Consume marks from cloud (delete them after successful fetch)
+            service.consume_marks(self.class_name, credentials)
+
+            # 7. Success Message
             messagebox.showinfo(
                 "Cloud Fetch",
-                f"Successfully synchronized {len(marks_data)} student records.",
+                f"Successfully synchronized {len(marks_data)} student records. Marks have been removed from cloud.",
             )
 
         else:
@@ -576,46 +579,24 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
             col_str = ", ".join(select_cols) if select_cols else "m.total_points"
 
             query = f"""
-                SELECT s.name, {col_str}, m.total_points, m.average_level
+                SELECT s.name, {col_str}, m.total_points, m.average_level, m.rank
                 FROM students s
                 LEFT JOIN primary_marks m ON s.adm_no = m.adm_no
                 WHERE s.grade = ?
+                ORDER BY CASE WHEN m.rank IS NULL THEN 1 ELSE 0 END, m.rank ASC
             """
             # 1. Fetch data
-            # ... (Your existing SQL SELECT query logic here) ...
             self.db._cursor.execute(query, (self.class_name,))
             records = self.db._cursor.fetchall()
 
-            # 2. Rank calculation
+            # 2. Use rank from database instead of calculating in memory
             total_idx = 1 + (num_subs * 2)
-            scored_students = []
-            for row in records:
-                score = row[total_idx] if row[total_idx] is not None else -1
-                scored_students.append({"data": row, "score": score})
-
-            # Sort by total points (Highest first)
-            scored_students.sort(key=lambda x: x["score"], reverse=True)
-
-            # 3. Assign positions and Sort for UI
-            final_list = []
-            current_pos = 0
-            for i, item in enumerate(scored_students):
-                if item["score"] == -1:
-                    pos = "-"
-                else:
-                    if i > 0 and item["score"] == scored_students[i - 1]["score"]:
-                        pos = current_pos  # Tie
-                    else:
-                        current_pos = i + 1
-                        pos = current_pos
-                final_list.append((item["data"], pos))
-
-            # SORT THE LIST BY POSITION: Numbers 1, 2, 3... then the "-" students at the bottom
-            final_list.sort(key=lambda x: (x[1] == "-", x[1] if x[1] != "-" else 999))
-
-            # 4. Draw rows in the sorted order
-            for row_data, pos in final_list:
-                self.add_student_row_with_data(row_data, pos)
+            rank_idx = total_idx + 2  # rank is after total_points and average_level
+            
+            # 3. Draw rows using the rank from database
+            for row_data in records:
+                rank = row_data[rank_idx] if rank_idx < len(row_data) else "-"
+                self.add_student_row_with_data(row_data, rank)
 
         except Exception as e:
             print(f"Loading/Sorting Error: {e}")
@@ -704,12 +685,70 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
                 success_count += 1
 
             self.db.conn.commit()
+            
+            # Calculate and save rankings
+            self.calculate_primary_rankings()
+            
             messagebox.showinfo("Success", f"Saved marks for {success_count} students.")
             if not skip_reload:
                 self.load_students_from_registry()  # Refresh to update rankings
 
         except Exception as e:
             messagebox.showerror("Database Error", f"Could not save: {e}")
+
+    def calculate_primary_rankings(self):
+        """Calculate and save rankings for primary students"""
+        try:
+            subjects = self.get_subjects_from_json()
+            
+            # Build column names for total_points calculation
+            clean_names = []
+            for sub in subjects:
+                clean = (
+                    sub.strip()
+                    .replace(" ", "_")
+                    .replace("-", "_")
+                    .replace("/", "_")
+                    .lower()
+                )
+                clean_names.append(f"COALESCE({clean}_s, 0)")
+            
+            # Update total_points in database
+            sum_query = " + ".join(clean_names)
+            self.db._cursor.execute(f"UPDATE primary_marks SET total_points = ({sum_query})")
+            
+            # Get all students for this class sorted by total_points descending
+            self.db._cursor.execute(
+                """
+                SELECT pm.adm_no, pm.total_points 
+                FROM primary_marks pm
+                JOIN students s ON pm.adm_no = s.adm_no
+                WHERE s.grade = ?
+                ORDER BY pm.total_points DESC
+                """,
+                (self.class_name,)
+            )
+            students = self.db._cursor.fetchall()
+            
+            # Assign ranks starting from 1
+            current_rank = 0
+            prev_score = None
+            
+            for i, (adm_no, score) in enumerate(students, start=1):
+                if score != prev_score:
+                    current_rank = i
+                    prev_score = score
+                
+                self.db._cursor.execute(
+                    "UPDATE primary_marks SET rank = ? WHERE adm_no = ?",
+                    (current_rank, adm_no)
+                )
+            
+            self.db.conn.commit()
+            print(f"Rankings calculated for {len(students)} students")
+            
+        except Exception as e:
+            print(f"Error calculating rankings: {e}")
 
     def generate_pdf_report(self):
         from tkinter import filedialog, messagebox

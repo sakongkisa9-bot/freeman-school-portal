@@ -557,10 +557,13 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             # 5. Save the fetched marks to database (skip reload to preserve cloud values)
             self.save_all_marks(skip_reload=True)
 
-            # 6. Success Message
+            # 6. Consume marks from cloud (delete them after successful fetch)
+            service.consume_marks(self.class_name, credentials)
+
+            # 7. Success Message
             messagebox.showinfo(
                 "Cloud Fetch",
-                f"Successfully synchronized {len(marks_data)} student records.",
+                f"Successfully synchronized {len(marks_data)} student records. Marks have been removed from cloud.",
             )
 
         else:
@@ -800,6 +803,17 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                     update_parts.extend([f"{base}_s=?", f"{base}_r=?", f"{base}_p=?"])
                     values.extend([s_val, r_val, p_val])
 
+                # 5. Get total_points and average_points from UI
+                total_start = 1 + (num_subs * 3)
+                total_widgets = row_frame.grid_slaves(row=0, column=total_start)
+                avg_widgets = row_frame.grid_slaves(row=0, column=total_start + 1)
+                
+                total_val = total_widgets[0].get() if total_widgets else "0"
+                avg_val = avg_widgets[0].get() if avg_widgets else ""
+                
+                update_parts.extend(["total_points=?", "average_points=?"])
+                values.extend([total_val, avg_val])
+
                 # 6. Execute Update
                 values.append(adm_no)
                 sql = f"UPDATE marksheet SET {', '.join(update_parts)} WHERE adm_no=?"
@@ -836,18 +850,59 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         sum_query = " + ".join([f"COALESCE({col}, 0)" for col in point_cols])
 
         self.db._cursor.execute(f"UPDATE marksheet SET total_points = ({sum_query})")
-        # ... rest of your ranking logic
+        
+        # Calculate average_points based on total_points
+        self.db._cursor.execute(f"""
+            UPDATE marksheet 
+            SET average_points = CASE 
+                WHEN total_points > 0 THEN (
+                    CASE 
+                        WHEN total_points / {len(subjects)} >= 7.5 THEN 'EE1'
+                        WHEN total_points / {len(subjects)} >= 6.5 THEN 'EE2'
+                        WHEN total_points / {len(subjects)} >= 5.5 THEN 'ME1'
+                        WHEN total_points / {len(subjects)} >= 4.5 THEN 'ME2'
+                        WHEN total_points / {len(subjects)} >= 3.5 THEN 'AE1'
+                        WHEN total_points / {len(subjects)} >= 2.5 THEN 'AE2'
+                        WHEN total_points / {len(subjects)} >= 1.5 THEN 'BE1'
+                        ELSE 'BE2'
+                    END
+                )
+                ELSE ''
+            END
+        """)
 
-        # 2. Get all students sorted by total_points descending
+        # Get all students for this class sorted by total_points descending
         self.db._cursor.execute(
-            "SELECT adm_no FROM marksheet ORDER BY total_points DESC"
+            """
+            SELECT m.adm_no 
+            FROM marksheet m
+            JOIN students s ON m.adm_no = s.adm_no
+            WHERE s.grade = ?
+            ORDER BY m.total_points DESC
+            """,
+            (self.class_name,)
         )
         ranked_students = self.db._cursor.fetchall()
 
-        # 3. Update the 'rank' column with their position
+        # Update the 'rank' column with their position (starting from 1)
+        current_rank = 0
+        prev_score = None
+        
         for i, (adm,) in enumerate(ranked_students, start=1):
+            # Get the score for this student
             self.db._cursor.execute(
-                "UPDATE marksheet SET rank = ? WHERE adm_no = ?", (i, adm)
+                "SELECT total_points FROM marksheet WHERE adm_no = ?", (adm,)
+            )
+            result = self.db._cursor.fetchone()
+            score = result[0] if result else 0
+            
+            # Assign rank (handle ties)
+            if score != prev_score:
+                current_rank = i
+                prev_score = score
+            
+            self.db._cursor.execute(
+                "UPDATE marksheet SET rank = ? WHERE adm_no = ?", (current_rank, adm)
             )
 
         self.db.conn.commit()

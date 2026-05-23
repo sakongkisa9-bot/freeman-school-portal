@@ -799,6 +799,43 @@ def api_get_marks():
     return jsonify({"success": True, "marks": marks_list})
 
 
+@app.route("/api/consume_marks", methods=["POST"])
+def api_consume_marks():
+    """Delete marks from cloud after they've been fetched (consume operation)"""
+    data = request.json
+    sc = data.get("school_code", "").strip().lower()
+    gr = data.get("grade")
+
+    conn = get_db()
+    try:
+        # 1. Find school
+        school = conn.execute(
+            "SELECT id FROM schools WHERE school_code=?", (sc,)
+        ).fetchone()
+
+        if not school:
+            return jsonify({"success": False, "message": "School not found"}), 404
+
+        # 2. Delete marks for that grade
+        cursor = conn.execute(
+            "DELETE FROM marks WHERE school_id = ? AND grade = ?", (school["id"], gr)
+        )
+        deleted_count = cursor.rowcount
+        conn.commit()
+
+        print(f"DEBUG: Consumed {deleted_count} marks from cloud for school {sc} grade {gr}")
+        return jsonify({
+            "success": True,
+            "message": f"Consumed {deleted_count} marks from cloud"
+        })
+
+    except Exception as e:
+        logging.error(f"Consume marks error: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        conn.close()
+
+
 @app.route("/students/<grade>")
 def manage_students(grade):
     if "school_id" not in session:

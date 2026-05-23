@@ -139,6 +139,16 @@ class CloudService:
         }
         return self._post_json("/api/fetch_students", payload)
 
+    def consume_marks(self, grade, credentials):
+        """Delete marks from cloud after they've been fetched (consume operation)"""
+        payload = {
+            "school_code": credentials["school_code"],
+            "username": credentials["username"],
+            "password": credentials["password"],
+            "grade": grade,
+        }
+        return self._post_json("/api/consume_marks", payload)
+
     def toggle_portal(self, credentials):
         """Toggle the cloud portal open/closed state"""
         if not self._ensure_requests():
