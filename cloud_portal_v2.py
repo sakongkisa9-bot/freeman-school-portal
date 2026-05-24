@@ -1168,12 +1168,15 @@ def parent_login():
 
 @app.route("/parent/dashboard")
 def parent_dashboard():
+    logging.info(f"Parent dashboard accessed, session keys: {list(session.keys())}")
     if "parent_student_id" not in session:
+        logging.warning("Parent dashboard: No parent_student_id in session")
         return redirect(url_for("parent_login"))
 
     conn = get_db()
     try:
         # Fetch the student's report
+        logging.info(f"Fetching report for student: {session.get('parent_student_name')}, school: {session.get('parent_school_name')}, adm_no: {session.get('parent_adm_no')}")
         report = conn.execute(
             """
             SELECT report_data, generated_date FROM student_reports
@@ -1185,13 +1188,17 @@ def parent_dashboard():
 
         import json
         if report:
+            logging.info("Report found, parsing JSON")
             report_data = json.loads(report["report_data"])
             # Generate analytics data
+            logging.info("Generating analytics")
             report_data = generate_analytics(report_data, conn, session["parent_grade"])
         else:
+            logging.info("No report found for student")
             report_data = None
 
         # Fetch previous exams for comparison
+        logging.info(f"Fetching previous exams for grade: {session.get('parent_grade')}")
         previous_exams = conn.execute(
             """
             SELECT exam_name, exam_date FROM previous_exams
@@ -1200,6 +1207,7 @@ def parent_dashboard():
             (session["parent_grade"],)
         ).fetchall()
 
+        logging.info("Rendering dashboard template")
         return render_template(
             "cloud_parent_dashboard.html",
             student_name=session["parent_student_name"],
@@ -1210,7 +1218,7 @@ def parent_dashboard():
             previous_exams=previous_exams
         )
     except Exception as e:
-        logging.error(f"Parent dashboard error: {e}")
+        logging.error(f"Parent dashboard error: {e}", exc_info=True)
         flash("An error occurred loading the dashboard.", "error")
         return redirect(url_for("parent_login"))
     finally:
