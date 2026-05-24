@@ -5,6 +5,7 @@ from ui_marksheet_pp1 import PP1MarkSheetView
 from ui_marksheet_pp2 import PP2MarkSheetView
 from ui_marksheet_lower import LowerMarkSheetView
 from ui_summary import ClassSummaryView
+from teachers_linked import TeachersLinkedView
 import os
 import sys
 import json
@@ -127,6 +128,9 @@ class Dashboard(ctk.CTk):
         self.btn_mark_sheets = ctk.CTkButton(self.menu_panel, text="View Mark Sheets", width=btn_width, height=btn_height, command=lambda: self.show_class_selection("Mark Sheets", self.btn_mark_sheets))
         self.btn_mark_sheets.pack(pady=btn_pady)
 
+        self.btn_previous_exams = ctk.CTkButton(self.menu_panel, text="Previous Exams", width=btn_width, height=btn_height, command=lambda: self.show_class_selection("Previous Exams", self.btn_previous_exams))
+        self.btn_previous_exams.pack(pady=btn_pady)
+
         self.btn_summary = ctk.CTkButton(self.menu_panel, text="Student Marks Summary", width=btn_width, height=btn_height, command=lambda: self.show_class_selection("Summary", self.btn_summary))
         self.btn_summary.pack(pady=btn_pady)
 
@@ -152,10 +156,11 @@ class Dashboard(ctk.CTk):
 
         # Add this at the end of your __init__ section
         self.sidebar_buttons = [
-        self.btn_register, 
-        self.btn_mark_sheets, 
-        self.btn_summary, 
-        self.btn_reports, 
+        self.btn_register,
+        self.btn_mark_sheets,
+        self.btn_previous_exams,
+        self.btn_summary,
+        self.btn_reports,
         self.btn_teachers
         ]
         # Inside your Home/Dashboard Class
@@ -317,6 +322,22 @@ class Dashboard(ctk.CTk):
             print(f'Error reading local students: {e}')
             return []
 
+    def get_local_teacher_list(self):
+        try:
+            teachers = self.db.get_all_teachers()
+            return [
+                {
+                    'class_name': row[0] or '',
+                    'subject': row[1] or '',
+                    'teacher_name': row[2] or '',
+                    'teacher_code': row[3] or ''
+                }
+                for row in teachers if row[0] and row[1] and row[2] and row[3]
+            ]
+        except Exception as e:
+            print(f'Error reading local teachers: {e}')
+            return []
+
     def sync_students_to_cloud(self, credentials):
         students = self.get_local_student_list()
         if not students:
@@ -330,6 +351,21 @@ class Dashboard(ctk.CTk):
             return False
 
         messagebox.showinfo('Cloud Sync', f"Uploaded {len(students)} local students to cloud portal.")
+        return True
+
+    def sync_teachers_to_cloud(self, credentials):
+        teachers = self.get_local_teacher_list()
+        if not teachers:
+            messagebox.showinfo('Cloud Sync', 'No local teachers found to sync.')
+            return False
+
+        service = CloudService()
+        result = service.sync_teachers(teachers, credentials)
+        if not result.get('success'):
+            messagebox.showerror('Cloud Sync Failed', result.get('message', 'Could not sync teachers to cloud.'))
+            return False
+
+        messagebox.showinfo('Cloud Sync', f"Uploaded {len(teachers)} local teachers to cloud portal.")
         return True
 
     def handle_portal_button(self):
@@ -390,6 +426,7 @@ class Dashboard(ctk.CTk):
                         print(f"Failed to open cloud portal: {result.get('message')}")
 
                     self.sync_students_to_cloud(credentials)
+                    self.sync_teachers_to_cloud(credentials)
                     try:
                         webbrowser.open(cloud_url)
                     except Exception:
@@ -469,7 +506,8 @@ class Dashboard(ctk.CTk):
 
         success = self.sync_students_to_cloud(credentials)
         if success:
-            if messagebox.askyesno('Cloud Portal', 'Students synced successfully. Open the cloud portal now?'):
+            self.sync_teachers_to_cloud(credentials)
+            if messagebox.askyesno('Cloud Portal', 'Students and teachers synced successfully. Open the cloud portal now?'):
                 try:
                     webbrowser.open(cloud_url)
                 except Exception:
@@ -930,6 +968,10 @@ class Dashboard(ctk.CTk):
     def return_to_home(self):
         """Brings back the sidebar and resets the layout"""
         
+        # Remove marksheet toolbar if exists
+        if hasattr(self, 'marksheet_toolbar'):
+            self.marksheet_toolbar.destroy()
+        
         # 1. BRING BACK SIDEBAR
         self.menu_panel.grid(row=0, column=0, sticky="nsew")
         
@@ -978,6 +1020,19 @@ class Dashboard(ctk.CTk):
                     width=400, height=500
                     )
                 self.class_frame.pack(pady=40, expand=True)
+
+                # Add Create New Exam button at the top if viewing marks
+                if action_type == "Viewing Marks":
+                    create_exam_btn = ctk.CTkButton(
+                        self.class_frame,
+                        text="🆕 Create New Exam (All Classes)",
+                        fg_color="#10b981",
+                        text_color="white",
+                        width=300,
+                        height=45,
+                        command=self.create_new_exam_all_classes
+                    )
+                    create_exam_btn.pack(pady=(0, 20))
 
                 classes = [
                     "playgroup", "pp1", "pp2",
@@ -1051,6 +1106,141 @@ class Dashboard(ctk.CTk):
             # We call the function that is already inside this Dashboard class
             self.show_student_registry(class_selected)
 
+        # This handles the Previous Exams button
+        elif action_type == "Previous Exams":
+            self.show_previous_exams_selection(class_selected)
+
+        # This handles the Teachers Linked button
+        elif action_type == "Teachers":
+            # --- FULL SCREEN MODE ---
+            self.menu_panel.grid_forget() # Hide the left sidebar
+            self.grid_columnconfigure(0, weight=0, minsize=0) # Shrink sidebar space to zero
+            self.content_panel.grid(row=0, column=0, columnspan=2, sticky="nsew") # Content takes all columns
+            
+            self.current_view = TeachersLinkedView(self.content_panel, self.db, class_selected, self.return_to_home)
+            self.current_view.pack(fill="both", expand=True)
+
+    def show_previous_exams_selection(self, class_selected):
+        # Clear the old view completely (Class Selection Menu)
+        for widget in self.content_panel.winfo_children():
+            if widget != self.header_frame and widget != self.theme_frame:
+                widget.destroy()
+
+        # Get previous exams for this class
+        previous_exams = self.db.get_previous_exams(class_selected)
+
+        if not previous_exams:
+            # No previous exams found
+            no_exams_label = ctk.CTkLabel(
+                self.content_panel,
+                text=f"No previous exams found for {class_selected}",
+                font=("Arial", 18),
+                text_color="gray"
+            )
+            no_exams_label.pack(pady=50)
+
+            back_btn = ctk.CTkButton(
+                self.content_panel,
+                text="Back",
+                command=self.return_to_home,
+                width=150
+            )
+            back_btn.pack(pady=20)
+            return
+
+        # Create the exam selection UI
+        exam_frame = ctk.CTkScrollableFrame(
+            self.content_panel,
+            label_text=f"PREVIOUS EXAMS FOR: {class_selected.upper()}",
+            label_font=("Arial Bold", 20),
+            fg_color="gray10",
+            width=600,
+            height=500
+        )
+        exam_frame.pack(pady=40, expand=True)
+
+        for exam_name, exam_date in previous_exams:
+            row_frame = ctk.CTkFrame(exam_frame, fg_color="transparent")
+            row_frame.pack(fill="x", pady=5)
+
+            view_btn = ctk.CTkButton(
+                row_frame,
+                text=f"{exam_name} ({exam_date})",
+                width=400,
+                height=45,
+                hover_color="#2ecc71",
+                command=lambda e=exam_name, c=class_selected: self.open_previous_exam_marksheet(e, c)
+            )
+            view_btn.pack(side="left", padx=5)
+
+            delete_btn = ctk.CTkButton(
+                row_frame,
+                text="🗑 Delete",
+                width=100,
+                height=45,
+                fg_color="#e74c3c",
+                hover_color="#c0392b",
+                command=lambda e=exam_name, c=class_selected: self.delete_previous_exam(e, c)
+            )
+            delete_btn.pack(side="left", padx=5)
+
+        back_btn = ctk.CTkButton(
+            self.content_panel,
+            text="Back",
+            command=self.return_to_home,
+            width=150
+        )
+        back_btn.pack(pady=20)
+
+    def open_previous_exam_marksheet(self, exam_name, class_name):
+        # Clear the old view completely
+        for widget in self.content_panel.winfo_children():
+            if widget != self.header_frame and widget != self.theme_frame:
+                widget.destroy()
+
+        # Full screen mode
+        self.menu_panel.grid_forget()
+        self.grid_columnconfigure(0, weight=0, minsize=0)
+        self.content_panel.grid(row=0, column=0, columnspan=2, sticky="nsew")
+
+        # Get the exam data
+        marks_data, summary_data = self.db.get_previous_exam_data(exam_name, class_name)
+
+        # Determine the correct marksheet view based on class
+        name_upper = class_name.upper().strip()
+
+        if "PLAYGROUP" in name_upper or "PLAY GROUP" in name_upper:
+            from ui_marksheet_playgroup import PlaygroupMarkSheetView
+            self.current_view = PlaygroupMarkSheetView(self.content_panel, self.db, class_name, read_only=True, exam_name=exam_name, marks_data=marks_data, summary_data=summary_data)
+        elif "PP1" in name_upper or "PRE-PRIMARY 1" in name_upper:
+            from ui_marksheet_pp1 import PP1MarkSheetView
+            self.current_view = PP1MarkSheetView(self.content_panel, self.db, class_name, read_only=True, exam_name=exam_name, marks_data=marks_data, summary_data=summary_data)
+        elif "PP2" in name_upper or "PRE-PRIMARY 2" in name_upper:
+            from ui_marksheet_pp2 import PP2MarkSheetView
+            self.current_view = PP2MarkSheetView(self.content_panel, self.db, class_name, read_only=True, exam_name=exam_name, marks_data=marks_data, summary_data=summary_data)
+        elif any(g in name_upper for g in ["GRADE 1", "GRADE 2", "GRADE 3"]):
+            from ui_marksheet_lower import LowerMarkSheetView
+            self.current_view = LowerMarkSheetView(self.content_panel, self.db, class_name, read_only=True, exam_name=exam_name, marks_data=marks_data, summary_data=summary_data)
+        elif any(g in name_upper for g in ["GRADE 4", "GRADE 5", "GRADE 6"]):
+            from ui_marksheet_primary import PrimaryMarkSheetView
+            self.current_view = PrimaryMarkSheetView(self.content_panel, self.db, class_name, read_only=True, exam_name=exam_name, marks_data=marks_data, summary_data=summary_data)
+        else:
+            from ui_marksheet_junior import JuniorMarkSheetView
+            self.current_view = JuniorMarkSheetView(self.content_panel, self.db, class_name, read_only=True, exam_name=exam_name, marks_data=marks_data, summary_data=summary_data)
+
+        self.current_view.pack(fill="both", expand=True)
+
+    def delete_previous_exam(self, exam_name, class_name):
+        """Delete a previous exam"""
+        if messagebox.askyesno(
+            "Confirm Delete",
+            f"Are you sure you want to delete the exam '{exam_name}' for {class_name}? This action cannot be undone."
+        ):
+            self.db.delete_previous_exam(exam_name, class_name)
+            messagebox.showinfo("Success", f"Exam '{exam_name}' has been deleted.")
+            # Refresh the exam list
+            self.show_previous_exams_selection(class_name)
+
     def show_marksheet_view(self, class_name):
         # 1. Clear the main panel
         for widget in self.content_panel.winfo_children():
@@ -1080,6 +1270,199 @@ class Dashboard(ctk.CTk):
     def dummy_event(self):
         """Temporary function so the buttons have commands without crashing"""
         print("Button Clicked - Feature coming soon!")
+
+    def create_new_exam_all_classes(self):
+        """Create a new exam for all marksheet types at once"""
+        import json
+        from datetime import datetime
+        
+        dialog = ctk.CTkInputDialog(
+            text="Enter New Exam Title (for all classes):",
+            title="Create New Exam - All Classes"
+        )
+        exam_title = dialog.get_input()
+        
+        if not exam_title:
+            return
+        
+        exam_title = exam_title.strip()
+        if not exam_title:
+            messagebox.showwarning("Invalid Title", "Please enter a valid exam title.")
+            return
+        
+        # Load school config
+        school_config = self.load_school_config()
+        
+        # Store OLD exam titles before updating (to save as previous exams)
+        grade_types = ["playgroup", "pp1", "pp2", "lower", "primary", "jss"]
+        old_exam_titles = {}
+        for grade_type in grade_types:
+            old_exam_titles[grade_type] = school_config.get(f"{grade_type}_exam_title", "")
+        
+        # Update exam titles for all grade types in school_config.json
+        for grade_type in grade_types:
+            school_config[f"{grade_type}_exam_title"] = exam_title
+        
+        # Also update current_exam_title for junior marksheet
+        old_exam_titles["current"] = school_config.get("current_exam_title", "")
+        school_config["current_exam_title"] = exam_title
+        
+        # Save updated school config
+        try:
+            json_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'school_config.json')
+            with open(json_path, 'w') as f:
+                json.dump(school_config, f, indent=4)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to update school config: {e}")
+            return
+        
+        # List of all marksheet types (use lowercase to match database)
+        class_types = [
+            ("playgroup", "playgroup"),
+            ("pp1", "pp1"),
+            ("pp2", "pp2"),
+            ("Grade 1", "lower"),
+            ("Grade 2", "lower"),
+            ("Grade 3", "lower"),
+            ("Grade 4", "primary"),
+            ("Grade 5", "primary"),
+            ("Grade 6", "primary"),
+            ("Grade 7", "jss"),
+            ("Grade 8", "jss"),
+            ("Grade 9", "jss")
+        ]
+        
+        success_count = 0
+        failed_classes = []
+        
+        for class_name, grade_type in class_types:
+            try:
+                # Always get current marks from the marks table (don't skip if previous exists)
+                table_name = self.get_table_name_for_grade(grade_type)
+                marks_data = self.get_current_marks_for_class(class_name, table_name, grade_type)
+                summary_data = json.dumps({"total_students": 0, "distribution": {}, "gender_counts": {}, "gender_totals": {}, "subject_averages": [], "has_history": False, "trend_text": "First Exam"})
+                
+                # Save to previous_exams table using the OLD exam title (not the new one)
+                old_exam_title = old_exam_titles.get(grade_type, "")
+                if old_exam_title:  # Only save if there was an old exam title
+                    exam_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    self.db._cursor.execute(
+                        "INSERT OR REPLACE INTO previous_exams (exam_name, class_name, exam_date, marks_data, summary_data) VALUES (?, ?, ?, ?, ?)",
+                        (old_exam_title, class_name, exam_date, marks_data, summary_data)
+                    )
+                    self.db.conn.commit()
+                
+                # Clear current marks table for this class to start fresh with new exam
+                try:
+                    # Get admission numbers for students in this class
+                    self.db._cursor.execute("SELECT adm_no FROM students WHERE grade = ?", (class_name,))
+                    adm_nos = [row[0] for row in self.db._cursor.fetchall()]
+                    
+                    # Delete marks for these students
+                    for adm_no in adm_nos:
+                        self.db._cursor.execute(f"DELETE FROM {table_name} WHERE adm_no = ?", (adm_no,))
+                    self.db.conn.commit()
+                except Exception as e:
+                    print(f"Error clearing marks for {class_name}: {e}")
+                
+                success_count += 1
+                
+            except Exception as e:
+                failed_classes.append(f"{class_name}: {str(e)}")
+                print(f"Error creating exam for {class_name}: {e}")
+        
+        # Show result
+        if success_count > 0:
+            message = f"Successfully created new exam '{exam_title}' for {success_count} classes.\nExam titles have been updated in school configuration."
+            if failed_classes:
+                message += f"\n\nFailed for:\n" + "\n".join(failed_classes[:5])
+                if len(failed_classes) > 5:
+                    message += f"\n... and {len(failed_classes) - 5} more"
+            messagebox.showinfo("Success", message)
+        else:
+            messagebox.showerror("Error", f"Failed to create exam for all classes:\n" + "\n".join(failed_classes))
+
+    def get_table_name_for_grade(self, grade_type):
+        """Get the table name for a given grade type"""
+        table_mapping = {
+            "playgroup": "playgroup_marks",
+            "pp1": "pp1_marks",
+            "pp2": "pp2_marks",
+            "lower": "lower_marks",
+            "primary": "primary_marks",
+            "jss": "marksheet"
+        }
+        return table_mapping.get(grade_type, "marksheet")
+
+    def get_current_marks_for_class(self, class_name, table_name, grade_type):
+        """Get current marks data for a class"""
+        import json
+        
+        try:
+            # Get subjects for this grade type
+            school_config = self.load_school_config()
+            subjects = school_config.get("subjects", {}).get(grade_type, [])
+            
+            if not subjects:
+                # Default subjects if not in config
+                default_subjects = {
+                    "playgroup": ["MATH", "CREAT", "ENV"],
+                    "pp1": ["MATH", "ENV", "PSYCH", "REL"],
+                    "pp2": ["MATH", "ENV", "PSYCH", "REL"],
+                    "lower": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
+                    "primary": ["ENG", "KISW", "MATH", "SCIE", "AGRI", "SST", "CRE", "C/A", "PHE"],
+                    "jss": ["MATH", "ENG", "KISW", "INT SCIE", "PRE-TECH", "SST", "CRE", "AGRI", "C/A"]
+                }
+                subjects = default_subjects.get(grade_type, [])
+            
+            # Build query - different structure for junior (marksheet table)
+            if table_name == "marksheet":
+                select_cols = ["s.name"]
+                for subject in subjects:
+                    clean = subject.strip().replace(" ", "_").replace("-", "_").replace("/", "_").lower()
+                    select_cols.append(f"m.{clean}_s")
+                    select_cols.append(f"m.{clean}_r")
+                    select_cols.append(f"m.{clean}_p")
+                select_cols.append("m.total_points")
+                select_cols.append("m.average_points")
+                select_cols.append("m.rank")
+            else:
+                select_cols = ["s.name"]
+                for subject in subjects:
+                    clean = subject.strip().replace(" ", "_").replace("-", "_").replace("/", "_").lower()
+                    select_cols.append(f"m.{clean}_s")
+                    select_cols.append(f"m.{clean}_r")
+                select_cols.append("m.total_points")
+                select_cols.append("m.average_level")
+            
+            col_str = ", ".join(select_cols)
+            query = f"SELECT {col_str} FROM students s LEFT JOIN {table_name} m ON s.adm_no = m.adm_no WHERE s.grade = ?"
+            
+            self.db._cursor.execute(query, (class_name,))
+            rows = self.db._cursor.fetchall()
+            
+            # Convert to JSON
+            records = []
+            for row in rows:
+                record = list(row)
+                records.append(record)
+            
+            return json.dumps(records)
+            
+        except Exception as e:
+            print(f"Error getting current marks for {class_name}: {e}")
+            return json.dumps([])
+
+    def load_school_config(self):
+        """Load school configuration from JSON"""
+        try:
+            json_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'school_config.json')
+            if os.path.exists(json_path):
+                with open(json_path, 'r') as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return {}
 
 def show_dashboard(school_name="Freeman Tech Solutions"):
     # This allows you to test just this screen from ui_dashboard.py

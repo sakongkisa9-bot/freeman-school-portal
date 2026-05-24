@@ -25,7 +25,7 @@ class PP2MarkSheetView(ctk.CTkFrame):
             os.path.dirname(os.path.abspath(__file__)), "school_config.json"
         )
 
-    def __init__(self, parent, db_connection, class_name):
+    def __init__(self, parent, db_connection, class_name, read_only=False, exam_name=None, marks_data=None, summary_data=None):
         super().__init__(parent, fg_color="transparent")
         self.db = db_connection
         # Normalize class name to match database format
@@ -35,23 +35,30 @@ class PP2MarkSheetView(ctk.CTkFrame):
             "Pre-Primary 2": "pp2",
         }
         self.class_name = grade_mapping.get(class_name, class_name)
+        self.read_only = read_only
+        self.exam_name = exam_name
+        self.marks_data = marks_data
+        self.summary_data = summary_data
 
         # 1. Load Title & School Name from JSON immediately
-        self.current_exam_title = "PP2 ASSESSMENT 2026"
-        try:
-            import json
-            import os
+        if self.read_only and self.exam_name:
+            self.current_exam_title = self.exam_name
+        else:
+            self.current_exam_title = "PP2 ASSESSMENT 2026"
+            try:
+                import json
+                import os
 
-            path = self.get_json_path()
-            if os.path.exists(path):
-                with open(path, "r") as f:
-                    config = json.load(f)
-                    # We use a specific key for primary titles
-                    self.current_exam_title = config.get(
-                        "pp2_exam_title", "PP2 ASSESSMENT 2026"
-                    )
-        except Exception as e:
-            print(f"Init JSON Load Error: {e}")
+                path = self.get_json_path()
+                if os.path.exists(path):
+                    with open(path, "r") as f:
+                        config = json.load(f)
+                        # We use a specific key for primary titles
+                        self.current_exam_title = config.get(
+                            "pp2_exam_title", "PP2 ASSESSMENT 2026"
+                        )
+            except Exception as e:
+                print(f"Init JSON Load Error: {e}")
 
         # 2. Build UI (Make sure these are called in this order)
         self.ensure_table_exists()
@@ -133,51 +140,71 @@ class PP2MarkSheetView(ctk.CTkFrame):
         self.bottom_bar = ctk.CTkFrame(self, fg_color="gray20", height=60)
         self.bottom_bar.pack(side="bottom", fill="x")
 
-        self.btn_save = ctk.CTkButton(
-            self.bottom_bar,
-            text="💾 Save Marks",
-            fg_color="#2e7d32",
-            hover_color="#1b5e20",
-            width=120,
-            command=self.save_pp2_marks,
-        )
-        self.btn_save.pack(side="left", padx=10, pady=15)
+        if self.read_only:
+            # Read-only mode: only Print and View Summary buttons
+            ctk.CTkButton(
+                self.bottom_bar,
+                text="🖨 Print PDF",
+                fg_color="#f57c00",
+                text_color="black",
+                hover_color="#e64a19",
+                command=self.generate_pdf_report,
+            ).pack(side="left", padx=5, pady=15)
+            ctk.CTkButton(
+                self.bottom_bar,
+                text="📊 View Summary",
+                fg_color="#1f538d",
+                hover_color="#153d66",
+                command=self.view_summary,
+            ).pack(side="left", padx=5, pady=15)
+        else:
+            # Normal mode: all editing buttons
+            self.btn_save = ctk.CTkButton(
+                self.bottom_bar,
+                text="💾 Save Marks",
+                fg_color="#2e7d32",
+                hover_color="#1b5e20",
+                width=120,
+                command=self.save_pp2_marks,
+            )
+            self.btn_save.pack(side="left", padx=5, pady=15)
 
-        self.btn_cloud = ctk.CTkButton(
-            self.bottom_bar,
-            text="☁ Fetch from Cloud",
-            fg_color="#1f538d",
-            hover_color="#153d66",
-            command=self.fetch_cloud_data,
-        )
-        self.btn_cloud.pack(side="left", padx=10, pady=15)
-        self.btn_refresh = ctk.CTkButton(
-            self.bottom_bar,
-            text="refresh",
-            fg_color="#87f500",
-            text_color="black",
-            hover_color="#00f529",
-            command=self.refresh_local_data,
-        )
-        self.btn_refresh.pack(side="left", padx=15, pady=15)
+            self.btn_cloud = ctk.CTkButton(
+                self.bottom_bar,
+                text="☁ Fetch from Cloud",
+                fg_color="#1f538d",
+                hover_color="#153d66",
+                command=self.fetch_cloud_data,
+            )
+            self.btn_cloud.pack(side="left", padx=5, pady=15)
 
-        self.btn_pdf = ctk.CTkButton(
-            self.bottom_bar,
-            text="🖨 Print PDF",
-            fg_color="#f57c00",
-            text_color="black",
-            hover_color="#e64a19",
-            command=self.generate_pdf_report,
-        )
-        self.btn_pdf.pack(side="left", padx=5, pady=15)
-        self.btn_new_exam = ctk.CTkButton(
-            self.bottom_bar,
-            text="🆕 New Exam",
-            fg_color="#1f538d",
-            hover_color="#153d66",
-            command=self.handle_new_exam,  # Logic below
-        )
-        self.btn_new_exam.pack(side="left", padx=10, pady=15)
+            self.btn_pdf = ctk.CTkButton(
+                self.bottom_bar,
+                text="🖨 Print PDF",
+                fg_color="#f57c00",
+                text_color="black",
+                hover_color="#e64a19",
+                command=self.generate_pdf_report,
+            )
+            self.btn_pdf.pack(side="left", padx=5, pady=15)
+
+            self.btn_new_exam = ctk.CTkButton(
+                self.bottom_bar,
+                text="🆕 New Exam",
+                fg_color="#e67e22",
+                hover_color="#d35400",
+                command=self.handle_new_exam,
+            )
+            self.btn_new_exam.pack(side="left", padx=5, pady=15)
+
+            self.btn_refresh = ctk.CTkButton(
+                self.bottom_bar,
+                text="🔄 Refresh",
+                fg_color="#34495e",
+                hover_color="#2c3e50",
+                command=self.refresh_local_data,
+            )
+            self.btn_refresh.pack(side="left", padx=5, pady=15)
 
         self.btn_back = ctk.CTkButton(
             self.bottom_bar,
@@ -243,6 +270,116 @@ class PP2MarkSheetView(ctk.CTkFrame):
         # Simply reload the students and marks from the local sqlite db
         self.load_students_from_registry()
         messagebox.showinfo("Refresh", "Table updated with latest local entries!")
+
+    def view_summary(self):
+        """View the summary for a previous exam"""
+        if self.summary_data:
+            # Show the summary in a new window
+            self.summary_window = ctk.CTkToplevel(self)
+            self.summary_window.title(f"Summary - {self.exam_name}")
+            self.summary_window.geometry("900x700")
+            self.summary_window.protocol("WM_DELETE_WINDOW", self.on_summary_window_close)
+            self.summary_window.transient(self)
+            self.summary_window.grab_set()
+
+            summary_frame = ctk.CTkScrollableFrame(self.summary_window, fg_color="gray15")
+            summary_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+            # Parse and display the summary data
+            import json
+            try:
+                summary = json.loads(self.summary_data)
+
+                # Header
+                header = ctk.CTkLabel(
+                    summary_frame,
+                    text=f"Summary - {self.exam_name}",
+                    font=("Arial Bold", 20),
+                    fg_color="#1f538d",
+                    text_color="white",
+                    corner_radius=10,
+                    height=60
+                )
+                header.pack(fill="x", padx=10, pady=10)
+
+                # Handle both old and new data formats
+                if "Total Students" in summary or "Students with Marks" in summary:
+                    # Old format - display as key-value pairs
+                    info_frame = ctk.CTkFrame(summary_frame, fg_color="#20232a", corner_radius=12)
+                    info_frame.pack(fill="x", padx=10, pady=10)
+
+                    for key, value in summary.items():
+                        if isinstance(value, dict):
+                            ctk.CTkLabel(info_frame, text=key, font=("Arial Bold", 14), text_color="#10b981").pack(anchor="w", padx=15, pady=(10, 5))
+                            for sub_key, sub_value in value.items():
+                                ctk.CTkLabel(info_frame, text=f"  {sub_key}: {sub_value}", font=("Arial", 12), text_color="#d1d5db").pack(anchor="w", padx=20, pady=2)
+                        else:
+                            ctk.CTkLabel(info_frame, text=f"{key}: {value}", font=("Arial", 12), text_color="#d1d5db").pack(anchor="w", padx=15, pady=5)
+                else:
+                    # New format - display with cards and structured layout
+                    cards_frame = ctk.CTkFrame(summary_frame, fg_color="transparent")
+                    cards_frame.pack(fill="x", padx=10, pady=10)
+
+                    cards = [
+                        ("Total Students", str(summary.get("total_students", 0)), "#10b981"),
+                        ("Male Students", str(summary.get("gender_counts", {}).get("male", 0)), "#3b82f6"),
+                        ("Female Students", str(summary.get("gender_counts", {}).get("female", 0)), "#ec4899"),
+                        ("Previous Exam", summary.get("trend_text", "No previous exam"), "#fbbf24")
+                    ]
+
+                    for text, value, color in cards:
+                        card = ctk.CTkFrame(cards_frame, fg_color="#20232a", corner_radius=12)
+                        card.pack(side="left", expand=True, fill="both", padx=5)
+                        ctk.CTkLabel(card, text=text, font=("Arial", 10), text_color="#d1d5db").pack(anchor="w", padx=10, pady=(10, 5))
+                        ctk.CTkLabel(card, text=value, font=("Arial Bold", 18), text_color=color).pack(anchor="w", padx=10, pady=(0, 10))
+
+                    dist_frame = ctk.CTkFrame(summary_frame, fg_color="#20232a", corner_radius=12)
+                    dist_frame.pack(fill="x", padx=10, pady=10)
+                    ctk.CTkLabel(dist_frame, text="Class Level Distribution", font=("Arial Bold", 14)).pack(anchor="w", padx=15, pady=(15, 10))
+
+                    dist_grid = ctk.CTkFrame(dist_frame, fg_color="transparent")
+                    dist_grid.pack(fill="x", padx=15, pady=(0, 15))
+
+                    distribution = summary.get("distribution", {})
+                    levels = ["EE1", "EE2", "ME1", "ME2", "AE1", "AE2", "BE1", "BE2"]
+                    for i, level in enumerate(levels):
+                        if i % 4 == 0:
+                            row_frame = ctk.CTkFrame(dist_grid, fg_color="transparent")
+                            row_frame.pack(fill="x", pady=2)
+                        cell = ctk.CTkFrame(row_frame, fg_color="#1f2937", corner_radius=8)
+                        cell.pack(side="left", expand=True, fill="both", padx=2)
+                        ctk.CTkLabel(cell, text=f"{level}: {distribution.get(level, 0)}", font=("Arial", 11)).pack(pady=8)
+
+                    subj_frame = ctk.CTkFrame(summary_frame, fg_color="#20232a", corner_radius=12)
+                    subj_frame.pack(fill="x", padx=10, pady=10)
+                    ctk.CTkLabel(subj_frame, text="Subject Mean Ranking", font=("Arial Bold", 14)).pack(anchor="w", padx=15, pady=(15, 10))
+
+                    subj_grid = ctk.CTkFrame(subj_frame, fg_color="transparent")
+                    subj_grid.pack(fill="x", padx=15, pady=(0, 15))
+
+                    subject_averages = summary.get("subject_averages", [])
+                    for rank, (subject, mean_value) in enumerate(subject_averages, start=1):
+                        row = ctk.CTkFrame(subj_grid, fg_color="#1f2937" if rank % 2 == 1 else "#111827", corner_radius=8)
+                        row.pack(fill="x", pady=2)
+                        ctk.CTkLabel(row, text=f"{rank}. {subject}", font=("Arial", 11)).pack(side="left", padx=10, pady=8)
+                        ctk.CTkLabel(row, text=f"{mean_value:.2f}", font=("Arial Bold", 11), text_color="#60a5fa").pack(side="right", padx=10, pady=8)
+
+            except Exception as e:
+                error_label = ctk.CTkLabel(
+                    summary_frame,
+                    text=f"Error loading summary: {e}",
+                    font=("Arial", 14),
+                    text_color="red"
+                )
+                error_label.pack(pady=10)
+        else:
+            messagebox.showinfo("Summary", "No summary data available for this exam.")
+
+    def on_summary_window_close(self):
+        """Handle summary window close event"""
+        if hasattr(self, 'summary_window'):
+            self.summary_window.destroy()
+            delattr(self, 'summary_window')
 
     def create_scrollable_table_area(self):
         self.container = ctk.CTkFrame(self, fg_color="gray15")
@@ -352,7 +489,7 @@ class PP2MarkSheetView(ctk.CTkFrame):
                 row=0, column=total_start + j, rowspan=2, sticky="nsew", padx=1, pady=1
             )
 
-    def add_student_row_with_data(self, row_data, rank):
+    def add_student_row_with_data(self, row_data, rank, read_only=False):
         subjects = self.get_subjects_from_json()
         num_subs = len(subjects)
 
@@ -379,6 +516,8 @@ class PP2MarkSheetView(ctk.CTkFrame):
         for i in range(num_subs * 2):
             col_idx = i + 1
             color = "#1a1a1a" if i % 2 == 0 else "#2c3e50"
+            if read_only and i % 2 == 0:
+                color = "gray30"
             e = ctk.CTkEntry(
                 self.table_inner,
                 width=BOX_SIZE,
@@ -395,7 +534,9 @@ class PP2MarkSheetView(ctk.CTkFrame):
             if val is not None:
                 e.insert(0, str(val))
 
-            if i % 2 == 0:
+            if read_only:
+                e.configure(state="disabled")
+            elif i % 2 == 0:
                 e.bind(
                     "<FocusOut>",
                     lambda event, ent=e, idx=i: self.auto_calculate(
@@ -567,68 +708,106 @@ class PP2MarkSheetView(ctk.CTkFrame):
         num_subs = len(subjects)
 
         try:
-            # Inside load_students_from_registry...
-            subjects = self.get_subjects_from_json()
-            select_cols = []
-
-            for sub in subjects:
-                # Use .strip() to handle "MAT " vs "MAT"
-                clean_name = (
-                    sub.strip()
-                    .replace(" ", "_")
-                    .replace("-", "_")
-                    .replace("/", "_")
-                    .lower()
-                )
-                select_cols.extend([f"m.{clean_name}_s", f"m.{clean_name}_r"])
-
-            col_str = ", ".join(select_cols) if select_cols else "m.total_points"
-
-            query = f"""
-                SELECT s.name, {col_str}, m.total_points, m.average_level
-                FROM students s
-                LEFT JOIN pp2_marks m ON s.adm_no = m.adm_no
-                WHERE s.grade = ?
-            """
-            # 1. Fetch data
-            print(f"DEBUG: Loading students for grade: '{self.class_name}'")
-            self.db._cursor.execute(query, (self.class_name,))
-            records = self.db._cursor.fetchall()
-            print(f"DEBUG: Found {len(records)} students")
-
-            # 2. Rank calculation
-            total_idx = 1 + (num_subs * 2)
-            scored_students = []
-            for row in records:
-                try:
-                    score = int(row[total_idx]) if row[total_idx] is not None else -1
-                except (ValueError, TypeError):
-                    score = -1
-                scored_students.append({"data": row, "score": score})
-
-            # Sort by total points (Highest first)
-            scored_students.sort(key=lambda x: x["score"], reverse=True)
-
-            # 3. Assign positions and Sort for UI
-            final_list = []
-            current_pos = 0
-            for i, item in enumerate(scored_students):
-                if item["score"] == -1:
-                    pos = "-"
-                else:
-                    if i > 0 and item["score"] == scored_students[i - 1]["score"]:
-                        pos = current_pos  # Tie
+            # If in read-only mode with marks_data, load from JSON data instead of database
+            if self.read_only and self.marks_data:
+                import json
+                records = json.loads(self.marks_data)
+                # Recalculate rank from total scores (rank is not saved in JSON)
+                total_idx = 1 + (num_subs * 2)
+                scored_students = []
+                for row_data in records:
+                    try:
+                        score = int(row_data[total_idx]) if row_data[total_idx] is not None else -1
+                    except (ValueError, TypeError):
+                        score = -1
+                    scored_students.append({"data": row_data, "score": score})
+                
+                # Sort by total points (Highest first)
+                scored_students.sort(key=lambda x: x["score"], reverse=True)
+                
+                # Assign positions
+                final_list = []
+                current_pos = 0
+                for i, item in enumerate(scored_students):
+                    if item["score"] == -1:
+                        pos = "-"
                     else:
-                        current_pos = i + 1
-                        pos = current_pos
-                final_list.append((item["data"], pos))
+                        if i > 0 and item["score"] == scored_students[i - 1]["score"]:
+                            pos = current_pos  # Tie
+                        else:
+                            current_pos = i + 1
+                            pos = current_pos
+                    final_list.append((item["data"], pos))
+                
+                # Sort by position: Numbers 1, 2, 3... then the "-" students at the bottom
+                final_list.sort(key=lambda x: (x[1] == "-", x[1] if x[1] != "-" else 999))
+                
+                # Draw rows in the sorted order
+                for row_data, pos in final_list:
+                    self.add_student_row_with_data(row_data, pos, read_only=True)
+            else:
+                # Inside load_students_from_registry...
+                subjects = self.get_subjects_from_json()
+                select_cols = []
 
-            # SORT THE LIST BY POSITION: Numbers 1, 2, 3... then the "-" students at the bottom
-            final_list.sort(key=lambda x: (x[1] == "-", x[1] if x[1] != "-" else 999))
+                for sub in subjects:
+                    # Use .strip() to handle "MAT " vs "MAT"
+                    clean_name = (
+                        sub.strip()
+                        .replace(" ", "_")
+                        .replace("-", "_")
+                        .replace("/", "_")
+                        .lower()
+                    )
+                    select_cols.extend([f"m.{clean_name}_s", f"m.{clean_name}_r"])
 
-            # 4. Draw rows in the sorted order
-            for row_data, pos in final_list:
-                self.add_student_row_with_data(row_data, pos)
+                col_str = ", ".join(select_cols) if select_cols else "m.total_points"
+
+                query = f"""
+                    SELECT s.name, {col_str}, m.total_points, m.average_level
+                    FROM students s
+                    LEFT JOIN pp2_marks m ON s.adm_no = m.adm_no
+                    WHERE s.grade = ?
+                """
+                # 1. Fetch data
+                print(f"DEBUG: Loading students for grade: '{self.class_name}'")
+                self.db._cursor.execute(query, (self.class_name,))
+                records = self.db._cursor.fetchall()
+                print(f"DEBUG: Found {len(records)} students")
+
+                # 2. Rank calculation
+                total_idx = 1 + (num_subs * 2)
+                scored_students = []
+                for row in records:
+                    try:
+                        score = int(row[total_idx]) if row[total_idx] is not None else -1
+                    except (ValueError, TypeError):
+                        score = -1
+                    scored_students.append({"data": row, "score": score})
+
+                # Sort by total points (Highest first)
+                scored_students.sort(key=lambda x: x["score"], reverse=True)
+
+                # 3. Assign positions and Sort for UI
+                final_list = []
+                current_pos = 0
+                for i, item in enumerate(scored_students):
+                    if item["score"] == -1:
+                        pos = "-"
+                    else:
+                        if i > 0 and item["score"] == scored_students[i - 1]["score"]:
+                            pos = current_pos  # Tie
+                        else:
+                            current_pos = i + 1
+                            pos = current_pos
+                    final_list.append((item["data"], pos))
+
+                # SORT THE LIST BY POSITION: Numbers 1, 2, 3... then the "-" students at the bottom
+                final_list.sort(key=lambda x: (x[1] == "-", x[1] if x[1] != "-" else 999))
+
+                # 4. Draw rows in the sorted order
+                for row_data, pos in final_list:
+                    self.add_student_row_with_data(row_data, pos)
 
         except Exception as e:
             print(f"Loading/Sorting Error: {e}")
@@ -817,28 +996,64 @@ class PP2MarkSheetView(ctk.CTkFrame):
 
             # --- Data Rows ---
             pdf.set_font("Helvetica", size=8)
-            for row_frame in self.table_inner.winfo_children():
-                # Get name from the first widget in the row
-                widgets = row_frame.grid_slaves(row=0)
-                # Sort widgets by column index because grid_slaves returns them in reverse
-                widgets.sort(key=lambda w: int(w.grid_info()["column"]))
-
-                if not widgets or widgets[0].cget("text") == "STUDENT NAME":
+            
+            # Get all widgets and group them by row
+            all_widgets = self.table_inner.grid_slaves()
+            if not all_widgets:
+                return
+            
+            # Group widgets by row
+            rows = {}
+            for widget in all_widgets:
+                grid_info = widget.grid_info()
+                row = int(grid_info["row"])
+                col = int(grid_info["column"])
+                if row not in rows:
+                    rows[row] = {}
+                rows[row][col] = widget
+            
+            # Skip header rows (0 and 1)
+            for row in sorted(rows.keys()):
+                if row < 2:
                     continue
-
+                
+                row_widgets = rows[row]
+                if not row_widgets:
+                    continue
+                
+                # Get name from column 0
+                if 0 not in row_widgets:
+                    continue
+                name_widget = row_widgets[0]
+                if not hasattr(name_widget, "cget"):
+                    continue
+                name_text = name_widget.cget("text")
+                
+                if not name_text or name_text == "STUDENT NAME":
+                    continue
+                
                 # Print Name
-                pdf.cell(name_w, 8, widgets[0].cget("text")[:22], 1)
-
+                pdf.cell(name_w, 8, txt=name_text[:22], border=1)
+                
                 # Print Subjects (S and R)
                 num_sub_widgets = len(subjects) * 2
-                for i in range(1, num_sub_widgets + 1):
-                    val = widgets[i].get() if hasattr(widgets[i], "get") else ""
-                    pdf.cell(sub_col_w, 8, str(val), 1, 0, "C")
-
-                # Print Totals (The last 3 widgets)
-                pdf.cell(tot_w, 8, str(widgets[-3].get()), 1, 0, "C")
-                pdf.cell(lvl_w, 8, str(widgets[-2].get()), 1, 0, "C")
-                pdf.cell(pos_w, 8, str(widgets[-1].get()), 1, 1, "C")
+                for i in range(1, min(num_sub_widgets + 1, len(row_widgets))):
+                    if i in row_widgets:
+                        val = row_widgets[i].get() if hasattr(row_widgets[i], "get") else ""
+                        pdf.cell(sub_col_w, 8, txt=str(val), border=1, ln=0, align="C")
+                
+                # Print Totals (The last 3 widgets) - only if they exist
+                t_idx = 1 + (len(subjects) * 2)
+                for j in range(3):
+                    col_idx = t_idx + j
+                    if col_idx in row_widgets:
+                        val = row_widgets[col_idx].get() if hasattr(row_widgets[col_idx], "get") else ""
+                        if j == 0:
+                            pdf.cell(tot_w, 8, txt=str(val), border=1, ln=0, align="C")
+                        elif j == 1:
+                            pdf.cell(lvl_w, 8, txt=str(val), border=1, ln=0, align="C")
+                        else:
+                            pdf.cell(pos_w, 8, txt=str(val), border=1, ln=1, align="C")
 
             pdf.output(file_path)
             messagebox.showinfo(
@@ -860,6 +1075,9 @@ class PP2MarkSheetView(ctk.CTkFrame):
                 "Confirm Reset", f"Clear marks and start {new_title}?"
             ):
                 try:
+                    # Save current exam as previous exam before clearing
+                    self.save_current_exam_as_previous()
+
                     # Clear DB marks
                     self.db._cursor.execute(
                         "DELETE FROM pp2_marks WHERE adm_no IN (SELECT adm_no FROM students WHERE grade = ?)",
@@ -890,3 +1108,138 @@ class PP2MarkSheetView(ctk.CTkFrame):
                     messagebox.showinfo("Success", "Exam title saved!")
                 except Exception as e:
                     messagebox.showerror("Error", f"Save failed: {e}")
+
+    def save_current_exam_as_previous(self):
+        """Save the current exam as a previous exam with summary"""
+        import json
+
+        # Get current exam title
+        current_exam_name = self.current_exam_title
+
+        # Get all marks data
+        subjects = self.get_subjects_from_json()
+        select_cols = []
+
+        for sub in subjects:
+            clean_name = sub.strip().replace(" ", "_").replace("-", "_").replace("/", "_").lower()
+            select_cols.extend([f"m.{clean_name}_s", f"m.{clean_name}_r"])
+
+        col_str = ", ".join(select_cols) if select_cols else "m.total_points"
+
+        query = f"""
+            SELECT s.name, {col_str}, m.total_points, m.average_level
+            FROM students s
+            LEFT JOIN pp2_marks m ON s.adm_no = m.adm_no
+            WHERE s.grade = ?
+        """
+
+        self.db._cursor.execute(query, (self.class_name,))
+        records = self.db._cursor.fetchall()
+
+        # Convert to JSON
+        marks_data = json.dumps(records)
+
+        # Get summary data
+        summary_data = self.generate_summary_data()
+        summary_json = json.dumps(summary_data)
+
+        # Save to database
+        self.db.save_previous_exam(current_exam_name, self.class_name, summary_json, marks_data)
+
+        print(f"Saved previous exam: {current_exam_name} for {self.class_name}")
+
+    def generate_summary_data(self):
+        """Generate summary data for the current exam matching ClassSummaryView format"""
+        LEVEL_ORDER = ["EE1", "EE2", "ME1", "ME2", "AE1", "AE2", "BE1", "BE2"]
+
+        # Get subjects from JSON
+        subjects = self.get_subjects_from_json()
+
+        # Initialize data structures
+        distribution = {level: 0 for level in LEVEL_ORDER}
+        gender_counts = {"male": 0, "female": 0, "other": 0}
+        gender_totals = {"male": 0, "female": 0, "other": 0}
+        subject_totals = {subject: 0.0 for subject in subjects}
+        subject_counts = {subject: 0 for subject in subjects}
+        total_students = 0
+
+        # Query student data with marks
+        query = """
+            SELECT s.name, s.gender, m.total_points, m.average_level
+            FROM students s
+            LEFT JOIN pp2_marks m ON s.adm_no = m.adm_no
+            WHERE s.grade = ?
+        """
+        self.db._cursor.execute(query, (self.class_name,))
+        rows = self.db._cursor.fetchall()
+
+        for row in rows:
+            if not row:
+                continue
+            total_students += 1
+
+            name, gender, total_points, average_level = row
+
+            # Map gender values to standard categories
+            gender_raw = str(gender).strip().lower() if gender else "other"
+            if gender_raw in ["m", "male", "boy"]:
+                gender = "male"
+            elif gender_raw in ["f", "female", "girl"]:
+                gender = "female"
+            else:
+                gender = "other"
+
+            gender_counts[gender] += 1
+
+            # Track distribution based on average_level
+            if average_level is not None:
+                average_label = str(average_level).strip().upper().replace(" ", "")
+                if average_label in distribution:
+                    distribution[average_label] += 1
+
+            # Track gender totals
+            if isinstance(total_points, (int, float)):
+                gender_totals[gender] += total_points
+
+        # Calculate subject averages
+        for subject in subjects:
+            clean_name = subject.strip().replace(" ", "_").replace("-", "_").replace("/", "_").lower()
+            score_col = f"{clean_name}_s"
+
+            query = f"""
+                SELECT m.{score_col}
+                FROM pp2_marks m
+                JOIN students s ON m.adm_no = s.adm_no
+                WHERE s.grade = ?
+            """
+            self.db._cursor.execute(query, (self.class_name,))
+            subject_rows = self.db._cursor.fetchall()
+
+            for score_row in subject_rows:
+                score = score_row[0]
+                if score is not None:
+                    try:
+                        score_value = float(score)
+                        subject_totals[subject] += score_value
+                        subject_counts[subject] += 1
+                    except (ValueError, TypeError):
+                        pass
+
+        # Calculate subject averages
+        subject_averages = []
+        for subject in subjects:
+            count = subject_counts[subject]
+            mean_value = round(subject_totals[subject] / count if count else 0.0, 2)
+            subject_averages.append((subject, mean_value))
+
+        subject_averages.sort(key=lambda pair: pair[1], reverse=True)
+
+        return {
+            "total_students": total_students,
+            "distribution": distribution,
+            "gender_counts": gender_counts,
+            "gender_totals": gender_totals,
+            "subject_averages": subject_averages,
+            "has_history": False,
+            "trend_text": "No previous exam",
+        }

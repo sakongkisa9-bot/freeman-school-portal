@@ -174,6 +174,18 @@ def init_db():
             FOREIGN KEY(school_id) REFERENCES schools(id)
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS teacher_assignments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            school_id INTEGER NOT NULL,
+            class_name TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            teacher_name TEXT NOT NULL,
+            teacher_code TEXT NOT NULL,
+            UNIQUE(school_id, class_name, subject),
+            FOREIGN KEY(school_id) REFERENCES schools(id)
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -353,6 +365,7 @@ def teacher_login():
             sc = request.form.get("school_code", "").strip().lower()
             un = request.form.get("username", "").strip().lower()
             pw = request.form.get("password", "")
+            teacher_code = request.form.get("teacher_code", "").strip()
 
             auth, err = authenticate_user(sc, un, pw)
             if err:
@@ -364,10 +377,23 @@ def teacher_login():
             school_data = dict(auth["school"])
             teacher_data = dict(auth["teacher"])
 
+            # Verify teacher code exists in teacher_assignments
+            conn = get_db()
+            teacher_assignment = conn.execute(
+                "SELECT * FROM teacher_assignments WHERE school_id = ? AND teacher_code = ?",
+                (school_data["id"], teacher_code)
+            ).fetchone()
+            conn.close()
+
+            if not teacher_assignment:
+                flash("Teacher code does not exist. Please contact your administrator.", "danger")
+                return redirect(url_for("teacher_login"))
+
             session["school_id"] = school_data["id"]
             session["school_name"] = school_data["school_name"]
             session["username"] = teacher_data["username"]
             session["role"] = teacher_data.get("role", "teacher")  # .get() works now!
+            session["teacher_code"] = teacher_code  # Store teacher code for later verification
 
             return redirect(url_for("dashboard"))
 
@@ -496,6 +522,67 @@ def api_sync_students():
         conn.close()
 
 
+@app.route("/api/sync_teachers", methods=["POST"])
+@app.route("/api/upload_teachers", methods=["POST"])
+def api_sync_teachers():
+    data = request.json
+    school_code = data.get("school_code").strip().lower()
+    teachers_list = data.get("teachers", [])
+
+    if not school_code:
+        return jsonify({"success": False, "message": "Missing school code"}), 400
+
+    conn = get_db()
+    try:
+        # 1. Verify the school exists
+        school = conn.execute(
+            "SELECT id FROM schools WHERE school_code = ?", (school_code,)
+        ).fetchone()
+        if not school:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": f"School code '{school_code}' not registered on cloud.",
+                    }
+                ),
+                404,
+            )
+        school_id = school["id"]
+        # 2. Delete all existing teacher assignments for this school
+        conn.execute("DELETE FROM teacher_assignments WHERE school_id = ?", (school_id,))
+
+        # 3. Insert new teacher assignments
+        for t in teachers_list:
+            conn.execute(
+                """
+                INSERT INTO teacher_assignments (school_id, class_name, subject, teacher_name, teacher_code)
+                VALUES (?, ?, ?, ?, ?)
+            """,
+                (
+                    school_id,
+                    t["class_name"],
+                    t["subject"],
+                    t["teacher_name"],
+                    t["teacher_code"],
+                ),
+            )
+
+        conn.commit()
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Successfully synced {len(teachers_list)} teacher assignments.",
+            }
+        )
+
+    except Exception as e:
+        logging.error(f"Sync teachers error: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        conn.close()
+
+
 @app.route("/marks/<grade>", methods=["GET", "POST"])
 def enter_marks(grade):
     subject = request.args.get("subject")
@@ -512,6 +599,25 @@ def enter_marks(grade):
         conn.close()
         flash("The teachers portal is currently closed. Please contact your administrator.", "danger")
         return redirect(url_for("dashboard"))
+
+    # Verify teacher code for this specific subject
+    teacher_code = session.get("teacher_code")
+    if not teacher_code:
+        conn.close()
+        flash("Teacher code not found. Please login again.", "danger")
+        return redirect(url_for("teacher_login"))
+
+    # Check if the teacher's code is assigned to this subject for this grade
+    teacher_assignment = conn.execute(
+        "SELECT * FROM teacher_assignments WHERE school_id = ? AND class_name = ? AND subject = ? AND teacher_code = ?",
+        (session["school_id"], grade, subject, teacher_code)
+    ).fetchone()
+
+    if not teacher_assignment:
+        conn.close()
+        flash(f"You are not authorized to enter marks for {subject} in {grade}. Your teacher code does not match.", "danger")
+        return redirect(url_for("select_subject", grade=grade))
+
     # Fetch students for this grade
     students = conn.execute(
         "SELECT * FROM students WHERE school_id = ? AND grade = ? ORDER BY student_name ASC",

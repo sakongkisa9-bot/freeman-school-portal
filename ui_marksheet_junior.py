@@ -68,29 +68,36 @@ def sync_database_columns(db, subjects):
 
 
 class JuniorMarkSheetView(ctk.CTkFrame):
-    def __init__(self, parent, db_connection, class_name):
+    def __init__(self, parent, db_connection, class_name, read_only=False, exam_name=None, marks_data=None, summary_data=None):
         super().__init__(parent, fg_color="transparent")
         self.db = db_connection
         self.class_name = class_name
+        self.read_only = read_only
+        self.exam_name = exam_name
+        self.marks_data = marks_data
+        self.summary_data = summary_data
 
         # FIX: Load subjects from JSON immediately
         self.subjects = self.get_subjects_from_json()
-        self.current_exam_title = "PERFORMANCE RECORD"
-        try:
-            import json
-            import os
+        if self.read_only and self.exam_name:
+            self.current_exam_title = self.exam_name
+        else:
+            self.current_exam_title = "PERFORMANCE RECORD"
+            try:
+                import json
+                import os
 
-            project_dir = os.path.dirname(os.path.realpath(__file__))
-            json_path = os.path.join(project_dir, "school_config.json")
-            if os.path.exists(json_path):
-                with open(json_path, "r") as f:
-                    config = json.load(f)
-                    # This line sets the title you wrote last time
-                    self.current_exam_title = config.get(
-                        "current_exam_title", "PERFORMANCE RECORD"
-                    )
-        except:
-            pass
+                project_dir = os.path.dirname(os.path.realpath(__file__))
+                json_path = os.path.join(project_dir, "school_config.json")
+                if os.path.exists(json_path):
+                    with open(json_path, "r") as f:
+                        config = json.load(f)
+                        # This line sets the title you wrote last time
+                        self.current_exam_title = config.get(
+                            "current_exam_title", "PERFORMANCE RECORD"
+                        )
+            except:
+                pass
 
         self.create_header_section()
         self.create_bottom_controls()
@@ -217,7 +224,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                 row=0, column=total_start + j, rowspan=2, sticky="nsew", padx=1, pady=1
             )
 
-    def add_student_row(self, student_data, row_index):
+    def add_student_row(self, student_data, row_index, read_only=False):
         # Create a frame for this row to hold all widgets
         row_frame = ctk.CTkFrame(self.table_inner_frame, fg_color="transparent")
         # Calculate total columns: name (1) + subjects*3 + totals*3
@@ -260,14 +267,14 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         # 2. Subject Entry Boxes (Square)
         for i in range(num_subjects):
             col_start = 1 + (i * 3)
-            # Score column (editable)
+            # Score column (editable or read-only)
             score_col = col_start
             score_entry = ctk.CTkEntry(
                 row_frame,
                 width=BOX_SIZE,
                 height=BOX_SIZE,
                 font=("Arial Bold", 12),
-                fg_color="#1a1a1a",
+                fg_color="#1a1a1a" if not read_only else "gray30",
                 border_width=0,
                 corner_radius=0,
                 justify="center",
@@ -275,13 +282,16 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             score_entry.grid(row=0, column=score_col, sticky="nsew", padx=1, pady=1)
             if len(student_data) > score_col and student_data[score_col] is not None:
                 score_entry.insert(0, str(student_data[score_col]))
-            # Bind focusout to auto_fill_results, passing the row_frame
-            score_entry.bind(
-                "<FocusOut>",
-                lambda event, ent=score_entry, col=score_col, r_frame=row_frame: self.auto_fill_results(
-                    ent, col, r_frame
-                ),
-            )
+            if read_only:
+                score_entry.configure(state="disabled")
+            else:
+                # Bind focusout to auto_fill_results, passing the row_frame
+                score_entry.bind(
+                    "<FocusOut>",
+                    lambda event, ent=score_entry, col=score_col, r_frame=row_frame: self.auto_fill_results(
+                        ent, col, r_frame
+                    ),
+                )
 
             # Rating column (disabled)
             rating_col = col_start + 1
@@ -436,25 +446,30 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         sync_database_columns(self.db, self.subjects)
 
         try:
-            subject_cols = []
-            for sub in self.subjects:
-                base = get_clean_col_name(sub)
-                subject_cols.append(f"m.{base}_s")
-                subject_cols.append(f"m.{base}_r")
-                subject_cols.append(f"m.{base}_p")
+            # If in read-only mode with marks_data, load from JSON data instead of database
+            if self.read_only and self.marks_data:
+                import json
+                records = json.loads(self.marks_data)
+            else:
+                subject_cols = []
+                for sub in self.subjects:
+                    base = get_clean_col_name(sub)
+                    subject_cols.append(f"m.{base}_s")
+                    subject_cols.append(f"m.{base}_r")
+                    subject_cols.append(f"m.{base}_p")
 
-            cols_string = ", ".join(subject_cols)
+                cols_string = ", ".join(subject_cols)
 
-            # The query remains the same (Correctly sorts by Rank)
-            query = (
-                f"SELECT s.name, {cols_string}, m.total_points, m.average_points, m.rank "
-                f"FROM students s LEFT JOIN marksheet m ON s.adm_no = m.adm_no "
-                f"WHERE s.grade = ? "
-                f"ORDER BY CASE WHEN m.rank IS NULL THEN 1 ELSE 0 END, m.rank ASC"
-            )
+                # The query remains the same (Correctly sorts by Rank)
+                query = (
+                    f"SELECT s.name, {cols_string}, m.total_points, m.average_points, m.rank "
+                    f"FROM students s LEFT JOIN marksheet m ON s.adm_no = m.adm_no "
+                    f"WHERE s.grade = ? "
+                    f"ORDER BY CASE WHEN m.rank IS NULL THEN 1 ELSE 0 END, m.rank ASC"
+                )
 
-            self.db._cursor.execute(query, (self.class_name,))
-            records = self.db._cursor.fetchall()
+                self.db._cursor.execute(query, (self.class_name,))
+                records = self.db._cursor.fetchall()
 
             # 1. Clear the UI
             for child in self.table_inner_frame.winfo_children():
@@ -466,7 +481,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             # 3. Add Student Rows (Starting from Row 2)
             # 'idx' will tell 'add_student_row' exactly where to sit vertically
             for idx, student in enumerate(records, start=2):
-                self.add_student_row(student, idx)
+                self.add_student_row(student, idx, read_only=self.read_only)
 
         except Exception as e:
             print(f"Dynamic Load Error: {e}")
@@ -475,39 +490,57 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         self.bottom_bar = ctk.CTkFrame(self, fg_color="transparent")
         self.bottom_bar.pack(fill="x", side="bottom", padx=20, pady=10)
 
-        ctk.CTkButton(
-            self.bottom_bar,
-            text="💾 Save Marks",
-            fg_color="#2e7d32",
-            width=120,
-            command=self.save_all_marks,
-        ).pack(side="left", padx=5)
-        ctk.CTkButton(
-            self.bottom_bar,
-            text="☁ Fetch from Cloud",
-            fg_color="#1f538d",
-            hover_color="#153d66",
-            command=self.fetch_cloud_data,
-        ).pack(side="left", padx=5)
-        ctk.CTkButton(
-            self.bottom_bar,
-            text="🖨 Print PDF",
-            fg_color="#f57c00",
-            text_color="black",
-            command=self.print_to_pdf,
-        ).pack(side="left", padx=5)
-        ctk.CTkButton(
-            self.bottom_bar,
-            text="🆕 New Exam",
-            fg_color="#e67e22",
-            command=self.create_new_exam,
-        ).pack(side="left", padx=5)
-        ctk.CTkButton(
-            self.bottom_bar,
-            text="🔄 Refresh",
-            fg_color="#34495e",
-            command=self.load_students_from_registry,
-        ).pack(side="left", padx=5)
+        if self.read_only:
+            # Read-only mode: only Print and View Summary buttons
+            ctk.CTkButton(
+                self.bottom_bar,
+                text="🖨 Print PDF",
+                fg_color="#f57c00",
+                text_color="black",
+                command=self.print_to_pdf,
+            ).pack(side="left", padx=5)
+            ctk.CTkButton(
+                self.bottom_bar,
+                text="📊 View Summary",
+                fg_color="#1f538d",
+                command=self.view_summary,
+            ).pack(side="left", padx=5)
+        else:
+            # Normal mode: all editing buttons
+            ctk.CTkButton(
+                self.bottom_bar,
+                text="💾 Save Marks",
+                fg_color="#2e7d32",
+                width=120,
+                command=self.save_all_marks,
+            ).pack(side="left", padx=5)
+            ctk.CTkButton(
+                self.bottom_bar,
+                text="☁ Fetch from Cloud",
+                fg_color="#1f538d",
+                hover_color="#153d66",
+                command=self.fetch_cloud_data,
+            ).pack(side="left", padx=5)
+            ctk.CTkButton(
+                self.bottom_bar,
+                text="🖨 Print PDF",
+                fg_color="#f57c00",
+                text_color="black",
+                command=self.print_to_pdf,
+            ).pack(side="left", padx=5)
+            ctk.CTkButton(
+                self.bottom_bar,
+                text="🆕 New Exam",
+                fg_color="#e67e22",
+                command=self.create_new_exam,
+            ).pack(side="left", padx=5)
+            ctk.CTkButton(
+                self.bottom_bar,
+                text="🔄 Refresh",
+                fg_color="#34495e",
+                command=self.load_students_from_registry,
+            ).pack(side="left", padx=5)
+
         ctk.CTkButton(
             self.bottom_bar,
             text="⬅ Back",
@@ -646,13 +679,14 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                     print("Could not embed logo image.")
 
             pdf.set_font("Helvetica", "B", 18)
-            pdf.cell(0, 10, school_name.upper(), ln=True, align="C")
+            pdf.cell(0, 10, txt=school_name.upper(), border=0, ln=1, align="C")
             pdf.set_font("Helvetica", "B", 12)
             pdf.cell(
                 0,
                 7,
-                f"JUNIOR SCHOOL REPORT: {self.class_name.upper()} - {exam_name}",
-                ln=True,
+                txt=f"JUNIOR SCHOOL REPORT: {self.class_name.upper()} - {exam_name}",
+                border=0,
+                ln=1,
                 align="C",
             )
             pdf.ln(10)
@@ -668,22 +702,22 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             pdf.set_text_color(255, 255, 255)
             pdf.set_font("Helvetica", "B", 8)
 
-            pdf.cell(name_w, 12, "STUDENT NAME", 1, 0, "C", True)
+            pdf.cell(name_w, 12, txt="STUDENT NAME", border=1, ln=0, align="C", fill=True)
             for sub in subjects:
-                pdf.cell(sub_col_w * 3, 6, sub[:8], 1, 0, "C", True)
+                pdf.cell(sub_col_w * 3, 6, txt=sub[:8], border=1, ln=0, align="C", fill=True)
 
-            pdf.cell(10, 12, "TOT", 1, 0, "C", True)
-            pdf.cell(15, 12, "AVG", 1, 0, "C", True)
-            pdf.cell(10, 12, "POS", 1, 1, "C", True)
+            pdf.cell(10, 12, txt="TOT", border=1, ln=0, align="C", fill=True)
+            pdf.cell(15, 12, txt="AVG", border=1, ln=0, align="C", fill=True)
+            pdf.cell(10, 12, txt="POS", border=1, ln=1, align="C", fill=True)
 
             # S | R | P Row logic
             current_y = pdf.get_y()
             pdf.set_xy(10 + name_w, current_y - 6)
             pdf.set_font("Helvetica", "B", 6)
             for _ in subjects:
-                pdf.cell(sub_col_w, 6, "S", 1, 0, "C", True)
-                pdf.cell(sub_col_w, 6, "R", 1, 0, "C", True)
-                pdf.cell(sub_col_w, 6, "P", 1, 0, "C", True)
+                pdf.cell(sub_col_w, 6, txt="S", border=1, ln=0, align="C", fill=True)
+                pdf.cell(sub_col_w, 6, txt="R", border=1, ln=0, align="C", fill=True)
+                pdf.cell(sub_col_w, 6, txt="P", border=1, ln=0, align="C", fill=True)
             pdf.set_y(current_y)
 
             # --- 6. DATA ROWS ---
@@ -700,29 +734,30 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                     name_widgets = self.table_inner_frame.grid_slaves(row=r, column=0)
                     if not name_widgets:
                         continue
-                    name_text = name_widgets[0].cget("text")
+                    # The name is in a CTkLabel inside the row_frame
+                    row_frame = name_widgets[0]
+                    label_widgets = row_frame.grid_slaves(row=0, column=0)
+                    if not label_widgets:
+                        continue
+                    name_text = label_widgets[0].cget("text")
 
                     if not name_text or name_text.upper() == "STUDENT NAME":
                         continue
 
-                    pdf.cell(name_w, 7, name_text[:22], 1)
+                    pdf.cell(name_w, 7, txt=name_text[:22], border=1)
 
                     for i in range(1, (num_subs * 3) + 1):
-                        cell_widgets = self.table_inner_frame.grid_slaves(
-                            row=r, column=i
-                        )
+                        cell_widgets = row_frame.grid_slaves(row=0, column=i)
                         val = (
                             cell_widgets[0].get()
                             if cell_widgets and hasattr(cell_widgets[0], "get")
                             else ""
                         )
-                        pdf.cell(sub_col_w, 7, str(val), 1, 0, "C")
+                        pdf.cell(sub_col_w, 7, txt=str(val), border=1, ln=0, align="C")
 
                     total_col_idx = (num_subs * 3) + 1
                     for j in range(3):
-                        t_widgets = self.table_inner_frame.grid_slaves(
-                            row=r, column=total_col_idx + j
-                        )
+                        t_widgets = row_frame.grid_slaves(row=0, column=total_col_idx + j)
                         t_val = (
                             t_widgets[0].get()
                             if t_widgets and hasattr(t_widgets[0], "get")
@@ -730,7 +765,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                         )
                         w_val = 15 if j == 1 else 10
                         ln_val = 1 if j == 2 else 0
-                        pdf.cell(w_val, 7, str(t_val), 1, ln_val, "C")
+                        pdf.cell(w_val, 7, txt=str(t_val), border=1, ln=ln_val, align="C")
 
                 except Exception as row_err:
                     print(f"Skipping PDF row {r}: {row_err}")
@@ -914,17 +949,20 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         if new_title and messagebox.askyesno(
             "Confirm", f"Reset marks for {self.class_name} and start '{new_title}'?"
         ):
-            # 1. Clear the marks in the DB
+            # 1. Save the current exam as a previous exam with its summary
+            self.save_current_exam_as_previous()
+
+            # 2. Clear the marks in the DB
             self.db._cursor.execute(
                 "DELETE FROM marksheet WHERE adm_no IN (SELECT adm_no FROM students WHERE grade = ?)",
                 (self.class_name,),
             )
             self.db.conn.commit()
 
-            # 2. Update the variable in the app
+            # 3. Update the variable in the app
             self.current_exam_title = new_title.upper()
 
-            # 3. Save this title to school_config.json permanently
+            # 4. Save this title to school_config.json permanently
             try:
                 import json
                 import os
@@ -945,8 +983,268 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             except Exception as e:
                 print(f"Error saving exam title to JSON: {e}")
 
-            # 4. Refresh the UI
+            # 5. Refresh the UI
             self.load_students_from_registry()
+
+    def save_current_exam_as_previous(self):
+        """Save the current exam data as a previous exam with summary"""
+        import json
+
+        # Get current exam title
+        current_exam_name = self.current_exam_title
+
+        # Get marks data
+        subject_cols = []
+        for sub in self.subjects:
+            base = get_clean_col_name(sub)
+            subject_cols.append(f"m.{base}_s")
+            subject_cols.append(f"m.{base}_r")
+            subject_cols.append(f"m.{base}_p")
+
+        cols_string = ", ".join(subject_cols)
+
+        query = (
+            f"SELECT s.name, {cols_string}, m.total_points, m.average_points, m.rank "
+            f"FROM students s LEFT JOIN marksheet m ON s.adm_no = m.adm_no "
+            f"WHERE s.grade = ? "
+            f"ORDER BY CASE WHEN m.rank IS NULL THEN 1 ELSE 0 END, m.rank ASC"
+        )
+
+        self.db._cursor.execute(query, (self.class_name,))
+        records = self.db._cursor.fetchall()
+
+        # Convert to JSON-serializable format
+        marks_data = json.dumps([list(record) for record in records])
+
+        # Get summary data
+        summary_data = self.generate_summary_data()
+        summary_json = json.dumps(summary_data)
+
+        # Save to database
+        self.db.save_previous_exam(current_exam_name, self.class_name, summary_json, marks_data)
+
+        print(f"Saved previous exam: {current_exam_name} for {self.class_name}")
+
+    def generate_summary_data(self):
+        """Generate summary data for the current exam matching ClassSummaryView format"""
+        LEVEL_ORDER = ["EE1", "EE2", "ME1", "ME2", "AE1", "AE2", "BE1", "BE2"]
+        
+        # Get subjects from JSON
+        subjects = self.get_subjects_from_json()
+        
+        # Initialize data structures
+        distribution = {level: 0 for level in LEVEL_ORDER}
+        gender_counts = {"male": 0, "female": 0, "other": 0}
+        gender_totals = {"male": 0, "female": 0, "other": 0}
+        subject_totals = {subject: 0.0 for subject in subjects}
+        subject_counts = {subject: 0 for subject in subjects}
+        total_students = 0
+
+        # Query student data with marks
+        query = """
+            SELECT s.name, s.gender, m.total_points, m.average_points
+            FROM students s
+            LEFT JOIN marksheet m ON s.adm_no = m.adm_no
+            WHERE s.grade = ?
+        """
+        self.db._cursor.execute(query, (self.class_name,))
+        rows = self.db._cursor.fetchall()
+
+        for row in rows:
+            if not row:
+                continue
+            total_students += 1
+            
+            name, gender, total_points, average_points = row
+            
+            # Map gender values to standard categories
+            gender_raw = str(gender).strip().lower() if gender else "other"
+            if gender_raw in ["m", "male", "boy"]:
+                gender = "male"
+            elif gender_raw in ["f", "female", "girl"]:
+                gender = "female"
+            else:
+                gender = "other"
+            
+            gender_counts[gender] += 1
+            
+            # Track distribution based on average_points
+            if average_points is not None:
+                average_label = str(average_points).strip().upper().replace(" ", "")
+                if average_label in distribution:
+                    distribution[average_label] += 1
+            
+            # Track gender totals
+            if isinstance(total_points, (int, float)):
+                gender_totals[gender] += total_points
+
+        # Calculate subject averages
+        # For junior marks, we need to get subject scores
+        for subject in subjects:
+            clean_name = subject.strip().replace(" ", "_").replace("-", "_").replace("/", "_").lower()
+            score_col = f"{clean_name}_s"
+            points_col = f"{clean_name}_p"
+            
+            query = f"""
+                SELECT m.{score_col}, m.{points_col}
+                FROM marksheet m
+                JOIN students s ON m.adm_no = s.adm_no
+                WHERE s.grade = ?
+            """
+            self.db._cursor.execute(query, (self.class_name,))
+            subject_rows = self.db._cursor.fetchall()
+            
+            for score_row in subject_rows:
+                score, points = score_row
+                # Use points if available, otherwise use score
+                value = points if points is not None else score
+                if value is not None:
+                    try:
+                        score_value = float(value)
+                        subject_totals[subject] += score_value
+                        subject_counts[subject] += 1
+                    except (ValueError, TypeError):
+                        pass
+
+        # Calculate subject averages
+        subject_averages = []
+        for subject in subjects:
+            count = subject_counts[subject]
+            mean_value = round(subject_totals[subject] / count if count else 0.0, 2)
+            subject_averages.append((subject, mean_value))
+        
+        subject_averages.sort(key=lambda pair: pair[1], reverse=True)
+
+        return {
+            "total_students": total_students,
+            "distribution": distribution,
+            "gender_counts": gender_counts,
+            "gender_totals": gender_totals,
+            "subject_averages": subject_averages,
+            "has_history": False,
+            "trend_text": "No previous exam",
+        }
+
+    def view_summary(self):
+        """View the summary for a previous exam"""
+        if self.summary_data:
+            # Show the summary in a new window
+            self.summary_window = ctk.CTkToplevel(self)
+            self.summary_window.title(f"Summary - {self.exam_name}")
+            self.summary_window.geometry("900x700")
+            self.summary_window.protocol("WM_DELETE_WINDOW", self.on_summary_window_close)
+            self.summary_window.transient(self)
+            self.summary_window.grab_set()
+
+            summary_frame = ctk.CTkScrollableFrame(self.summary_window, fg_color="gray15")
+            summary_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+            # Parse and display the summary data
+            import json
+            try:
+                summary = json.loads(self.summary_data)
+
+                # Debug: print the summary data
+                print(f"Summary data: {summary}")
+
+                # Header
+                header = ctk.CTkLabel(
+                    summary_frame,
+                    text=f"Summary - {self.exam_name}",
+                    font=("Arial Bold", 20),
+                    fg_color="#1f538d",
+                    text_color="white",
+                    corner_radius=10,
+                    height=60
+                )
+                header.pack(fill="x", padx=10, pady=10)
+
+                # Handle both old and new data formats
+                # Old format: {'Total Students': 21, 'Students with Marks': 20, 'Average Total Points': 6.35, 'Grade Distribution': {'BE1': 1, 'BE2': 19}}
+                # New format: {'total_students': 21, 'gender_counts': {...}, 'distribution': {...}, 'subject_averages': [...], ...}
+
+                # Check if it's the old format
+                if "Total Students" in summary or "Students with Marks" in summary:
+                    # Old format - display as key-value pairs
+                    info_frame = ctk.CTkFrame(summary_frame, fg_color="#20232a", corner_radius=12)
+                    info_frame.pack(fill="x", padx=10, pady=10)
+
+                    for key, value in summary.items():
+                        if isinstance(value, dict):
+                            # Handle nested dict like Grade Distribution
+                            ctk.CTkLabel(info_frame, text=key, font=("Arial Bold", 14), text_color="#10b981").pack(anchor="w", padx=15, pady=(10, 5))
+                            for sub_key, sub_value in value.items():
+                                ctk.CTkLabel(info_frame, text=f"  {sub_key}: {sub_value}", font=("Arial", 12), text_color="#d1d5db").pack(anchor="w", padx=20, pady=2)
+                        else:
+                            ctk.CTkLabel(info_frame, text=f"{key}: {value}", font=("Arial", 12), text_color="#d1d5db").pack(anchor="w", padx=15, pady=5)
+                else:
+                    # New format - display with cards and structured layout
+                    # Summary cards
+                    cards_frame = ctk.CTkFrame(summary_frame, fg_color="transparent")
+                    cards_frame.pack(fill="x", padx=10, pady=10)
+
+                    cards = [
+                        ("Total Students", str(summary.get("total_students", 0)), "#10b981"),
+                        ("Male Students", str(summary.get("gender_counts", {}).get("male", 0)), "#3b82f6"),
+                        ("Female Students", str(summary.get("gender_counts", {}).get("female", 0)), "#ec4899"),
+                        ("Previous Exam", summary.get("trend_text", "No previous exam"), "#fbbf24")
+                    ]
+
+                    for text, value, color in cards:
+                        card = ctk.CTkFrame(cards_frame, fg_color="#20232a", corner_radius=12)
+                        card.pack(side="left", expand=True, fill="both", padx=5)
+                        ctk.CTkLabel(card, text=text, font=("Arial", 10), text_color="#d1d5db").pack(anchor="w", padx=10, pady=(10, 5))
+                        ctk.CTkLabel(card, text=value, font=("Arial Bold", 18), text_color=color).pack(anchor="w", padx=10, pady=(0, 10))
+
+                    # Distribution
+                    dist_frame = ctk.CTkFrame(summary_frame, fg_color="#20232a", corner_radius=12)
+                    dist_frame.pack(fill="x", padx=10, pady=10)
+                    ctk.CTkLabel(dist_frame, text="Class Level Distribution", font=("Arial Bold", 14)).pack(anchor="w", padx=15, pady=(15, 10))
+
+                    dist_grid = ctk.CTkFrame(dist_frame, fg_color="transparent")
+                    dist_grid.pack(fill="x", padx=15, pady=(0, 15))
+
+                    distribution = summary.get("distribution", {})
+                    levels = ["EE1", "EE2", "ME1", "ME2", "AE1", "AE2", "BE1", "BE2"]
+                    for i, level in enumerate(levels):
+                        if i % 4 == 0:
+                            row_frame = ctk.CTkFrame(dist_grid, fg_color="transparent")
+                            row_frame.pack(fill="x", pady=2)
+                        cell = ctk.CTkFrame(row_frame, fg_color="#1f2937", corner_radius=8)
+                        cell.pack(side="left", expand=True, fill="both", padx=2)
+                        ctk.CTkLabel(cell, text=f"{level}: {distribution.get(level, 0)}", font=("Arial", 11)).pack(pady=8)
+
+                    # Subject averages
+                    subj_frame = ctk.CTkFrame(summary_frame, fg_color="#20232a", corner_radius=12)
+                    subj_frame.pack(fill="x", padx=10, pady=10)
+                    ctk.CTkLabel(subj_frame, text="Subject Mean Ranking", font=("Arial Bold", 14)).pack(anchor="w", padx=15, pady=(15, 10))
+
+                    subj_grid = ctk.CTkFrame(subj_frame, fg_color="transparent")
+                    subj_grid.pack(fill="x", padx=15, pady=(0, 15))
+
+                    subject_averages = summary.get("subject_averages", [])
+                    for rank, (subject, mean_value) in enumerate(subject_averages, start=1):
+                        row = ctk.CTkFrame(subj_grid, fg_color="#1f2937" if rank % 2 == 1 else "#111827", corner_radius=8)
+                        row.pack(fill="x", pady=2)
+                        ctk.CTkLabel(row, text=f"{rank}. {subject}", font=("Arial", 11)).pack(side="left", padx=10, pady=8)
+                        ctk.CTkLabel(row, text=f"{mean_value:.2f}", font=("Arial Bold", 11), text_color="#60a5fa").pack(side="right", padx=10, pady=8)
+
+            except Exception as e:
+                error_label = ctk.CTkLabel(
+                    summary_frame,
+                    text=f"Error loading summary: {e}",
+                    font=("Arial", 14),
+                    text_color="red"
+                )
+                error_label.pack(pady=10)
+        else:
+            messagebox.showinfo("Summary", "No summary data available for this exam.")
+
+    def on_summary_window_close(self):
+        """Handle summary window close event"""
+        if hasattr(self, 'summary_window'):
+            self.summary_window.destroy()
+            delattr(self, 'summary_window')
 
     def update_header_text(self, exam_title):
         project_dir = os.path.dirname(os.path.realpath(__file__))

@@ -20,6 +20,8 @@ class FreemanDB:
             self.create_pp2_table()
             self.create_primary_table()
             self.create_settings_table()
+            self.create_previous_exams_table()
+            self.create_teachers_table()
             # Temporary fix in database.py
             self.create_marksheet_table() # Ensure this runs at start too
             print(f"DATABASE ACTIVE AT: {DB_PATH}")
@@ -180,3 +182,117 @@ class FreemanDB:
             self._cursor.execute("INSERT INTO school_settings (id, school_name, logo_path, sig_path) VALUES (1, 'NEW SCHOOL', '', '')")
         
         self.conn.commit()
+
+    def create_previous_exams_table(self):
+        """Create table to store previous exams with their marks and summary"""
+        self._cursor.execute('''
+            CREATE TABLE IF NOT EXISTS previous_exams (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                exam_name TEXT,
+                class_name TEXT,
+                exam_date TEXT,
+                summary_data TEXT,
+                marks_data TEXT,
+                UNIQUE(exam_name, class_name)
+            )
+        ''')
+        self.conn.commit()
+
+    def create_teachers_table(self):
+        """Create table to store teacher-subject assignments"""
+        self._cursor.execute('''
+            CREATE TABLE IF NOT EXISTS teachers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                class_name TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                teacher_name TEXT NOT NULL,
+                teacher_code TEXT NOT NULL,
+                UNIQUE(class_name, subject)
+            )
+        ''')
+        self.conn.commit()
+
+    def save_previous_exam(self, exam_name, class_name, summary_data, marks_data):
+        """Save a previous exam with its summary and marks data"""
+        import datetime
+        exam_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self._cursor.execute('''
+            INSERT OR REPLACE INTO previous_exams (exam_name, class_name, exam_date, summary_data, marks_data)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (exam_name, class_name, exam_date, summary_data, marks_data))
+        self.conn.commit()
+
+    def get_previous_exams(self, class_name):
+        """Get list of previous exams for a class"""
+        self._cursor.execute('''
+            SELECT exam_name, exam_date FROM previous_exams WHERE class_name = ? ORDER BY exam_date DESC
+        ''', (class_name,))
+        return self._cursor.fetchall()
+
+    def get_previous_exam_data(self, exam_name, class_name):
+        """Get the full data for a specific previous exam"""
+        self._cursor.execute('''
+            SELECT marks_data, summary_data FROM previous_exams WHERE exam_name = ? AND class_name = ?
+        ''', (exam_name, class_name))
+        result = self._cursor.fetchone()
+        if result:
+            return result[0], result[1]  # marks_data, summary_data
+        return None, None
+
+    def delete_previous_exam(self, exam_name, class_name):
+        """Delete a specific previous exam"""
+        self._cursor.execute('''
+            DELETE FROM previous_exams WHERE exam_name = ? AND class_name = ?
+        ''', (exam_name, class_name))
+        self.conn.commit()
+
+    def add_teacher_assignment(self, class_name, subject, teacher_name, teacher_code):
+        """Add or update a teacher-subject assignment"""
+        self._cursor.execute('''
+            INSERT OR REPLACE INTO teachers (class_name, subject, teacher_name, teacher_code)
+            VALUES (?, ?, ?, ?)
+        ''', (class_name, subject, teacher_name, teacher_code))
+        self.conn.commit()
+        print(f"Teacher assignment saved: {teacher_name} for {subject} in {class_name}")
+
+    def update_teacher_assignment(self, class_name, old_subject, new_subject, teacher_name, teacher_code):
+        """Update a teacher-subject assignment"""
+        self._cursor.execute('''
+            UPDATE teachers SET subject = ?, teacher_name = ?, teacher_code = ?
+            WHERE class_name = ? AND subject = ?
+        ''', (new_subject, teacher_name, teacher_code, class_name, old_subject))
+        self.conn.commit()
+        print(f"Teacher assignment updated: {teacher_name} for {new_subject} in {class_name}")
+
+    def delete_teacher_assignment(self, class_name, subject):
+        """Delete a teacher-subject assignment"""
+        self._cursor.execute('''
+            DELETE FROM teachers WHERE class_name = ? AND subject = ?
+        ''', (class_name, subject))
+        self.conn.commit()
+        print(f"Teacher assignment deleted for {subject} in {class_name}")
+
+    def get_teacher_assignments(self, class_name):
+        """Get all teacher assignments for a class"""
+        self._cursor.execute('''
+            SELECT subject, teacher_name, teacher_code FROM teachers WHERE class_name = ?
+        ''', (class_name,))
+        return self._cursor.fetchall()
+
+    def get_all_teachers(self):
+        """Get all teacher assignments for sync to cloud"""
+        self._cursor.execute('''
+            SELECT class_name, subject, teacher_name, teacher_code FROM teachers
+        ''')
+        return self._cursor.fetchall()
+
+    def verify_teacher_code(self, teacher_name, teacher_code, class_name, subject):
+        """Verify if a teacher's code matches for a specific subject"""
+        self._cursor.execute('''
+            SELECT teacher_code FROM teachers 
+            WHERE class_name = ? AND subject = ? AND teacher_name = ?
+        ''', (class_name, subject, teacher_name))
+        result = self._cursor.fetchone()
+        if result and result[0] == teacher_code:
+            return True
+        return False

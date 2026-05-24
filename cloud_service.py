@@ -130,6 +130,15 @@ class CloudService:
         }
         return self._post_json("/api/upload_students", payload)
 
+    def sync_teachers(self, teachers, credentials):
+        payload = {
+            "school_code": credentials["school_code"],
+            "username": credentials["username"],
+            "password": credentials["password"],
+            "teachers": teachers,
+        }
+        return self._post_json("/api/upload_teachers", payload)
+
     def fetch_students(self, grade, credentials):
         payload = {
             "school_code": credentials["school_code"],

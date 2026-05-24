@@ -143,7 +143,7 @@ class ClassSummaryView(ctk.CTkFrame):
                 continue
             total_students += 1
             gender_raw = str(row[2]).strip().lower() if row[2] else "other"
-            
+
             # Map gender values to standard categories
             if gender_raw in ["m", "male", "boy"]:
                 gender = "male"
@@ -151,7 +151,7 @@ class ClassSummaryView(ctk.CTkFrame):
                 gender = "female"
             else:
                 gender = "other"
-                
+
             gender_counts[gender] += 1
 
             average_value = row[-1] if len(row) > 0 else None
@@ -197,14 +197,29 @@ class ClassSummaryView(ctk.CTkFrame):
 
         subject_averages.sort(key=lambda pair: pair[1], reverse=True)
 
+        # Check for previous exam
+        has_history = False
+        trend_text = "No previous exam"
+        try:
+            self.db._cursor.execute(
+                "SELECT exam_name FROM previous_exams WHERE class_name = ? ORDER BY exam_date DESC LIMIT 1",
+                (self.class_name,)
+            )
+            previous_exam = self.db._cursor.fetchone()
+            if previous_exam:
+                has_history = True
+                trend_text = f"Previous: {previous_exam[0]}"
+        except Exception:
+            pass
+
         return {
             "total_students": total_students,
             "distribution": distribution,
             "gender_counts": gender_counts,
             "gender_totals": gender_totals,
             "subject_averages": subject_averages,
-            "has_history": False,
-            "trend_text": "No previous exam",
+            "has_history": has_history,
+            "trend_text": trend_text,
         }
 
     def map_primary_score_to_point(self, score):
@@ -227,12 +242,12 @@ class ClassSummaryView(ctk.CTkFrame):
         school = self.school_config.get("school_name", "Freeman Tech Solutions").upper()
         exam_label = self.current_exam_title.upper()
         header_text = f"{school}\n{self.class_name.upper()} - {exam_label}"
-        self.header_label = ctk.CTkLabel(self.body_frame, text=header_text, font=("Arial Bold", 24), fg_color="#1f538d", text_color="white", corner_radius=10, height=100)
+        self.header_label = ctk.CTkLabel(self.body_frame, text=header_text, font=("Arial Bold", 20), fg_color="#1f538d", text_color="white", corner_radius=12, height=80)
         self.header_label.pack(fill="x", padx=20, pady=15)
 
     def create_summary_cards(self):
         top_frame = ctk.CTkFrame(self.body_frame, fg_color="transparent")
-        top_frame.pack(fill="x", padx=20, pady=(0, 15))
+        top_frame.pack(fill="x", padx=20, pady=(0, 10))
 
         cards = [
             ("Total Students", str(self.summary["total_students"]), "#10b981"),
@@ -242,100 +257,122 @@ class ClassSummaryView(ctk.CTkFrame):
         ]
 
         for text, value, color in cards:
-            card = ctk.CTkFrame(top_frame, fg_color="#20232a", corner_radius=12)
-            card.pack(side="left", expand=True, fill="both", padx=8)
-            ctk.CTkLabel(card, text=text, font=("Arial", 12), text_color="#d1d5db").pack(anchor="w", padx=15, pady=(15, 5))
-            ctk.CTkLabel(card, text=value, font=("Arial Bold", 22), text_color=color).pack(anchor="w", padx=15, pady=(0, 15))
+            card = ctk.CTkFrame(top_frame, fg_color="#20232a", corner_radius=10)
+            card.pack(side="left", expand=True, fill="both", padx=5)
+            ctk.CTkLabel(card, text=text, font=("Arial", 10), text_color="#d1d5db").pack(anchor="w", padx=12, pady=(12, 3))
+            ctk.CTkLabel(card, text=value, font=("Arial Bold", 18), text_color=color).pack(anchor="w", padx=12, pady=(0, 12))
 
     def create_details_section(self):
         detail_frame = ctk.CTkFrame(self.body_frame, fg_color="transparent")
-        detail_frame.pack(fill="x", padx=20, pady=(0, 15))
+        detail_frame.pack(fill="both", expand=True, padx=20, pady=(0, 10))
 
-        left_frame = ctk.CTkFrame(detail_frame, fg_color="#20232a", corner_radius=12)
-        right_frame = ctk.CTkFrame(detail_frame, fg_color="#20232a", corner_radius=12)
-        left_frame.pack(side="left", fill="both", expand=True, padx=(0, 10), pady=5)
-        right_frame.pack(side="left", fill="both", expand=True, padx=(10, 0), pady=5)
+        # Create a 2x2 grid layout
+        detail_frame.grid_columnconfigure(0, weight=1)
+        detail_frame.grid_columnconfigure(1, weight=1)
+        detail_frame.grid_rowconfigure(0, weight=1)
+        detail_frame.grid_rowconfigure(1, weight=1)
 
-        self.render_distribution(left_frame)
-        self.render_subject_ranking(right_frame)
+        # Top-left: Distribution
+        dist_frame = ctk.CTkFrame(detail_frame, fg_color="#20232a", corner_radius=10)
+        dist_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        self.render_distribution_compact(dist_frame)
 
-        bottom_frame = ctk.CTkFrame(self.body_frame, fg_color="#20232a", corner_radius=12)
-        bottom_frame.pack(fill="x", padx=20, pady=(0, 15))
-        self.render_gender_comparison(bottom_frame)
-        self.render_subject_chart(bottom_frame)
+        # Top-right: Subject Ranking
+        rank_frame = ctk.CTkFrame(detail_frame, fg_color="#20232a", corner_radius=10)
+        rank_frame.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
+        self.render_subject_ranking_compact(rank_frame)
 
-    def render_distribution(self, parent):
-        ctk.CTkLabel(parent, text="Class Level Distribution", font=("Arial Bold", 16)).pack(anchor="w", padx=20, pady=(20, 10))
-        grid = ctk.CTkScrollableFrame(parent, fg_color="transparent")
-        grid.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        # Bottom-left: Gender Comparison
+        gender_frame = ctk.CTkFrame(detail_frame, fg_color="#20232a", corner_radius=10)
+        gender_frame.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
+        self.render_gender_comparison_compact(gender_frame)
 
+        # Bottom-right: Subject Chart
+        chart_frame = ctk.CTkFrame(detail_frame, fg_color="#20232a", corner_radius=10)
+        chart_frame.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
+        self.render_subject_chart_compact(chart_frame)
+
+    def render_distribution_compact(self, parent):
+        ctk.CTkLabel(parent, text="Class Level Distribution", font=("Arial Bold", 12)).pack(anchor="w", padx=12, pady=(12, 8))
+        
+        # Use a frame with grid layout instead of scrollable
+        grid_frame = ctk.CTkFrame(parent, fg_color="transparent")
+        grid_frame.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+        
+        grid_frame.grid_columnconfigure(0, weight=1)
+        grid_frame.grid_columnconfigure(1, weight=1)
+        grid_frame.grid_columnconfigure(2, weight=1)
+        grid_frame.grid_columnconfigure(3, weight=1)
+        
         for index, level in enumerate(LEVEL_ORDER):
+            row = index // 4
+            col = index % 4
             bg = "#081c15" if index % 2 == 0 else "#102f1f"
-            cell = ctk.CTkFrame(grid, fg_color=bg, corner_radius=10)
-            cell.pack(fill="x", padx=8, pady=8)
-            ctk.CTkLabel(cell, text=level, font=("Arial Bold", 14)).pack(pady=(15, 5))
-            ctk.CTkLabel(cell, text=str(self.summary["distribution"][level]), font=("Arial Bold", 18), text_color="#f8fafc").pack(pady=(0, 15))
+            cell = ctk.CTkFrame(grid_frame, fg_color=bg, corner_radius=8)
+            cell.grid(row=row, column=col, sticky="nsew", padx=3, pady=3)
+            ctk.CTkLabel(cell, text=level, font=("Arial Bold", 10)).pack(pady=(8, 2))
+            ctk.CTkLabel(cell, text=str(self.summary["distribution"][level]), font=("Arial Bold", 14), text_color="#f8fafc").pack(pady=(0, 8))
 
-    def render_subject_ranking(self, parent):
-        ctk.CTkLabel(parent, text="Subject Mean Ranking", font=("Arial Bold", 16)).pack(anchor="w", padx=20, pady=(20, 10))
-        ranking_frame = ctk.CTkScrollableFrame(parent, fg_color="#111827", corner_radius=12)
-        ranking_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+    def render_subject_ranking_compact(self, parent):
+        ctk.CTkLabel(parent, text="Subject Mean Ranking", font=("Arial Bold", 12)).pack(anchor="w", padx=12, pady=(12, 8))
+        
+        ranking_frame = ctk.CTkFrame(parent, fg_color="transparent")
+        ranking_frame.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
         for rank, (subject, mean_value) in enumerate(self.summary["subject_averages"], start=1):
-            row = ctk.CTkFrame(ranking_frame, fg_color="#1f2937" if rank % 2 == 1 else "#111827", corner_radius=8)
-            row.pack(fill="x", padx=12, pady=4)
-            ctk.CTkLabel(row, text=f"{rank}. {subject}", font=("Arial", 12)).pack(side="left", padx=12, pady=12)
-            ctk.CTkLabel(row, text=f"{mean_value:.2f}", font=("Arial Bold", 12), text_color="#60a5fa").pack(side="right", padx=12, pady=12)
+            bg = "#1f2937" if rank % 2 == 1 else "#111827"
+            row = ctk.CTkFrame(ranking_frame, fg_color=bg, corner_radius=6)
+            row.pack(fill="x", padx=2, pady=2)
+            ctk.CTkLabel(row, text=f"{rank}. {subject}", font=("Arial", 10)).pack(side="left", padx=8, pady=6)
+            ctk.CTkLabel(row, text=f"{mean_value:.2f}", font=("Arial Bold", 10), text_color="#60a5fa").pack(side="right", padx=8, pady=6)
 
-    def render_gender_comparison(self, parent):
+    def render_gender_comparison_compact(self, parent):
         stats = self.summary["gender_counts"]
         total = max(1, self.summary["total_students"])
-        ratio_text = f"Male: {stats['male']} | Female: {stats['female']} | Other: {stats['other']}"
-        ctk.CTkLabel(parent, text="Gender Performance Comparison", font=("Arial Bold", 16)).grid(row=0, column=0, sticky="w", padx=20, pady=(20, 10))
-        ctk.CTkLabel(parent, text=ratio_text, font=("Arial", 12), text_color="#d1d5db").grid(row=1, column=0, sticky="w", padx=20)
+        ratio_text = f"M: {stats['male']} | F: {stats['female']} | O: {stats['other']}"
+        ctk.CTkLabel(parent, text="Gender Performance", font=("Arial Bold", 12)).pack(anchor="w", padx=12, pady=(12, 8))
+        ctk.CTkLabel(parent, text=ratio_text, font=("Arial", 9), text_color="#d1d5db").pack(anchor="w", padx=12)
 
         male_pct = max(0, min(100, int(stats["male"] / total * 100)))
         female_pct = max(0, min(100, int(stats["female"] / total * 100)))
         other_pct = max(0, 100 - male_pct - female_pct)
-        progress = ctk.CTkProgressBar(parent, width=450, progress_color="#3b82f6", corner_radius=10)
-        progress.grid(row=2, column=0, sticky="w", padx=20, pady=(15, 5))
+        
+        progress_frame = ctk.CTkFrame(parent, fg_color="transparent")
+        progress_frame.pack(fill="x", padx=12, pady=(8, 0))
+        
+        progress = ctk.CTkProgressBar(progress_frame, width=200, progress_color="#3b82f6", corner_radius=8)
+        progress.pack(fill="x")
         progress.set(male_pct / 100)
 
-        ctk.CTkLabel(parent, text=f"Male {male_pct}%  ·  Female {female_pct}%  ·  Other {other_pct}%", font=("Arial", 11), text_color="#9ca3af").grid(row=3, column=0, sticky="w", padx=20, pady=(0, 15))
-        parent.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(parent, text=f"Male {male_pct}%  ·  Female {female_pct}%  ·  Other {other_pct}%", font=("Arial", 9), text_color="#9ca3af").pack(anchor="w", padx=12, pady=(5, 12))
 
-    def render_subject_chart(self, parent):
-        chart_frame = ctk.CTkFrame(parent, fg_color="#111827", corner_radius=12)
-        chart_frame.grid(row=0, column=1, rowspan=4, sticky="nsew", padx=20, pady=20)
-        ctk.CTkLabel(chart_frame, text="Subject Performance Chart", font=("Arial Bold", 16)).pack(anchor="w", padx=20, pady=(20, 10))
+    def render_subject_chart_compact(self, parent):
+        ctk.CTkLabel(parent, text="Subject Performance", font=("Arial Bold", 12)).pack(anchor="w", padx=12, pady=(12, 8))
 
-        canvas_container = ctk.CTkFrame(chart_frame, fg_color="#111827")
-        canvas_container.pack(fill="both", expand=True, padx=20, pady=(0, 5))
+        canvas_container = ctk.CTkFrame(parent, fg_color="#111827", corner_radius=8)
+        canvas_container.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
-        chart_canvas = ctk.CTkCanvas(canvas_container, width=520, height=260, bg="#111827", highlightthickness=0)
-        chart_canvas.pack(side="top", fill="both", expand=True)
-
-        h_scroll = ctk.CTkScrollbar(canvas_container, orientation="horizontal", command=chart_canvas.xview)
-        h_scroll.pack(side="bottom", fill="x")
-        chart_canvas.configure(xscrollcommand=h_scroll.set)
+        chart_canvas = ctk.CTkCanvas(canvas_container, width=280, height=140, bg="#111827", highlightthickness=0)
+        chart_canvas.pack(side="top", fill="both", expand=True, padx=5, pady=5)
 
         subject_data = self.summary["subject_averages"]
         max_value = max((value for _, value in subject_data), default=1)
-        bar_width = 40
-        spacing = 16
-        base_y = 220
-        x_start = 10
-        total_width = max(520, x_start + len(subject_data) * (bar_width + spacing) + 20)
+        max_value = max(max_value, 1)  # Ensure max_value is at least 1 to avoid division by zero
+        bar_width = 25
+        spacing = 10
+        base_y = 110
+        x_start = 15
+        total_width = max(280, x_start + len(subject_data) * (bar_width + spacing) + 20)
 
         for index, (subject, value) in enumerate(subject_data):
             x0 = x_start + index * (bar_width + spacing)
             x1 = x0 + bar_width
-            height = int((value / max_value) * 160) if max_value else 0
+            height = int((value / max_value) * 80) if max_value > 0 else 0
             chart_canvas.create_rectangle(x0, base_y - height, x1, base_y, fill="#38bdf8", outline="")
-            chart_canvas.create_text((x0 + x1) / 2, base_y - height - 10, text=f"{value:.2f}", fill="#f8fafc", font=("Arial", 8))
-            chart_canvas.create_text((x0 + x1) / 2, base_y + 12, text=subject, fill="#d1d5db", font=("Arial", 8), anchor="n")
+            chart_canvas.create_text((x0 + x1) / 2, base_y - height - 8, text=f"{value:.1f}", fill="#f8fafc", font=("Arial", 7))
+            chart_canvas.create_text((x0 + x1) / 2, base_y + 8, text=subject[:6], fill="#d1d5db", font=("Arial", 7), anchor="n")
 
-        chart_canvas.configure(scrollregion=(0, 0, total_width, 260))
+        chart_canvas.configure(scrollregion=(0, 0, total_width, 140))
 
     def normalize_pdf_text(self, text):
         if text is None:
@@ -346,7 +383,7 @@ class ClassSummaryView(ctk.CTkFrame):
         bottom_bar = ctk.CTkFrame(self, fg_color="transparent")
         bottom_bar.grid(row=1, column=0, sticky="ew", padx=20, pady=(0, 20))
 
-        ctk.CTkButton(bottom_bar, text="🖨 Print PDF", fg_color="#f59e0b", text_color="black", command=self.generate_pdf_report).pack(side="left", padx=8)
+        ctk.CTkButton(bottom_bar, text="🖨 Print PDF", fg_color="#f59e0b", text_color="black", command=self.generate_pdf_report).pack(side="left", padx=5)
 
         # Find the return_to_home method by traversing up the widget hierarchy
         def find_return_to_home(widget):
@@ -361,7 +398,7 @@ class ClassSummaryView(ctk.CTkFrame):
         if back_callback is None:
             back_callback = lambda: print("Back button clicked - no return_to_home method found")
 
-        ctk.CTkButton(bottom_bar, text="⬅ Back to Dashboard", fg_color="#ef4444", command=back_callback).pack(side="right", padx=8)
+        ctk.CTkButton(bottom_bar, text="⬅ Back to Dashboard", fg_color="#ef4444", command=back_callback).pack(side="right", padx=5)
 
     def generate_pdf_report(self):
         file_path = filedialog.asksaveasfilename(defaultextension=".pdf", initialfile=f"{self.class_name}_SUMMARY.pdf")
@@ -389,7 +426,7 @@ class ClassSummaryView(ctk.CTkFrame):
             pdf.set_font("Helvetica", 'B', 18)
             pdf.set_text_color(255, 255, 255)
             pdf.set_xy(12, 14)
-            pdf.cell(0, 8, self.normalize_pdf_text(school), ln=0, align='L')
+            pdf.cell(0, 8, txt=self.normalize_pdf_text(school), ln=0, align='L')
             if logo_path and os.path.exists(logo_path):
                 try:
                     pdf.image(logo_path, x=170, y=12, w=25)
@@ -397,7 +434,7 @@ class ClassSummaryView(ctk.CTkFrame):
                     pass
             pdf.set_font("Helvetica", 'B', 11)
             pdf.set_xy(12, 22)
-            pdf.cell(0, 6, self.normalize_pdf_text(f"{self.class_name.upper()} SUMMARY - {exam_title}"), ln=0, align='L')
+            pdf.cell(0, 6, txt=self.normalize_pdf_text(f"{self.class_name.upper()} SUMMARY - {exam_title}"), ln=0, align='L')
             pdf.ln(16)
 
             overall_count = self.summary['total_students'] if self.summary['total_students'] else 0
@@ -408,13 +445,13 @@ class ClassSummaryView(ctk.CTkFrame):
             pdf.set_font("Helvetica", 'B', 12)
             pdf.set_text_color(15, 23, 42)
             pdf.set_fill_color(224, 242, 254)
-            pdf.cell(0, 9, "Summary at a Glance", ln=1, fill=True)
+            pdf.cell(0, 9, txt="Summary at a Glance", ln=1, fill=True)
             pdf.set_font("Helvetica", '', 10)
             pdf.set_fill_color(249, 250, 251)
-            pdf.cell(0, 6, self.normalize_pdf_text(f"Total Students: {overall_count}"), ln=1, fill=True)
-            pdf.cell(0, 6, self.normalize_pdf_text(f"Male: {self.summary['gender_counts']['male']}   Female: {self.summary['gender_counts']['female']}   Other: {self.summary['gender_counts']['other']}"), ln=1, fill=True)
-            pdf.cell(0, 6, self.normalize_pdf_text(f"Overall Avg points: {overall_avg_point:.1f}"), ln=1, fill=True)
-            pdf.cell(0, 6, self.normalize_pdf_text(f"Previous Exam Status: {self.summary['trend_text']}"), ln=1, fill=True)
+            pdf.cell(0, 6, txt=self.normalize_pdf_text(f"Total Students: {overall_count}"), ln=1, fill=True)
+            pdf.cell(0, 6, txt=self.normalize_pdf_text(f"Male: {self.summary['gender_counts']['male']}   Female: {self.summary['gender_counts']['female']}   Other: {self.summary['gender_counts']['other']}"), ln=1, fill=True)
+            pdf.cell(0, 6, txt=self.normalize_pdf_text(f"Overall Avg points: {overall_avg_point:.1f}"), ln=1, fill=True)
+            pdf.cell(0, 6, txt=self.normalize_pdf_text(f"Previous Exam Status: {self.summary['trend_text']}"), ln=1, fill=True)
             pdf.ln(5)
 
             # Separator line
@@ -426,6 +463,7 @@ class ClassSummaryView(ctk.CTkFrame):
             # Subject performance chart
             subject_data = self.summary['subject_averages']
             max_value = max((value for _, value in subject_data), default=1)
+            max_value = max(max_value, 1)  # Ensure max_value is at least 1 to avoid division by zero
             chart_height = 38
             chart_width = 180
             chart_x = 15
@@ -435,12 +473,12 @@ class ClassSummaryView(ctk.CTkFrame):
             bar_width = max(5, min(12, int((chart_width - (num_subjects + 1) * spacing) / num_subjects)))
             pdf.set_font("Helvetica", 'B', 12)
             pdf.set_xy(10, chart_y)
-            pdf.cell(0, 8, "Subject Performance Chart", ln=1)
+            pdf.cell(0, 8, txt="Subject Performance Chart", ln=1)
             chart_y = pdf.get_y()
 
             for index, (subject, value) in enumerate(subject_data):
                 bar_x = chart_x + spacing + index * (bar_width + spacing)
-                bar_h = int((value / max_value) * chart_height)
+                bar_h = int((value / max_value) * chart_height) if max_value > 0 else 0
                 pdf.set_fill_color(59, 130, 246)
                 pdf.rect(bar_x, chart_y + chart_height - bar_h, bar_width, bar_h, 'F')
                 pdf.set_xy(bar_x - 0.5, chart_y + chart_height + 1)
@@ -448,36 +486,36 @@ class ClassSummaryView(ctk.CTkFrame):
                 pdf.multi_cell(bar_width + 1, 3.5, self.normalize_pdf_text(subject[:4]), align='C')
                 pdf.set_xy(bar_x - 0.5, chart_y + chart_height - bar_h - 4)
                 pdf.set_font("Helvetica", '', 7)
-                pdf.cell(bar_width + 1, 3.5, f"{value:.1f}", align='C')
+                pdf.cell(bar_width + 1, 3.5, txt=f"{value:.1f}", align='C')
 
             pdf.set_xy(10, chart_y + chart_height + 16)
             pdf.ln(2)
 
             # Distribution summary table
             pdf.set_font("Helvetica", 'B', 12)
-            pdf.cell(0, 8, "Class Level Distribution", ln=1)
+            pdf.cell(0, 8, txt="Class Level Distribution", ln=1)
             pdf.set_font("Helvetica", '', 9)
             for index, level in enumerate(LEVEL_ORDER):
                 if index % 2 == 0:
                     pdf.set_fill_color(241, 245, 249)
-                    pdf.cell(0, 5.5, self.normalize_pdf_text(f"{level}: {self.summary['distribution'][level]}"), ln=1, fill=True)
+                    pdf.cell(0, 5.5, txt=self.normalize_pdf_text(f"{level}: {self.summary['distribution'][level]}"), ln=1, fill=True)
                 else:
-                    pdf.cell(0, 5.5, self.normalize_pdf_text(f"{level}: {self.summary['distribution'][level]}"), ln=1)
+                    pdf.cell(0, 5.5, txt=self.normalize_pdf_text(f"{level}: {self.summary['distribution'][level]}"), ln=1)
             pdf.ln(4)
 
             # Gender averages
             pdf.set_font("Helvetica", 'B', 12)
-            pdf.cell(0, 8, "Gender Point Averages", ln=1)
+            pdf.cell(0, 8, txt="Gender Point Averages", ln=1)
             pdf.set_font("Helvetica", '', 9)
             for gender in ["male", "female", "other"]:
                 count = self.summary['gender_counts'][gender]
                 avg_points = self.summary['gender_totals'][gender] / count if count else 0
-                pdf.cell(0, 5.5, self.normalize_pdf_text(f"{gender.title()}: {count} student(s), Avg points {avg_points:.1f}"), ln=1)
+                pdf.cell(0, 5.5, txt=self.normalize_pdf_text(f"{gender.title()}: {count} student(s), Avg points {avg_points:.1f}"), ln=1)
             pdf.ln(4)
 
             # Subject ranking in two columns for compact one-page layout
             pdf.set_font("Helvetica", 'B', 12)
-            pdf.cell(0, 8, "Subject Ranking", ln=1)
+            pdf.cell(0, 8, txt="Subject Ranking", ln=1)
             pdf.set_font("Helvetica", '', 9)
             rank_list = self.summary['subject_averages']
             half = (len(rank_list) + 1) // 2
@@ -491,10 +529,10 @@ class ClassSummaryView(ctk.CTkFrame):
             for index in range(max(len(left_col), len(right_col))):
                 if index < len(left_col):
                     pdf.set_xy(left_x, start_y + index * line_height)
-                    pdf.cell(90, line_height, self.normalize_pdf_text(f"{index + 1}. {left_col[index][0][:20]} - {left_col[index][1]:.1f}"), ln=0)
+                    pdf.cell(90, line_height, txt=self.normalize_pdf_text(f"{index + 1}. {left_col[index][0][:20]} - {left_col[index][1]:.1f}"), ln=0)
                 if index < len(right_col):
                     pdf.set_xy(right_x, start_y + index * line_height)
-                    pdf.cell(90, line_height, self.normalize_pdf_text(f"{index + half + 1}. {right_col[index][0][:20]} - {right_col[index][1]:.1f}"), ln=0)
+                    pdf.cell(90, line_height, txt=self.normalize_pdf_text(f"{index + half + 1}. {right_col[index][0][:20]} - {right_col[index][1]:.1f}"), ln=0)
             pdf.set_y(start_y + max(len(left_col), len(right_col)) * line_height + 4)
 
             if signature_path and os.path.exists(signature_path):
@@ -502,7 +540,7 @@ class ClassSummaryView(ctk.CTkFrame):
                     pdf.image(signature_path, x=150, y=250, w=45)
                     pdf.set_xy(150, 295)
                     pdf.set_font("Helvetica", '', 10)
-                    pdf.cell(45, 6, "Headteacher", align='C')
+                    pdf.cell(45, 6, txt="Headteacher", align='C')
                 except Exception:
                     pass
 
@@ -510,7 +548,7 @@ class ClassSummaryView(ctk.CTkFrame):
             pdf.set_xy(10, 290)
             pdf.set_font("Helvetica", '', 9)
             pdf.set_text_color(100, 100, 100)
-            pdf.cell(0, 5, f"Generated on {self.normalize_pdf_text(self.current_exam_title)} | Page 1", ln=1, align='C')
+            pdf.cell(0, 5, txt=f"Generated on {self.normalize_pdf_text(self.current_exam_title)} | Page 1", ln=1, align='C')
 
             pdf.output(file_path)
             messagebox.showinfo("Report Saved", f"PDF exported to {os.path.basename(file_path)}")
