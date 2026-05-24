@@ -1344,6 +1344,12 @@ def get_class_average(conn, grade, subject):
 
 def generate_overall_comment(total_points, trend):
     """Generate overall performance comment"""
+    # Convert to int if it's a string
+    try:
+        total_points = int(total_points) if total_points else 0
+    except (ValueError, TypeError):
+        total_points = 0
+
     if total_points >= 45:
         if trend == "improving":
             return "Excellent performance! The student is showing consistent improvement and maintaining high academic standards. Keep up the outstanding work!"
@@ -1369,7 +1375,13 @@ def generate_subject_comments(subject_analysis):
     for subject in subject_analysis:
         score = subject['current_score']
         performance = subject['performance']
-        
+
+        # Convert to int if it's a string
+        try:
+            score = int(score) if score else 0
+        except (ValueError, TypeError):
+            score = 0
+
         if score >= 80:
             comment_type = "positive"
             comment = f"Outstanding performance in {subject['name']}. The student demonstrates excellent understanding and mastery of the subject matter."
@@ -1382,13 +1394,13 @@ def generate_subject_comments(subject_analysis):
         else:
             comment_type = "negative"
             comment = f"Performance in {subject['name']} needs improvement. Additional support and practice are recommended."
-        
+
         comments.append({
             "subject": subject['name'],
             "comment": comment,
             "type": comment_type
         })
-    
+
     return comments
 
 
