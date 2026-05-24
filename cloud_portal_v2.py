@@ -427,12 +427,6 @@ def teacher_login():
     return render_template("cloud_login.html")
 
 
-@app.route("/parent/login", methods=["GET", "POST"])
-def parent_login():
-    # Placeholder for parent login - to be implemented later
-    return render_template("cloud_home.html")
-
-
 @app.route("/dashboard")
 def dashboard():
     if "school_id" not in session:
