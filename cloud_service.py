@@ -187,6 +187,36 @@ class CloudService:
         except Exception as e:
             return {"success": False, "message": f"Connection Failed: {e}"}
 
+    def send_student_report(self, report_data, credentials):
+        """Send a student report to the cloud portal"""
+        payload = {
+            "school_code": credentials["school_code"],
+            "username": credentials["username"],
+            "password": credentials["password"],
+            "report": report_data,
+        }
+        return self._post_json("/api/save_student_report", payload)
+
+    def send_class_reports(self, class_name, reports, credentials):
+        """Send multiple reports for a class to the cloud portal"""
+        payload = {
+            "school_code": credentials["school_code"],
+            "username": credentials["username"],
+            "password": credentials["password"],
+            "class_name": class_name,
+            "reports": reports,
+        }
+        return self._post_json("/api/save_class_reports", payload)
+
+    def fetch_parent_report(self, student_name, school_name, adm_no):
+        """Fetch a student's report for parent view"""
+        payload = {
+            "student_name": student_name,
+            "school_name": school_name,
+            "adm_no": adm_no,
+        }
+        return self._post_json("/api/fetch_parent_report", payload)
+
 
 def apply_cloud_records_to_table(
     table_inner_frame, records, subjects, columns_per_subject=3

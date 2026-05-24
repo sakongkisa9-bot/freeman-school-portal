@@ -22,6 +22,7 @@ class FreemanDB:
             self.create_settings_table()
             self.create_previous_exams_table()
             self.create_teachers_table()
+            self.create_student_reports_table()
             # Temporary fix in database.py
             self.create_marksheet_table() # Ensure this runs at start too
             print(f"DATABASE ACTIVE AT: {DB_PATH}")
@@ -208,6 +209,22 @@ class FreemanDB:
                 teacher_name TEXT NOT NULL,
                 teacher_code TEXT NOT NULL,
                 UNIQUE(class_name, subject)
+            )
+        ''')
+        self.conn.commit()
+
+    def create_student_reports_table(self):
+        """Create table to store student reports for parent portal"""
+        self._cursor.execute('''
+            CREATE TABLE IF NOT EXISTS student_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                student_name TEXT NOT NULL,
+                adm_no TEXT NOT NULL,
+                grade TEXT NOT NULL,
+                school_name TEXT NOT NULL,
+                report_data TEXT NOT NULL,
+                generated_date TEXT NOT NULL,
+                UNIQUE(student_name, adm_no, school_name, generated_date)
             )
         ''')
         self.conn.commit()

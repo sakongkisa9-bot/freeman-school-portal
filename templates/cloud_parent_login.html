@@ -1,0 +1,50 @@
+{% extends "cloud_base.html" %}
+
+{% block title %}Parent Login - Freeman School Portal{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white text-center">
+                    <h3>Parent Portal Login</h3>
+                </div>
+                <div class="card-body">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                    
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="school_name" class="form-label">School Name</label>
+                            <input type="text" class="form-control" id="school_name" name="school_name" required placeholder="Enter school name">
+                        </div>
+                        <div class="mb-3">
+                            <label for="student_name" class="form-label">Student Name</label>
+                            <input type="text" class="form-control" id="student_name" name="student_name" required placeholder="Enter student's full name">
+                        </div>
+                        <div class="mb-3">
+                            <label for="adm_no" class="form-label">Admission Number</label>
+                            <input type="text" class="form-control" id="adm_no" name="adm_no" required placeholder="Enter admission number">
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg">View Report</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="card-footer text-center">
+                    <a href="{{ url_for('home') }}" class="text-decoration-none">← Back to Home</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

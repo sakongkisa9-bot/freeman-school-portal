@@ -1,0 +1,355 @@
+{% extends "cloud_base.html" %}
+
+{% block title %}Parent Dashboard - {{ student_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h2 class="mb-1">{{ student_name }}'s Performance Report</h2>
+                            <p class="text-muted mb-0">
+                                <strong>Admission No:</strong> {{ adm_no }} | 
+                                <strong>Class:</strong> {{ grade }} | 
+                                <strong>School:</strong> {{ school_name }}
+                            </p>
+                        </div>
+                        <a href="{{ url_for('parent_logout') }}" class="btn btn-outline-danger">Logout</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if report %}
+    <!-- Performance Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card shadow border-0 bg-gradient-primary">
+                <div class="card-body text-white">
+                    <h6 class="text-uppercase mb-2">Current Average</h6>
+                    <h2 class="mb-0">{{ report.current_marks.average_level|default('N/A') }}</h2>
+                    <small class="opacity-75">Based on latest exam</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow border-0 bg-gradient-success">
+                <div class="card-body text-white">
+                    <h6 class="text-uppercase mb-2">Total Points</h6>
+                    <h2 class="mb-0">{{ report.current_marks.total_points|default('0') }}</h2>
+                    <small class="opacity-75">Out of maximum</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow border-0 bg-gradient-info">
+                <div class="card-body text-white">
+                    <h6 class="text-uppercase mb-2">Class Position</h6>
+                    <h2 class="mb-0">{{ report.current_marks.rank|default('N/A') }}</h2>
+                    <small class="opacity-75">In {{ grade }}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow border-0 bg-gradient-warning">
+                <div class="card-body text-white">
+                    <h6 class="text-uppercase mb-2">Trend</h6>
+                    <h2 class="mb-0">
+                        {% if report.trend == 'improving' %}
+                            ↑ Improving
+                        {% elif report.trend == 'declining' %}
+                            ↓ Declining
+                        {% else %}
+                            → Stable
+                        {% endif %}
+                    </h2>
+                    <small class="opacity-75">Compared to previous exams</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Subject Performance Comparison -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Subject Performance Analysis</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Subject</th>
+                                    <th>Current Score</th>
+                                    <th>Previous 1</th>
+                                    <th>Previous 2</th>
+                                    <th>Trend</th>
+                                    <th>Class Average</th>
+                                    <th>Performance</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for subject in report.subject_analysis %}
+                                <tr>
+                                    <td><strong>{{ subject.name }}</strong></td>
+                                    <td>
+                                        <span class="badge bg-primary">{{ subject.current_score }}</span>
+                                    </td>
+                                    <td>{{ subject.previous_1|default('-') }}</td>
+                                    <td>{{ subject.previous_2|default('-') }}</td>
+                                    <td>
+                                        {% if subject.trend == 'up' %}
+                                            <span class="text-success">↑ {{ subject.improvement }}%</span>
+                                        {% elif subject.trend == 'down' %}
+                                            <span class="text-danger">↓ {{ subject.decline }}%</span>
+                                        {% else %}
+                                            <span class="text-muted">→ Stable</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ subject.class_average }}</td>
+                                    <td>
+                                        {% if subject.performance == 'above_average' %}
+                                            <span class="badge bg-success">Above Average</span>
+                                        {% elif subject.performance == 'below_average' %}
+                                            <span class="badge bg-danger">Below Average</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Average</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance Graph -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Performance Trend Over Time</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="performanceChart" height="100"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Class Comparison Graph -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Student vs Class Average Comparison</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="comparisonChart" height="100"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auto-Generated Comments -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Teacher's Comments & Recommendations</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-lightbulb"></i> Overall Performance</h6>
+                        <p>{{ report.overall_comment|default('No overall comment available.') }}</p>
+                    </div>
+                    
+                    {% for subject_comment in report.subject_comments %}
+                    <div class="alert {% if subject_comment.type == 'positive' %}alert-success{% elif subject_comment.type == 'negative' %}alert-danger{% else %}alert-warning{% endif %} mb-2">
+                        <h6><i class="fas fa-comment"></i> {{ subject_comment.subject }}</h6>
+                        <p class="mb-0">{{ subject_comment.comment }}</p>
+                    </div>
+                    {% endfor %}
+                    
+                    <div class="alert alert-secondary">
+                        <h6><i class="fas fa-star"></i> Recommendations for Improvement</h6>
+                        <ul class="mb-0">
+                            {% for recommendation in report.recommendations %}
+                            <li>{{ recommendation }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Marks Table -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Detailed Examination Results</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Subject</th>
+                                    <th>Score</th>
+                                    <th>Rating</th>
+                                    <th>Points</th>
+                                    <th>Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for subject, data in report.current_marks.items() %}
+                                {% if subject not in ['total_points', 'average_level', 'rank'] %}
+                                <tr>
+                                    <td><strong>{{ subject|replace('_s', '')|replace('_r', '')|replace('_p', '')|upper }}</strong></td>
+                                    <td>{{ data|default('-') }}</td>
+                                    <td>{{ report.current_marks[subject.replace('_s', '_r')]|default('-') }}</td>
+                                    <td>{{ report.current_marks[subject.replace('_s', '_p')]|default('-') }}</td>
+                                    <td>
+                                        {% if data >= 80 %}
+                                            <span class="badge bg-success">Excellent</span>
+                                        {% elif data >= 60 %}
+                                            <span class="badge bg-primary">Good</span>
+                                        {% elif data >= 40 %}
+                                            <span class="badge bg-warning">Fair</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Needs Improvement</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-secondary">
+                                <tr>
+                                    <th colspan="3">Total Points / Average Level</th>
+                                    <th>{{ report.current_marks.total_points|default('0') }}</th>
+                                    <th>{{ report.current_marks.average_level|default('N/A') }}</th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-file-alt fa-4x text-muted mb-3"></i>
+                    <h4>No Report Available</h4>
+                    <p class="text-muted">The report for this student has not been generated yet. Please contact the school administration.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Chart.js for graphs -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+{% if report %}
+// Performance Trend Chart
+const performanceCtx = document.getElementById('performanceChart').getContext('2d');
+const performanceChart = new Chart(performanceCtx, {
+    type: 'line',
+    data: {
+        labels: {{ report.exam_labels|tojson }},
+        datasets: [{
+            label: 'Total Points',
+            data: {{ report.exam_scores|tojson }},
+            borderColor: 'rgb(75, 192, 192)',
+            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+            tension: 0.4,
+            fill: true
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                display: true
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+// Class Comparison Chart
+const comparisonCtx = document.getElementById('comparisonChart').getContext('2d');
+const comparisonChart = new Chart(comparisonCtx, {
+    type: 'bar',
+    data: {
+        labels: {{ report.subject_names|tojson }},
+        datasets: [
+            {
+                label: 'Student Score',
+                data: {{ report.student_scores|tojson }},
+                backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                borderColor: 'rgb(54, 162, 235)',
+                borderWidth: 1
+            },
+            {
+                label: 'Class Average',
+                data: {{ report.class_averages|tojson }},
+                backgroundColor: 'rgba(255, 99, 132, 0.8)',
+                borderColor: 'rgb(255, 99, 132)',
+                borderWidth: 1
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                display: true
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+{% endif %}
+</script>
+
+<style>
+.bg-gradient-primary {
+    background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+}
+.bg-gradient-success {
+    background: linear-gradient(45deg, #11998e 0%, #38ef7d 100%);
+}
+.bg-gradient-info {
+    background: linear-gradient(45deg, #2193b0 0%, #6dd5ed 100%);
+}
+.bg-gradient-warning {
+    background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%);
+}
+</style>
+{% endblock %}

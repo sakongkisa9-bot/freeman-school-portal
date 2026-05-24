@@ -6,6 +6,7 @@ from ui_marksheet_pp2 import PP2MarkSheetView
 from ui_marksheet_lower import LowerMarkSheetView
 from ui_summary import ClassSummaryView
 from teachers_linked import TeachersLinkedView
+from reportforms import ReportFormsView
 import os
 import sys
 import json
@@ -140,6 +141,9 @@ class Dashboard(ctk.CTk):
         self.btn_teachers = ctk.CTkButton(self.menu_panel, text="Teachers Linked", width=btn_width, height=btn_height, command=lambda: self.show_class_selection("Teachers", self.btn_teachers))
         self.btn_teachers.pack(pady=btn_pady)
 
+        self.btn_report_forms = ctk.CTkButton(self.menu_panel, text="View Report Forms", width=btn_width, height=btn_height, command=self.open_report_forms)
+        self.btn_report_forms.pack(pady=btn_pady)
+
         # Spacer/Fill (This pushes the Exit button to the bottom)
         self.menu_spacer = ctk.CTkLabel(self.menu_panel, text="")
         self.menu_spacer.pack(expand=True, fill="y")
@@ -161,7 +165,8 @@ class Dashboard(ctk.CTk):
         self.btn_previous_exams,
         self.btn_summary,
         self.btn_reports,
-        self.btn_teachers
+        self.btn_teachers,
+        self.btn_report_forms
         ]
         # Inside your Home/Dashboard Class
         self.setup_btn = ctk.CTkButton(
@@ -254,6 +259,12 @@ class Dashboard(ctk.CTk):
     def open_wizard(self):
     # This calls the class we created in the previous step
          SchoolSetupWizard(self, self.db)
+
+    def open_report_forms(self):
+        # Hide the dashboard window temporarily
+        self.withdraw()
+        # Open the report forms window
+        report_forms = ReportFormsView(self, self.db)
     def load_school_name(self):
         try:
             current_dir = os.path.dirname(os.path.realpath(__file__))

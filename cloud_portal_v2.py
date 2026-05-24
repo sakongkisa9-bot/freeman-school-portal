@@ -186,6 +186,29 @@ def init_db():
             FOREIGN KEY(school_id) REFERENCES schools(id)
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS student_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_name TEXT NOT NULL,
+            adm_no TEXT NOT NULL,
+            grade TEXT NOT NULL,
+            school_name TEXT NOT NULL,
+            report_data TEXT NOT NULL,
+            generated_date TEXT NOT NULL,
+            UNIQUE(student_name, adm_no, school_name, generated_date)
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS previous_exams (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            exam_name TEXT,
+            class_name TEXT,
+            exam_date TEXT,
+            summary_data TEXT,
+            marks_data TEXT,
+            UNIQUE(exam_name, class_name)
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -960,6 +983,454 @@ def manage_students(grade):
 
 @app.route("/logout")
 def logout():
+    session.clear()
+    return redirect(url_for("home"))
+
+
+@app.route("/api/save_student_report", methods=["POST"])
+def api_save_student_report():
+    """Save a student report to the cloud database"""
+    data = request.json
+    school_code = data.get("school_code", "").strip().lower()
+    username = data.get("username", "").strip()
+    password = data.get("password", "").strip()
+    report = data.get("report", {})
+
+    if not school_code or not report:
+        return jsonify({"success": False, "message": "Missing required data"}), 400
+
+    conn = get_db()
+    try:
+        # Verify school and authenticate
+        school = conn.execute(
+            "SELECT id, school_name FROM schools WHERE school_code = ?", (school_code,)
+        ).fetchone()
+        if not school:
+            return jsonify({"success": False, "message": "School not found"}), 404
+
+        # Verify teacher credentials
+        teacher = conn.execute(
+            "SELECT id FROM teachers WHERE school_id = ? AND username = ? AND password = ?",
+            (school["id"], username, password)
+        ).fetchone()
+        if not teacher:
+            return jsonify({"success": False, "message": "Authentication failed"}), 401
+
+        # Save or update the student report
+        import json
+        report_json = json.dumps(report)
+        generated_date = report.get("generated_date", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO student_reports
+            (student_name, adm_no, grade, school_name, report_data, generated_date)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                report.get("student_name", ""),
+                report.get("adm_no", ""),
+                report.get("grade", ""),
+                school["school_name"],
+                report_json,
+                generated_date
+            )
+        )
+        conn.commit()
+
+        return jsonify({"success": True, "message": "Report saved successfully"})
+    except Exception as e:
+        logging.error(f"Save student report error: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/save_class_reports", methods=["POST"])
+def api_save_class_reports():
+    """Save multiple reports for a class"""
+    data = request.json
+    school_code = data.get("school_code", "").strip().lower()
+    username = data.get("username", "").strip()
+    password = data.get("password", "").strip()
+    class_name = data.get("class_name", "")
+    reports = data.get("reports", [])
+
+    if not school_code or not reports:
+        return jsonify({"success": False, "message": "Missing required data"}), 400
+
+    conn = get_db()
+    try:
+        # Verify school and authenticate
+        school = conn.execute(
+            "SELECT id, school_name FROM schools WHERE school_code = ?", (school_code,)
+        ).fetchone()
+        if not school:
+            return jsonify({"success": False, "message": "School not found"}), 404
+
+        # Verify teacher credentials
+        teacher = conn.execute(
+            "SELECT id FROM teachers WHERE school_id = ? AND username = ? AND password = ?",
+            (school["id"], username, password)
+        ).fetchone()
+        if not teacher:
+            return jsonify({"success": False, "message": "Authentication failed"}), 401
+
+        # Save all reports
+        import json
+        saved_count = 0
+        for report in reports:
+            report_json = json.dumps(report)
+            generated_date = report.get("generated_date", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO student_reports
+                (student_name, adm_no, grade, school_name, report_data, generated_date)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    report.get("student_name", ""),
+                    report.get("adm_no", ""),
+                    report.get("grade", ""),
+                    school["school_name"],
+                    report_json,
+                    generated_date
+                )
+            )
+            saved_count += 1
+
+        conn.commit()
+
+        return jsonify({"success": True, "message": f"Saved {saved_count} reports successfully"})
+    except Exception as e:
+        logging.error(f"Save class reports error: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/fetch_parent_report", methods=["POST"])
+def api_fetch_parent_report():
+    """Fetch a student's report for parent view"""
+    data = request.json
+    student_name = data.get("student_name", "").strip()
+    school_name = data.get("school_name", "").strip()
+    adm_no = data.get("adm_no", "").strip()
+
+    if not student_name or not school_name or not adm_no:
+        return jsonify({"success": False, "message": "Missing required data"}), 400
+
+    conn = get_db()
+    try:
+        # Find the report
+        report = conn.execute(
+            """
+            SELECT report_data, generated_date FROM student_reports
+            WHERE student_name = ? AND school_name = ? AND adm_no = ?
+            ORDER BY generated_date DESC LIMIT 1
+            """,
+            (student_name, school_name, adm_no)
+        ).fetchone()
+
+        if not report:
+            return jsonify({"success": False, "message": "Report not found"}), 404
+
+        import json
+        report_data = json.loads(report["report_data"])
+
+        return jsonify({
+            "success": True,
+            "report": report_data,
+            "generated_date": report["generated_date"]
+        })
+    except Exception as e:
+        logging.error(f"Fetch parent report error: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/parent/login", methods=["GET", "POST"])
+def parent_login():
+    if request.method == "POST":
+        student_name = request.form.get("student_name", "").strip()
+        school_name = request.form.get("school_name", "").strip()
+        adm_no = request.form.get("adm_no", "").strip()
+
+        if not student_name or not school_name or not adm_no:
+            flash("Please fill in all fields", "error")
+            return render_template("cloud_parent_login.html")
+
+        # Verify student exists
+        conn = get_db()
+        try:
+            student = conn.execute(
+                """
+                SELECT s.id, s.school_id, s.grade, sc.school_name
+                FROM students s
+                JOIN schools sc ON s.school_id = sc.id
+                WHERE s.student_name = ? AND sc.school_name = ? AND s.adm_no = ?
+                """,
+                (student_name, school_name, adm_no)
+            ).fetchone()
+
+            if student:
+                session["parent_student_id"] = student["id"]
+                session["parent_student_name"] = student_name
+                session["parent_school_name"] = school_name
+                session["parent_adm_no"] = adm_no
+                session["parent_grade"] = student["grade"]
+                return redirect(url_for("parent_dashboard"))
+            else:
+                flash("Student not found. Please check your details.", "error")
+        except Exception as e:
+            logging.error(f"Parent login error: {e}")
+            flash("An error occurred. Please try again.", "error")
+        finally:
+            conn.close()
+
+    return render_template("cloud_parent_login.html")
+
+
+@app.route("/parent/dashboard")
+def parent_dashboard():
+    if "parent_student_id" not in session:
+        return redirect(url_for("parent_login"))
+
+    conn = get_db()
+    try:
+        # Fetch the student's report
+        report = conn.execute(
+            """
+            SELECT report_data, generated_date FROM student_reports
+            WHERE student_name = ? AND school_name = ? AND adm_no = ?
+            ORDER BY generated_date DESC LIMIT 1
+            """,
+            (session["parent_student_name"], session["parent_school_name"], session["parent_adm_no"])
+        ).fetchone()
+
+        import json
+        if report:
+            report_data = json.loads(report["report_data"])
+            # Generate analytics data
+            report_data = generate_analytics(report_data, conn, session["parent_grade"])
+        else:
+            report_data = None
+
+        # Fetch previous exams for comparison
+        previous_exams = conn.execute(
+            """
+            SELECT exam_name, exam_date FROM previous_exams
+            WHERE class_name = ? ORDER BY exam_date DESC LIMIT 3
+            """,
+            (session["parent_grade"],)
+        ).fetchall()
+
+        return render_template(
+            "cloud_parent_dashboard.html",
+            student_name=session["parent_student_name"],
+            adm_no=session["parent_adm_no"],
+            grade=session["parent_grade"],
+            school_name=session["parent_school_name"],
+            report=report_data,
+            previous_exams=previous_exams
+        )
+    except Exception as e:
+        logging.error(f"Parent dashboard error: {e}")
+        flash("An error occurred loading the dashboard.", "error")
+        return redirect(url_for("parent_login"))
+    finally:
+        conn.close()
+
+
+def generate_analytics(report_data, conn, grade):
+    """Generate analytics data for parent dashboard including trends, comparisons, and comments"""
+    if not report_data or 'current_marks' not in report_data:
+        return report_data
+    
+    current_marks = report_data['current_marks']
+    
+    # Get subjects for this grade
+    subjects_config = get_subjects_for_grade(grade)
+    
+    # Generate subject analysis
+    subject_analysis = []
+    subject_names = []
+    student_scores = []
+    class_averages = []
+    
+    for subject in subjects_config:
+        subject_key = subject.lower()
+        score_key = f"{subject_key}_s"
+        current_score = current_marks.get(score_key, 0)
+        
+        # Get class average for this subject (mock data for now, should be calculated from actual data)
+        class_average = get_class_average(conn, grade, subject_key)
+        
+        # Calculate trend (mock - should compare with previous exams)
+        trend = "stable"
+        improvement = 0
+        decline = 0
+        
+        if current_score > class_average:
+            performance = "above_average"
+        elif current_score < class_average:
+            performance = "below_average"
+        else:
+            performance = "average"
+        
+        subject_analysis.append({
+            "name": subject,
+            "current_score": current_score,
+            "previous_1": current_score - 5,  # Mock previous score
+            "previous_2": current_score - 10,  # Mock previous score
+            "trend": trend,
+            "improvement": improvement,
+            "decline": decline,
+            "class_average": class_average,
+            "performance": performance
+        })
+        
+        subject_names.append(subject)
+        student_scores.append(current_score)
+        class_averages.append(class_average)
+    
+    # Generate overall trend
+    total_points = current_marks.get('total_points', 0)
+    if total_points > 40:
+        overall_trend = "improving"
+    elif total_points < 30:
+        overall_trend = "declining"
+    else:
+        overall_trend = "stable"
+    
+    # Generate comments
+    overall_comment = generate_overall_comment(total_points, overall_trend)
+    subject_comments = generate_subject_comments(subject_analysis)
+    recommendations = generate_recommendations(subject_analysis, total_points)
+    
+    # Generate exam labels and scores for trend chart
+    exam_labels = ["Exam 3", "Exam 2", "Current Exam"]
+    exam_scores = [total_points - 10, total_points - 5, total_points]
+    
+    # Add analytics to report data
+    report_data['subject_analysis'] = subject_analysis
+    report_data['trend'] = overall_trend
+    report_data['overall_comment'] = overall_comment
+    report_data['subject_comments'] = subject_comments
+    report_data['recommendations'] = recommendations
+    report_data['exam_labels'] = exam_labels
+    report_data['exam_scores'] = exam_scores
+    report_data['subject_names'] = subject_names
+    report_data['student_scores'] = student_scores
+    report_data['class_averages'] = class_averages
+    
+    return report_data
+
+
+def get_subjects_for_grade(grade):
+    """Get subjects for a specific grade"""
+    grade_mapping = {
+        'playgroup': ['LANG', 'MATH', 'ENV', 'CREAT'],
+        'pp1': ['LANG', 'MATH', 'ENV', 'PSYCH', 'REL'],
+        'pp2': ['LANG', 'MATH', 'ENV', 'PSYCH', 'REL'],
+        'Grade 1': ['ENG', 'KISW', 'MAT', 'ENV', 'LIT', 'CRE', 'ART', 'MOV'],
+        'Grade 2': ['ENG', 'KISW', 'MAT', 'ENV', 'LIT', 'CRE', 'ART', 'MOV'],
+        'Grade 3': ['ENG', 'KISW', 'MAT', 'ENV', 'LIT', 'CRE', 'ART', 'MOV'],
+        'Grade 4': ['ENG', 'KISW', 'MATH', 'SCIE', 'AGRI', 'SST', 'CRE', 'C/A', 'PHE'],
+        'Grade 5': ['ENG', 'KISW', 'MATH', 'SCIE', 'AGRI', 'SST', 'CRE', 'C/A', 'PHE'],
+        'Grade 6': ['ENG', 'KISW', 'MATH', 'SCIE', 'AGRI', 'SST', 'CRE', 'C/A', 'PHE'],
+    }
+    return grade_mapping.get(grade, [])
+
+
+def get_class_average(conn, grade, subject):
+    """Get class average for a subject (mock implementation)"""
+    # In a real implementation, this would calculate from actual student data
+    return 50  # Mock average
+
+
+def generate_overall_comment(total_points, trend):
+    """Generate overall performance comment"""
+    if total_points >= 45:
+        if trend == "improving":
+            return "Excellent performance! The student is showing consistent improvement and maintaining high academic standards. Keep up the outstanding work!"
+        else:
+            return "Excellent performance! The student is maintaining high academic standards across all subjects."
+    elif total_points >= 35:
+        if trend == "improving":
+            return "Good performance with positive trends. The student is making steady progress and showing improvement in key areas."
+        else:
+            return "Good performance overall. The student is meeting expectations in most subjects."
+    elif total_points >= 25:
+        if trend == "declining":
+            return "Performance needs attention. The student is showing some decline and may benefit from additional support in certain subjects."
+        else:
+            return "Satisfactory performance. There is room for improvement, but the student is making effort in their studies."
+    else:
+        return "Performance requires significant improvement. The student needs additional support and encouragement to reach their full potential."
+
+
+def generate_subject_comments(subject_analysis):
+    """Generate comments for each subject"""
+    comments = []
+    for subject in subject_analysis:
+        score = subject['current_score']
+        performance = subject['performance']
+        
+        if score >= 80:
+            comment_type = "positive"
+            comment = f"Outstanding performance in {subject['name']}. The student demonstrates excellent understanding and mastery of the subject matter."
+        elif score >= 60:
+            comment_type = "positive"
+            comment = f"Good performance in {subject['name']}. The student shows solid understanding and continues to make progress."
+        elif score >= 40:
+            comment_type = "neutral"
+            comment = f"Satisfactory performance in {subject['name']}. The student meets basic requirements but could benefit from more practice."
+        else:
+            comment_type = "negative"
+            comment = f"Performance in {subject['name']} needs improvement. Additional support and practice are recommended."
+        
+        comments.append({
+            "subject": subject['name'],
+            "comment": comment,
+            "type": comment_type
+        })
+    
+    return comments
+
+
+def generate_recommendations(subject_analysis, total_points):
+    """Generate recommendations for improvement"""
+    recommendations = []
+    
+    # Analyze weak subjects
+    weak_subjects = [s for s in subject_analysis if s['current_score'] < 40]
+    if weak_subjects:
+        recommendations.append(f"Focus additional practice time on: {', '.join([s['name'] for s in weak_subjects])}")
+    
+    # Analyze strong subjects
+    strong_subjects = [s for s in subject_analysis if s['current_score'] >= 70]
+    if strong_subjects:
+        recommendations.append(f"Continue to excel in: {', '.join([s['name'] for s in strong_subjects])}")
+    
+    # General recommendations
+    if total_points < 30:
+        recommendations.append("Consider seeking extra help from teachers or tutors in challenging subjects.")
+        recommendations.append("Establish a consistent study routine with dedicated time for each subject.")
+    elif total_points < 40:
+        recommendations.append("Set specific goals for improvement in each subject.")
+        recommendations.append("Review class notes regularly and complete all assignments on time.")
+    else:
+        recommendations.append("Maintain current study habits and continue to challenge yourself.")
+        recommendations.append("Consider helping peers who may be struggling in subjects you excel in.")
+    
+    return recommendations
+
+
+@app.route("/parent/logout")
+def parent_logout():
     session.clear()
     return redirect(url_for("home"))
 
