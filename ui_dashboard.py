@@ -135,9 +135,6 @@ class Dashboard(ctk.CTk):
         self.btn_summary = ctk.CTkButton(self.menu_panel, text="Student Marks Summary", width=btn_width, height=btn_height, command=lambda: self.show_class_selection("Summary", self.btn_summary))
         self.btn_summary.pack(pady=btn_pady)
 
-        self.btn_reports = ctk.CTkButton(self.menu_panel, text="Student Report Cards", width=btn_width, height=btn_height, command=lambda: self.show_class_selection("Reports",  self.btn_reports))
-        self.btn_reports.pack(pady=btn_pady)
-
         self.btn_teachers = ctk.CTkButton(self.menu_panel, text="Teachers Linked", width=btn_width, height=btn_height, command=lambda: self.show_class_selection("Teachers", self.btn_teachers))
         self.btn_teachers.pack(pady=btn_pady)
 
@@ -164,7 +161,6 @@ class Dashboard(ctk.CTk):
         self.btn_mark_sheets,
         self.btn_previous_exams,
         self.btn_summary,
-        self.btn_reports,
         self.btn_teachers,
         self.btn_report_forms
         ]
@@ -261,10 +257,8 @@ class Dashboard(ctk.CTk):
          SchoolSetupWizard(self, self.db)
 
     def open_report_forms(self):
-        # Hide the dashboard window temporarily
-        self.withdraw()
-        # Open the report forms window
-        report_forms = ReportFormsView(self, self.db)
+        # Use the existing class selection method
+        self.show_class_selection("Report Forms", self.btn_report_forms)
     def load_school_name(self):
         try:
             current_dir = os.path.dirname(os.path.realpath(__file__))
@@ -1045,6 +1039,42 @@ class Dashboard(ctk.CTk):
                     )
                     create_exam_btn.pack(pady=(0, 20))
 
+                # Add Send All Reports to Portal and Print All Reports buttons for Report Forms
+                if action_type == "Report Forms":
+                    send_all_btn = ctk.CTkButton(
+                        self.class_frame,
+                        text="📤 Send All Reports to Portal",
+                        fg_color="#3498db",
+                        text_color="white",
+                        width=300,
+                        height=45,
+                        command=self.send_all_reports_to_portal
+                    )
+                    send_all_btn.pack(pady=(0, 10))
+
+                    print_all_btn = ctk.CTkButton(
+                        self.class_frame,
+                        text="📄 Print All Reports",
+                        fg_color="#27ae60",
+                        text_color="white",
+                        width=300,
+                        height=45,
+                        command=self.print_all_reports
+                    )
+                    print_all_btn.pack(pady=(0, 10))
+
+                    # Back to Dashboard button
+                    back_btn = ctk.CTkButton(
+                        self.class_frame,
+                        text="← Back to Dashboard",
+                        fg_color="#e74c3c",
+                        text_color="white",
+                        width=300,
+                        height=45,
+                        command=self.return_to_home
+                    )
+                    back_btn.pack(pady=(0, 20))
+
                 classes = [
                     "playgroup", "pp1", "pp2",
                     "Grade 1", "Grade 2", "Grade 3", "Grade 4",
@@ -1126,10 +1156,261 @@ class Dashboard(ctk.CTk):
             # --- FULL SCREEN MODE ---
             self.menu_panel.grid_forget() # Hide the left sidebar
             self.grid_columnconfigure(0, weight=0, minsize=0) # Shrink sidebar space to zero
-            self.content_panel.grid(row=0, column=0, columnspan=2, sticky="nsew") # Content takes all columns
-            
-            self.current_view = TeachersLinkedView(self.content_panel, self.db, class_selected, self.return_to_home)
+            self.content_panel.grid(row=0, column=0, columnspan=2, sticky="nsew")
+            self.current_view = TeachersLinkedView(self.content_panel, self.db, class_selected)
             self.current_view.pack(fill="both", expand=True)
+
+        # This handles the Report Forms button
+        elif action_type == "Report Forms":
+            # --- FULL SCREEN MODE ---
+            self.menu_panel.grid_forget() # Hide the left sidebar
+            self.grid_columnconfigure(0, weight=0, minsize=0) # Shrink sidebar space to zero
+            self.content_panel.grid(row=0, column=0, columnspan=2, sticky="nsew")
+            self.show_report_forms_class_view(class_selected)
+
+    def show_report_forms_class_view(self, class_name):
+        # Clear the old view completely
+        for widget in self.content_panel.winfo_children():
+            if widget != self.header_frame and widget != self.theme_frame:
+                widget.destroy()
+
+        # Header frame with title and action buttons
+        header_frame = ctk.CTkFrame(self.content_panel, fg_color="transparent")
+        header_frame.pack(fill="x", pady=(0, 20))
+
+        # Title
+        title_label = ctk.CTkLabel(header_frame, text=f"Report Forms - {class_name}",
+                                   font=("Arial Bold", 28))
+        title_label.pack(side="left", padx=10)
+
+        # Send all reports for this class to portal button
+        send_class_btn = ctk.CTkButton(header_frame, text="Send All Reports for This Class to Portal",
+                                      fg_color="#3498db", hover_color="#2980b9",
+                                      font=("Arial Bold", 14), height=40,
+                                      command=lambda: self.send_class_reports_to_portal(class_name))
+        send_class_btn.pack(side="right", padx=10)
+
+        # Print reports for this class button
+        print_class_btn = ctk.CTkButton(header_frame, text="Print Reports for This Class",
+                                       fg_color="#27ae60", hover_color="#1e8449",
+                                       font=("Arial Bold", 14), height=40,
+                                       command=lambda: self.print_class_reports(class_name))
+        print_class_btn.pack(side="right", padx=10)
+
+        # Back button
+        back_btn = ctk.CTkButton(header_frame, text="← Back to Class Selection",
+                                fg_color="#e74c3c", hover_color="#c0392b",
+                                font=("Arial Bold", 14), height=40,
+                                command=self.open_report_forms)
+        back_btn.pack(side="right", padx=10)
+
+        # Student list frame
+        student_frame = ctk.CTkScrollableFrame(self.content_panel)
+        student_frame.pack(fill="both", expand=True)
+
+        # Get students in this class
+        students = self.get_students_in_class(class_name)
+
+        if not students:
+            no_students_label = ctk.CTkLabel(student_frame, text="No students found in this class",
+                                            font=("Arial", 16), text_color="gray")
+            no_students_label.pack(pady=50)
+            return
+
+        # Create student rows
+        for student in students:
+            row_frame = ctk.CTkFrame(student_frame, height=60)
+            row_frame.pack(fill="x", padx=20, pady=5)
+
+            # Student info
+            info_frame = ctk.CTkFrame(row_frame, fg_color="transparent")
+            info_frame.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+
+            name_label = ctk.CTkLabel(info_frame, text=student['name'],
+                                      font=("Arial Bold", 16))
+            name_label.pack(side="left", padx=10)
+
+            adm_label = ctk.CTkLabel(info_frame, text=f"ADM: {student['adm_no']}",
+                                     font=("Arial", 14), text_color="gray")
+            adm_label.pack(side="left", padx=10)
+
+            # View report button
+            view_btn = ctk.CTkButton(row_frame, text="View Report",
+                                    fg_color="#9b59b6", hover_color="#8e44ad",
+                                    width=150, height=40,
+                                    command=lambda s=student: self.show_student_report_form(s))
+            view_btn.pack(side="right", padx=10, pady=10)
+
+    def get_students_in_class(self, class_name):
+        try:
+            self.db._cursor.execute('SELECT adm_no, name, grade FROM students WHERE grade = ? ORDER BY name',
+                                   (class_name,))
+            students = [{'adm_no': row[0], 'name': row[1], 'grade': row[2]}
+                       for row in self.db._cursor.fetchall()]
+            return students
+        except Exception as e:
+            print(f"Error getting students: {e}")
+            return []
+
+    def show_student_report_form(self, student):
+        # Create a new toplevel window for the report form
+        report_window = ctk.CTkToplevel(self)
+        report_window.title(f"Report Form - {student['name']}")
+        report_window.geometry("1000x800")
+
+        # Main container
+        report_container = ctk.CTkScrollableFrame(report_window)
+        report_container.pack(fill="both", expand=True, padx=20, pady=20)
+
+        # Import report forms functionality
+        from reportforms import ReportFormsView
+        # Create a temporary report forms instance to use its methods
+        temp_report = ReportFormsView.__new__(ReportFormsView)
+        temp_report.parent_window = self
+        temp_report.db = self.db
+        temp_report.current_student = student
+        temp_report.current_class = student['grade']
+        temp_report.school_config = self.load_school_config()
+
+        # Create school header
+        temp_report.create_school_header(report_container, student)
+        # Create student info
+        temp_report.create_student_info(report_container, student)
+        # Create current marks section
+        temp_report.create_current_marks_section(report_container, student)
+        # Create previous marks section
+        temp_report.create_previous_marks_section(report_container, student)
+
+        # Action buttons
+        button_frame = ctk.CTkFrame(report_container, fg_color="transparent")
+        button_frame.pack(fill="x", pady=30)
+
+        # Print PDF button
+        print_btn = ctk.CTkButton(button_frame, text="📄 Print as PDF",
+                                 fg_color="#27ae60", hover_color="#1e8449",
+                                 font=("Arial Bold", 14), height=45, width=200,
+                                 command=lambda: temp_report.print_report_pdf(report_container, student))
+        print_btn.pack(side="left", padx=10)
+
+        # Send to parent button
+        send_btn = ctk.CTkButton(button_frame, text="📤 Send Report to Parent",
+                                fg_color="#3498db", hover_color="#2980b9",
+                                font=("Arial Bold", 14), height=45, width=200,
+                                command=lambda: temp_report.send_student_report_to_portal(student))
+        send_btn.pack(side="left", padx=10)
+
+        # Close button
+        close_btn = ctk.CTkButton(button_frame, text="✕ Close",
+                                 fg_color="#e74c3c", hover_color="#c0392b",
+                                 font=("Arial Bold", 14), height=45, width=150,
+                                 command=report_window.destroy)
+        close_btn.pack(side="right", padx=10)
+
+        # Store reference to prevent garbage collection
+        if not hasattr(self, 'report_windows'):
+            self.report_windows = []
+        self.report_windows.append(report_window)
+
+        # Bring window to front after a short delay
+        report_window.after(100, report_window.lift)
+        report_window.after(100, report_window.focus_force)
+
+    def send_class_reports_to_portal(self, class_name):
+        credentials = self.get_cloud_credentials()
+        if not credentials:
+            return
+
+        students = self.get_students_in_class(class_name)
+        if not students:
+            messagebox.showinfo("Info", "No students in this class.")
+            return
+
+        from cloud_service import CloudService
+        service = CloudService()
+        success_count = 0
+
+        for student in students:
+            report_data = self.generate_report_data(student)
+            result = service.send_student_report(report_data, credentials)
+
+            if result.get('success'):
+                success_count += 1
+
+        messagebox.showinfo("Success", f"Sent {success_count}/{len(students)} reports to portal.")
+
+    def print_class_reports(self, class_name):
+        students = self.get_students_in_class(class_name)
+        if not students:
+            messagebox.showinfo("Info", "No students in this class.")
+            return
+
+        messagebox.showinfo("Print", f"Would print {len(students)} reports for {class_name}.")
+
+    def generate_report_data(self, student):
+        from reportforms import ReportFormsView
+        temp_report = ReportFormsView.__new__(ReportFormsView)
+        temp_report.db = self.db
+        temp_report.school_config = self.load_school_config()
+        return temp_report.generate_report_data(student)
+
+    def get_cloud_credentials(self):
+        from cloud_service import ask_cloud_credentials
+        cloud_config = self.load_school_config()
+        cloud_school_code = cloud_config.get('cloud_school_code', '').strip()
+        cloud_teacher_username = cloud_config.get('cloud_teacher_username', '').strip()
+        cloud_teacher_password = cloud_config.get('cloud_teacher_password', '').strip()
+
+        if not cloud_school_code or not cloud_teacher_username:
+            messagebox.showwarning("Cloud Not Configured", "Please configure cloud credentials in school settings.")
+            return None
+
+        if cloud_teacher_password:
+            return {
+                'school_code': cloud_school_code,
+                'username': cloud_teacher_username,
+                'password': cloud_teacher_password
+            }
+        else:
+            return ask_cloud_credentials(self)
+
+    def send_all_reports_to_portal(self):
+        credentials = self.get_cloud_credentials()
+        if not credentials:
+            return
+
+        classes = [
+            "playgroup", "pp1", "pp2",
+            "Grade 1", "Grade 2", "Grade 3", "Grade 4",
+            "Grade 5", "Grade 6", "Grade 7", "Grade 8", "Grade 9"
+        ]
+
+        from cloud_service import CloudService
+        service = CloudService()
+        total_success = 0
+        total_students = 0
+
+        for class_name in classes:
+            students = self.get_students_in_class(class_name)
+            total_students += len(students)
+
+            for student in students:
+                report_data = self.generate_report_data(student)
+                result = service.send_student_report(report_data, credentials)
+
+                if result.get('success'):
+                    total_success += 1
+
+        messagebox.showinfo("Success", f"Sent {total_success}/{total_students} reports to portal.")
+
+    def print_all_reports(self):
+        classes = [
+            "playgroup", "pp1", "pp2",
+            "Grade 1", "Grade 2", "Grade 3", "Grade 4",
+            "Grade 5", "Grade 6", "Grade 7", "Grade 8", "Grade 9"
+        ]
+
+        total_students = sum(len(self.get_students_in_class(cls)) for cls in classes)
+        messagebox.showinfo("Print", f"Would print {total_students} reports for all classes.")
 
     def show_previous_exams_selection(self, class_selected):
         # Clear the old view completely (Class Selection Menu)

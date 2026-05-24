@@ -8,9 +8,9 @@ from cloud_service import CloudService, ask_cloud_credentials
 import datetime
 
 
-class ReportFormsView(ctk.CTk):
+class ReportFormsView(ctk.CTkToplevel):
     def __init__(self, parent_window, db):
-        super().__init__()
+        super().__init__(parent_window)
         
         self.parent_window = parent_window
         self.db = db
@@ -313,7 +313,8 @@ class ReportFormsView(ctk.CTk):
     
     def get_class_teacher(self, class_name):
         try:
-            self.db._cursor.execute('SELECT teacher_name FROM teachers WHERE class_name = ? LIMIT 1',
+            # Get the first teacher from the teachers linked list for this class
+            self.db._cursor.execute('SELECT teacher_name FROM teachers WHERE class_name = ? ORDER BY id ASC LIMIT 1',
                                    (class_name,))
             result = self.db._cursor.fetchone()
             return result[0] if result else ""
