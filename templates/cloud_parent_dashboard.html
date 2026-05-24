@@ -222,11 +222,11 @@
                                     <td>{{ report.current_marks[subject.replace('_s', '_r')]|default('-') }}</td>
                                     <td>{{ report.current_marks[subject.replace('_s', '_p')]|default('-') }}</td>
                                     <td>
-                                        {% if data >= 80 %}
+                                        {% if data|int >= 80 %}
                                             <span class="badge bg-success">Excellent</span>
-                                        {% elif data >= 60 %}
+                                        {% elif data|int >= 60 %}
                                             <span class="badge bg-primary">Good</span>
-                                        {% elif data >= 40 %}
+                                        {% elif data|int >= 40 %}
                                             <span class="badge bg-warning">Fair</span>
                                         {% else %}
                                             <span class="badge bg-danger">Needs Improvement</span>
