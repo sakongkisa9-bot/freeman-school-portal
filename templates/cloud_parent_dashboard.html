@@ -3,141 +3,107 @@
 {% block title %}Parent Dashboard - {{ student_name }}{% endblock %}
 
 {% block content %}
-<div class="min-h-screen bg-gray-50">
-    <!-- Student Info Header -->
-    <div class="bg-white shadow-sm border-b border-gray-200">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+<div class="min-h-screen bg-gray-100 p-4">
+    {% if report %}
+    <div class="max-w-6xl mx-auto">
+        <!-- Compact Header -->
+        <div class="bg-white rounded-lg shadow-sm p-4 mb-4">
             <div class="flex justify-between items-center">
                 <div>
-                    <h1 class="text-3xl font-bold text-gray-900">{{ student_name }}</h1>
-                    <p class="text-gray-600 mt-1">{{ school_name }}</p>
+                    <h1 class="text-2xl font-bold text-gray-900">{{ student_name }}</h1>
+                    <p class="text-sm text-gray-600">{{ school_name }} | Class: {{ grade }} | ADM: {{ adm_no }}</p>
                 </div>
-                <a href="{{ url_for('parent_logout') }}" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition">
-                    Logout
-                </a>
-            </div>
-            
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                <div class="bg-blue-50 rounded-lg p-4">
-                    <p class="text-sm text-gray-600">Class</p>
-                    <p class="text-xl font-semibold text-gray-900">{{ grade }}</p>
-                </div>
-                <div class="bg-green-50 rounded-lg p-4">
-                    <p class="text-sm text-gray-600">Admission No</p>
-                    <p class="text-xl font-semibold text-gray-900">{{ adm_no }}</p>
-                </div>
-                <div class="bg-purple-50 rounded-lg p-4">
-                    <p class="text-sm text-gray-600">Term</p>
-                    <p class="text-xl font-semibold text-gray-900">Term 2</p>
-                </div>
-                <div class="bg-orange-50 rounded-lg p-4">
-                    <p class="text-sm text-gray-600">Class Position</p>
-                    <p class="text-xl font-semibold text-gray-900">{{ report.current_marks.rank|default('N/A') }} / 45</p>
+                <div class="text-right">
+                    <p class="text-sm text-gray-600">Position</p>
+                    <p class="text-xl font-bold text-blue-600">{{ report.current_marks.rank|default('N/A') }} / 45</p>
                 </div>
             </div>
-        </div>
-    </div>
-
-    {% if report %}
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <!-- Performance Trend Graph -->
-        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-            <h2 class="text-xl font-bold text-gray-900 mb-4">Performance Trend</h2>
-            <div class="h-80">
-                <canvas id="trendChart"></canvas>
-            </div>
-        </div>
-
-        <!-- Subject Breakdown Table -->
-        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-            <h2 class="text-xl font-bold text-gray-900 mb-4">Subject Breakdown</h2>
-            <div class="overflow-x-auto">
-                <table class="w-full">
-                    <thead>
-                        <tr class="bg-gray-50">
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Your Score</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Class Average</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Grade</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200">
-                        {% for subject in report.subject_analysis %}
-                        <tr>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ subject.name }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ subject.current_score }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ subject.class_average }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                {% if subject.current_score|int >= 80 %}
-                                    <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">A</span>
-                                {% elif subject.current_score|int >= 70 %}
-                                    <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">B</span>
-                                {% elif subject.current_score|int >= 60 %}
-                                    <span class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">C</span>
-                                {% elif subject.current_score|int >= 50 %}
-                                    <span class="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm font-medium">D</span>
-                                {% else %}
-                                    <span class="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium">E</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Subject Strength Heatmap -->
-        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-            <h2 class="text-xl font-bold text-gray-900 mb-4">Subject Strength Heatmap</h2>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {% for subject in report.subject_analysis %}
-                <div class="rounded-lg p-4 {% if subject.current_score|int >= 80 %}bg-green-100{% elif subject.current_score|int >= 50 %}bg-yellow-100{% else %}bg-red-100{% endif %}">
-                    <p class="text-sm font-medium text-gray-900">{{ subject.name }}</p>
-                    <p class="text-2xl font-bold text-gray-900 mt-2">{{ subject.current_score }}</p>
-                    <p class="text-xs text-gray-600 mt-1">
-                        {% if subject.current_score|int >= 80 %}Excellent{% elif subject.current_score|int >= 50 %}Good{% else %}Needs Improvement{% endif %}
+            <div class="grid grid-cols-3 gap-4 mt-4">
+                <div class="bg-blue-50 rounded p-3 text-center">
+                    <p class="text-xs text-gray-600">Total Points</p>
+                    <p class="text-lg font-bold text-gray-900">{{ report.current_marks.total_points|default('0') }}</p>
+                </div>
+                <div class="bg-green-50 rounded p-3 text-center">
+                    <p class="text-xs text-gray-600">Average Level</p>
+                    <p class="text-lg font-bold text-gray-900">{{ report.current_marks.average_level|default('N/A') }}</p>
+                </div>
+                <div class="bg-purple-50 rounded p-3 text-center">
+                    <p class="text-xs text-gray-600">Trend</p>
+                    <p class="text-lg font-bold text-gray-900">
+                        {% if report.trend == 'improving' %}↑{% elif report.trend == 'declining' %}↓{% else %}→{% endif %}
                     </p>
                 </div>
-                {% endfor %}
             </div>
         </div>
 
-        <!-- Teacher's Comments -->
-        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-            <h2 class="text-xl font-bold text-gray-900 mb-4">Teacher's Comments</h2>
-            <div class="bg-blue-50 rounded-lg p-4 mb-4">
-                <h3 class="font-semibold text-gray-900 mb-2">Overall Performance</h3>
-                <p class="text-gray-700">{{ report.overall_comment|default('No overall comment available.') }}</p>
+        <!-- Two Column Layout -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- Left Column: Subject Table -->
+            <div class="bg-white rounded-lg shadow-sm p-4">
+                <h2 class="text-lg font-bold text-gray-900 mb-3">Subject Performance</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="bg-gray-50">
+                                <th class="px-2 py-2 text-left text-xs font-medium text-gray-500">Subject</th>
+                                <th class="px-2 py-2 text-center text-xs font-medium text-gray-500">Score</th>
+                                <th class="px-2 py-2 text-center text-xs font-medium text-gray-500">Rate</th>
+                                <th class="px-2 py-2 text-center text-xs font-medium text-gray-500">Points</th>
+                                <th class="px-2 py-2 text-center text-xs font-medium text-gray-500">Class Avg</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            {% for subject, data in report.current_marks.items() %}
+                            {% if subject not in ['total_points', 'average_level', 'rank'] %}
+                            {% set subject_name = subject|replace('_s', '')|replace('_r', '')|replace('_p', '')|upper %}
+                            {% set score = report.current_marks[subject]|default('-') %}
+                            {% set rate = report.current_marks[subject.replace('_s', '_r')]|default('-') %}
+                            {% set points = report.current_marks[subject.replace('_s', '_p')]|default('-') %}
+                            <tr>
+                                <td class="px-2 py-2 font-medium text-gray-900">{{ subject_name }}</td>
+                                <td class="px-2 py-2 text-center text-gray-900">{{ score }}</td>
+                                <td class="px-2 py-2 text-center text-gray-900">{{ rate }}</td>
+                                <td class="px-2 py-2 text-center text-gray-900">{{ points }}</td>
+                                <td class="px-2 py-2 text-center text-gray-900">50</td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            
-            {% for subject_comment in report.subject_comments %}
-            <div class="rounded-lg p-4 mb-2 {% if subject_comment.type == 'positive' %}bg-green-50{% elif subject_comment.type == 'negative' %}bg-red-50{% else %}bg-yellow-50{% endif %}">
-                <h3 class="font-semibold text-gray-900 mb-1">{{ subject_comment.subject }}</h3>
-                <p class="text-gray-700 text-sm">{{ subject_comment.comment }}</p>
-            </div>
-            {% endfor %}
-            
-            <div class="bg-gray-50 rounded-lg p-4 mt-4">
-                <h3 class="font-semibold text-gray-900 mb-2">Recommendations</h3>
-                <ul class="list-disc list-inside text-gray-700">
-                    {% for recommendation in report.recommendations %}
-                    <li>{{ recommendation }}</li>
+
+            <!-- Right Column: Chart & Comments -->
+            <div class="space-y-4">
+                <!-- Performance Chart -->
+                <div class="bg-white rounded-lg shadow-sm p-4">
+                    <h2 class="text-lg font-bold text-gray-900 mb-3">Performance Trend</h2>
+                    <div class="h-48">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Comments -->
+                <div class="bg-white rounded-lg shadow-sm p-4">
+                    <h2 class="text-lg font-bold text-gray-900 mb-3">Teacher's Comments</h2>
+                    <div class="bg-blue-50 rounded p-3 mb-2">
+                        <p class="text-sm text-gray-700">{{ report.overall_comment|default('No comment available.') }}</p>
+                    </div>
+                    {% for subject_comment in report.subject_comments %}
+                    <div class="rounded p-2 mb-1 {% if subject_comment.type == 'positive' %}bg-green-50{% elif subject_comment.type == 'negative' %}bg-red-50{% else %}bg-yellow-50{% endif %}">
+                        <p class="text-xs font-medium text-gray-900">{{ subject_comment.subject }}:</p>
+                        <p class="text-xs text-gray-700">{{ subject_comment.comment }}</p>
+                    </div>
                     {% endfor %}
-                </ul>
+                </div>
             </div>
         </div>
     </div>
     {% else %}
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="bg-white rounded-xl shadow-lg p-12 text-center">
-            <div class="text-gray-400 mb-4">
-                <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                </svg>
-            </div>
+    <div class="max-w-6xl mx-auto">
+        <div class="bg-white rounded-lg shadow-sm p-12 text-center">
             <h3 class="text-xl font-semibold text-gray-900 mb-2">No Report Available</h3>
-            <p class="text-gray-600">The report for this student has not been generated yet. Please contact the school administration.</p>
+            <p class="text-gray-600">The report for this student has not been generated yet.</p>
         </div>
     </div>
     {% endif %}
@@ -147,47 +113,29 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 {% if report %}
-// Performance Trend Chart
 const trendCtx = document.getElementById('trendChart').getContext('2d');
-const trendChart = new Chart(trendCtx, {
+new Chart(trendCtx, {
     type: 'line',
     data: {
         labels: {{ report.exam_labels|tojson }},
         datasets: [{
-            label: 'Total Marks',
+            label: 'Total Points',
             data: {{ report.exam_scores|tojson }},
             borderColor: '#3B82F6',
             backgroundColor: 'rgba(59, 130, 246, 0.1)',
-            borderWidth: 3,
+            borderWidth: 2,
             tension: 0.4,
             fill: true,
-            pointBackgroundColor: '#3B82F6',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2,
-            pointRadius: 6,
-            pointHoverRadius: 8
+            pointRadius: 4
         }]
     },
     options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                display: false
-            }
-        },
+        plugins: { legend: { display: false } },
         scales: {
-            y: {
-                beginAtZero: true,
-                grid: {
-                    color: '#E5E7EB'
-                }
-            },
-            x: {
-                grid: {
-                    display: false
-                }
-            }
+            y: { beginAtZero: true, grid: { color: '#E5E7EB' } },
+            x: { grid: { display: false } }
         }
     }
 });
