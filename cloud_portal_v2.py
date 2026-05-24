@@ -1221,38 +1221,50 @@ def generate_analytics(report_data, conn, grade):
     """Generate analytics data for parent dashboard including trends, comparisons, and comments"""
     if not report_data or 'current_marks' not in report_data:
         return report_data
-    
+
     current_marks = report_data['current_marks']
-    
+
     # Get subjects for this grade
     subjects_config = get_subjects_for_grade(grade)
-    
+
     # Generate subject analysis
     subject_analysis = []
     subject_names = []
     student_scores = []
     class_averages = []
-    
+
     for subject in subjects_config:
         subject_key = subject.lower()
         score_key = f"{subject_key}_s"
         current_score = current_marks.get(score_key, 0)
-        
+
+        # Convert to int if it's a string
+        try:
+            current_score = int(current_score) if current_score else 0
+        except (ValueError, TypeError):
+            current_score = 0
+
         # Get class average for this subject (mock data for now, should be calculated from actual data)
         class_average = get_class_average(conn, grade, subject_key)
-        
+
+        # Convert to int if it's a string
+        try:
+            class_average = int(class_average) if class_average else 0
+        except (ValueError, TypeError):
+            class_average = 0
+
         # Calculate trend (mock - should compare with previous exams)
         trend = "stable"
         improvement = 0
         decline = 0
-        
+
         if current_score > class_average:
             performance = "above_average"
         elif current_score < class_average:
             performance = "below_average"
         else:
             performance = "average"
-        
+
         subject_analysis.append({
             "name": subject,
             "current_score": current_score,
@@ -1264,29 +1276,35 @@ def generate_analytics(report_data, conn, grade):
             "class_average": class_average,
             "performance": performance
         })
-        
+
         subject_names.append(subject)
         student_scores.append(current_score)
         class_averages.append(class_average)
-    
+
     # Generate overall trend
     total_points = current_marks.get('total_points', 0)
+    # Convert to int if it's a string
+    try:
+        total_points = int(total_points) if total_points else 0
+    except (ValueError, TypeError):
+        total_points = 0
+
     if total_points > 40:
         overall_trend = "improving"
     elif total_points < 30:
         overall_trend = "declining"
     else:
         overall_trend = "stable"
-    
+
     # Generate comments
     overall_comment = generate_overall_comment(total_points, overall_trend)
     subject_comments = generate_subject_comments(subject_analysis)
     recommendations = generate_recommendations(subject_analysis, total_points)
-    
+
     # Generate exam labels and scores for trend chart
     exam_labels = ["Exam 3", "Exam 2", "Current Exam"]
     exam_scores = [total_points - 10, total_points - 5, total_points]
-    
+
     # Add analytics to report data
     report_data['subject_analysis'] = subject_analysis
     report_data['trend'] = overall_trend
@@ -1298,7 +1316,7 @@ def generate_analytics(report_data, conn, grade):
     report_data['subject_names'] = subject_names
     report_data['student_scores'] = student_scores
     report_data['class_averages'] = class_averages
-    
+
     return report_data
 
 
