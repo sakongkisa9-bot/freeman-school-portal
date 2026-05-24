@@ -236,13 +236,13 @@ class ReportFormsView(ctk.CTkToplevel):
         close_btn.pack(side="right", padx=10)
     
     def create_school_header(self, container, student):
-        header_frame = ctk.CTkFrame(container, height=150)
+        header_frame = ctk.CTkFrame(container, height=180)
         header_frame.pack(fill="x", pady=(0, 20))
-        
+
         # School logo (placeholder)
         logo_frame = ctk.CTkFrame(header_frame, width=120, height=120)
         logo_frame.pack(side="left", padx=20, pady=15)
-        
+
         try:
             logo_path = self.school_config.get('logo', '')
             if logo_path and os.path.exists(logo_path):
@@ -258,58 +258,70 @@ class ReportFormsView(ctk.CTkToplevel):
             logo_label = ctk.CTkLabel(logo_frame, text="SCHOOL\nLOGO",
                                      font=("Arial Bold", 12), text_color="gray")
             logo_label.pack(pady=30)
-        
+
         # School info
         info_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
         info_frame.pack(side="left", fill="both", expand=True, padx=20, pady=15)
-        
+
         school_name = self.school_config.get('school_name', 'School Name')
         school_name_label = ctk.CTkLabel(info_frame, text=school_name.upper(),
-                                        font=("Arial Bold", 24))
+                                        font=("Arial Bold", 28))
         school_name_label.pack(pady=5)
-        
+
         address = self.school_config.get('address', '')
         if address:
             addr_label = ctk.CTkLabel(info_frame, text=address,
-                                     font=("Arial", 12))
+                                     font=("Arial", 13))
             addr_label.pack(pady=2)
-        
+
         contacts = self.school_config.get('contacts', '')
         if contacts:
-            contact_label = ctk.CTkLabel(info_frame, text=contacts,
-                                        font=("Arial", 12))
+            contact_label = ctk.CTkLabel(info_frame, text=f"Contact: {contacts}",
+                                        font=("Arial Bold", 13), text_color="#e74c3c")
             contact_label.pack(pady=2)
-        
+
         # Report title
-        report_title = ctk.CTkLabel(info_frame, text="STUDENT REPORT FORM",
-                                    font=("Arial Bold", 18), text_color="#3498db")
+        report_title = ctk.CTkLabel(info_frame, text="COMPETENCY BASED CURRICULUM (CBC) REPORT CARD",
+                                    font=("Arial Bold", 16), text_color="#3498db")
         report_title.pack(pady=10)
     
     def create_student_info(self, container, student):
-        info_frame = ctk.CTkFrame(container)
+        info_frame = ctk.CTkFrame(container, fg_color="#f8f9fa")
         info_frame.pack(fill="x", pady=(0, 20))
-        
-        # Student details
+
+        # Section title
+        title_label = ctk.CTkLabel(info_frame, text="STUDENT INFORMATION",
+                                   font=("Arial Bold", 16), text_color="#2c3e50")
+        title_label.pack(pady=10)
+
+        # Student details in a grid layout
+        details_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
+        details_frame.pack(fill="x", padx=20, pady=10)
+
         details = [
             ("Student Name:", student['name']),
             ("Admission Number:", student['adm_no']),
-            ("Class:", student['grade']),
+            ("Class/Grade:", student['grade']),
         ]
-        
+
         # Add class teacher
         class_teacher = self.get_class_teacher(student['grade'])
         if class_teacher:
             details.append(("Class Teacher:", class_teacher))
-        
+
+        # Create two columns
         for i, (label, value) in enumerate(details):
-            row_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
-            row_frame.pack(fill="x", padx=20, pady=5)
-            
-            lbl = ctk.CTkLabel(row_frame, text=label, font=("Arial Bold", 14), width=200, anchor="w")
-            lbl.pack(side="left", padx=10)
-            
-            val = ctk.CTkLabel(row_frame, text=value, font=("Arial", 14))
-            val.pack(side="left", padx=10)
+            row = i // 2
+            col = i % 2
+
+            row_frame = ctk.CTkFrame(details_frame, fg_color="transparent")
+            row_frame.grid(row=row, column=col, sticky="w", padx=10, pady=5)
+
+            lbl = ctk.CTkLabel(row_frame, text=label, font=("Arial Bold", 13), width=180, anchor="w", text_color="#2c3e50")
+            lbl.pack(side="left", padx=5)
+
+            val = ctk.CTkLabel(row_frame, text=value, font=("Arial", 13), text_color="#2c3e50")
+            val.pack(side="left", padx=5)
     
     def get_class_teacher(self, class_name):
         try:
@@ -323,17 +335,17 @@ class ReportFormsView(ctk.CTkToplevel):
             return ""
     
     def create_current_marks_section(self, container, student):
-        section_frame = ctk.CTkFrame(container)
+        section_frame = ctk.CTkFrame(container, fg_color="#f8f9fa")
         section_frame.pack(fill="x", pady=(0, 20))
-        
+
         # Section title
-        title_label = ctk.CTkLabel(section_frame, text="CURRENT EXAMINATION RESULTS",
+        title_label = ctk.CTkLabel(section_frame, text="CURRENT TERM PERFORMANCE",
                                    font=("Arial Bold", 18), text_color="#27ae60")
         title_label.pack(pady=10)
-        
+
         # Get current marks
         current_marks = self.get_student_current_marks(student['adm_no'], student['grade'])
-        
+
         if current_marks:
             # Create marks table
             self.create_marks_table(section_frame, current_marks, student['grade'])
@@ -379,16 +391,68 @@ class ReportFormsView(ctk.CTkToplevel):
         for widget in container.winfo_children():
             if isinstance(widget, ctk.CTkFrame) and widget != container.winfo_children()[0]:
                 widget.destroy()
-        
+
         # Get previous exam data
         marks_data, summary_data = self.db.get_previous_exam_data(exam_name, student['grade'])
-        
+
         if marks_data:
             try:
                 import json
-                marks_dict = json.loads(marks_data)
-                student_marks = marks_dict.get(student['adm_no'], {})
-                
+                marks_data_parsed = json.loads(marks_data)
+
+                print(f"DEBUG: Student adm_no: {student['adm_no']}")
+                print(f"DEBUG: Student name: {student['name']}")
+                print(f"DEBUG: Marks data type: {type(marks_data_parsed)}")
+                print(f"DEBUG: Marks data: {marks_data_parsed}")
+
+                # Handle both dictionary and list formats
+                if isinstance(marks_data_parsed, dict):
+                    student_marks = marks_data_parsed.get(student['adm_no'], {})
+                    if not student_marks:
+                        # Try with stripped/uppercase versions
+                        for key in marks_data_parsed.keys():
+                            if str(key).strip().upper() == str(student['adm_no']).strip().upper():
+                                student_marks = marks_data_parsed[key]
+                                break
+                elif isinstance(marks_data_parsed, list):
+                    # Handle list of lists format (flat data without adm_no)
+                    if marks_data_parsed and isinstance(marks_data_parsed[0], list):
+                        # This is a list of lists format: [['name', score1, rating1, ...]]
+                        # Since there's no adm_no, we'll use the first item if only one student
+                        # or try to match by name
+                        if len(marks_data_parsed) == 1:
+                            # Only one student, use it
+                            student_marks = self.convert_list_to_dict(marks_data_parsed[0], student['grade'])
+                        else:
+                            # Try to match by student name
+                            student_marks = {}
+                            for item in marks_data_parsed:
+                                if isinstance(item, list) and len(item) > 0:
+                                    item_name = str(item[0]).strip().lower()
+                                    student_name = str(student['name']).strip().lower()
+                                    if item_name == student_name or item_name in student_name or student_name in item_name:
+                                        student_marks = self.convert_list_to_dict(item, student['grade'])
+                                        break
+                    else:
+                        # Handle list of dictionaries format
+                        student_marks = {}
+                        for item in marks_data_parsed:
+                            if isinstance(item, dict):
+                                item_adm = item.get('adm_no')
+                                if item_adm:
+                                    # Try exact match first
+                                    if str(item_adm) == str(student['adm_no']):
+                                        student_marks = item
+                                        break
+                                    # Try with stripped/uppercase versions
+                                    elif str(item_adm).strip().upper() == str(student['adm_no']).strip().upper():
+                                        student_marks = item
+                                        break
+                else:
+                    student_marks = {}
+
+                print(f"DEBUG: Student marks found: {bool(student_marks)}")
+
                 if student_marks:
                     self.create_marks_table(container, student_marks, student['grade'], is_previous=True)
                 else:
@@ -400,6 +464,42 @@ class ReportFormsView(ctk.CTkToplevel):
                 error_label = ctk.CTkLabel(container, text="Error loading previous exam data",
                                           font=("Arial", 14), text_color="gray")
                 error_label.pack(pady=20)
+
+    def convert_list_to_dict(self, marks_list, grade):
+        """Convert a flat list of marks to a dictionary format"""
+        # Get subjects for this grade
+        subjects_config = self.school_config.get('subjects', {})
+        grade_mapping = {
+            'playgroup': 'playgroup',
+            'pp1': 'pp1',
+            'pp2': 'pp2',
+            'Grade 1': 'lower',
+            'Grade 2': 'lower',
+            'Grade 3': 'lower',
+            'Grade 4': 'primary',
+            'Grade 5': 'primary',
+            'Grade 6': 'primary',
+        }
+        key = grade_mapping.get(grade)
+        subjects = subjects_config.get(key, [])
+
+        marks_dict = {}
+        # marks_list format: [name, score1, rating1, score2, rating2, ..., total, average]
+        # Skip the first element (name)
+        idx = 1
+        for subject in subjects:
+            if idx + 1 < len(marks_list):
+                marks_dict[f'{subject.lower()}_s'] = marks_list[idx]
+                marks_dict[f'{subject.lower()}_r'] = marks_list[idx + 1]
+                idx += 2
+
+        # Add total and average if available
+        if idx < len(marks_list):
+            marks_dict['total_score'] = marks_list[idx]
+        if idx + 1 < len(marks_list):
+            marks_dict['average_level'] = marks_list[idx + 1]
+
+        return marks_dict
     
     def get_student_current_marks(self, adm_no, grade):
         try:
@@ -435,64 +535,74 @@ class ReportFormsView(ctk.CTkToplevel):
     def create_marks_table(self, container, marks, grade, is_previous=False):
         # Get subjects for this grade
         subjects = self.get_subjects_for_grade(grade)
-        
+
         if not subjects:
             return
-        
-        # Create table frame
-        table_frame = ctk.CTkFrame(container)
+
+        # Check if this is junior secondary (Grade 7, 8, 9) - these use points
+        junior_grades = ['Grade 7', 'Grade 8', 'Grade 9']
+        is_junior = grade in junior_grades
+
+        # Create table frame with border
+        table_frame = ctk.CTkFrame(container, border_width=2, border_color="#34495e")
         table_frame.pack(fill="x", padx=20, pady=10)
-        
+
         # Header
         header_frame = ctk.CTkFrame(table_frame, fg_color="#34495e")
         header_frame.pack(fill="x")
-        
-        headers = ["Subject", "Score", "Rating", "Points"]
+
+        headers = ["Subject", "Score", "Rating"]
+        if is_junior:
+            headers.append("Points")
+
         for i, header in enumerate(headers):
-            lbl = ctk.CTkLabel(header_frame, text=header, font=("Arial Bold", 12),
-                              text_color="white", width=150)
-            lbl.pack(side="left", padx=5, pady=5)
-        
-        # Data rows
-        for subject in subjects:
-            row_frame = ctk.CTkFrame(table_frame, fg_color="transparent")
-            row_frame.pack(fill="x", pady=2)
-            
+            lbl = ctk.CTkLabel(header_frame, text=header, font=("Arial Bold", 13),
+                              text_color="white", width=180)
+            lbl.pack(side="left", padx=5, pady=8)
+
+        # Data rows with alternating colors
+        for i, subject in enumerate(subjects):
+            bg_color = "#ecf0f1" if i % 2 == 0 else "#ffffff"
+            row_frame = ctk.CTkFrame(table_frame, fg_color=bg_color)
+            row_frame.pack(fill="x", pady=0)
+
             # Subject name
-            subj_label = ctk.CTkLabel(row_frame, text=subject, font=("Arial", 12), width=150, anchor="w")
-            subj_label.pack(side="left", padx=5)
-            
+            subj_label = ctk.CTkLabel(row_frame, text=subject, font=("Arial Bold", 12), width=180, anchor="w", text_color="#2c3e50")
+            subj_label.pack(side="left", padx=5, pady=5)
+
             # Get score, rating, points for this subject
             score = marks.get(f'{subject.lower()}_s', '') or marks.get(f'{subject}_s', '')
             rating = marks.get(f'{subject.lower()}_r', '') or marks.get(f'{subject}_r', '')
             points = marks.get(f'{subject.lower()}_p', '') or marks.get(f'{subject}_p', '')
-            
+
             # Score
-            score_label = ctk.CTkLabel(row_frame, text=str(score), font=("Arial", 12), width=150)
-            score_label.pack(side="left", padx=5)
-            
+            score_label = ctk.CTkLabel(row_frame, text=str(score), font=("Arial", 12), width=180, text_color="#2c3e50")
+            score_label.pack(side="left", padx=5, pady=5)
+
             # Rating
-            rating_label = ctk.CTkLabel(row_frame, text=str(rating), font=("Arial", 12), width=150)
-            rating_label.pack(side="left", padx=5)
-            
-            # Points
-            points_label = ctk.CTkLabel(row_frame, text=str(points), font=("Arial", 12), width=150)
-            points_label.pack(side="left", padx=5)
-        
-        # Total and average
-        total = marks.get('total_points', '')
+            rating_label = ctk.CTkLabel(row_frame, text=str(rating), font=("Arial", 12), width=180, text_color="#2c3e50")
+            rating_label.pack(side="left", padx=5, pady=5)
+
+            # Points (only for junior)
+            if is_junior:
+                points_label = ctk.CTkLabel(row_frame, text=str(points), font=("Arial Bold", 12), width=180, text_color="#2980b9")
+                points_label.pack(side="left", padx=5, pady=5)
+
+        # Total and average summary
+        total = marks.get('total_points', '') or marks.get('total_score', '')
         avg = marks.get('average_level', '')
-        
+
         summary_frame = ctk.CTkFrame(table_frame, fg_color="#2c3e50")
         summary_frame.pack(fill="x", pady=(10, 0))
-        
-        total_label = ctk.CTkLabel(summary_frame, text=f"Total Points: {total}",
-                                   font=("Arial Bold", 14), text_color="white")
-        total_label.pack(side="left", padx=20, pady=10)
-        
-        avg_label = ctk.CTkLabel(summary_frame, text=f"Average Level: {avg}",
-                                 font=("Arial Bold", 14), text_color="white")
-        avg_label.pack(side="right", padx=20, pady=10)
+
+        total_label_text = "TOTAL POINTS" if is_junior else "TOTAL SCORES"
+        total_label = ctk.CTkLabel(summary_frame, text=f"{total_label_text}: {total}",
+                                   font=("Arial Bold", 15), text_color="white")
+        total_label.pack(side="left", padx=20, pady=12)
+
+        avg_label = ctk.CTkLabel(summary_frame, text=f"AVERAGE LEVEL: {avg}",
+                                 font=("Arial Bold", 15), text_color="#f1c40f")
+        avg_label.pack(side="right", padx=20, pady=12)
     
     def get_subjects_for_grade(self, grade):
         subjects_config = self.school_config.get('subjects', {})

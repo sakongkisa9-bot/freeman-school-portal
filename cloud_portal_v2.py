@@ -986,8 +986,6 @@ def api_save_student_report():
     """Save a student report to the cloud database"""
     data = request.json
     school_code = data.get("school_code", "").strip().lower()
-    username = data.get("username", "").strip()
-    password = data.get("password", "").strip()
     report = data.get("report", {})
 
     if not school_code or not report:
@@ -995,20 +993,12 @@ def api_save_student_report():
 
     conn = get_db()
     try:
-        # Verify school and authenticate
+        # Verify school
         school = conn.execute(
             "SELECT id, school_name FROM schools WHERE school_code = ?", (school_code,)
         ).fetchone()
         if not school:
             return jsonify({"success": False, "message": "School not found"}), 404
-
-        # Verify teacher credentials
-        teacher = conn.execute(
-            "SELECT id FROM teachers WHERE school_id = ? AND username = ? AND password = ?",
-            (school["id"], username, password)
-        ).fetchone()
-        if not teacher:
-            return jsonify({"success": False, "message": "Authentication failed"}), 401
 
         # Save or update the student report
         import json
@@ -1045,8 +1035,6 @@ def api_save_class_reports():
     """Save multiple reports for a class"""
     data = request.json
     school_code = data.get("school_code", "").strip().lower()
-    username = data.get("username", "").strip()
-    password = data.get("password", "").strip()
     class_name = data.get("class_name", "")
     reports = data.get("reports", [])
 
@@ -1055,20 +1043,12 @@ def api_save_class_reports():
 
     conn = get_db()
     try:
-        # Verify school and authenticate
+        # Verify school
         school = conn.execute(
             "SELECT id, school_name FROM schools WHERE school_code = ?", (school_code,)
         ).fetchone()
         if not school:
             return jsonify({"success": False, "message": "School not found"}), 404
-
-        # Verify teacher credentials
-        teacher = conn.execute(
-            "SELECT id FROM teachers WHERE school_id = ? AND username = ? AND password = ?",
-            (school["id"], username, password)
-        ).fetchone()
-        if not teacher:
-            return jsonify({"success": False, "message": "Authentication failed"}), 401
 
         # Save all reports
         import json
@@ -1093,7 +1073,6 @@ def api_save_class_reports():
                 )
             )
             saved_count += 1
-
         conn.commit()
 
         return jsonify({"success": True, "message": f"Saved {saved_count} reports successfully"})

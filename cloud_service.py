@@ -191,8 +191,6 @@ class CloudService:
         """Send a student report to the cloud portal"""
         payload = {
             "school_code": credentials["school_code"],
-            "username": credentials["username"],
-            "password": credentials["password"],
             "report": report_data,
         }
         return self._post_json("/api/save_student_report", payload)
@@ -201,8 +199,6 @@ class CloudService:
         """Send multiple reports for a class to the cloud portal"""
         payload = {
             "school_code": credentials["school_code"],
-            "username": credentials["username"],
-            "password": credentials["password"],
             "class_name": class_name,
             "reports": reports,
         }
