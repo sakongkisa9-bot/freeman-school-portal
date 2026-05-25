@@ -451,6 +451,7 @@ class Dashboard(ctk.CTk):
                 messagebox.showerror("Portal Error", f"Failed to start: {message}")
         else:
             # Close portal
+            cloud_close_success = True
             if cloud_school_code and cloud_teacher_username and cloud_url:
                 cloud_teacher_password = cloud_config.get('cloud_teacher_password', '').strip()
                 if cloud_teacher_password:
@@ -462,20 +463,22 @@ class Dashboard(ctk.CTk):
                 else:
                     credentials = ask_cloud_credentials(self)
                     if not credentials:
-                        return
+                        # Still close locally even if user cancels cloud auth
+                        cloud_close_success = False
 
                 # Toggle cloud portal to close
-                service = CloudService()
-                result = service.toggle_portal(credentials)
-                if result.get('success'):
-                    messagebox.showinfo("Portal Closed", "Teachers portal has been closed. Teachers can no longer enter marks.")
-                else:
-                    messagebox.showerror("Portal Error", f"Failed to close cloud portal: {result.get('message')}")
-                    return
+                if credentials:
+                    service = CloudService()
+                    result = service.toggle_portal(credentials)
+                    if result.get('success'):
+                        messagebox.showinfo("Portal Closed", "Teachers portal has been closed. Teachers can no longer enter marks.")
+                    else:
+                        messagebox.showerror("Portal Error", f"Failed to close cloud portal: {result.get('message')}")
+                        cloud_close_success = False
             else:
                 messagebox.showinfo("Portal Closed", "Teachers portal has been closed. Teachers can no longer enter marks.")
 
-            # Update state and button
+            # Always update local state and button regardless of cloud status
             self.portal_open = False
             self.save_portal_state(False)
             self.update_portal_button()
@@ -1157,7 +1160,7 @@ class Dashboard(ctk.CTk):
             self.menu_panel.grid_forget() # Hide the left sidebar
             self.grid_columnconfigure(0, weight=0, minsize=0) # Shrink sidebar space to zero
             self.content_panel.grid(row=0, column=0, columnspan=2, sticky="nsew")
-            self.current_view = TeachersLinkedView(self.content_panel, self.db, class_selected)
+            self.current_view = TeachersLinkedView(self.content_panel, self.db, class_selected, self.show_dashboard_workspace)
             self.current_view.pack(fill="both", expand=True)
 
         # This handles the Report Forms button

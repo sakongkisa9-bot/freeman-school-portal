@@ -1,18 +1,18 @@
 {
     "school_name": "LENANA SCHOOL",
-    "address": "",
-    "contacts": "",
-    "logo": "",
+    "address": "P.O. BOX 18 MABUSI",
+    "contacts": "0789654345/0789067865",
+    "logo": "C:/Users/HomePC/Downloads/lenana-school-emblem-logo-png_seeklogo-288456.png",
     "signatures": {
-        "headteacher": ""
+        "headteacher": "C:/Users/HomePC/Pictures/Untitled.png"
     },
     "cloud_portal_url": "https://freeman-school-portal.up.railway.app",
     "cloud_school_code": "FREEMAN26",
-    "cloud_teacher_username": "portal",
+    "cloud_teacher_username": "sakongkisa9@gmail.com",
     "cloud_teacher_password": "FREEMAN26",
-    "playgroup_exam_title": "matisi link",
-    "primary_exam_title": "matisi link",
-    "jss_exam_title": "matisi link",
+    "playgroup_exam_title": "PLAYGROUP ASSESSMENT REPORT",
+    "primary_exam_title": "PRIMARY SCHOOL MERIT LIST",
+    "jss_exam_title": "JUNIOR SECONDARY ASSESSMENT",
     "subjects": {
         "playgroup": [
             "LANG",
@@ -67,9 +67,5 @@
             "C/A"
         ]
     },
-    "current_exam_title": "matisi link",
-    "portal_open": true,
-    "pp1_exam_title": "matisi link",
-    "pp2_exam_title": "matisi link",
-    "lower_exam_title": "matisi link"
+    "portal_open": false
 }

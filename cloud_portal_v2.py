@@ -444,24 +444,46 @@ def dashboard():
 
 @app.route("/api/toggle_portal", methods=["POST"])
 def api_toggle_portal():
-    if "school_id" not in session:
-        return jsonify({"success": False, "message": "Not authenticated"}), 401
+    # API key authentication (like sync endpoints)
+    data = request.json
+    school_code = data.get("school_code", "").strip().lower()
+    username = data.get("username", "").strip().lower()
+    password = data.get("password", "")
+
+    if not school_code or not username or not password:
+        return jsonify({"success": False, "message": "Missing credentials"}), 400
 
     conn = get_db()
     try:
-        # Get current portal state
+        # Authenticate school and user
         school = conn.execute(
-            "SELECT portal_open FROM schools WHERE id = ?", (session["school_id"],)
+            "SELECT * FROM schools WHERE school_code = ?", (school_code,)
         ).fetchone()
 
         if not school:
             return jsonify({"success": False, "message": "School not found"}), 404
 
+        # Verify password
+        if not check_password_hash(school["password_hash"], password):
+            return jsonify({"success": False, "message": "Invalid password"}), 401
+
+        # Verify user exists in teachers table
+        teacher = conn.execute(
+            "SELECT * FROM teachers WHERE school_id = ? AND username = ?",
+            (school["id"], username)
+        ).fetchone()
+
+        if not teacher:
+            return jsonify({"success": False, "message": "User not found"}), 404
+
+        # Get current portal state
+        current_state = school["portal_open"]
+
         # Toggle portal state
-        new_state = 0 if school["portal_open"] == 1 else 1
+        new_state = 0 if current_state == 1 else 1
         conn.execute(
             "UPDATE schools SET portal_open = ? WHERE id = ?",
-            (new_state, session["school_id"])
+            (new_state, school["id"])
         )
         conn.commit()
 
