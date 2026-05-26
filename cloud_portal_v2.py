@@ -1231,17 +1231,6 @@ def parent_dashboard():
             (session["parent_grade"],)
         ).fetchall()
 
-        # Fetch school logo from schools table
-        school_logo = None
-        school_info = conn.execute(
-            """
-            SELECT logo FROM schools WHERE school_name = ?
-            """,
-            (session["parent_school_name"],)
-        ).fetchone()
-        if school_info and school_info["logo"]:
-            school_logo = school_info["logo"]
-
         # Determine current exam title based on grade
         grade = session["parent_grade"]
         current_exam_title = "Current Exam"
@@ -1261,7 +1250,7 @@ def parent_dashboard():
             school_name=session["parent_school_name"],
             report=report_data,
             previous_exams=previous_exams,
-            school_logo=school_logo,
+            school_logo=None,
             current_exam_title=current_exam_title
         )
     except Exception as e:
