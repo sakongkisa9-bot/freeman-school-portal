@@ -221,7 +221,7 @@
         <div class="report-header">
             <!-- School Logo (Left) -->
             <div class="school-logo">
-                {% if school_logo %}
+                {% if school_logo and (school_logo.startswith('http') or school_logo.startswith('data:')) %}
                 <img src="{{ school_logo }}" alt="School Logo">
                 {% else %}
                 <div class="passport-placeholder">School<br>Logo</div>
@@ -237,7 +237,7 @@
             
             <!-- Student Photo (Right) -->
             <div class="student-photo">
-                {% if student_photo %}
+                {% if student_photo and (student_photo.startswith('http') or student_photo.startswith('data:')) %}
                 <img src="{{ student_photo }}" alt="Student Photo">
                 {% else %}
                 <div class="passport-placeholder">Student<br>Photo</div>

@@ -43,9 +43,16 @@ class FreemanDB:
                 name TEXT,
                 grade TEXT,
                 gender TEXT,
-                phone TEXT
+                phone TEXT,
+                photo TEXT
             )
         ''')
+        # Add photo column if it doesn't exist (for existing databases)
+        try:
+            self._cursor.execute("ALTER TABLE students ADD COLUMN photo TEXT")
+            self.conn.commit()
+        except:
+            pass
         self.conn.commit()
 
     def add_student(self, adm, name, grade, gender, phone):

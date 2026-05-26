@@ -311,7 +311,7 @@ class Dashboard(ctk.CTk):
 
     def get_local_student_list(self):
         try:
-            self.db._cursor.execute('SELECT adm_no, name, grade, gender, phone FROM students ORDER BY grade, adm_no')
+            self.db._cursor.execute('SELECT adm_no, name, grade, gender, phone, photo FROM students ORDER BY grade, adm_no')
             rows = self.db._cursor.fetchall()
             return [
                 {
@@ -319,7 +319,8 @@ class Dashboard(ctk.CTk):
                     'name': row[1] or '',
                     'grade': row[2] or '',
                     'gender': row[3] or '',
-                    'phone': row[4] or ''
+                    'phone': row[4] or '',
+                    'photo': row[5] if len(row) > 5 else None
                 }
                 for row in rows if row[0] and row[1]
             ]
@@ -356,14 +357,22 @@ class Dashboard(ctk.CTk):
             if os.path.exists(config_path):
                 with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
+                    logo_path = config.get("logo", "")
+                    # Convert logo to base64 if it's a local file
+                    school_logo = self.image_to_base64(logo_path) if logo_path else ""
                     school_details = {
                         "school_name": config.get("school_name", ""),
                         "school_address": config.get("address", ""),
                         "school_telephone": config.get("contacts", ""),
-                        "school_logo": config.get("logo", "")
+                        "school_logo": school_logo
                     }
         except Exception as e:
             print(f"Error loading school config: {e}")
+
+        # Convert student photos to base64 if they are local files
+        for student in students:
+            if student.get('photo'):
+                student['photo'] = self.image_to_base64(student['photo'])
 
         service = CloudService()
         result = service.sync_students(students, credentials, school_details)
@@ -373,6 +382,18 @@ class Dashboard(ctk.CTk):
 
         messagebox.showinfo('Cloud Sync', f"Uploaded {len(students)} local students to cloud portal.")
         return True
+
+    def image_to_base64(self, image_path):
+        """Convert an image file to base64 string"""
+        if not image_path or not os.path.exists(image_path):
+            return None
+        try:
+            with open(image_path, "rb") as image_file:
+                import base64
+                return base64.b64encode(image_file.read()).decode('utf-8')
+        except Exception as e:
+            print(f"Error converting image to base64: {e}")
+            return None
 
     def sync_teachers_to_cloud(self, credentials):
         teachers = self.get_local_teacher_list()

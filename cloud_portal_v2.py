@@ -168,10 +168,17 @@ def init_db():
             student_name TEXT NOT NULL,
             gender TEXT,
             phone TEXT,
+            photo TEXT,
             UNIQUE(school_id, grade, adm_no),
             FOREIGN KEY(school_id) REFERENCES schools(id)
         )
     """)
+    # Add photo column if it doesn't exist
+    cursor.execute("PRAGMA table_info(students)")
+    columns = [column[1] for column in cursor.fetchall()]
+    if 'photo' not in columns:
+        cursor.execute("ALTER TABLE students ADD COLUMN photo TEXT")
+        conn.commit()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS marks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -567,8 +574,8 @@ def api_sync_students():
         for s in students_list:
             conn.execute(
                 """
-                INSERT INTO students (school_id, grade, adm_no, student_name, gender, phone)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO students (school_id, grade, adm_no, student_name, gender, phone, photo)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     school_id,
@@ -577,6 +584,7 @@ def api_sync_students():
                     s["name"],
                     s.get("gender"),
                     s.get("phone"),
+                    s.get("photo"),
                 ),
             )
 
@@ -1287,6 +1295,17 @@ def parent_dashboard():
         school_telephone = school["school_telephone"] if school else None
         school_logo = school["school_logo"] if school else None
 
+        # Fetch student photo from database
+        student = conn.execute(
+            """
+            SELECT photo FROM students 
+            WHERE student_name = ? AND adm_no = ?
+            """,
+            (session["parent_student_name"], session["parent_adm_no"])
+        ).fetchone()
+
+        student_photo = student["photo"] if student and student["photo"] else None
+
         logging.info("Rendering dashboard template")
         return render_template(
             "cloud_parent_dashboard.html",
@@ -1297,6 +1316,7 @@ def parent_dashboard():
             school_address=school_address,
             school_telephone=school_telephone,
             school_logo=school_logo,
+            student_photo=student_photo,
             report=report_data,
             previous_exams=previous_exams,
             current_exam_title=current_exam_title
