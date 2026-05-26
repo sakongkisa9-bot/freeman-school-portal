@@ -467,13 +467,15 @@ def api_toggle_portal():
         if not check_password_hash(school["password_hash"], password):
             return jsonify({"success": False, "message": "Invalid password"}), 401
 
-        # Verify user exists in teachers table
+        # Allow either school admin (from registration) or teachers to toggle portal
+        # Check if username matches school email (admin) or exists in teachers table
+        is_admin = (username == school["email"].strip().lower())
         teacher = conn.execute(
             "SELECT * FROM teachers WHERE school_id = ? AND username = ?",
             (school["id"], username)
         ).fetchone()
 
-        if not teacher:
+        if not is_admin and not teacher:
             return jsonify({"success": False, "message": "User not found"}), 404
 
         # Get current portal state
