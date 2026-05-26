@@ -241,7 +241,7 @@
                     <td>{{ score }}</td>
                     <td>{{ exam2 }}</td>
                     <td>{{ exam3 }}</td>
-                    <td>{{ ((score + exam2 + exam3) / 3)|round(0) if score != '-' and exam2 != '-' and exam3 != '-' else '-' }}</td>
+                    <td>{{ ((score|int + exam2|int + exam3|int) / 3)|round(0) if score != '-' and exam2 != '-' and exam3 != '-' else '-' }}</td>
                     <td>{{ 'Meeting Expectations' if score|int >= 50 else 'Approaching Expectations' }}</td>
                     <td class="left-align">-</td>
                 </tr>
