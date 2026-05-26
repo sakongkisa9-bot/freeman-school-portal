@@ -1231,6 +1231,27 @@ def parent_dashboard():
             (session["parent_grade"],)
         ).fetchall()
 
+        # Fetch school logo from schools table
+        school_logo = None
+        school_info = conn.execute(
+            """
+            SELECT logo FROM schools WHERE school_name = ?
+            """,
+            (session["parent_school_name"],)
+        ).fetchone()
+        if school_info and school_info["logo"]:
+            school_logo = school_info["logo"]
+
+        # Determine current exam title based on grade
+        grade = session["parent_grade"]
+        current_exam_title = "Current Exam"
+        if grade in ["playgroup", "pp1", "pp2", "lower"]:
+            current_exam_title = "TERM ASSESSMENT"
+        elif grade in ["Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6"]:
+            current_exam_title = "PRIMARY EXAM"
+        elif grade in ["Grade 7", "Grade 8", "Grade 9"]:
+            current_exam_title = "JSS ASSESSMENT"
+
         logging.info("Rendering dashboard template")
         return render_template(
             "cloud_parent_dashboard.html",
@@ -1239,7 +1260,9 @@ def parent_dashboard():
             grade=session["parent_grade"],
             school_name=session["parent_school_name"],
             report=report_data,
-            previous_exams=previous_exams
+            previous_exams=previous_exams,
+            school_logo=school_logo,
+            current_exam_title=current_exam_title
         )
     except Exception as e:
         logging.error(f"Parent dashboard error: {e}", exc_info=True)

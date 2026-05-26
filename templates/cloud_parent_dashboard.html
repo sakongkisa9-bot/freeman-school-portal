@@ -191,9 +191,15 @@
                 <p>Learner Assessment Report Card</p>
                 <p>August 2024</p>
             </div>
+            {% if school_logo %}
+            <div class="student-photo" style="background: none; border: none; overflow: hidden;">
+                <img src="{{ school_logo }}" alt="School Logo" style="width: 80px; height: 80px; object-fit: contain;">
+            </div>
+            {% else %}
             <div class="student-photo">
                 Student<br>Photo
             </div>
+            {% endif %}
         </div>
 
         <!-- Student Metadata -->
@@ -221,9 +227,14 @@
             <thead>
                 <tr>
                     <th class="left-align">Learning Area</th>
-                    <th>Exam 1</th>
-                    <th>Exam 2</th>
-                    <th>Exam 3</th>
+                    {% if previous_exams and previous_exams|length > 0 %}
+                        {% for exam in previous_exams[:3] %}
+                        <th>{{ exam.exam_name[:15] }}</th>
+                        {% endfor %}
+                    {% else %}
+                        <th>No Previous Exam</th>
+                    {% endif %}
+                    <th>{{ current_exam_title }}</th>
                     <th>AVG</th>
                     <th>Performance Level</th>
                     <th class="left-align">Teacher</th>
@@ -238,9 +249,24 @@
                 {% set exam3 = report.current_marks[subject.replace('_s', '_p')]|default('-') %}
                 <tr>
                     <td class="left-align">{{ subject_name }}</td>
+                    {% if previous_exams and previous_exams|length > 0 %}
+                        <td>{{ score }}</td>
+                        {% if previous_exams|length > 1 %}
+                        <td>{{ exam2 }}</td>
+                        {% else %}
+                        <td>-</td>
+                        {% endif %}
+                        {% if previous_exams|length > 2 %}
+                        <td>{{ exam3 }}</td>
+                        {% else %}
+                        <td>-</td>
+                        {% endif %}
+                    {% else %}
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                    {% endif %}
                     <td>{{ score }}</td>
-                    <td>{{ exam2 }}</td>
-                    <td>{{ exam3 }}</td>
                     <td>{{ ((score|int + exam2|int + exam3|int) / 3)|round(0) if score != '-' and exam2 != '-' and exam3 != '-' else '-' }}</td>
                     <td>{{ 'Meeting Expectations' if score|int >= 50 else 'Approaching Expectations' }}</td>
                     <td class="left-align">-</td>
@@ -249,8 +275,15 @@
                 {% endfor %}
                 <tr class="summary-row">
                     <td class="left-align">TOTAL SCORES</td>
-                    <td>-</td>
-                    <td>-</td>
+                    {% if previous_exams and previous_exams|length > 0 %}
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                    {% else %}
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                    {% endif %}
                     <td>-</td>
                     <td>{{ report.current_marks.total_points|default('0') }}</td>
                     <td>-</td>
@@ -258,8 +291,15 @@
                 </tr>
                 <tr class="summary-row">
                     <td class="left-align">AVERAGE</td>
-                    <td>-</td>
-                    <td>-</td>
+                    {% if previous_exams and previous_exams|length > 0 %}
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                    {% else %}
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                    {% endif %}
                     <td>-</td>
                     <td>{{ report.current_marks.average_level|default('N/A') }}</td>
                     <td>-</td>
@@ -288,23 +328,19 @@
         <div class="history-section">
             <div class="history-title">Performance History</div>
             
+            {% if previous_exams and previous_exams|length > 0 %}
             <table class="history-table">
                 <thead>
                     <tr>
-                        <th>T1</th>
-                        <th>T2</th>
-                        <th>T3</th>
-                        <th>T4</th>
-                        <th>T5</th>
-                        <th>T6</th>
-                        <th>T7</th>
-                        <th>T8</th>
+                        {% for exam in previous_exams[:8] %}
+                        <th>{{ exam.exam_name[:5] }}</th>
+                        {% endfor %}
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
-                        {% for score in report.exam_scores[:8] %}
-                        <td>{{ score }}</td>
+                        {% for exam in previous_exams[:8] %}
+                        <td>-</td>
                         {% endfor %}
                     </tr>
                 </tbody>
@@ -313,6 +349,11 @@
             <div class="graph-container">
                 <canvas id="historyChart"></canvas>
             </div>
+            {% else %}
+            <div style="border: 1px solid #000; padding: 20px; text-align: center; font-size: 12px;">
+                No previous exam data available
+            </div>
+            {% endif %}
         </div>
 
         <!-- Comments -->
