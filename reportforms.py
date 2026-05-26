@@ -210,6 +210,9 @@ class ReportFormsView(ctk.CTkToplevel):
         # Previous marks section
         self.create_previous_marks_section(report_container, student)
         
+        # Signature section
+        self.create_signature_section(report_container, student)
+        
         # Action buttons
         button_frame = ctk.CTkFrame(report_container, fg_color="transparent")
         button_frame.pack(fill="x", pady=30)
@@ -236,28 +239,27 @@ class ReportFormsView(ctk.CTkToplevel):
         close_btn.pack(side="right", padx=10)
     
     def create_school_header(self, container, student):
-        header_frame = ctk.CTkFrame(container, height=180)
+        header_frame = ctk.CTkFrame(container, height=220)
         header_frame.pack(fill="x", pady=(0, 20))
 
         # School logo (placeholder)
-        logo_frame = ctk.CTkFrame(header_frame, width=120, height=120)
+        logo_frame = ctk.CTkFrame(header_frame, width=200, height=200)
         logo_frame.pack(side="left", padx=20, pady=15)
 
         try:
             logo_path = self.school_config.get('logo', '')
             if logo_path and os.path.exists(logo_path):
-                logo_img = Image.open(logo_path).resize((100, 100))
-                logo_photo = ctk.CTkImage(logo_img)
+                logo_photo = ctk.CTkImage(Image.open(logo_path), size=(180, 180))
                 logo_label = ctk.CTkLabel(logo_frame, image=logo_photo, text="")
                 logo_label.pack()
             else:
                 logo_label = ctk.CTkLabel(logo_frame, text="SCHOOL\nLOGO",
-                                         font=("Arial Bold", 12), text_color="gray")
-                logo_label.pack(pady=30)
+                                         font=("Arial Bold", 14), text_color="gray")
+                logo_label.pack(pady=40)
         except:
             logo_label = ctk.CTkLabel(logo_frame, text="SCHOOL\nLOGO",
-                                     font=("Arial Bold", 12), text_color="gray")
-            logo_label.pack(pady=30)
+                                     font=("Arial Bold", 14), text_color="gray")
+            logo_label.pack(pady=40)
 
         # School info
         info_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
@@ -621,6 +623,59 @@ class ReportFormsView(ctk.CTkToplevel):
         
         key = grade_mapping.get(grade)
         return subjects_config.get(key, [])
+    
+    def create_signature_section(self, container, student):
+        signature_frame = ctk.CTkFrame(container, fg_color="#f8f9fa")
+        signature_frame.pack(fill="x", pady=(0, 20))
+        
+        # Section title
+        title_label = ctk.CTkLabel(signature_frame, text="SIGNATURES",
+                                   font=("Arial Bold", 16), text_color="#2c3e50")
+        title_label.pack(pady=10)
+        
+        # Signature container
+        sig_container = ctk.CTkFrame(signature_frame, fg_color="transparent")
+        sig_container.pack(fill="x", padx=20, pady=10)
+        
+        # Headteacher signature
+        sig_frame = ctk.CTkFrame(sig_container, width=200, height=120)
+        sig_frame.pack(side="right", padx=20, pady=10)
+        
+        try:
+            signature_path = self.school_config.get('signatures', {}).get('headteacher', '')
+            if signature_path and os.path.exists(signature_path):
+                sig_img = Image.open(signature_path).resize((180, 80))
+                sig_photo = ctk.CTkImage(sig_img)
+                sig_label = ctk.CTkLabel(sig_frame, image=sig_photo, text="")
+                sig_label.pack(pady=5)
+                
+                sig_name_label = ctk.CTkLabel(sig_frame, text="Headteacher",
+                                             font=("Arial Bold", 12), text_color="#2c3e50")
+                sig_name_label.pack(pady=2)
+            else:
+                sig_label = ctk.CTkLabel(sig_frame, text="HEADTEACHER\nSIGNATURE",
+                                        font=("Arial Bold", 10), text_color="gray")
+                sig_label.pack(pady=20)
+        except:
+            sig_label = ctk.CTkLabel(sig_frame, text="HEADTEACHER\nSIGNATURE",
+                                    font=("Arial Bold", 10), text_color="gray")
+            sig_label.pack(pady=20)
+        
+        # Date and class teacher info
+        info_frame = ctk.CTkFrame(sig_container, fg_color="transparent")
+        info_frame.pack(side="left", fill="both", expand=True, padx=20, pady=10)
+        
+        # Get class teacher
+        class_teacher = self.get_class_teacher(student['grade'])
+        if class_teacher:
+            teacher_label = ctk.CTkLabel(info_frame, text=f"Class Teacher: {class_teacher}",
+                                        font=("Arial", 13), text_color="#2c3e50")
+            teacher_label.pack(pady=5, anchor="w")
+        
+        # Date
+        date_label = ctk.CTkLabel(info_frame, text=f"Date: {datetime.datetime.now().strftime('%d/%m/%Y')}",
+                                 font=("Arial", 13), text_color="#2c3e50")
+        date_label.pack(pady=5, anchor="w")
     
     def print_report_pdf(self, container, student):
         # Placeholder for PDF generation
