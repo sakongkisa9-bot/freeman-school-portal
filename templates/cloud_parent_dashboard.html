@@ -16,14 +16,29 @@
     .report-header {
         display: flex;
         justify-content: space-between;
-        align-items: flex-start;
+        align-items: center;
         border-bottom: 2px solid #000;
         padding-bottom: 15px;
         margin-bottom: 15px;
     }
     
+    .school-logo {
+        width: 80px;
+        height: 80px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .school-logo img {
+        width: 80px;
+        height: 80px;
+        object-fit: contain;
+    }
+    
     .school-info {
         flex: 1;
+        text-align: center;
     }
     
     .school-info h1 {
@@ -40,14 +55,32 @@
     
     .student-photo {
         width: 80px;
-        height: 80px;
+        height: 100px;
         border: 2px solid #000;
-        background: #f0f0f0;
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
+    
+    .student-photo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .passport-placeholder {
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #e0e0e0 0%, #ffffff 50%, #e0e0e0 100%);
         display: flex;
         align-items: center;
         justify-content: center;
         font-size: 10px;
         text-align: center;
+        color: #666;
+        border: 1px solid #999;
     }
     
     .student-metadata {
@@ -186,20 +219,30 @@
     <div class="report-card">
         <!-- Header -->
         <div class="report-header">
+            <!-- School Logo (Left) -->
+            <div class="school-logo">
+                {% if school_logo %}
+                <img src="{{ school_logo }}" alt="School Logo">
+                {% else %}
+                <div class="passport-placeholder">School<br>Logo</div>
+                {% endif %}
+            </div>
+            
+            <!-- School Info (Center) -->
             <div class="school-info">
                 <h1>{{ school_name }}</h1>
-                <p>Learner Assessment Report Card</p>
-                <p>August 2024</p>
+                <p>{{ school_address|default('School Address') }}</p>
+                <p>{{ school_telephone|default('Tel: ') }}</p>
             </div>
-            {% if school_logo %}
-            <div class="student-photo" style="background: none; border: none; overflow: hidden;">
-                <img src="{{ school_logo }}" alt="School Logo" style="width: 80px; height: 80px; object-fit: contain;">
-            </div>
-            {% else %}
+            
+            <!-- Student Photo (Right) -->
             <div class="student-photo">
-                Student<br>Photo
+                {% if student_photo %}
+                <img src="{{ student_photo }}" alt="Student Photo">
+                {% else %}
+                <div class="passport-placeholder">Student<br>Photo</div>
+                {% endif %}
             </div>
-            {% endif %}
         </div>
 
         <!-- Student Metadata -->
