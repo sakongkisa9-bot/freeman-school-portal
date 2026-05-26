@@ -119,7 +119,10 @@ def init_db():
             email TEXT,
             password_hash TEXT NOT NULL,
             portal_open INTEGER DEFAULT 0,
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            school_address TEXT,
+            school_telephone TEXT,
+            school_logo TEXT
         )
     """)
     # Add portal_open column if it doesn't exist (for existing databases)
@@ -131,6 +134,17 @@ def init_db():
     else:
         # Update existing schools to have portal_open = 0 (closed) by default
         cursor.execute("UPDATE schools SET portal_open = 0 WHERE portal_open IS NULL")
+        conn.commit()
+    
+    # Add school details columns if they don't exist
+    if 'school_address' not in columns:
+        cursor.execute("ALTER TABLE schools ADD COLUMN school_address TEXT")
+        conn.commit()
+    if 'school_telephone' not in columns:
+        cursor.execute("ALTER TABLE schools ADD COLUMN school_telephone TEXT")
+        conn.commit()
+    if 'school_logo' not in columns:
+        cursor.execute("ALTER TABLE schools ADD COLUMN school_logo TEXT")
         conn.commit()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS teachers (
@@ -507,6 +521,7 @@ def api_sync_students():
     data = request.json
     school_code = data.get("school_code").strip().lower()
     students_list = data.get("students", [])
+    school_details = data.get("school_details", {})
 
     if not school_code:
         return jsonify({"success": False, "message": "Missing school code"}), 400
@@ -528,10 +543,27 @@ def api_sync_students():
                 404,
             )
         school_id = school["id"]
-        # 2. Delete all existing students for this school
+        
+        # 2. Update school details if provided
+        if school_details:
+            conn.execute(
+                """
+                UPDATE schools 
+                SET school_address = ?, school_telephone = ?, school_logo = ?
+                WHERE id = ?
+            """,
+                (
+                    school_details.get("school_address"),
+                    school_details.get("school_telephone"),
+                    school_details.get("school_logo"),
+                    school_id,
+                ),
+            )
+        
+        # 3. Delete all existing students for this school
         conn.execute("DELETE FROM students WHERE school_id = ?", (school_id,))
 
-        # 3. Insert new students
+        # 4. Insert new students
         for s in students_list:
             conn.execute(
                 """
@@ -1241,6 +1273,20 @@ def parent_dashboard():
         elif grade in ["Grade 7", "Grade 8", "Grade 9"]:
             current_exam_title = "JSS ASSESSMENT"
 
+        # Fetch school details from database
+        school = conn.execute(
+            """
+            SELECT school_address, school_telephone, school_logo 
+            FROM schools 
+            WHERE school_name = ?
+            """,
+            (session["parent_school_name"],)
+        ).fetchone()
+
+        school_address = school["school_address"] if school else None
+        school_telephone = school["school_telephone"] if school else None
+        school_logo = school["school_logo"] if school else None
+
         logging.info("Rendering dashboard template")
         return render_template(
             "cloud_parent_dashboard.html",
@@ -1248,9 +1294,11 @@ def parent_dashboard():
             adm_no=session["parent_adm_no"],
             grade=session["parent_grade"],
             school_name=session["parent_school_name"],
+            school_address=school_address,
+            school_telephone=school_telephone,
+            school_logo=school_logo,
             report=report_data,
             previous_exams=previous_exams,
-            school_logo=None,
             current_exam_title=current_exam_title
         )
     except Exception as e:
