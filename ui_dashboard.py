@@ -384,13 +384,24 @@ class Dashboard(ctk.CTk):
         return True
 
     def image_to_base64(self, image_path):
-        """Convert an image file to base64 string"""
+        """Convert an image file to base64 string with data URI prefix"""
         if not image_path or not os.path.exists(image_path):
             return None
         try:
             with open(image_path, "rb") as image_file:
                 import base64
-                return base64.b64encode(image_file.read()).decode('utf-8')
+                # Get file extension to determine MIME type
+                ext = os.path.splitext(image_path)[1].lower()
+                mime_type = {
+                    '.png': 'image/png',
+                    '.jpg': 'image/jpeg',
+                    '.jpeg': 'image/jpeg',
+                    '.gif': 'image/gif',
+                    '.bmp': 'image/bmp'
+                }.get(ext, 'image/png')
+                
+                base64_data = base64.b64encode(image_file.read()).decode('utf-8')
+                return f"data:{mime_type};base64,{base64_data}"
         except Exception as e:
             print(f"Error converting image to base64: {e}")
             return None
