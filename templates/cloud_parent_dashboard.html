@@ -4,213 +4,429 @@
 
 {% block content %}
 <style>
-    .report-card {
-        font-family: 'Courier New', Courier, monospace;
-        background: white;
-        border: 2px solid #000;
-        max-width: 900px;
-        margin: 20px auto;
-        padding: 20px;
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
     }
-    
+
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+    }
+
+    .min-h-screen {
+        min-height: 100vh;
+        padding: 0;
+    }
+
+    .report-card {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+    }
+
+    @media (min-width: 768px) {
+        .report-card {
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 30px;
+            min-height: calc(100vh - 40px);
+        }
+    }
+
     .report-header {
         display: flex;
-        justify-content: space-between;
+        flex-direction: column;
         align-items: center;
-        border-bottom: 2px solid #000;
-        padding-bottom: 15px;
-        margin-bottom: 15px;
+        border-bottom: 3px solid #667eea;
+        padding-bottom: 20px;
+        margin-bottom: 20px;
+        gap: 20px;
     }
-    
+
+    @media (min-width: 768px) {
+        .report-header {
+            flex-direction: row;
+            justify-content: space-between;
+            gap: 0;
+        }
+    }
+
     .school-logo {
-        width: 80px;
-        height: 80px;
+        width: 100px;
+        height: 100px;
         display: flex;
         align-items: center;
         justify-content: center;
-        border: 2px solid #000;
-        background: #fff;
+        border: 3px solid #667eea;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
     }
-    
+
+    @media (min-width: 768px) {
+        .school-logo {
+            width: 120px;
+            height: 120px;
+        }
+    }
+
     .school-logo img {
-        width: 80px;
-        height: 80px;
+        width: 100%;
+        height: 100%;
         object-fit: contain;
+        border-radius: 10px;
     }
-    
+
     .school-info {
         flex: 1;
         text-align: center;
+        padding: 0 10px;
     }
-    
+
     .school-info h1 {
-        font-size: 18px;
+        font-size: 20px;
         font-weight: bold;
-        margin: 0 0 5px 0;
+        margin: 0 0 8px 0;
         text-transform: uppercase;
+        color: #667eea;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
     }
-    
+
+    @media (min-width: 768px) {
+        .school-info h1 {
+            font-size: 28px;
+        }
+    }
+
     .school-info p {
-        font-size: 12px;
-        margin: 2px 0;
+        font-size: 13px;
+        margin: 4px 0;
+        color: #555;
     }
-    
+
+    @media (min-width: 768px) {
+        .school-info p {
+            font-size: 14px;
+        }
+    }
+
     .student-photo {
-        width: 80px;
-        height: 100px;
-        border: 2px solid #000;
-        background: #fff;
+        width: 100px;
+        height: 120px;
+        border: 3px solid #764ba2;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
         display: flex;
         align-items: center;
         justify-content: center;
         overflow: hidden;
+        box-shadow: 0 4px 15px rgba(118, 75, 162, 0.3);
     }
-    
+
+    @media (min-width: 768px) {
+        .student-photo {
+            width: 120px;
+            height: 140px;
+        }
+    }
+
     .student-photo img {
         width: 100%;
         height: 100%;
         object-fit: cover;
+        border-radius: 10px;
     }
-    
+
     .passport-placeholder {
         background: linear-gradient(135deg, #e0e0e0 0%, #ffffff 50%, #e0e0e0 100%) !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        font-size: 10px !important;
+        font-size: 11px !important;
         text-align: center !important;
         color: #666 !important;
-        border: 2px solid #000 !important;
+        border: 2px solid #999 !important;
+        border-radius: 10px !important;
     }
-    
+
     .student-metadata {
         display: flex;
-        gap: 30px;
-        margin-bottom: 15px;
+        flex-wrap: wrap;
+        gap: 15px;
+        margin-bottom: 20px;
         font-size: 13px;
+        justify-content: center;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        padding: 15px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
     }
-    
+
+    @media (min-width: 768px) {
+        .student-metadata {
+            gap: 30px;
+            font-size: 14px;
+            justify-content: flex-start;
+        }
+    }
+
     .metadata-item {
         display: flex;
-        gap: 5px;
+        gap: 8px;
+        align-items: center;
     }
-    
+
     .metadata-label {
         font-weight: bold;
+        color: #667eea;
     }
-    
+
     .report-table {
         width: 100%;
         border-collapse: collapse;
-        margin-bottom: 15px;
+        margin-bottom: 20px;
         font-size: 12px;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
     }
-    
+
+    @media (min-width: 768px) {
+        .report-table {
+            font-size: 13px;
+        }
+    }
+
+    .report-table thead {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
     .report-table th,
     .report-table td {
-        border: 1px solid #000;
-        padding: 6px 8px;
+        border: 1px solid #e0e0e0;
+        padding: 10px 8px;
         text-align: center;
     }
-    
+
+    @media (min-width: 768px) {
+        .report-table th,
+        .report-table td {
+            padding: 12px 10px;
+        }
+    }
+
     .report-table th {
-        background: #f5f5f5;
+        color: white;
         font-weight: bold;
         text-transform: uppercase;
         font-size: 11px;
     }
-    
+
+    @media (min-width: 768px) {
+        .report-table th {
+            font-size: 12px;
+        }
+    }
+
     .report-table td.left-align {
         text-align: left;
     }
-    
+
     .report-table tr.summary-row {
-        background: #e8e8e8;
+        background: linear-gradient(135deg, #f5f7fa 0%, #e8e8e8 100%);
         font-weight: bold;
+        color: #667eea;
     }
-    
+
+    .report-table tbody tr:nth-child(even) {
+        background: #f9f9f9;
+    }
+
+    .report-table tbody tr:hover {
+        background: #e8f4f8;
+    }
+
     .performance-summary {
         display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background: #f5f5f5;
-        border: 1px solid #000;
-        padding: 10px 15px;
-        margin-bottom: 15px;
+        flex-direction: column;
+        gap: 15px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        padding: 20px;
+        margin-bottom: 20px;
         font-size: 13px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        color: white;
     }
-    
+
+    @media (min-width: 768px) {
+        .performance-summary {
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+        }
+    }
+
     .summary-item {
         display: flex;
         gap: 10px;
+        align-items: center;
     }
-    
+
     .summary-label {
         font-weight: bold;
     }
-    
+
     .history-section {
-        margin-bottom: 15px;
+        margin-bottom: 20px;
     }
-    
+
     .history-title {
         font-weight: bold;
-        font-size: 14px;
-        margin-bottom: 10px;
+        font-size: 16px;
+        margin-bottom: 15px;
         text-transform: uppercase;
+        color: #667eea;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
     }
-    
+
+    @media (min-width: 768px) {
+        .history-title {
+            font-size: 18px;
+        }
+    }
+
     .history-table {
         width: 100%;
         border-collapse: collapse;
-        margin-bottom: 15px;
+        margin-bottom: 20px;
         font-size: 11px;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
     }
-    
+
+    @media (min-width: 768px) {
+        .history-table {
+            font-size: 12px;
+        }
+    }
+
+    .history-table thead {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
     .history-table th,
     .history-table td {
-        border: 1px solid #000;
-        padding: 4px 6px;
+        border: 1px solid #e0e0e0;
+        padding: 8px 6px;
         text-align: center;
+        color: #333;
     }
-    
+
+    @media (min-width: 768px) {
+        .history-table th,
+        .history-table td {
+            padding: 10px 8px;
+        }
+    }
+
     .history-table th {
-        background: #f5f5f5;
+        color: white;
         font-weight: bold;
     }
-    
-    .graph-container {
-        border: 1px solid #000;
-        padding: 10px;
-        height: 200px;
-        position: relative;
+
+    .history-table tbody tr:nth-child(even) {
+        background: #f9f9f9;
     }
-    
+
+    .graph-container {
+        border: 2px solid #667eea;
+        padding: 15px;
+        height: 250px;
+        position: relative;
+        border-radius: 12px;
+        background: white;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+    }
+
+    @media (min-width: 768px) {
+        .graph-container {
+            height: 300px;
+        }
+    }
+
     .signature-block {
         display: flex;
-        justify-content: space-between;
+        flex-direction: column;
+        gap: 30px;
         margin-top: 30px;
         padding-top: 20px;
     }
-    
-    .signature-section {
-        width: 45%;
+
+    @media (min-width: 768px) {
+        .signature-block {
+            flex-direction: row;
+            justify-content: space-between;
+        }
     }
-    
+
+    .signature-section {
+        width: 100%;
+    }
+
+    @media (min-width: 768px) {
+        .signature-section {
+            width: 45%;
+        }
+    }
+
     .signature-line {
-        border-bottom: 1px solid #000;
+        border-bottom: 2px solid #667eea;
         margin: 20px 0 5px 0;
         height: 40px;
     }
-    
+
     .signature-label {
-        font-size: 11px;
+        font-size: 12px;
         margin-bottom: 3px;
+        color: #667eea;
+        font-weight: bold;
     }
-    
+
     .signature-name {
         font-weight: bold;
-        font-size: 12px;
+        font-size: 14px;
+        color: #333;
+    }
+
+    /* Table scroll for mobile */
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    @media (max-width: 767px) {
+        .report-table,
+        .history-table {
+            font-size: 10px;
+        }
+
+        .report-table th,
+        .report-table td,
+        .history-table th,
+        .history-table td {
+            padding: 6px 4px;
+        }
     }
 </style>
 
@@ -265,12 +481,13 @@
             </div>
             <div class="metadata-item">
                 <span class="metadata-label">Stream:</span>
-                <span>{{ grade }}</span>
+                <span>{{ student_stream }}</span>
             </div>
         </div>
 
         <!-- Performance Table -->
-        <table class="report-table">
+        <div class="table-responsive">
+            <table class="report-table">
             <thead>
                 <tr>
                     <th class="left-align">Learning Area</th>
@@ -354,6 +571,7 @@
                 </tr>
             </tbody>
         </table>
+        </div>
 
         <!-- Performance Summary -->
         <div class="performance-summary">
@@ -376,7 +594,8 @@
             <div class="history-title">Performance History</div>
             
             {% if previous_exams and previous_exams|length > 0 %}
-            <table class="history-table">
+            <div class="table-responsive">
+                <table class="history-table">
                 <thead>
                     <tr>
                         {% for exam in previous_exams[:8] %}
@@ -392,6 +611,7 @@
                     </tr>
                 </tbody>
             </table>
+            </div>
 
             <div class="graph-container">
                 <canvas id="historyChart"></canvas>

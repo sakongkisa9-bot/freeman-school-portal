@@ -622,7 +622,7 @@ class Dashboard(ctk.CTk):
        # EDIT (Blue)
         # We pass ALL entries and the save button to a new helper function
         edit_btn = ctk.CTkButton(actions_frame, text="✎", width=30, fg_color="#1f538d",
-                                 command=lambda e=[adm, name, grade, gender, phone, stream], b=save_btn: self.unlock_row_for_edit(e, b))
+                                 command=lambda e=[adm, name, grade, gender, phone, stream, photo_path], b=save_btn, pb=photo_btn: self.unlock_row_for_edit(e, b, pb))
         edit_btn.pack(side="left", padx=2)
 
        # DELETE (Red)
@@ -642,10 +642,17 @@ class Dashboard(ctk.CTk):
             photo_path_var.set(file_path)
             photo_btn.configure(text="✓ Photo")
 
-    def unlock_row_for_edit(self, entries, save_button):
+    def unlock_row_for_edit(self, entries, save_button, photo_btn=None):
         """Unlocks a row and RE-LINKS the save button to the database function"""
-        for entry in entries:
-            entry.configure(state="normal", fg_color="white", text_color="black")
+        # Unlock all entry fields (first 6 are CTkEntry, last is StringVar for photo)
+        for i, entry in enumerate(entries):
+            if i < 6 and isinstance(entry, ctk.CTkEntry):
+                entry.configure(state="normal", fg_color="white", text_color="black")
+
+        # Enable photo button if it exists
+        if photo_btn:
+            photo_btn.configure(state="normal", fg_color="#1f538d",
+                                command=lambda: self.upload_student_photo(entries[6], photo_btn))
 
         # We must re-configure the command so it knows to save again when clicked
         save_button.configure(
@@ -811,29 +818,53 @@ class Dashboard(ctk.CTk):
         row_frame = ctk.CTkFrame(self.table_frame, fg_color="#2b2b2b", height=40)
         row_frame.pack(fill="x", pady=2, padx=5)
         self.all_student_rows.append(row_frame)
-        row_frame.grid_columnconfigure((0, 1, 2, 3, 4), weight=1, uniform="column")
+
+        # Configure grid columns for 7 columns + actions
+        for i in range(7):
+            row_frame.grid_columnconfigure(i, weight=1, uniform="column_group")
+        row_frame.grid_columnconfigure(7, weight=0, minsize=150)
 
         # Create entries and insert the data from 'student' tuple
         entries = []
+        # Create 5 main entry fields (adm, name, grade, gender, phone)
+        # Handle old records that might not have all columns
         for i in range(5):
             e = ctk.CTkEntry(row_frame, fg_color="gray30", text_color="white", state="normal")
-            e.insert(0, data[i]) # Put the DB info (ADM, Name, etc) into the box
+            value = str(data[i]) if i < len(data) and data[i] is not None else ""
+            e.insert(0, value) # Put the DB info (ADM, Name, etc) into the box
             e.configure(state="disabled") # Lock it immediately
             e.grid(row=0, column=i, padx=2, pady=5, sticky="ew")
             entries.append(e)
 
-        # Add the action buttons (Save, Edit, Delete) same as add_empty_row
+        # Stream field (column 5)
+        stream_value = str(data[6]) if len(data) > 6 and data[6] is not None else "None"
+        stream = ctk.CTkEntry(row_frame, fg_color="gray30", text_color="white", state="normal")
+        stream.insert(0, stream_value)
+        stream.configure(state="disabled")
+        stream.grid(row=0, column=5, padx=2, pady=5, sticky="ew")
+        entries.append(stream)
+
+        # Photo field (column 6)
+        photo_value = data[5] if len(data) > 5 else None
+        photo_path = ctk.StringVar(value=photo_value or "")
+        photo_btn = ctk.CTkButton(row_frame, text="✓ Photo" if photo_value else "📷 Photo", width=80, height=30,
+                                   state="disabled", fg_color="gray")
+        photo_btn.grid(row=0, column=6, padx=2, pady=5, sticky="ew")
+        entries.append(photo_path)  # Store the StringVar in entries list
+
+        # Add the action buttons (Save, Edit, Delete)
         actions_frame = ctk.CTkFrame(row_frame, fg_color="transparent")
-        actions_frame.grid(row=0, column=5, padx=5)
+        actions_frame.grid(row=0, column=7, padx=5)
 
         # The Save button starts as "Saved"
         save_btn = ctk.CTkButton(actions_frame, text="Saved", width=40, fg_color="gray", state="disabled",
-                                 command=lambda: self.save_to_db(entries[0], entries[1], entries[2], entries[3], entries[4], save_btn))
+                                 command=lambda: self.save_to_db(entries[0], entries[1], entries[2], entries[3], entries[4], entries[5], entries[6], save_btn))
         save_btn.pack(side="left", padx=2)
 
         edit_btn = ctk.CTkButton(actions_frame, text="✎", width=30, fg_color="#1f538d",
-                                 command=lambda e=entries, b=save_btn: self.unlock_row_for_edit(e, b))
+                                 command=lambda e=entries, b=save_btn, pb=photo_btn: self.unlock_row_for_edit(e, b, pb))
         edit_btn.pack(side="left", padx=2)
+
         # DELETE (Red)
         # We use entries[0] because that's the ADM NO box we just created in the loop above
         del_btn = ctk.CTkButton(actions_frame, text="🗑", width=30, fg_color="#942727",
@@ -843,19 +874,19 @@ class Dashboard(ctk.CTk):
         """Creates the header row inside the table_frame"""
         header_frame = ctk.CTkFrame(self.table_frame, fg_color="gray25", corner_radius=5)
         header_frame.pack(fill="x", pady=(0, 10)) # pady adds space before the first student
-        
-        # Match the column logic of your rows
-        for i in range(5):
-            header_frame.grid_columnconfigure(i, weight=1, uniform="column_group")
-        header_frame.grid_columnconfigure(5, weight=0, minsize=120)
 
-        cols = ["ADM NO", "STUDENT NAME", "GRADE", "GENDER", "PHONE", "ACTIONS"]
+        # Match the column logic of your rows (7 columns + actions)
+        for i in range(7):
+            header_frame.grid_columnconfigure(i, weight=1, uniform="column_group")
+        header_frame.grid_columnconfigure(7, weight=0, minsize=150)
+
+        cols = ["ADM NO", "STUDENT NAME", "GRADE", "GENDER", "PHONE", "STREAM", "PHOTO", "ACTIONS"]
         for i, text in enumerate(cols):
             lbl = ctk.CTkLabel(header_frame, text=text, font=("Arial Bold", 12), text_color="white")
-            if i < 5:
+            if i < 7:
                 lbl.grid(row=0, column=i, padx=10, pady=5, sticky="w")
             else:
-                lbl.grid(row=0, column=5, padx=10, pady=5)
+                lbl.grid(row=0, column=7, padx=10, pady=5)
     
     def show_student_registry(self, class_name):
         # 1. Layout: Hide sidebar and expand content
@@ -940,15 +971,15 @@ class Dashboard(ctk.CTk):
                  return
 
             # Use the connection directly to be safe
-            cursor = self.db.conn.cursor() 
-            
-            query = "SELECT adm_no, name, grade, gender, phone FROM students WHERE grade = ?"
+            cursor = self.db.conn.cursor()
+
+            query = "SELECT adm_no, name, grade, gender, phone, photo, stream FROM students WHERE grade = ?"
             cursor.execute(query, (class_name,))
-            
+
             records = cursor.fetchall()
-            
+
             # Clear current list tracker before adding new ones
-            self.all_student_rows = [] 
+            self.all_student_rows = []
 
             for row_data in records:
                 self.add_locked_row(row_data)
@@ -961,26 +992,45 @@ class Dashboard(ctk.CTk):
         row_frame = ctk.CTkFrame(self.table_frame, fg_color="#1a1a1a")
         row_frame.pack(fill="x", pady=2, padx=5)
         self.all_student_rows.append(row_frame)
-        
+
         # --- THE ALIGNMENT FIX ---
-        # Force the first 5 columns to be exactly equal in size
-        for i in range(5):
+        # Force the first 7 columns to be exactly equal in size (5 entries + stream + photo)
+        for i in range(7):
             row_frame.grid_columnconfigure(i, weight=1, uniform="column_group")
         # Keep the actions column fixed
-        row_frame.grid_columnconfigure(5, weight=0, minsize=120)
+        row_frame.grid_columnconfigure(7, weight=0, minsize=150)
 
         entries = []
+        # Create 5 main entry fields (adm, name, grade, gender, phone)
+        # Handle old records that might not have all columns
         for i in range(5):
             # Use sticky="ew" so the entry stretches to fill the uniform column
             e = ctk.CTkEntry(row_frame, fg_color="gray20", text_color="white", height=30)
-            e.insert(0, data[i])
-            e.configure(state="disabled") 
+            value = str(data[i]) if i < len(data) and data[i] is not None else ""
+            e.insert(0, value)
+            e.configure(state="disabled")
             e.grid(row=0, column=i, padx=2, pady=5, sticky="ew")
             entries.append(e)
 
+        # Stream field (column 5)
+        stream_value = str(data[6]) if len(data) > 6 and data[6] is not None else "None"
+        stream = ctk.CTkEntry(row_frame, fg_color="gray20", text_color="white", height=30)
+        stream.insert(0, stream_value)
+        stream.configure(state="disabled")
+        stream.grid(row=0, column=5, padx=2, pady=5, sticky="ew")
+        entries.append(stream)
+
+        # Photo field (column 6)
+        photo_value = data[5] if len(data) > 5 else None
+        photo_path = ctk.StringVar(value=photo_value or "")
+        photo_btn = ctk.CTkButton(row_frame, text="✓ Photo" if photo_value else "📷 Photo", width=80, height=30,
+                                   state="disabled", fg_color="gray")
+        photo_btn.grid(row=0, column=6, padx=2, pady=5, sticky="ew")
+        entries.append(photo_path)  # Store the StringVar in entries list
+
         actions = ctk.CTkFrame(row_frame, fg_color="transparent")
-        actions.grid(row=0, column=5, padx=5)
-        
+        actions.grid(row=0, column=7, padx=5)
+
        # DELETE (Red)
         # We use entries[0] because that's the ADM NO box we just created in the loop above
         del_btn = ctk.CTkButton(actions, text="🗑", width=30, fg_color="#942727",
@@ -990,8 +1040,8 @@ class Dashboard(ctk.CTk):
         save_btn = ctk.CTkButton(actions, text="Saved", width=40, state="disabled", fg_color="gray")
         save_btn.pack(side="left", padx=2)
 
-        edit_btn = ctk.CTkButton(actions, text="✎", width=30, 
-                                 command=lambda e=entries, b=save_btn: self.unlock_row_for_edit(e, b))
+        edit_btn = ctk.CTkButton(actions, text="✎", width=30,
+                                 command=lambda e=entries, b=save_btn, pb=photo_btn: self.unlock_row_for_edit(e, b, pb))
         edit_btn.pack(side="left", padx=2)
         
     def confirm_delete(self, frame, adm_entry):

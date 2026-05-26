@@ -1301,16 +1301,17 @@ def parent_dashboard():
         school_telephone = school["school_telephone"] if school else None
         school_logo = school["school_logo"] if school else None
 
-        # Fetch student photo from database
+        # Fetch student photo and stream from database
         student = conn.execute(
             """
-            SELECT photo FROM students 
+            SELECT photo, stream FROM students
             WHERE student_name = ? AND adm_no = ?
             """,
             (session["parent_student_name"], session["parent_adm_no"])
         ).fetchone()
 
         student_photo = student["photo"] if student and student["photo"] else None
+        student_stream = student["stream"] if student and student["stream"] else "None"
 
         logging.info("Rendering dashboard template")
         return render_template(
@@ -1323,6 +1324,7 @@ def parent_dashboard():
             school_telephone=school_telephone,
             school_logo=school_logo,
             student_photo=student_photo,
+            student_stream=student_stream,
             report=report_data,
             previous_exams=previous_exams,
             current_exam_title=current_exam_title
