@@ -3,99 +3,342 @@
 {% block title %}Parent Dashboard - {{ student_name }}{% endblock %}
 
 {% block content %}
-<div class="min-h-screen bg-gray-100 p-4">
+<style>
+    .report-card {
+        font-family: 'Courier New', Courier, monospace;
+        background: white;
+        border: 2px solid #000;
+        max-width: 900px;
+        margin: 20px auto;
+        padding: 20px;
+    }
+    
+    .report-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        border-bottom: 2px solid #000;
+        padding-bottom: 15px;
+        margin-bottom: 15px;
+    }
+    
+    .school-info {
+        flex: 1;
+    }
+    
+    .school-info h1 {
+        font-size: 18px;
+        font-weight: bold;
+        margin: 0 0 5px 0;
+        text-transform: uppercase;
+    }
+    
+    .school-info p {
+        font-size: 12px;
+        margin: 2px 0;
+    }
+    
+    .student-photo {
+        width: 80px;
+        height: 80px;
+        border: 2px solid #000;
+        background: #f0f0f0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        text-align: center;
+    }
+    
+    .student-metadata {
+        display: flex;
+        gap: 30px;
+        margin-bottom: 15px;
+        font-size: 13px;
+    }
+    
+    .metadata-item {
+        display: flex;
+        gap: 5px;
+    }
+    
+    .metadata-label {
+        font-weight: bold;
+    }
+    
+    .report-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 15px;
+        font-size: 12px;
+    }
+    
+    .report-table th,
+    .report-table td {
+        border: 1px solid #000;
+        padding: 6px 8px;
+        text-align: center;
+    }
+    
+    .report-table th {
+        background: #f5f5f5;
+        font-weight: bold;
+        text-transform: uppercase;
+        font-size: 11px;
+    }
+    
+    .report-table td.left-align {
+        text-align: left;
+    }
+    
+    .report-table tr.summary-row {
+        background: #e8e8e8;
+        font-weight: bold;
+    }
+    
+    .performance-summary {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #f5f5f5;
+        border: 1px solid #000;
+        padding: 10px 15px;
+        margin-bottom: 15px;
+        font-size: 13px;
+    }
+    
+    .summary-item {
+        display: flex;
+        gap: 10px;
+    }
+    
+    .summary-label {
+        font-weight: bold;
+    }
+    
+    .history-section {
+        margin-bottom: 15px;
+    }
+    
+    .history-title {
+        font-weight: bold;
+        font-size: 14px;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+    }
+    
+    .history-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 15px;
+        font-size: 11px;
+    }
+    
+    .history-table th,
+    .history-table td {
+        border: 1px solid #000;
+        padding: 4px 6px;
+        text-align: center;
+    }
+    
+    .history-table th {
+        background: #f5f5f5;
+        font-weight: bold;
+    }
+    
+    .graph-container {
+        border: 1px solid #000;
+        padding: 10px;
+        height: 200px;
+        position: relative;
+    }
+    
+    .signature-block {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 30px;
+        padding-top: 20px;
+    }
+    
+    .signature-section {
+        width: 45%;
+    }
+    
+    .signature-line {
+        border-bottom: 1px solid #000;
+        margin: 20px 0 5px 0;
+        height: 40px;
+    }
+    
+    .signature-label {
+        font-size: 11px;
+        margin-bottom: 3px;
+    }
+    
+    .signature-name {
+        font-weight: bold;
+        font-size: 12px;
+    }
+</style>
+
+<div class="min-h-screen bg-gray-200 p-4">
     {% if report %}
-    <div class="max-w-6xl mx-auto">
-        <!-- Compact Header -->
-        <div class="bg-white rounded-lg shadow-sm p-4 mb-4">
-            <div class="flex justify-between items-center">
-                <div>
-                    <h1 class="text-2xl font-bold text-gray-900">{{ student_name }}</h1>
-                    <p class="text-sm text-gray-600">{{ school_name }} | Class: {{ grade }} | ADM: {{ adm_no }}</p>
-                </div>
-                <div class="text-right">
-                    <p class="text-sm text-gray-600">Position</p>
-                    <p class="text-xl font-bold text-blue-600">{{ report.current_marks.rank|default('N/A') }} / 45</p>
-                </div>
+    <div class="report-card">
+        <!-- Header -->
+        <div class="report-header">
+            <div class="school-info">
+                <h1>{{ school_name }}</h1>
+                <p>Learner Assessment Report Card</p>
+                <p>August 2024</p>
             </div>
-            <div class="grid grid-cols-3 gap-4 mt-4">
-                <div class="bg-blue-50 rounded p-3 text-center">
-                    <p class="text-xs text-gray-600">Total Points</p>
-                    <p class="text-lg font-bold text-gray-900">{{ report.current_marks.total_points|default('0') }}</p>
-                </div>
-                <div class="bg-green-50 rounded p-3 text-center">
-                    <p class="text-xs text-gray-600">Average Level</p>
-                    <p class="text-lg font-bold text-gray-900">{{ report.current_marks.average_level|default('N/A') }}</p>
-                </div>
-                <div class="bg-purple-50 rounded p-3 text-center">
-                    <p class="text-xs text-gray-600">Trend</p>
-                    <p class="text-lg font-bold text-gray-900">
-                        {% if report.trend == 'improving' %}↑{% elif report.trend == 'declining' %}↓{% else %}→{% endif %}
-                    </p>
-                </div>
+            <div class="student-photo">
+                Student<br>Photo
             </div>
         </div>
 
-        <!-- Two Column Layout -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <!-- Left Column: Subject Table -->
-            <div class="bg-white rounded-lg shadow-sm p-4">
-                <h2 class="text-lg font-bold text-gray-900 mb-3">Subject Performance</h2>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="bg-gray-50">
-                                <th class="px-2 py-2 text-left text-xs font-medium text-gray-500">Subject</th>
-                                <th class="px-2 py-2 text-center text-xs font-medium text-gray-500">Score</th>
-                                <th class="px-2 py-2 text-center text-xs font-medium text-gray-500">Rate</th>
-                                <th class="px-2 py-2 text-center text-xs font-medium text-gray-500">Points</th>
-                                <th class="px-2 py-2 text-center text-xs font-medium text-gray-500">Class Avg</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200">
-                            {% for subject, data in report.current_marks.items() %}
-                            {% if subject not in ['total_points', 'average_level', 'rank'] %}
-                            {% set subject_name = subject|replace('_s', '')|replace('_r', '')|replace('_p', '')|upper %}
-                            {% set score = report.current_marks[subject]|default('-') %}
-                            {% set rate = report.current_marks[subject.replace('_s', '_r')]|default('-') %}
-                            {% set points = report.current_marks[subject.replace('_s', '_p')]|default('-') %}
-                            <tr>
-                                <td class="px-2 py-2 font-medium text-gray-900">{{ subject_name }}</td>
-                                <td class="px-2 py-2 text-center text-gray-900">{{ score }}</td>
-                                <td class="px-2 py-2 text-center text-gray-900">{{ rate }}</td>
-                                <td class="px-2 py-2 text-center text-gray-900">{{ points }}</td>
-                                <td class="px-2 py-2 text-center text-gray-900">50</td>
-                            </tr>
-                            {% endif %}
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+        <!-- Student Metadata -->
+        <div class="student-metadata">
+            <div class="metadata-item">
+                <span class="metadata-label">Name:</span>
+                <span>{{ student_name }}</span>
             </div>
+            <div class="metadata-item">
+                <span class="metadata-label">Adm No:</span>
+                <span>{{ adm_no }}</span>
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">Class:</span>
+                <span>{{ grade }}</span>
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">Stream:</span>
+                <span>{{ grade }}</span>
+            </div>
+        </div>
 
-            <!-- Right Column: Chart & Comments -->
-            <div class="space-y-4">
-                <!-- Performance Chart -->
-                <div class="bg-white rounded-lg shadow-sm p-4">
-                    <h2 class="text-lg font-bold text-gray-900 mb-3">Performance Trend</h2>
-                    <div class="h-48">
-                        <canvas id="trendChart"></canvas>
-                    </div>
-                </div>
+        <!-- Performance Table -->
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th class="left-align">Learning Area</th>
+                    <th>Exam 1</th>
+                    <th>Exam 2</th>
+                    <th>Exam 3</th>
+                    <th>AVG</th>
+                    <th>Performance Level</th>
+                    <th class="left-align">Teacher</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for subject, data in report.current_marks.items() %}
+                {% if subject not in ['total_points', 'average_level', 'rank'] %}
+                {% set subject_name = subject|replace('_s', '')|replace('_r', '')|replace('_p', '')|replace('_', ' ')|title %}
+                {% set score = report.current_marks[subject]|default('-') %}
+                {% set exam2 = report.current_marks[subject.replace('_s', '_r')]|default('-') %}
+                {% set exam3 = report.current_marks[subject.replace('_s', '_p')]|default('-') %}
+                <tr>
+                    <td class="left-align">{{ subject_name }}</td>
+                    <td>{{ score }}</td>
+                    <td>{{ exam2 }}</td>
+                    <td>{{ exam3 }}</td>
+                    <td>{{ ((score + exam2 + exam3) / 3)|round(0) if score != '-' and exam2 != '-' and exam3 != '-' else '-' }}</td>
+                    <td>{{ 'Meeting Expectations' if score|int >= 50 else 'Approaching Expectations' }}</td>
+                    <td class="left-align">-</td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+                <tr class="summary-row">
+                    <td class="left-align">TOTAL SCORES</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>{{ report.current_marks.total_points|default('0') }}</td>
+                    <td>-</td>
+                    <td class="left-align">-</td>
+                </tr>
+                <tr class="summary-row">
+                    <td class="left-align">AVERAGE</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>{{ report.current_marks.average_level|default('N/A') }}</td>
+                    <td>-</td>
+                    <td class="left-align">-</td>
+                </tr>
+            </tbody>
+        </table>
 
-                <!-- Comments -->
-                <div class="bg-white rounded-lg shadow-sm p-4">
-                    <h2 class="text-lg font-bold text-gray-900 mb-3">Teacher's Comments</h2>
-                    <div class="bg-blue-50 rounded p-3 mb-2">
-                        <p class="text-sm text-gray-700">{{ report.overall_comment|default('No comment available.') }}</p>
-                    </div>
-                    {% for subject_comment in report.subject_comments %}
-                    <div class="rounded p-2 mb-1 {% if subject_comment.type == 'positive' %}bg-green-50{% elif subject_comment.type == 'negative' %}bg-red-50{% else %}bg-yellow-50{% endif %}">
-                        <p class="text-xs font-medium text-gray-900">{{ subject_comment.subject }}:</p>
-                        <p class="text-xs text-gray-700">{{ subject_comment.comment }}</p>
-                    </div>
-                    {% endfor %}
-                </div>
+        <!-- Performance Summary -->
+        <div class="performance-summary">
+            <div class="summary-item">
+                <span class="summary-label">Termly Average Score:</span>
+                <span>{{ report.current_marks.average_level|default('0') }}</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Termly Performance Level:</span>
+                <span>{{ 'Meeting Expectations' if report.current_marks.average_level|int >= 50 else 'Approaching Expectations' }}</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Rank:</span>
+                <span>{{ report.current_marks.rank|default('N/A') }} out of 45</span>
+            </div>
+        </div>
+
+        <!-- History Section -->
+        <div class="history-section">
+            <div class="history-title">Performance History</div>
+            
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th>T1</th>
+                        <th>T2</th>
+                        <th>T3</th>
+                        <th>T4</th>
+                        <th>T5</th>
+                        <th>T6</th>
+                        <th>T7</th>
+                        <th>T8</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        {% for score in report.exam_scores[:8] %}
+                        <td>{{ score }}</td>
+                        {% endfor %}
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="graph-container">
+                <canvas id="historyChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Comments -->
+        <div class="history-section">
+            <div class="history-title">Teacher and Administrator Comments</div>
+            <div style="border: 1px solid #000; padding: 10px; margin-bottom: 10px; font-size: 12px;">
+                <strong>Class Teacher:</strong> {{ report.overall_comment|default('No comment available.') }}
+            </div>
+            <div style="border: 1px solid #000; padding: 10px; font-size: 12px;">
+                <strong>Head Teacher:</strong> Need to meet expectations in the next term's exams. There is potential.
+            </div>
+        </div>
+
+        <!-- Signature Block -->
+        <div class="signature-block">
+            <div class="signature-section">
+                <div class="signature-label">Class Teacher</div>
+                <div class="signature-name">Leah Gay</div>
+                <div class="signature-line"></div>
+                <div class="signature-label">Date: _______________</div>
+            </div>
+            <div class="signature-section">
+                <div class="signature-label">Head Teacher</div>
+                <div class="signature-name">Trevor Doen</div>
+                <div class="signature-line"></div>
+                <div class="signature-label">Date: _______________</div>
             </div>
         </div>
     </div>
@@ -113,29 +356,56 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 {% if report %}
-const trendCtx = document.getElementById('trendChart').getContext('2d');
-new Chart(trendCtx, {
+const historyCtx = document.getElementById('historyChart').getContext('2d');
+new Chart(historyCtx, {
     type: 'line',
     data: {
-        labels: {{ report.exam_labels|tojson }},
+        labels: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8'],
         datasets: [{
-            label: 'Total Points',
-            data: {{ report.exam_scores|tojson }},
-            borderColor: '#3B82F6',
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            label: 'Average Score',
+            data: {{ report.exam_scores[:8]|tojson }},
+            borderColor: '#000',
+            backgroundColor: 'transparent',
             borderWidth: 2,
-            tension: 0.4,
-            fill: true,
-            pointRadius: 4
+            tension: 0,
+            fill: false,
+            pointRadius: 3,
+            pointBackgroundColor: '#000'
         }]
     },
     options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        plugins: { 
+            legend: { display: false } 
+        },
         scales: {
-            y: { beginAtZero: true, grid: { color: '#E5E7EB' } },
-            x: { grid: { display: false } }
+            y: { 
+                beginAtZero: true, 
+                max: 80,
+                grid: { 
+                    color: '#ccc',
+                    drawBorder: true
+                },
+                ticks: {
+                    font: {
+                        family: 'Courier New',
+                        size: 10
+                    }
+                }
+            },
+            x: { 
+                grid: { 
+                    color: '#ccc',
+                    drawBorder: true
+                },
+                ticks: {
+                    font: {
+                        family: 'Courier New',
+                        size: 10
+                    }
+                }
+            }
         }
     }
 });
