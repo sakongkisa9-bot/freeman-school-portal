@@ -169,6 +169,7 @@ def init_db():
             gender TEXT,
             phone TEXT,
             photo TEXT,
+            stream TEXT,
             UNIQUE(school_id, grade, adm_no),
             FOREIGN KEY(school_id) REFERENCES schools(id)
         )
@@ -178,6 +179,10 @@ def init_db():
     columns = [column[1] for column in cursor.fetchall()]
     if 'photo' not in columns:
         cursor.execute("ALTER TABLE students ADD COLUMN photo TEXT")
+        conn.commit()
+    # Add stream column if it doesn't exist
+    if 'stream' not in columns:
+        cursor.execute("ALTER TABLE students ADD COLUMN stream TEXT")
         conn.commit()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS marks (
@@ -574,8 +579,8 @@ def api_sync_students():
         for s in students_list:
             conn.execute(
                 """
-                INSERT INTO students (school_id, grade, adm_no, student_name, gender, phone, photo)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO students (school_id, grade, adm_no, student_name, gender, phone, photo, stream)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     school_id,
@@ -585,6 +590,7 @@ def api_sync_students():
                     s.get("gender"),
                     s.get("phone"),
                     s.get("photo"),
+                    s.get("stream", "None"),
                 ),
             )
 

@@ -311,7 +311,7 @@ class Dashboard(ctk.CTk):
 
     def get_local_student_list(self):
         try:
-            self.db._cursor.execute('SELECT adm_no, name, grade, gender, phone, photo FROM students ORDER BY grade, adm_no')
+            self.db._cursor.execute('SELECT adm_no, name, grade, gender, phone, photo, stream FROM students ORDER BY grade, adm_no')
             rows = self.db._cursor.fetchall()
             return [
                 {
@@ -320,7 +320,8 @@ class Dashboard(ctk.CTk):
                     'grade': row[2] or '',
                     'gender': row[3] or '',
                     'phone': row[4] or '',
-                    'photo': row[5] if len(row) > 5 else None
+                    'photo': row[5] if len(row) > 5 else None,
+                    'stream': row[6] if len(row) > 6 else 'None'
                 }
                 for row in rows if row[0] and row[1]
             ]
@@ -576,17 +577,14 @@ class Dashboard(ctk.CTk):
 
         self.all_student_rows.append(row_frame)
 
-        for i in range(5):
+        # Configure grid columns for 7 columns (5 entries + photo + stream + actions)
+        for i in range(7):
             row_frame.grid_columnconfigure(i, weight=1, uniform="column_group")
-        row_frame.grid_columnconfigure(5, weight=0, minsize=120)
-
-        for i in range(5):
-            row_frame.grid_columnconfigure(i, weight=1, uniform="column_group")
-        row_frame.grid_columnconfigure(5, weight=0, minsize=120)
+        row_frame.grid_columnconfigure(7, weight=0, minsize=150)
 
         # 3. Entry Boxes (White Background & Black Text for Clarity)
         entry_style = {"fg_color": "white", "text_color": "black", "height": 30}
-        
+
         adm = ctk.CTkEntry(row_frame, placeholder_text="ADM", **entry_style)
         adm.grid(row=0, column=0, padx=2, pady=5, sticky="ew")
 
@@ -602,19 +600,29 @@ class Dashboard(ctk.CTk):
         phone = ctk.CTkEntry(row_frame, placeholder_text="Phone", **entry_style)
         phone.grid(row=0, column=4, padx=2, pady=5, sticky="ew")
 
+        # Stream field
+        stream = ctk.CTkEntry(row_frame, placeholder_text="Stream", **entry_style)
+        stream.grid(row=0, column=5, padx=2, pady=5, sticky="ew")
+
+        # Photo upload button
+        photo_path = ctk.StringVar()
+        photo_btn = ctk.CTkButton(row_frame, text="📷 Photo", width=80, height=30,
+                                   command=lambda: self.upload_student_photo(photo_path, photo_btn))
+        photo_btn.grid(row=0, column=6, padx=2, pady=5, sticky="ew")
+
         # 4. The Button Actions Frame (This holds Save, Edit, Delete together)
         actions_frame = ctk.CTkFrame(row_frame, fg_color="transparent")
-        actions_frame.grid(row=0, column=5, padx=5)
+        actions_frame.grid(row=0, column=7, padx=5)
 
         # SAVE (Green)
         save_btn = ctk.CTkButton(actions_frame, text="✓", width=30, fg_color="green",
-                                 command=lambda: self.save_to_db(adm, name, grade, gender, phone, save_btn))
+                                 command=lambda: self.save_to_db(adm, name, grade, gender, phone, stream, photo_path, save_btn))
         save_btn.pack(side="left", padx=2)
 
        # EDIT (Blue)
         # We pass ALL entries and the save button to a new helper function
         edit_btn = ctk.CTkButton(actions_frame, text="✎", width=30, fg_color="#1f538d",
-                                 command=lambda e=[adm, name, grade, gender, phone], b=save_btn: self.unlock_row_for_edit(e, b))
+                                 command=lambda e=[adm, name, grade, gender, phone, stream], b=save_btn: self.unlock_row_for_edit(e, b))
         edit_btn.pack(side="left", padx=2)
 
        # DELETE (Red)
@@ -623,24 +631,37 @@ class Dashboard(ctk.CTk):
                                 command=lambda f=row_frame, a=adm: self.confirm_delete(f, a))
         del_btn.pack(side="left", padx=2)
 
+    def upload_student_photo(self, photo_path_var, photo_btn):
+        """Open file dialog to select student photo"""
+        from tkinter import filedialog
+        file_path = filedialog.askopenfilename(
+            title="Select Student Photo",
+            filetypes=[("Image files", "*.png *.jpg *.jpeg *.gif *.bmp")]
+        )
+        if file_path:
+            photo_path_var.set(file_path)
+            photo_btn.configure(text="✓ Photo")
+
     def unlock_row_for_edit(self, entries, save_button):
         """Unlocks a row and RE-LINKS the save button to the database function"""
         for entry in entries:
             entry.configure(state="normal", fg_color="white", text_color="black")
-        
+
         # We must re-configure the command so it knows to save again when clicked
         save_button.configure(
-            state="normal", 
-            text="✓", 
+            state="normal",
+            text="✓",
             fg_color="green",
-            command=lambda: self.save_to_db(entries[0], entries[1], entries[2], entries[3], entries[4], save_button)
+            command=lambda: self.save_to_db(entries[0], entries[1], entries[2], entries[3], entries[4], entries[5], entries[6], save_button)
         )
 
-    def save_to_db(self, adm_entry, name_entry, grade_entry, gender_entry, phone_entry, btn):
+    def save_to_db(self, adm_entry, name_entry, grade_entry, gender_entry, phone_entry, stream_entry, photo_path_var, btn):
         adm = adm_entry.get()
         name = name_entry.get()
         gender = gender_entry.get()
         phone = phone_entry.get()
+        stream = stream_entry.get() if stream_entry else "None"
+        photo = photo_path_var.get() if photo_path_var else None
 
         # --- THE CRITICAL FIX ---
         # This pulls the actual text from your title label
@@ -662,11 +683,12 @@ class Dashboard(ctk.CTk):
 
         try:
             # 1. Save to Database
-            self.db.add_student(adm, name, grade, gender, phone)
+            self.db.add_student(adm, name, grade, gender, phone, photo, stream)
 
             # 2. Lock the Row visually
-            for entry in [adm_entry, name_entry, grade_entry, gender_entry, phone_entry]:
-                entry.configure(state="disabled", fg_color="gray30", text_color="white")
+            for entry in [adm_entry, name_entry, grade_entry, gender_entry, phone_entry, stream_entry]:
+                if entry:
+                    entry.configure(state="disabled", fg_color="gray30", text_color="white")
 
             # 3. Update Button
             btn.configure(text="Saved", state="disabled", fg_color="gray")
@@ -686,14 +708,19 @@ class Dashboard(ctk.CTk):
         for row in self.all_student_rows:
             # 1. Find all Entry boxes in this row and unlock them
             row_entries = []
+            photo_btn = None
             save_btn = None
-            
+
             # We look through all children of the row
             for widget in row.winfo_children():
                 if isinstance(widget, ctk.CTkEntry):
                     widget.configure(state="normal", fg_color="white", text_color="black")
                     row_entries.append(widget)
-                
+
+                # Find photo button
+                if isinstance(widget, ctk.CTkButton) and "Photo" in widget.cget("text"):
+                    photo_btn = widget
+
                 # The Save button is hidden inside the actions frame
                 if isinstance(widget, ctk.CTkFrame):
                     for sub_widget in widget.winfo_children():
@@ -701,14 +728,16 @@ class Dashboard(ctk.CTk):
                             # Identify the Save/Saved button by its text
                             if sub_widget.cget("text") in ["Saved", "✓"]:
                                 save_btn = sub_widget
-            
+
             # 2. Re-link the Save button so it works after being unlocked
-            if save_btn and len(row_entries) >= 5:
+            if save_btn and len(row_entries) >= 6:
+                # Create a StringVar for photo path if not exists
+                photo_path = ctk.StringVar()
                 save_btn.configure(
-                    state="normal", 
-                    text="✓", 
+                    state="normal",
+                    text="✓",
                     fg_color="green",
-                    command=lambda r=row_entries, b=save_btn: self.save_to_db(r[0], r[1], r[2], r[3], r[4], b)
+                    command=lambda r=row_entries, p=photo_path, pb=photo_btn, b=save_btn: self.save_to_db(r[0], r[1], r[2], r[3], r[4], r[5], p, b)
                 )
         print("All rows unlocked for editing.")
 

@@ -44,7 +44,8 @@ class FreemanDB:
                 grade TEXT,
                 gender TEXT,
                 phone TEXT,
-                photo TEXT
+                photo TEXT,
+                stream TEXT
             )
         ''')
         # Add photo column if it doesn't exist (for existing databases)
@@ -53,17 +54,23 @@ class FreemanDB:
             self.conn.commit()
         except:
             pass
+        # Add stream column if it doesn't exist (for existing databases)
+        try:
+            self._cursor.execute("ALTER TABLE students ADD COLUMN stream TEXT")
+            self.conn.commit()
+        except:
+            pass
         self.conn.commit()
 
-    def add_student(self, adm, name, grade, gender, phone):
+    def add_student(self, adm, name, grade, gender, phone, photo=None, stream=None):
         try:
             # We use the internal _cursor here
             self._cursor.execute('''
-                INSERT OR REPLACE INTO students (adm_no, name, grade, gender, phone) 
-                VALUES (?, ?, ?, ?, ?)
-            ''', (adm, name, grade, gender, phone))
-            
-            self.conn.commit() 
+                INSERT OR REPLACE INTO students (adm_no, name, grade, gender, phone, photo, stream)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (adm, name, grade, gender, phone, photo, stream or "None"))
+
+            self.conn.commit()
             print(f"Successfully committed {name} to {grade}")
         except Exception as e:
             print(f"Database Error: {e}")
