@@ -788,24 +788,63 @@ class ReportFormsView(ctk.CTkToplevel):
         # Fetch previous exams for this student
         previous_exams_data = []
         previous_exams_list = self.db.get_previous_exams(student['grade'])
+        print(f"DEBUG: Found {len(previous_exams_list)} previous exams in database for grade {student['grade']}")
+        for exam_name, exam_date in previous_exams_list:
+            print(f"DEBUG: Previous exam: {exam_name} at {exam_date}")
         
         for exam_name, exam_date in previous_exams_list[:2]:  # Get up to 2 previous exams
             marks_data, summary_data = self.db.get_previous_exam_data(exam_name, student['grade'])
+            print(f"DEBUG: Got marks_data for {exam_name}: {marks_data is not None}")
             if marks_data:
                 # Parse the marks data to extract this student's marks
                 try:
                     import json
-                    marks_dict = json.loads(marks_data) if isinstance(marks_data, str) else marks_data
-                    # Find this student's marks
-                    student_key = "".join(student['name'].split()).lower()
-                    if student_key in marks_dict:
-                        previous_exams_data.append({
-                            'exam_name': exam_name,
-                            'exam_date': exam_date,
-                            'marks': marks_dict[student_key]
-                        })
-                except:
+                    # Handle both list and dict structures
+                    if isinstance(marks_data, str):
+                        marks_data = json.loads(marks_data)
+                    
+                    if isinstance(marks_data, list):
+                        # List format: [[name, score1, rating1, score2, rating2, ...], ...]
+                        print(f"DEBUG: Marks data is a list with {len(marks_data)} students")
+                        for student_record in marks_data:
+                            if len(student_record) > 0:
+                                record_name = student_record[0]
+                                record_key = "".join(record_name.split()).lower()
+                                if record_key == "".join(student['name'].split()).lower():
+                                    # Found the student, extract their marks
+                                    # Convert list to dict format similar to current_marks
+                                    marks_dict = {}
+                                    # Assuming format: [name, score1, rating1, score2, rating2, ...]
+                                    # We need to know the subject names to map correctly
+                                    # For now, store as raw list
+                                    previous_exams_data.append({
+                                        'exam_name': exam_name,
+                                        'exam_date': exam_date,
+                                        'marks': student_record[1:]  # Skip name, keep marks
+                                    })
+                                    print(f"DEBUG: Added previous exam {exam_name} with list marks")
+                                    break
+                    elif isinstance(marks_data, dict):
+                        print(f"DEBUG: Marks dict keys: {list(marks_dict.keys())[:5]}")  # Show first 5 keys
+                        # Find this student's marks
+                        student_key = "".join(student['name'].split()).lower()
+                        print(f"DEBUG: Looking for student key: {student_key} in marks_dict")
+                        if student_key in marks_dict:
+                            previous_exams_data.append({
+                                'exam_name': exam_name,
+                                'exam_date': exam_date,
+                                'marks': marks_dict[student_key]
+                            })
+                            print(f"DEBUG: Added previous exam {exam_name} with dict marks")
+                        else:
+                            print(f"DEBUG: Student key not found in marks_dict")
+                except Exception as e:
+                    print(f"DEBUG: Error parsing marks data: {e}")
+                    import traceback
+                    traceback.print_exc()
                     pass
+        
+        print(f"DEBUG: Total previous_exams_data: {len(previous_exams_data)}")
         
         return {
             'student_name': student['name'],
