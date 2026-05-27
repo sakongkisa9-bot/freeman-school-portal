@@ -1314,9 +1314,31 @@ def parent_dashboard():
                 (school_id, session["parent_grade"], session["parent_adm_no"])
             ).fetchall()
             logging.info(f"Found {len(previous_exams)} previous exams")
+            
+            # Fetch marks for each previous exam
+            previous_exam_marks = {}
+            for exam in previous_exams:
+                exam_title = exam["exam_title"]
+                marks_records = conn.execute(
+                    """
+                    SELECT subject_scores_json FROM marks
+                    WHERE school_id = ? AND grade = ? AND adm_no = ? AND exam_title = ?
+                    """,
+                    (school_id, session["parent_grade"], session["parent_adm_no"], exam_title)
+                ).fetchone()
+                
+                if marks_records:
+                    try:
+                        scores = json.loads(marks_records["subject_scores_json"])
+                        previous_exam_marks[exam_title] = scores
+                    except:
+                        previous_exam_marks[exam_title] = {}
+                else:
+                    previous_exam_marks[exam_title] = {}
         else:
             logging.warning("School not found for previous exams query")
             previous_exams = []
+            previous_exam_marks = {}
 
         # Fetch school details from database
         school = conn.execute(
@@ -1378,6 +1400,7 @@ def parent_dashboard():
             student_stream=student_stream,
             report=report_data,
             previous_exams=previous_exams,
+            previous_exam_marks=previous_exam_marks,
             current_exam_title=current_exam_title,
             teacher_map=teacher_map
         )

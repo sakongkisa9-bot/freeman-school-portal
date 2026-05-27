@@ -520,7 +520,11 @@
                 <tr>
                     <td class="left-align">{{ subject_name }}</td>
                     {% if previous_exams and previous_exams|length > 0 %}
-                        <td>-</td>
+                        {% set prev_exam_title = previous_exams[0].exam_title %}
+                        {% set prev_marks = previous_exam_marks.get(prev_exam_title, {}) %}
+                        {% set subject_key = subject_name.upper().replace(' ', '') %}
+                        {% set prev_score = prev_marks.get(subject_key, {}).get('score', '-') %}
+                        <td>{{ prev_score }}</td>
                     {% else %}
                         <td>-</td>
                     {% endif %}
