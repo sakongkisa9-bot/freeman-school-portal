@@ -1313,13 +1313,21 @@ def parent_dashboard():
         student_photo = student["photo"] if student and student["photo"] else None
         student_stream = student["stream"] if student and student["stream"] else "None"
 
+        # Fetch school_id from database using school_name
+        school = conn.execute(
+            "SELECT id FROM schools WHERE school_name = ?",
+            (session["parent_school_name"],)
+        ).fetchone()
+        
+        school_id = school["id"] if school else None
+
         # Fetch teacher assignments for this grade
         teacher_assignments = conn.execute(
             """
             SELECT subject, teacher_name FROM teacher_assignments
             WHERE school_id = ? AND class_name = ?
             """,
-            (session["school_id"], session["parent_grade"])
+            (school_id, session["parent_grade"])
         ).fetchall()
 
         # Create a dictionary mapping subject to teacher name
