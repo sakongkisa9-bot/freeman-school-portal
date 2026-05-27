@@ -773,6 +773,18 @@ class ReportFormsView(ctk.CTkToplevel):
     def generate_report_data(self, student):
         current_marks = self.get_student_current_marks(student['adm_no'], student['grade'])
         
+        # Determine exam title based on grade
+        grade = student['grade']
+        grade_lower = grade.lower()
+        if grade_lower in ["playgroup", "pp1", "pp2"]:
+            exam_title = self.school_config.get("playgroup_exam_title", "TERM ASSESSMENT")
+        elif grade_lower in ["grade 1", "grade 2", "grade 3", "grade 4", "grade 5", "grade 6"]:
+            exam_title = self.school_config.get("primary_exam_title", "PRIMARY EXAM")
+        elif grade_lower in ["grade 7", "grade 8", "grade 9"]:
+            exam_title = self.school_config.get("jss_exam_title", "JSS ASSESSMENT")
+        else:
+            exam_title = "TERM ASSESSMENT"
+        
         return {
             'student_name': student['name'],
             'adm_no': student['adm_no'],
@@ -780,6 +792,7 @@ class ReportFormsView(ctk.CTkToplevel):
             'school_name': self.school_config.get('school_name', ''),
             'current_marks': current_marks,
             'class_teacher': self.get_class_teacher(student['grade']),
+            'exam_title': exam_title,
             'generated_date': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
     

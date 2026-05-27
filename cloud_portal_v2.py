@@ -1267,25 +1267,33 @@ def parent_dashboard():
             logging.info("No report found for student")
             report_data = None
 
-        # Fetch previous exams for comparison
-        logging.info(f"Fetching previous exams for grade: {session.get('parent_grade')}")
+        # Determine current exam title from report data or use default
+        if report_data and 'exam_title' in report_data:
+            current_exam_title = report_data['exam_title']
+        else:
+            grade = session["parent_grade"]
+            current_exam_title = "Current Exam"
+            if grade in ["playgroup", "pp1", "pp2", "lower"]:
+                current_exam_title = "TERM ASSESSMENT"
+            elif grade in ["Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6"]:
+                current_exam_title = "PRIMARY EXAM"
+            elif grade in ["Grade 7", "Grade 8", "Grade 9"]:
+                current_exam_title = "JSS ASSESSMENT"
+
+        # Fetch previous exams for comparison from marks table
+        logging.info(f"Fetching previous exams for student: {session.get('parent_student_name')}, grade: {session.get('parent_grade')}")
         previous_exams = conn.execute(
             """
-            SELECT exam_name, exam_date FROM previous_exams
-            WHERE class_name = ? ORDER BY exam_date DESC LIMIT 3
+            SELECT DISTINCT exam_title, updated_at as exam_date 
+            FROM marks
+            WHERE school_id = (SELECT id FROM schools WHERE school_name = ?)
+            AND grade = ?
+            AND adm_no = ?
+            AND exam_title != ?
+            ORDER BY updated_at DESC LIMIT 3
             """,
-            (session["parent_grade"],)
+            (session["parent_school_name"], session["parent_grade"], session["parent_adm_no"], current_exam_title)
         ).fetchall()
-
-        # Determine current exam title based on grade
-        grade = session["parent_grade"]
-        current_exam_title = "Current Exam"
-        if grade in ["playgroup", "pp1", "pp2", "lower"]:
-            current_exam_title = "TERM ASSESSMENT"
-        elif grade in ["Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6"]:
-            current_exam_title = "PRIMARY EXAM"
-        elif grade in ["Grade 7", "Grade 8", "Grade 9"]:
-            current_exam_title = "JSS ASSESSMENT"
 
         # Fetch school details from database
         school = conn.execute(
