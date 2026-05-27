@@ -1297,65 +1297,23 @@ def parent_dashboard():
             
             logging.info(f"Using fallback exam_title for grade {grade}: {current_exam_title}")
 
-        # Fetch previous exams for comparison from marks table
-        logging.info(f"Fetching previous exams for student: {session.get('parent_student_name')}, grade: {session.get('parent_grade')}, adm_no: {session.get('parent_adm_no')}")
-        
-        # First, get the school_id
-        school = conn.execute(
-            "SELECT id FROM schools WHERE school_name = ?",
-            (session["parent_school_name"],)
-        ).fetchone()
-        
-        if school:
-            school_id = school["id"]
-            # Fetch all exams for this student, sorted by date
-            all_exams = conn.execute(
-                """
-                SELECT DISTINCT exam_title, updated_at as exam_date 
-                FROM marks
-                WHERE school_id = ?
-                AND grade = ?
-                AND adm_no = ?
-                ORDER BY updated_at DESC
-                """,
-                (school_id, session["parent_grade"], session["parent_adm_no"])
-            ).fetchall()
+        # Use previous exams from report data if available
+        if report_data and 'previous_exams' in report_data:
+            previous_exams_list = report_data['previous_exams']
+            logging.info(f"Using {len(previous_exams_list)} previous exams from report data")
             
-            logging.info(f"Found {len(all_exams)} total exams for student")
-            for exam in all_exams:
-                logging.info(f"  - {exam['exam_title']} at {exam['exam_date']}")
-            
-            # The most recent exam in marks table is the current one (what teacher is entering)
-            # Skip it and use the rest as previous exams
-            if len(all_exams) > 1:
-                previous_exams = all_exams[1:4]  # Skip first, take next 3
-                logging.info(f"Using {len(previous_exams)} previous exams (skipping most recent: {all_exams[0]['exam_title']})")
-            else:
-                previous_exams = []
-                logging.info("Only one exam found, no previous exams to display")
-            
-            # Fetch marks for each previous exam
+            # Convert to format expected by template
+            previous_exams = []
             previous_exam_marks = {}
-            for exam in previous_exams:
-                exam_title = exam["exam_title"]
-                marks_records = conn.execute(
-                    """
-                    SELECT subject_scores_json FROM marks
-                    WHERE school_id = ? AND grade = ? AND adm_no = ? AND exam_title = ?
-                    """,
-                    (school_id, session["parent_grade"], session["parent_adm_no"], exam_title)
-                ).fetchone()
-                
-                if marks_records:
-                    try:
-                        scores = json.loads(marks_records["subject_scores_json"])
-                        previous_exam_marks[exam_title] = scores
-                    except:
-                        previous_exam_marks[exam_title] = {}
-                else:
-                    previous_exam_marks[exam_title] = {}
+            for prev_exam in previous_exams_list:
+                previous_exams.append({
+                    'exam_title': prev_exam['exam_name'],
+                    'exam_date': prev_exam['exam_date']
+                })
+                previous_exam_marks[prev_exam['exam_name']] = prev_exam['marks']
         else:
-            logging.warning("School not found for previous exams query")
+            # Fallback to querying marks table
+            logging.info("No previous exams in report data, querying marks table")
             previous_exams = []
             previous_exam_marks = {}
 

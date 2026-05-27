@@ -785,6 +785,28 @@ class ReportFormsView(ctk.CTkToplevel):
         else:
             exam_title = "TERM ASSESSMENT"
         
+        # Fetch previous exams for this student
+        previous_exams_data = []
+        previous_exams_list = self.db.get_previous_exams(student['grade'])
+        
+        for exam_name, exam_date in previous_exams_list[:2]:  # Get up to 2 previous exams
+            marks_data, summary_data = self.db.get_previous_exam_data(exam_name, student['grade'])
+            if marks_data:
+                # Parse the marks data to extract this student's marks
+                try:
+                    import json
+                    marks_dict = json.loads(marks_data) if isinstance(marks_data, str) else marks_data
+                    # Find this student's marks
+                    student_key = "".join(student['name'].split()).lower()
+                    if student_key in marks_dict:
+                        previous_exams_data.append({
+                            'exam_name': exam_name,
+                            'exam_date': exam_date,
+                            'marks': marks_dict[student_key]
+                        })
+                except:
+                    pass
+        
         return {
             'student_name': student['name'],
             'adm_no': student['adm_no'],
@@ -793,6 +815,7 @@ class ReportFormsView(ctk.CTkToplevel):
             'current_marks': current_marks,
             'class_teacher': self.get_class_teacher(student['grade']),
             'exam_title': exam_title,
+            'previous_exams': previous_exams_data,
             'generated_date': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
     
