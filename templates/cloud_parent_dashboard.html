@@ -34,10 +34,10 @@
 
     @media (min-width: 768px) {
         .report-card {
-            max-width: 1400px;
-            margin: 20px auto;
+            max-width: 100%;
+            margin: 0;
             padding: 30px;
-            min-height: calc(100vh - 40px);
+            min-height: 100vh;
         }
     }
 
@@ -507,42 +507,33 @@
                 </tr>
             </thead>
             <tbody>
+                {% set processed_subjects = [] %}
                 {% for subject, data in report.current_marks.items() %}
-                {% if subject not in ['total_points', 'average_level', 'rank'] %}
-                {% set subject_name = subject|replace('_s', '')|replace('_r', '')|replace('_p', '')|replace('_', ' ')|title %}
+                {% if subject not in ['total_points', 'average_level', 'rank'] and subject.endswith('_s') %}
+                {% set subject_name = subject|replace('_s', '')|replace('_', ' ')|title %}
+                {% if subject_name not in processed_subjects %}
+                {% set processed_subjects = processed_subjects + [subject_name] %}
                 {% set current_score = report.current_marks[subject]|default('-') %}
-                {% set previous_score = report.current_marks[subject.replace('_s', '_r')]|default('-') %}
                 {% set rating = report.current_marks[subject.replace('_s', '_r')]|default('-') %}
                 {% set points = report.current_marks[subject.replace('_s', '_p')]|default('-') %}
-                {% set teacher_name = teacher_map.get(subject_name.upper(), 'None') %}
+                {% set teacher_name = teacher_map.get(subject_name.upper().replace(' ', ''), 'None') %}
                 <tr>
                     <td class="left-align">{{ subject_name }}</td>
                     {% if previous_exams and previous_exams|length > 0 %}
-                        <td>{{ previous_score }}</td>
+                        <td>-</td>
                     {% else %}
                         <td>-</td>
                     {% endif %}
                     <td>{{ current_score }}</td>
                     <td>{{ rating }}</td>
-                    <td>
-                        {% if previous_score != '-' and current_score != '-' %}
-                            {% if current_score|int > previous_score|int %}
-                                <span style="color: green; font-size: 18px;">↑</span>
-                            {% elif current_score|int < previous_score|int %}
-                                <span style="color: red; font-size: 18px;">↓</span>
-                            {% else %}
-                                <span style="color: gray; font-size: 18px;">→</span>
-                            {% endif %}
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
+                    <td>-</td>
                     <td class="left-align">{{ teacher_name }}</td>
                     {% if grade in ["Grade 7", "Grade 8", "Grade 9"] %}
                     <td>{{ points }}</td>
                     {% endif %}
                     <td class="left-align">Good performance</td>
                 </tr>
+                {% endif %}
                 {% endif %}
                 {% endfor %}
                 <tr class="summary-row">
