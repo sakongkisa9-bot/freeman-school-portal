@@ -1308,12 +1308,6 @@ def parent_dashboard():
         
         if school:
             school_id = school["id"]
-            # Get the current exam title from report data
-            current_report_exam_title = None
-            if report_data and 'exam_title' in report_data and report_data['exam_title']:
-                current_report_exam_title = report_data['exam_title']
-                logging.info(f"Current exam title from report: {current_report_exam_title}")
-            
             # Fetch all exams for this student, sorted by date
             all_exams = conn.execute(
                 """
@@ -1331,21 +1325,14 @@ def parent_dashboard():
             for exam in all_exams:
                 logging.info(f"  - {exam['exam_title']} at {exam['exam_date']}")
             
-            # Filter out the current exam based on exact title match
-            previous_exams = []
-            if current_report_exam_title:
-                for exam in all_exams:
-                    if exam['exam_title'] != current_report_exam_title:
-                        previous_exams.append(exam)
-                logging.info(f"Filtered to {len(previous_exams)} previous exams (excluding '{current_report_exam_title}')")
+            # The most recent exam in marks table is the current one (what teacher is entering)
+            # Skip it and use the rest as previous exams
+            if len(all_exams) > 1:
+                previous_exams = all_exams[1:4]  # Skip first, take next 3
+                logging.info(f"Using {len(previous_exams)} previous exams (skipping most recent: {all_exams[0]['exam_title']})")
             else:
-                # If no exam title in report, skip the most recent one
-                if len(all_exams) > 1:
-                    previous_exams = all_exams[1:4]
-                    logging.info(f"No exam title in report, skipping most recent, using {len(previous_exams)} previous exams")
-            
-            # Limit to 3 previous exams
-            previous_exams = previous_exams[:3]
+                previous_exams = []
+                logging.info("Only one exam found, no previous exams to display")
             
             # Fetch marks for each previous exam
             previous_exam_marks = {}
