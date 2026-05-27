@@ -1302,40 +1302,29 @@ def parent_dashboard():
         
         if school:
             school_id = school["id"]
-            # Get the current exam title from the report data to exclude it from previous exams
-            current_report_exam_title = None
-            if report_data and 'exam_title' in report_data:
-                current_report_exam_title = report_data['exam_title']
-                logging.info(f"Current exam title from report: {current_report_exam_title}")
+            # Fetch all exams for this student, sorted by date
+            all_exams = conn.execute(
+                """
+                SELECT DISTINCT exam_title, updated_at as exam_date 
+                FROM marks
+                WHERE school_id = ?
+                AND grade = ?
+                AND adm_no = ?
+                ORDER BY updated_at DESC
+                """,
+                (school_id, session["parent_grade"], session["parent_adm_no"])
+            ).fetchall()
             
-            # Fetch previous exams, excluding the current one
-            if current_report_exam_title:
-                previous_exams = conn.execute(
-                    """
-                    SELECT DISTINCT exam_title, updated_at as exam_date 
-                    FROM marks
-                    WHERE school_id = ?
-                    AND grade = ?
-                    AND adm_no = ?
-                    AND exam_title != ?
-                    ORDER BY updated_at DESC LIMIT 3
-                    """,
-                    (school_id, session["parent_grade"], session["parent_adm_no"], current_report_exam_title)
-                ).fetchall()
+            logging.info(f"Found {len(all_exams)} total exams for student")
+            
+            # The most recent exam is the current one, skip it
+            # Take the next ones as previous exams
+            if len(all_exams) > 1:
+                previous_exams = all_exams[1:4]  # Skip first, take next 3
             else:
-                previous_exams = conn.execute(
-                    """
-                    SELECT DISTINCT exam_title, updated_at as exam_date 
-                    FROM marks
-                    WHERE school_id = ?
-                    AND grade = ?
-                    AND adm_no = ?
-                    ORDER BY updated_at DESC LIMIT 3
-                    """,
-                    (school_id, session["parent_grade"], session["parent_adm_no"])
-                ).fetchall()
+                previous_exams = []
             
-            logging.info(f"Found {len(previous_exams)} previous exams")
+            logging.info(f"Using {len(previous_exams)} previous exams (skipping most recent)")
             
             # Fetch marks for each previous exam
             previous_exam_marks = {}
