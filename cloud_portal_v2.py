@@ -1268,32 +1268,55 @@ def parent_dashboard():
             report_data = None
 
         # Determine current exam title from report data or use default
-        if report_data and 'exam_title' in report_data:
+        if report_data and 'exam_title' in report_data and report_data['exam_title']:
             current_exam_title = report_data['exam_title']
+            logging.info(f"Using exam_title from report data: {current_exam_title}")
         else:
+            # Try to get exam title from school config
+            school_config_query = conn.execute(
+                "SELECT school_address, school_telephone, school_logo FROM schools WHERE school_name = ?",
+                (session["parent_school_name"],)
+            ).fetchone()
+            
             grade = session["parent_grade"]
+            grade_lower = grade.lower() if grade else ""
             current_exam_title = "Current Exam"
-            if grade in ["playgroup", "pp1", "pp2", "lower"]:
+            
+            if grade_lower in ["playgroup", "pp1", "pp2"]:
                 current_exam_title = "TERM ASSESSMENT"
-            elif grade in ["Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6"]:
+            elif grade_lower in ["grade 1", "grade 2", "grade 3", "grade 4", "grade 5", "grade 6"]:
                 current_exam_title = "PRIMARY EXAM"
-            elif grade in ["Grade 7", "Grade 8", "Grade 9"]:
+            elif grade_lower in ["grade 7", "grade 8", "grade 9"]:
                 current_exam_title = "JSS ASSESSMENT"
+            
+            logging.info(f"Using fallback exam_title for grade {grade}: {current_exam_title}")
 
         # Fetch previous exams for comparison from marks table
-        logging.info(f"Fetching previous exams for student: {session.get('parent_student_name')}, grade: {session.get('parent_grade')}")
-        previous_exams = conn.execute(
-            """
-            SELECT DISTINCT exam_title, updated_at as exam_date 
-            FROM marks
-            WHERE school_id = (SELECT id FROM schools WHERE school_name = ?)
-            AND grade = ?
-            AND adm_no = ?
-            AND exam_title != ?
-            ORDER BY updated_at DESC LIMIT 3
-            """,
-            (session["parent_school_name"], session["parent_grade"], session["parent_adm_no"], current_exam_title)
-        ).fetchall()
+        logging.info(f"Fetching previous exams for student: {session.get('parent_student_name')}, grade: {session.get('parent_grade')}, adm_no: {session.get('parent_adm_no')}")
+        
+        # First, get the school_id
+        school = conn.execute(
+            "SELECT id FROM schools WHERE school_name = ?",
+            (session["parent_school_name"],)
+        ).fetchone()
+        
+        if school:
+            school_id = school["id"]
+            previous_exams = conn.execute(
+                """
+                SELECT DISTINCT exam_title, updated_at as exam_date 
+                FROM marks
+                WHERE school_id = ?
+                AND grade = ?
+                AND adm_no = ?
+                ORDER BY updated_at DESC LIMIT 3
+                """,
+                (school_id, session["parent_grade"], session["parent_adm_no"])
+            ).fetchall()
+            logging.info(f"Found {len(previous_exams)} previous exams")
+        else:
+            logging.warning("School not found for previous exams query")
+            previous_exams = []
 
         # Fetch school details from database
         school = conn.execute(
