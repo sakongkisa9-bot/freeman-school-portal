@@ -1302,17 +1302,39 @@ def parent_dashboard():
         
         if school:
             school_id = school["id"]
-            previous_exams = conn.execute(
-                """
-                SELECT DISTINCT exam_title, updated_at as exam_date 
-                FROM marks
-                WHERE school_id = ?
-                AND grade = ?
-                AND adm_no = ?
-                ORDER BY updated_at DESC LIMIT 3
-                """,
-                (school_id, session["parent_grade"], session["parent_adm_no"])
-            ).fetchall()
+            # Get the current exam title from the report data to exclude it from previous exams
+            current_report_exam_title = None
+            if report_data and 'exam_title' in report_data:
+                current_report_exam_title = report_data['exam_title']
+                logging.info(f"Current exam title from report: {current_report_exam_title}")
+            
+            # Fetch previous exams, excluding the current one
+            if current_report_exam_title:
+                previous_exams = conn.execute(
+                    """
+                    SELECT DISTINCT exam_title, updated_at as exam_date 
+                    FROM marks
+                    WHERE school_id = ?
+                    AND grade = ?
+                    AND adm_no = ?
+                    AND exam_title != ?
+                    ORDER BY updated_at DESC LIMIT 3
+                    """,
+                    (school_id, session["parent_grade"], session["parent_adm_no"], current_report_exam_title)
+                ).fetchall()
+            else:
+                previous_exams = conn.execute(
+                    """
+                    SELECT DISTINCT exam_title, updated_at as exam_date 
+                    FROM marks
+                    WHERE school_id = ?
+                    AND grade = ?
+                    AND adm_no = ?
+                    ORDER BY updated_at DESC LIMIT 3
+                    """,
+                    (school_id, session["parent_grade"], session["parent_adm_no"])
+                ).fetchall()
+            
             logging.info(f"Found {len(previous_exams)} previous exams")
             
             # Fetch marks for each previous exam
