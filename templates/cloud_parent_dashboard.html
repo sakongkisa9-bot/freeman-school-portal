@@ -472,10 +472,6 @@
                 <span>{{ student_name }}</span>
             </div>
             <div class="metadata-item">
-                <span class="metadata-label">Adm No:</span>
-                <span>{{ adm_no }}</span>
-            </div>
-            <div class="metadata-item">
                 <span class="metadata-label">Class:</span>
                 <span>{{ grade }}</span>
             </div>
@@ -492,48 +488,60 @@
                 <tr>
                     <th class="left-align">Learning Area</th>
                     {% if previous_exams and previous_exams|length > 0 %}
-                        {% for exam in previous_exams[:3] %}
-                        <th>{{ exam.exam_name[:15] }}</th>
-                        {% endfor %}
+                        {% if previous_exams|length == 1 %}
+                        <th>{{ previous_exams[0].exam_name[:20] }}</th>
+                        {% else %}
+                        <th>{{ previous_exams[0].exam_name[:15] }}</th>
+                        {% endif %}
                     {% else %}
                         <th>No Previous Exam</th>
                     {% endif %}
-                    <th>{{ current_exam_title }}</th>
-                    <th>AVG</th>
-                    <th>Performance Level</th>
+                    <th>{{ current_exam_title }} (Current)</th>
+                    <th>Rate</th>
+                    <th>Improvement</th>
                     <th class="left-align">Teacher</th>
+                    {% if grade in ["Grade 7", "Grade 8", "Grade 9"] %}
+                    <th>Points</th>
+                    {% endif %}
+                    <th class="left-align">Teachers Comments</th>
                 </tr>
             </thead>
             <tbody>
                 {% for subject, data in report.current_marks.items() %}
                 {% if subject not in ['total_points', 'average_level', 'rank'] %}
                 {% set subject_name = subject|replace('_s', '')|replace('_r', '')|replace('_p', '')|replace('_', ' ')|title %}
-                {% set score = report.current_marks[subject]|default('-') %}
-                {% set exam2 = report.current_marks[subject.replace('_s', '_r')]|default('-') %}
-                {% set exam3 = report.current_marks[subject.replace('_s', '_p')]|default('-') %}
+                {% set current_score = report.current_marks[subject]|default('-') %}
+                {% set previous_score = report.current_marks[subject.replace('_s', '_r')]|default('-') %}
+                {% set rating = report.current_marks[subject.replace('_s', '_r')]|default('-') %}
+                {% set points = report.current_marks[subject.replace('_s', '_p')]|default('-') %}
+                {% set teacher_name = teacher_map.get(subject_name.upper(), 'None') %}
                 <tr>
                     <td class="left-align">{{ subject_name }}</td>
                     {% if previous_exams and previous_exams|length > 0 %}
-                        <td>{{ score }}</td>
-                        {% if previous_exams|length > 1 %}
-                        <td>{{ exam2 }}</td>
-                        {% else %}
-                        <td>-</td>
-                        {% endif %}
-                        {% if previous_exams|length > 2 %}
-                        <td>{{ exam3 }}</td>
-                        {% else %}
-                        <td>-</td>
-                        {% endif %}
+                        <td>{{ previous_score }}</td>
                     {% else %}
                         <td>-</td>
-                        <td>-</td>
-                        <td>-</td>
                     {% endif %}
-                    <td>{{ score }}</td>
-                    <td>{{ ((score|int + exam2|int + exam3|int) / 3)|round(0) if score != '-' and exam2 != '-' and exam3 != '-' else '-' }}</td>
-                    <td>{{ 'Meeting Expectations' if score|int >= 50 else 'Approaching Expectations' }}</td>
-                    <td class="left-align">-</td>
+                    <td>{{ current_score }}</td>
+                    <td>{{ rating }}</td>
+                    <td>
+                        {% if previous_score != '-' and current_score != '-' %}
+                            {% if current_score|int > previous_score|int %}
+                                <span style="color: green; font-size: 18px;">↑</span>
+                            {% elif current_score|int < previous_score|int %}
+                                <span style="color: red; font-size: 18px;">↓</span>
+                            {% else %}
+                                <span style="color: gray; font-size: 18px;">→</span>
+                            {% endif %}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td class="left-align">{{ teacher_name }}</td>
+                    {% if grade in ["Grade 7", "Grade 8", "Grade 9"] %}
+                    <td>{{ points }}</td>
+                    {% endif %}
+                    <td class="left-align">Good performance</td>
                 </tr>
                 {% endif %}
                 {% endfor %}
@@ -541,32 +549,32 @@
                     <td class="left-align">TOTAL SCORES</td>
                     {% if previous_exams and previous_exams|length > 0 %}
                         <td>-</td>
-                        <td>-</td>
-                        <td>-</td>
                     {% else %}
                         <td>-</td>
-                        <td>-</td>
-                        <td>-</td>
                     {% endif %}
-                    <td>-</td>
                     <td>{{ report.current_marks.total_points|default('0') }}</td>
                     <td>-</td>
+                    <td>-</td>
+                    <td class="left-align">-</td>
+                    {% if grade in ["Grade 7", "Grade 8", "Grade 9"] %}
+                    <td>{{ report.current_marks.total_points|default('0') }}</td>
+                    {% endif %}
                     <td class="left-align">-</td>
                 </tr>
                 <tr class="summary-row">
                     <td class="left-align">AVERAGE</td>
                     {% if previous_exams and previous_exams|length > 0 %}
                         <td>-</td>
-                        <td>-</td>
-                        <td>-</td>
                     {% else %}
                         <td>-</td>
-                        <td>-</td>
-                        <td>-</td>
                     {% endif %}
-                    <td>-</td>
                     <td>{{ report.current_marks.average_level|default('N/A') }}</td>
                     <td>-</td>
+                    <td>-</td>
+                    <td class="left-align">-</td>
+                    {% if grade in ["Grade 7", "Grade 8", "Grade 9"] %}
+                    <td>-</td>
+                    {% endif %}
                     <td class="left-align">-</td>
                 </tr>
             </tbody>

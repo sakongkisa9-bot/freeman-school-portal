@@ -1313,6 +1313,18 @@ def parent_dashboard():
         student_photo = student["photo"] if student and student["photo"] else None
         student_stream = student["stream"] if student and student["stream"] else "None"
 
+        # Fetch teacher assignments for this grade
+        teacher_assignments = conn.execute(
+            """
+            SELECT subject, teacher_name FROM teacher_assignments
+            WHERE school_id = ? AND class_name = ?
+            """,
+            (session["school_id"], session["parent_grade"])
+        ).fetchall()
+
+        # Create a dictionary mapping subject to teacher name
+        teacher_map = {row["subject"]: row["teacher_name"] for row in teacher_assignments}
+
         logging.info("Rendering dashboard template")
         return render_template(
             "cloud_parent_dashboard.html",
@@ -1327,7 +1339,8 @@ def parent_dashboard():
             student_stream=student_stream,
             report=report_data,
             previous_exams=previous_exams,
-            current_exam_title=current_exam_title
+            current_exam_title=current_exam_title,
+            teacher_map=teacher_map
         )
     except Exception as e:
         logging.error(f"Parent dashboard error: {e}", exc_info=True)
