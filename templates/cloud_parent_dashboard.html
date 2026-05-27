@@ -489,9 +489,9 @@
                     <th class="left-align">Learning Area</th>
                     {% if previous_exams and previous_exams|length > 0 %}
                         {% if previous_exams|length == 1 %}
-                        <th>{{ previous_exams[0].exam_name[:20] }}</th>
+                        <th>{{ previous_exams[0].exam_title[:20] }}</th>
                         {% else %}
-                        <th>{{ previous_exams[0].exam_name[:15] }}</th>
+                        <th>{{ previous_exams[0].exam_title[:15] }}</th>
                         {% endif %}
                     {% else %}
                         <th>No Previous Exam</th>
@@ -598,7 +598,7 @@
                 <thead>
                     <tr>
                         {% for exam in previous_exams[:8] %}
-                        <th>{{ exam.exam_name[:5] }}</th>
+                        <th>{{ exam.exam_title[:5] }}</th>
                         {% endfor %}
                     </tr>
                 </thead>
