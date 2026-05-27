@@ -188,6 +188,12 @@ class CloudService:
             "school_code": credentials["school_code"],
             "report": report_data,
         }
+        # Debug: Print what's being sent
+        print(f"DEBUG: Sending student report with keys: {list(report_data.keys())}")
+        if 'exam_title' in report_data:
+            print(f"DEBUG: Report exam_title: {report_data['exam_title']}")
+        else:
+            print(f"DEBUG: WARNING - No exam_title in report data!")
         return self._post_json("/api/save_student_report", payload)
 
     def send_class_reports(self, class_name, reports, credentials):

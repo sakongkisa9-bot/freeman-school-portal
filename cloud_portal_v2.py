@@ -1058,6 +1058,12 @@ def api_save_student_report():
     school_code = data.get("school_code", "").strip().lower()
     report = data.get("report", {})
 
+    logging.info(f"Received student report for: {report.get('student_name')}, keys: {list(report.keys())}")
+    if 'exam_title' in report:
+        logging.info(f"Report contains exam_title: {report['exam_title']}")
+    else:
+        logging.warning("Report does NOT contain exam_title!")
+
     if not school_code or not report:
         return jsonify({"success": False, "message": "Missing required data"}), 400
 
