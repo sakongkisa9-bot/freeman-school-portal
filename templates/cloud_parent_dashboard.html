@@ -487,13 +487,10 @@
             <thead>
                 <tr>
                     <th class="left-align">Learning Area</th>
-                    {% if previous_exams and previous_exams|length > 0 %}
-                        {% if previous_exams|length == 1 %}
-                        <th>{{ previous_exams[0].exam_title[:20] }}</th>
-                        {% else %}
-                        <th>{{ previous_exams[0].exam_title[:15] }}</th>
-                        {% endif %}
-                    {% else %}
+                    {% for prev_exam in previous_exams[:2] %}
+                        <th>{{ prev_exam.exam_title[:15] }}</th>
+                    {% endfor %}
+                    {% if not previous_exams or previous_exams|length == 0 %}
                         <th>No Previous Exam</th>
                     {% endif %}
                     <th>{{ current_exam_title }} (Current)</th>
@@ -519,8 +516,8 @@
                 {% set teacher_name = teacher_map.get(subject_name.upper().replace(' ', ''), 'None') %}
                 <tr>
                     <td class="left-align">{{ subject_name }}</td>
-                    {% if previous_exams and previous_exams|length > 0 %}
-                        {% set prev_exam_title = previous_exams[0].exam_title %}
+                    {% for prev_exam in previous_exams[:2] %}
+                        {% set prev_exam_title = prev_exam.exam_title %}
                         {% set prev_marks = previous_exam_marks.get(prev_exam_title, {}) %}
                         {% if prev_marks is iterable and prev_marks is not string and prev_marks is not mapping %}
                             {# List format: marks are stored as list [score1, rating1, score2, rating2, ...] #}
@@ -537,7 +534,8 @@
                             {% set prev_score = prev_marks.get(subject_key, {}).get('score', '-') %}
                         {% endif %}
                         <td>{{ prev_score }}</td>
-                    {% else %}
+                    {% endfor %}
+                    {% if not previous_exams or previous_exams|length == 0 %}
                         <td>-</td>
                     {% endif %}
                     <td>{{ current_score }}</td>

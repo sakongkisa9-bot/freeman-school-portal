@@ -792,6 +792,15 @@ class ReportFormsView(ctk.CTkToplevel):
         for exam_name, exam_date in previous_exams_list:
             print(f"DEBUG: Previous exam: {exam_name} at {exam_date}")
         
+        # Get subject names from current marks to use as reference
+        subject_names = []
+        if current_marks:
+            for key in current_marks.keys():
+                if key.endswith('_s') and key not in ['total_points', 'average_level', 'rank']:
+                    subject_name = key.replace('_s', '').replace('_', ' ').title()
+                    subject_names.append(subject_name)
+        print(f"DEBUG: Subject names from current marks: {subject_names}")
+        
         for exam_name, exam_date in previous_exams_list[:2]:  # Get up to 2 previous exams
             marks_data, summary_data = self.db.get_previous_exam_data(exam_name, student['grade'])
             print(f"DEBUG: Got marks_data for {exam_name}: {marks_data is not None}")
@@ -812,17 +821,25 @@ class ReportFormsView(ctk.CTkToplevel):
                                 record_key = "".join(record_name.split()).lower()
                                 if record_key == "".join(student['name'].split()).lower():
                                     # Found the student, extract their marks
-                                    # Convert list to dict format similar to current_marks
+                                    # Convert list to dict format with subject names
                                     marks_dict = {}
                                     # Assuming format: [name, score1, rating1, score2, rating2, ...]
-                                    # We need to know the subject names to map correctly
-                                    # For now, store as raw list
+                                    # Map using subject names from current marks
+                                    marks_list = student_record[1:]  # Skip name
+                                    for i, subject_name in enumerate(subject_names):
+                                        if i * 2 + 1 < len(marks_list):
+                                            score = marks_list[i * 2]
+                                            rating = marks_list[i * 2 + 1]
+                                            marks_dict[subject_name.upper().replace(' ', '')] = {
+                                                'score': score,
+                                                'rating': rating
+                                            }
                                     previous_exams_data.append({
                                         'exam_name': exam_name,
                                         'exam_date': exam_date,
-                                        'marks': student_record[1:]  # Skip name, keep marks
+                                        'marks': marks_dict
                                     })
-                                    print(f"DEBUG: Added previous exam {exam_name} with list marks")
+                                    print(f"DEBUG: Added previous exam {exam_name} with mapped dict marks")
                                     break
                     elif isinstance(marks_data, dict):
                         print(f"DEBUG: Marks dict keys: {list(marks_dict.keys())[:5]}")  # Show first 5 keys
