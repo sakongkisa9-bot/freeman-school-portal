@@ -540,7 +540,27 @@
                     {% endif %}
                     <td>{{ current_score }}</td>
                     <td>{{ rating }}</td>
-                    <td>-</td>
+                    {# Improvement column: compare latest previous exam with current #}
+                    {% set latest_prev_score = '-' %}
+                    {% if previous_exams and previous_exams|length > 0 %}
+                        {% set latest_prev_exam = previous_exams[-1] %}
+                        {% set latest_prev_title = latest_prev_exam.exam_title %}
+                        {% set latest_prev_marks = previous_exam_marks.get(latest_prev_title, {}) %}
+                        {% set subject_key = subject_name.upper().replace(' ', '') %}
+                        {% set latest_prev_score = latest_prev_marks.get(subject_key, {}).get('score', '-') %}
+                    {% endif %}
+                    {% if latest_prev_score != '-' and current_score != '-' and latest_prev_score is number %}
+                        {% set improvement = current_score - latest_prev_score %}
+                        {% if improvement > 0 %}
+                            <td style="color: green;">↑ {{ improvement }}</td>
+                        {% elif improvement < 0 %}
+                            <td style="color: red;">↓ {{ improvement }}</td>
+                        {% else %}
+                            <td>-</td>
+                        {% endif %}
+                    {% else %}
+                        <td>-</td>
+                    {% endif %}
                     <td class="left-align">{{ teacher_name }}</td>
                     {% if grade in ["Grade 7", "Grade 8", "Grade 9"] %}
                     <td>{{ points }}</td>
@@ -552,9 +572,21 @@
                 {% endfor %}
                 <tr class="summary-row">
                     <td class="left-align">TOTAL SCORES</td>
-                    {% if previous_exams and previous_exams|length > 0 %}
-                        <td>-</td>
-                    {% else %}
+                    {% for prev_exam in previous_exams[:2] %}
+                        {% set prev_exam_title = prev_exam.exam_title %}
+                        {% set prev_marks = previous_exam_marks.get(prev_exam_title, {}) %}
+                        {# Calculate total from previous exam marks #}
+                        {% set prev_total = 0 %}
+                        {% if prev_marks %}
+                            {% for subject_data in prev_marks.values() %}
+                                {% if subject_data.score is number %}
+                                    {% set prev_total = prev_total + subject_data.score %}
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                        <td>{{ prev_total if prev_total > 0 else '-' }}</td>
+                    {% endfor %}
+                    {% if not previous_exams or previous_exams|length == 0 %}
                         <td>-</td>
                     {% endif %}
                     <td>{{ report.current_marks.total_points|default('0') }}</td>
@@ -568,9 +600,24 @@
                 </tr>
                 <tr class="summary-row">
                     <td class="left-align">AVERAGE</td>
-                    {% if previous_exams and previous_exams|length > 0 %}
-                        <td>-</td>
-                    {% else %}
+                    {% for prev_exam in previous_exams[:2] %}
+                        {% set prev_exam_title = prev_exam.exam_title %}
+                        {% set prev_marks = previous_exam_marks.get(prev_exam_title, {}) %}
+                        {# Calculate average from previous exam marks #}
+                        {% set prev_total = 0 %}
+                        {% set prev_count = 0 %}
+                        {% if prev_marks %}
+                            {% for subject_data in prev_marks.values() %}
+                                {% if subject_data.score is number %}
+                                    {% set prev_total = prev_total + subject_data.score %}
+                                    {% set prev_count = prev_count + 1 %}
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                        {% set prev_avg = (prev_total / prev_count) if prev_count > 0 else '-' %}
+                        <td>{{ "%.1f"|format(prev_avg) if prev_avg != '-' else '-' }}</td>
+                    {% endfor %}
+                    {% if not previous_exams or previous_exams|length == 0 %}
                         <td>-</td>
                     {% endif %}
                     <td>{{ report.current_marks.average_level|default('N/A') }}</td>

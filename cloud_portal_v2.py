@@ -1302,6 +1302,9 @@ def parent_dashboard():
             previous_exams_list = report_data['previous_exams']
             logging.info(f"Using {len(previous_exams_list)} previous exams from report data")
             
+            # Reverse order so most recent previous exam is last (closest to current)
+            previous_exams_list = list(reversed(previous_exams_list))
+            
             # Convert to format expected by template
             previous_exams = []
             previous_exam_marks = {}
