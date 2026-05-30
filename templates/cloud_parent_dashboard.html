@@ -578,12 +578,11 @@
                         {% set prev_marks = previous_exam_marks.get(prev_exam_title, {}) %}
                         {# Calculate total from previous exam marks #}
                         {% set prev_total = 0 %}
-                        <!-- DEBUG: exam_title={{ prev_exam_title }}, marks_keys={{ prev_marks.keys()|list }}, marks_count={{ prev_marks|length }} -->
-                        {% for subject_data in prev_marks.values() %}
-                            {% set score = subject_data.get('score', 0)|int(0) %}
+                        {% for subject, subject_data in prev_marks.items() %}
+                            {% set score = subject_data.score if subject_data.score is defined else subject_data.get('score', 0) %}
+                            {% set score = score|int(0) %}
                             {% set prev_total = prev_total + score %}
                         {% endfor %}
-                        <!-- DEBUG: calculated_total={{ prev_total }} -->
                         {% if loop.last and prev_total > 0 %}
                             {% set latest_prev_total = prev_total %}
                         {% endif %}
@@ -623,8 +622,9 @@
                         {# Calculate average from previous exam marks #}
                         {% set prev_total = 0 %}
                         {% set prev_count = 0 %}
-                        {% for subject_data in prev_marks.values() %}
-                            {% set score = subject_data.get('score', 0)|int(0) %}
+                        {% for subject, subject_data in prev_marks.items() %}
+                            {% set score = subject_data.score if subject_data.score is defined else subject_data.get('score', 0) %}
+                            {% set score = score|int(0) %}
                             {% set prev_total = prev_total + score %}
                             {% set prev_count = prev_count + 1 %}
                         {% endfor %}
