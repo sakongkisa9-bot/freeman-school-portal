@@ -582,14 +582,23 @@
                             {% if prev_marks is iterable and prev_marks is not string and prev_marks is not mapping %}
                                 {# List format: marks are stored as list [score1, rating1, score2, rating2, ...] #}
                                 {% for i in range(0, prev_marks|length, 2) %}
-                                    {% if i + 1 < prev_marks|length and prev_marks[i] is number %}
-                                        {% set prev_total = prev_total + prev_marks[i] %}
+                                    {% if i + 1 < prev_marks|length %}
+                                        {% set score = prev_marks[i] %}
+                                        {% if score is string %}
+                                            {% set score = score|int %}
+                                        {% endif %}
+                                        {% if score is number %}
+                                            {% set prev_total = prev_total + score %}
+                                        {% endif %}
                                     {% endif %}
                                 {% endfor %}
                             {% else %}
                                 {# Dict format: marks are stored as dict with subject keys #}
                                 {% for subject_data in prev_marks.values() %}
                                     {% set score = subject_data.get('score', 0) %}
+                                    {% if score is string %}
+                                        {% set score = score|int %}
+                                    {% endif %}
                                     {% if score is number %}
                                         {% set prev_total = prev_total + score %}
                                     {% endif %}
@@ -639,16 +648,26 @@
                             {% if prev_marks is iterable and prev_marks is not string and prev_marks is not mapping %}
                                 {# List format: marks are stored as list [score1, rating1, score2, rating2, ...] #}
                                 {% for i in range(0, prev_marks|length, 2) %}
-                                    {% if i + 1 < prev_marks|length and prev_marks[i] is number %}
-                                        {% set prev_total = prev_total + prev_marks[i] %}
-                                        {% set prev_count = prev_count + 1 %}
+                                    {% if i + 1 < prev_marks|length %}
+                                        {% set score = prev_marks[i] %}
+                                        {% if score is string %}
+                                            {% set score = score|int %}
+                                        {% endif %}
+                                        {% if score is number %}
+                                            {% set prev_total = prev_total + score %}
+                                            {% set prev_count = prev_count + 1 %}
+                                        {% endif %}
                                     {% endif %}
                                 {% endfor %}
                             {% else %}
                                 {# Dict format: marks are stored as dict with subject keys #}
                                 {% for subject_data in prev_marks.values() %}
-                                    {% if subject_data.score is number %}
-                                        {% set prev_total = prev_total + subject_data.score %}
+                                    {% set score = subject_data.get('score', 0) %}
+                                    {% if score is string %}
+                                        {% set score = score|int %}
+                                    {% endif %}
+                                    {% if score is number %}
+                                        {% set prev_total = prev_total + score %}
                                         {% set prev_count = prev_count + 1 %}
                                     {% endif %}
                                 {% endfor %}
