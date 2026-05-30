@@ -21,6 +21,87 @@ TEMPLATES_DIR = os.path.join(PROJECT_DIR, "templates")
 app = Flask(__name__, template_folder=TEMPLATES_DIR)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-2026")
 
+# Custom Jinja2 filter to convert numerical score to rating
+def score_to_rating(score, grade):
+    """Convert numerical score to rating based on grade level"""
+    try:
+        s = float(score)
+        if not s or s == 0:
+            return "BE2"
+        
+        # For playgroup, pp1, pp2, use the rating system
+        grade_lower = grade.lower() if grade else ""
+        if grade_lower in ["playgroup", "pp1", "pp2"]:
+            # Use the same rating logic as Grade 4-6
+            if s >= 90: return "EE1"
+            elif s >= 75: return "EE2"
+            elif s >= 58: return "ME1"
+            elif s >= 41: return "ME2"
+            elif s >= 31: return "AE1"
+            elif s >= 21: return "AE2"
+            elif s >= 11: return "BE1"
+            else: return "BE2"
+        elif grade_lower in ["grade 1", "grade 2", "grade 3"]:
+            # Primary grades
+            if s >= 90: return "EE1"
+            elif s >= 75: return "EE2"
+            elif s >= 58: return "ME1"
+            elif s >= 41: return "ME2"
+            elif s >= 31: return "AE1"
+            elif s >= 21: return "AE2"
+            elif s >= 11: return "BE1"
+            else: return "BE2"
+        elif grade_lower in ["grade 4", "grade 5", "grade 6"]:
+            # Primary grades with different scale
+            if s >= 90: return "EE1"
+            elif s >= 75: return "EE2"
+            elif s >= 58: return "ME1"
+            elif s >= 41: return "ME2"
+            elif s >= 31: return "AE1"
+            elif s >= 21: return "AE2"
+            elif s >= 11: return "BE1"
+            else: return "BE2"
+        elif grade_lower in ["grade 7", "grade 8", "grade 9"]:
+            # Junior Secondary
+            if s >= 90: return "EE1"
+            elif s >= 75: return "EE2"
+            elif s >= 58: return "ME1"
+            elif s >= 41: return "ME2"
+            elif s >= 31: return "AE1"
+            elif s >= 21: return "AE2"
+            elif s >= 11: return "BE1"
+            else: return "BE2"
+        else:
+            # Default
+            if s >= 90: return "EE1"
+            elif s >= 75: return "EE2"
+            elif s >= 58: return "ME1"
+            elif s >= 41: return "ME2"
+            elif s >= 31: return "AE1"
+            elif s >= 21: return "AE2"
+            elif s >= 11: return "BE1"
+            else: return "BE2"
+    except:
+        return "BE2"
+
+# Custom Jinja2 filter to convert rating to points for comparison
+def rating_to_points(rating):
+    """Convert rating to points for comparison"""
+    rating_points = {
+        "EE1": 8,
+        "EE2": 7,
+        "ME1": 6,
+        "ME2": 5,
+        "AE1": 4,
+        "AE2": 3,
+        "BE1": 2,
+        "BE2": 1
+    }
+    return rating_points.get(rating, 0)
+
+app.jinja_env.filters['score_to_rating'] = score_to_rating
+app.jinja_env.filters['rating_to_points'] = rating_to_points
+
 
 @app.before_request
 def log_request_info():

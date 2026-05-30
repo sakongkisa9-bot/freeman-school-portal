@@ -627,11 +627,13 @@
                         {% endfor %}
                         {% set prev_total = score_list|sum %}
                         {% set prev_count = score_list|length %}
-                        {% set prev_avg = (prev_total / prev_count) if prev_count > 0 else '-' %}
+                        {% set prev_avg_num = (prev_total / prev_count) if prev_count > 0 else 0 %}
+                        {# Convert numerical average to rating #}
+                        {% set prev_avg = prev_avg_num|score_to_rating(grade) if prev_count > 0 else '-' %}
                         {% if loop.last and prev_avg != '-' %}
                             {% set latest_prev_avg = prev_avg %}
                         {% endif %}
-                        <td>{{ "%.1f"|format(prev_avg) if prev_avg != '-' else '-' }}</td>
+                        <td>{{ prev_avg }}</td>
                     {% endfor %}
                     {% if not previous_exams or previous_exams|length == 0 %}
                         <td>-</td>
@@ -641,11 +643,13 @@
                     <td>-</td>
                     {# Improvement column for average #}
                     {% if latest_prev_avg != '-' and current_avg != 'N/A' and current_avg != '-' %}
-                        {% set improvement = current_avg - latest_prev_avg %}
+                        {% set current_avg_points = current_avg|rating_to_points %}
+                        {% set prev_avg_points = latest_prev_avg|rating_to_points %}
+                        {% set improvement = current_avg_points - prev_avg_points %}
                         {% if improvement > 0 %}
-                            <td style="color: green;">↑ {{ "%.1f"|format(improvement) }}</td>
+                            <td style="color: green;">↑ {{ improvement }}</td>
                         {% elif improvement < 0 %}
-                            <td style="color: red;">↓ {{ "%.1f"|format(improvement) }}</td>
+                            <td style="color: red;">↓ {{ improvement }}</td>
                         {% else %}
                             <td>-</td>
                         {% endif %}
