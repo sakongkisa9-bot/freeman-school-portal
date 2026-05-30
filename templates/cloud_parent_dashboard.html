@@ -578,33 +578,12 @@
                         {% set prev_marks = previous_exam_marks.get(prev_exam_title, {}) %}
                         {# Calculate total from previous exam marks #}
                         {% set prev_total = 0 %}
-                        {% if prev_marks %}
-                            {% if prev_marks is iterable and prev_marks is not string and prev_marks is not mapping %}
-                                {# List format: marks are stored as list [score1, rating1, score2, rating2, ...] #}
-                                {% for i in range(0, prev_marks|length, 2) %}
-                                    {% if i + 1 < prev_marks|length %}
-                                        {% set score = prev_marks[i] %}
-                                        {% if score is string %}
-                                            {% set score = score|int %}
-                                        {% endif %}
-                                        {% if score is number %}
-                                            {% set prev_total = prev_total + score %}
-                                        {% endif %}
-                                    {% endif %}
-                                {% endfor %}
-                            {% else %}
-                                {# Dict format: marks are stored as dict with subject keys #}
-                                {% for subject_data in prev_marks.values() %}
-                                    {% set score = subject_data.get('score', 0) %}
-                                    {% if score is string %}
-                                        {% set score = score|int %}
-                                    {% endif %}
-                                    {% if score is number %}
-                                        {% set prev_total = prev_total + score %}
-                                    {% endif %}
-                                {% endfor %}
-                            {% endif %}
-                        {% endif %}
+                        <!-- DEBUG: exam_title={{ prev_exam_title }}, marks_keys={{ prev_marks.keys()|list }}, marks_count={{ prev_marks|length }} -->
+                        {% for subject_data in prev_marks.values() %}
+                            {% set score = subject_data.get('score', 0)|int(0) %}
+                            {% set prev_total = prev_total + score %}
+                        {% endfor %}
+                        <!-- DEBUG: calculated_total={{ prev_total }} -->
                         {% if loop.last and prev_total > 0 %}
                             {% set latest_prev_total = prev_total %}
                         {% endif %}
@@ -617,7 +596,7 @@
                     <td>{{ current_total }}</td>
                     <td>-</td>
                     {# Improvement column for total scores #}
-                    {% if latest_prev_total != '-' and current_total != '-' and latest_prev_total is number %}
+                    {% if latest_prev_total != '-' and current_total != '-' %}
                         {% set improvement = current_total - latest_prev_total %}
                         {% if improvement > 0 %}
                             <td style="color: green;">↑ {{ improvement }}</td>
@@ -644,35 +623,11 @@
                         {# Calculate average from previous exam marks #}
                         {% set prev_total = 0 %}
                         {% set prev_count = 0 %}
-                        {% if prev_marks %}
-                            {% if prev_marks is iterable and prev_marks is not string and prev_marks is not mapping %}
-                                {# List format: marks are stored as list [score1, rating1, score2, rating2, ...] #}
-                                {% for i in range(0, prev_marks|length, 2) %}
-                                    {% if i + 1 < prev_marks|length %}
-                                        {% set score = prev_marks[i] %}
-                                        {% if score is string %}
-                                            {% set score = score|int %}
-                                        {% endif %}
-                                        {% if score is number %}
-                                            {% set prev_total = prev_total + score %}
-                                            {% set prev_count = prev_count + 1 %}
-                                        {% endif %}
-                                    {% endif %}
-                                {% endfor %}
-                            {% else %}
-                                {# Dict format: marks are stored as dict with subject keys #}
-                                {% for subject_data in prev_marks.values() %}
-                                    {% set score = subject_data.get('score', 0) %}
-                                    {% if score is string %}
-                                        {% set score = score|int %}
-                                    {% endif %}
-                                    {% if score is number %}
-                                        {% set prev_total = prev_total + score %}
-                                        {% set prev_count = prev_count + 1 %}
-                                    {% endif %}
-                                {% endfor %}
-                            {% endif %}
-                        {% endif %}
+                        {% for subject_data in prev_marks.values() %}
+                            {% set score = subject_data.get('score', 0)|int(0) %}
+                            {% set prev_total = prev_total + score %}
+                            {% set prev_count = prev_count + 1 %}
+                        {% endfor %}
                         {% set prev_avg = (prev_total / prev_count) if prev_count > 0 else '-' %}
                         {% if loop.last and prev_avg != '-' %}
                             {% set latest_prev_avg = prev_avg %}
@@ -686,7 +641,7 @@
                     <td>{{ current_avg }}</td>
                     <td>-</td>
                     {# Improvement column for average #}
-                    {% if latest_prev_avg != '-' and current_avg != 'N/A' and current_avg != '-' and latest_prev_avg is number %}
+                    {% if latest_prev_avg != '-' and current_avg != 'N/A' and current_avg != '-' %}
                         {% set improvement = current_avg - latest_prev_avg %}
                         {% if improvement > 0 %}
                             <td style="color: green;">↑ {{ "%.1f"|format(improvement) }}</td>
