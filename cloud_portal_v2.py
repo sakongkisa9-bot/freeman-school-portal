@@ -1301,10 +1301,10 @@ def parent_dashboard():
         if report_data and 'previous_exams' in report_data:
             previous_exams_list = report_data['previous_exams']
             logging.info(f"Using {len(previous_exams_list)} previous exams from report data")
-            
+
             # Reverse order so most recent previous exam is last (closest to current)
             previous_exams_list = list(reversed(previous_exams_list))
-            
+
             # Convert to format expected by template
             previous_exams = []
             previous_exam_marks = {}
@@ -1313,7 +1313,18 @@ def parent_dashboard():
                     'exam_title': prev_exam['exam_name'],
                     'exam_date': prev_exam['exam_date']
                 })
-                previous_exam_marks[prev_exam['exam_name']] = prev_exam['marks']
+                marks = prev_exam['marks']
+                # Parse marks if it's a JSON string
+                if isinstance(marks, str):
+                    try:
+                        marks = json.loads(marks)
+                        logging.info(f"Parsed marks from JSON string for exam {prev_exam['exam_name']}")
+                    except:
+                        logging.error(f"Failed to parse marks as JSON for exam {prev_exam['exam_name']}")
+                        marks = {}
+                previous_exam_marks[prev_exam['exam_name']] = marks
+                logging.info(f"Previous exam: {prev_exam['exam_name']}, marks type: {type(marks)}, marks: {marks}")
+            logging.info(f"previous_exam_marks keys: {list(previous_exam_marks.keys())}")
         else:
             # Fallback to querying marks table
             logging.info("No previous exams in report data, querying marks table")

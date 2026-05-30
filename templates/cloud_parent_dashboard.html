@@ -578,9 +578,12 @@
                         {% set prev_marks = previous_exam_marks.get(prev_exam_title, {}) %}
                         {# Calculate total from previous exam marks #}
                         {% set prev_total = 0 %}
+                        {# Debug: log the data structure #}
+                        <!-- DEBUG: prev_exam_title={{ prev_exam_title }}, prev_marks type={{ prev_marks|type }}, prev_marks={{ prev_marks }} -->
                         {% if prev_marks %}
                             {% if prev_marks is iterable and prev_marks is not string and prev_marks is not mapping %}
                                 {# List format: marks are stored as list [score1, rating1, score2, rating2, ...] #}
+                                <!-- DEBUG: List format detected, length={{ prev_marks|length }} -->
                                 {% for i in range(0, prev_marks|length, 2) %}
                                     {% if i + 1 < prev_marks|length and prev_marks[i] is number %}
                                         {% set prev_total = prev_total + prev_marks[i] %}
@@ -588,9 +591,12 @@
                                 {% endfor %}
                             {% else %}
                                 {# Dict format: marks are stored as dict with subject keys #}
+                                <!-- DEBUG: Dict format detected, keys={{ prev_marks.keys()|list }} -->
                                 {% for subject_data in prev_marks.values() %}
-                                    {% if subject_data.score is number %}
-                                        {% set prev_total = prev_total + subject_data.score %}
+                                    <!-- DEBUG: subject_data={{ subject_data }}, score={{ subject_data.get('score', 'N/A') }} -->
+                                    {% set score = subject_data.get('score', 0) %}
+                                    {% if score is number %}
+                                        {% set prev_total = prev_total + score %}
                                     {% endif %}
                                 {% endfor %}
                             {% endif %}
