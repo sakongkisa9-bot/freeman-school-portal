@@ -99,6 +99,19 @@ def rating_to_points(rating):
     }
     return rating_points.get(rating, 0)
 
+# Custom Jinja2 filter to convert rating to teacher comment
+def rating_to_comment(rating):
+    """Convert rating to teacher comment based on performance level"""
+    rating_comments = {
+        "BE1": "A starting point. Focus on understanding the basic concepts, and I am here to help you practice.",
+        "BE2": "You are showing effort, but need more practice on the fundamentals to reach the expected level.",
+        "ME1": "Good progress. You are grasping the core ideas; continue practicing to gain more confidence.",
+        "ME2": "Well done! You are very close to mastering this. Pay close attention to the finer details.",
+        "EE1": "Great work! You have successfully demonstrated this competency. Keep up the consistent performance.",
+        "EE2": "Outstanding! You have mastered the task and shown deep understanding. Keep challenging yourself."
+    }
+    return rating_comments.get(rating, "No comment available.")
+
 # Custom Jinja2 filter to convert points to rating
 def points_to_rating(points):
     """Convert points back to rating"""
@@ -114,6 +127,7 @@ def points_to_rating(points):
 app.jinja_env.filters['score_to_rating'] = score_to_rating
 app.jinja_env.filters['rating_to_points'] = rating_to_points
 app.jinja_env.filters['points_to_rating'] = points_to_rating
+app.jinja_env.filters['rating_to_comment'] = rating_to_comment
 
 
 @app.before_request
