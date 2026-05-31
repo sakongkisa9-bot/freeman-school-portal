@@ -1405,7 +1405,8 @@ def parent_dashboard():
             for prev_exam in previous_exams_list:
                 previous_exams.append({
                     'exam_title': prev_exam['exam_name'],
-                    'exam_date': prev_exam['exam_date']
+                    'exam_date': prev_exam['exam_date'],
+                    'average_level': prev_exam.get('average_level')
                 })
                 marks = prev_exam['marks']
                 # Parse marks if it's a JSON string
@@ -1417,7 +1418,7 @@ def parent_dashboard():
                         logging.error(f"Failed to parse marks as JSON for exam {prev_exam['exam_name']}")
                         marks = {}
                 previous_exam_marks[prev_exam['exam_name']] = marks
-                logging.info(f"Previous exam: {prev_exam['exam_name']}, marks type: {type(marks)}, marks: {marks}")
+                logging.info(f"Previous exam: {prev_exam['exam_name']}, marks type: {type(marks)}, marks: {marks}, average_level: {prev_exam.get('average_level')}")
             logging.info(f"previous_exam_marks keys: {list(previous_exam_marks.keys())}")
         else:
             # Fallback to querying marks table
