@@ -693,18 +693,18 @@
         </div>
 
         <!-- Performance Summary -->
-        <div class="performance-summary">
-            <div class="summary-item">
-                <span class="summary-label">Termly Average Score:</span>
-                <span>{{ report.current_marks.average_level|default('0') }}</span>
-            </div>
-            <div class="summary-item">
-                <span class="summary-label">Termly Performance Level:</span>
-                <span>{{ 'Meeting Expectations' if report.current_marks.average_level|int >= 50 else 'Approaching Expectations' }}</span>
-            </div>
-            <div class="summary-item">
-                <span class="summary-label">Rank:</span>
-                <span>{{ report.current_marks.rank|default('N/A') }} out of 45</span>
+        <div class="performance-summary" style="flex-direction: column; align-items: flex-start;">
+            <h3 style="color: white; font-size: 18px; margin-bottom: 15px; font-weight: bold;">Understanding Your Child's Progress</h3>
+            <p style="color: white; font-size: 13px; margin-bottom: 15px; line-height: 1.6;">
+                We are using a Competency-Based Curriculum (CBC) assessment scale to track your child's growth. This scale measures how well your child has mastered specific skills throughout the term.
+            </p>
+            <div style="color: white; font-size: 12px; line-height: 1.8;">
+                <p style="margin-bottom: 10px;"><strong>BE1 (Below Expectations - Beginning):</strong> Your child is taking the first steps in learning a new concept. At this stage, we are focusing on building a foundation and ensuring they understand the basic ideas.</p>
+                <p style="margin-bottom: 10px;"><strong>BE2 (Below Expectations - Emerging):</strong> Your child is showing consistent effort and is beginning to grasp the fundamentals. With additional guided practice, they will continue to strengthen their understanding of these core skills.</p>
+                <p style="margin-bottom: 10px;"><strong>ME1 (Meeting Expectations - Developing):</strong> Your child is making good progress and is successfully grasping the core concepts taught in class. They are on the right track and continuing to gain confidence.</p>
+                <p style="margin-bottom: 10px;"><strong>ME2 (Meeting Expectations - Approaching):</strong> Your child is performing very well and is nearly at the point of full mastery. They are starting to handle the finer details of the work with ease.</p>
+                <p style="margin-bottom: 10px;"><strong>EE1 (Exceeding Expectations - Proficient):</strong> Your child has successfully demonstrated a solid grasp of the competency. They are consistently showing that they have mastered the required skills.</p>
+                <p style="margin-bottom: 10px;"><strong>EE2 (Exceeding Expectations - Advanced):</strong> Your child is performing at an outstanding level. They have moved beyond the basics and are showing a deep, creative understanding of the material.</p>
             </div>
         </div>
 
