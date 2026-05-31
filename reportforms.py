@@ -834,10 +834,17 @@ class ReportFormsView(ctk.CTkToplevel):
                                                 'score': score,
                                                 'rating': rating
                                             }
+                                    # Extract average_level if present (last 2 items after subjects)
+                                    # Format: [name, score1, rating1, ..., total, average_level]
+                                    avg_level = None
+                                    if len(marks_list) >= len(subject_names) * 2 + 2:
+                                        avg_level = marks_list[-1]  # Last item is average_level
+                                    
                                     previous_exams_data.append({
                                         'exam_name': exam_name,
                                         'exam_date': exam_date,
-                                        'marks': marks_dict
+                                        'marks': marks_dict,
+                                        'average_level': avg_level
                                     })
                                     print(f"DEBUG: Added previous exam {exam_name} with mapped dict marks")
                                     break
@@ -847,10 +854,15 @@ class ReportFormsView(ctk.CTkToplevel):
                         student_key = "".join(student['name'].split()).lower()
                         print(f"DEBUG: Looking for student key: {student_key} in marks_dict")
                         if student_key in marks_dict:
+                            student_marks = marks_dict[student_key]
+                            # Extract average_level if present
+                            avg_level = student_marks.get('average_level') if isinstance(student_marks, dict) else None
+                            
                             previous_exams_data.append({
                                 'exam_name': exam_name,
                                 'exam_date': exam_date,
-                                'marks': marks_dict[student_key]
+                                'marks': student_marks,
+                                'average_level': avg_level
                             })
                             print(f"DEBUG: Added previous exam {exam_name} with dict marks")
                         else:
