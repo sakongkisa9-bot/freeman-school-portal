@@ -583,6 +583,7 @@
                             {% set _ = score_list.append(score|int(0)) %}
                         {% endfor %}
                         {% set prev_total = score_list|sum %}
+                        <!-- DEBUG: prev_total={{ prev_total }}, loop.last={{ loop.last }} -->
                         {% if loop.last and prev_total > 0 %}
                             {% set latest_prev_total = prev_total %}
                         {% endif %}
@@ -595,8 +596,10 @@
                     <td>{{ current_total }}</td>
                     <td>-</td>
                     {# Improvement column for total scores #}
+                    <!-- DEBUG: latest_prev_total={{ latest_prev_total }}, current_total={{ current_total }} -->
                     {% if latest_prev_total != '-' and current_total != '-' %}
                         {% set improvement = current_total - latest_prev_total %}
+                        <!-- DEBUG: improvement={{ improvement }} -->
                         {% if improvement > 0 %}
                             <td style="color: green;">↑ {{ improvement }}</td>
                         {% elif improvement < 0 %}
@@ -619,24 +622,30 @@
                     {% for prev_exam in previous_exams[:2] %}
                         {% set prev_exam_title = prev_exam.exam_title %}
                         {% set prev_marks = previous_exam_marks.get(prev_exam_title, {}) %}
+                        <!-- DEBUG: prev_exam_title={{ prev_exam_title }}, prev_marks keys={{ prev_marks.keys()|list }} -->
                         {# Calculate average from previous exam marks using list accumulation #}
                         {% set score_list = [] %}
                         {% set rating_list = [] %}
                         {% for subject, subject_data in prev_marks.items() %}
                             {% set score = subject_data.score if subject_data.score is defined else subject_data.get('score', 0) %}
                             {% set rating = subject_data.rating if subject_data.rating is defined else subject_data.get('rating', 'BE2') %}
+                            <!-- DEBUG: subject={{ subject }}, score={{ score }}, rating={{ rating }} -->
                             {% set _ = score_list.append(score|int(0)) %}
                             {% set _ = rating_list.append(rating) %}
                         {% endfor %}
                         {% set prev_total = score_list|sum %}
                         {% set prev_count = score_list|length %}
+                        <!-- DEBUG: prev_total={{ prev_total }}, prev_count={{ prev_count }}, rating_list={{ rating_list }} -->
                         {# Calculate average from ratings by converting to points #}
                         {% set points_list = [] %}
                         {% for rating in rating_list %}
                             {% set _ = points_list.append(rating|rating_to_points) %}
                         {% endfor %}
+                        <!-- DEBUG: points_list={{ points_list }} -->
                         {% set avg_points = points_list|sum / points_list|length if points_list|length > 0 else 0 %}
+                        <!-- DEBUG: avg_points={{ avg_points }} -->
                         {% set prev_avg = avg_points|points_to_rating if prev_count > 0 else '-' %}
+                        <!-- DEBUG: prev_avg={{ prev_avg }} -->
                         {% if loop.last and prev_total > 0 %}
                             {% set latest_prev_total = prev_total %}
                         {% endif %}
