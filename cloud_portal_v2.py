@@ -1538,6 +1538,8 @@ def parent_dashboard():
         school_administrator = school["school_administrator"] if school else "School Administrator"
         school_signature = school["school_signature"] if school else ""
 
+        logging.info(f"School details - administrator: {school_administrator}, signature: {'present' if school_signature else 'missing'}")
+
         # Fetch student photo and stream from database
         student = conn.execute(
             """
