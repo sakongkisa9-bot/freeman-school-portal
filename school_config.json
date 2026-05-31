@@ -1,9 +1,9 @@
 {
     "school_name": "LENANA SCHOOL",
-    "address": "P.O. BOX 18 MABUSI",
-    "contacts": "0789654345/0789067865",
+    "address": "P.O.BOX 12 KAPTAMA",
+    "contacts": "0789657547/0786564689",
     "logo": "C:/Users/HomePC/Downloads/lenana-school-emblem-logo-png_seeklogo-288456.png",
-    "school_administrator": "Mercy Chelimo (Headteacher)",
+    "school_administrator": "MAXWELL(DIRECTOR)",
     "signatures": {
         "headteacher": "C:/Users/HomePC/Pictures/Untitled.png"
     },
@@ -11,7 +11,7 @@
     "cloud_school_code": "FREEMAN26",
     "cloud_teacher_username": "sakongkisa9@gmail.com",
     "cloud_teacher_password": "FREEMAN26",
-    "playgroup_exam_title": "MMALINA",
+    "playgroup_exam_title": "PLAYGROUP ASSESSMENT REPORT",
     "primary_exam_title": "PRIMARY SCHOOL MERIT LIST",
     "jss_exam_title": "JUNIOR SECONDARY ASSESSMENT",
     "subjects": {
@@ -67,6 +67,5 @@
             "AGRI",
             "C/A"
         ]
-    },
-    "portal_open": true
+    }
 }
