@@ -436,6 +436,50 @@
             padding: 6px 4px;
         }
     }
+
+    /* Print Styles */
+    @media print {
+        body {
+            background: white !important;
+        }
+
+        .min-h-screen {
+            padding: 0 !important;
+        }
+
+        .report-card {
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 20px !important;
+        }
+
+        button {
+            display: none !important;
+        }
+
+        .performance-summary {
+            page-break-inside: avoid;
+        }
+
+        .performance-history {
+            page-break-inside: avoid;
+        }
+
+        table {
+            page-break-inside: auto;
+        }
+
+        tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+        }
+
+        @page {
+            margin: 1cm;
+        }
+    }
 </style>
 
 <div class="min-h-screen bg-gray-200 p-4">
@@ -738,6 +782,13 @@
                 {% endif %}
                 <div class="signature-label">Date: _______________</div>
             </div>
+        </div>
+
+        <!-- Print Button -->
+        <div style="text-align: center; margin-top: 30px; margin-bottom: 20px;">
+            <button onclick="window.print()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #020617; border: none; padding: 16px 32px; border-radius: 12px; font-weight: 900; font-size: 16px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">
+                📄 Download as PDF
+            </button>
         </div>
     </div>
     {% else %}
