@@ -277,6 +277,8 @@ def init_db():
         conn.commit()
     
     # Add school details columns if they don't exist
+    cursor.execute("PRAGMA table_info(schools)")
+    columns = [column[1] for column in cursor.fetchall()]
     if 'school_address' not in columns:
         cursor.execute("ALTER TABLE schools ADD COLUMN school_address TEXT")
         conn.commit()
@@ -285,6 +287,12 @@ def init_db():
         conn.commit()
     if 'school_logo' not in columns:
         cursor.execute("ALTER TABLE schools ADD COLUMN school_logo TEXT")
+        conn.commit()
+    if 'school_administrator' not in columns:
+        cursor.execute("ALTER TABLE schools ADD COLUMN school_administrator TEXT")
+        conn.commit()
+    if 'school_signature' not in columns:
+        cursor.execute("ALTER TABLE schools ADD COLUMN school_signature TEXT")
         conn.commit()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS teachers (
@@ -1475,8 +1483,8 @@ def parent_dashboard():
         # Fetch school details from database
         school = conn.execute(
             """
-            SELECT school_address, school_telephone, school_logo 
-            FROM schools 
+            SELECT school_address, school_telephone, school_logo, school_administrator, school_signature
+            FROM schools
             WHERE school_name = ?
             """,
             (session["parent_school_name"],)
@@ -1485,6 +1493,8 @@ def parent_dashboard():
         school_address = school["school_address"] if school else None
         school_telephone = school["school_telephone"] if school else None
         school_logo = school["school_logo"] if school else None
+        school_administrator = school["school_administrator"] if school else "School Administrator"
+        school_signature = school["school_signature"] if school else ""
 
         # Fetch student photo and stream from database
         student = conn.execute(
@@ -1528,8 +1538,8 @@ def parent_dashboard():
             school_address=school_address,
             school_telephone=school_telephone,
             school_logo=school_logo,
-            school_administrator=school.get("school_administrator", "School Administrator") if school else "School Administrator",
-            school_signature=school.get("signatures", {}).get("headteacher", "") if school else "",
+            school_administrator=school_administrator,
+            school_signature=school_signature,
             student_photo=student_photo,
             student_stream=student_stream,
             report=report_data,
