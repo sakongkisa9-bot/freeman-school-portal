@@ -460,7 +460,7 @@
     @media print {
         @page {
             size: landscape;
-            margin: 0.5cm;
+            margin: 0.3cm;
         }
 
         body {
@@ -478,7 +478,7 @@
             border-radius: 0 !important;
             max-width: 100% !important;
             margin: 0 !important;
-            padding: 10px !important;
+            padding: 5px !important;
             min-height: 100vh !important;
         }
 
@@ -486,48 +486,37 @@
             display: none !important;
         }
 
+        /* Hide the performance summary to save space */
+        .performance-summary {
+            display: none !important;
+        }
+
         .report-header {
-            padding-bottom: 10px !important;
-            margin-bottom: 10px !important;
+            padding-bottom: 5px !important;
+            margin-bottom: 5px !important;
         }
 
         .student-info {
-            font-size: 11px !important;
-            padding: 8px !important;
+            font-size: 10px !important;
+            padding: 5px !important;
         }
 
         .report-table th,
         .report-table td,
         .history-table th,
         .history-table td {
-            font-size: 9px !important;
-            padding: 3px 2px !important;
-        }
-
-        .performance-summary {
-            page-break-inside: avoid;
-            padding: 10px !important;
-        }
-
-        .performance-summary h3 {
-            font-size: 14px !important;
-            margin-bottom: 8px !important;
-        }
-
-        .performance-summary p {
-            font-size: 10px !important;
-            line-height: 1.4 !important;
-            margin-bottom: 6px !important;
+            font-size: 8px !important;
+            padding: 2px 1px !important;
         }
 
         .performance-history {
             page-break-inside: avoid;
-            padding: 10px !important;
+            padding: 5px !important;
         }
 
         .performance-history h3 {
-            font-size: 14px !important;
-            margin-bottom: 8px !important;
+            font-size: 12px !important;
+            margin-bottom: 5px !important;
         }
 
         table {
@@ -540,19 +529,23 @@
         }
 
         .signature-block {
-            margin-top: 10px !important;
+            margin-top: 5px !important;
         }
 
         .signature-section {
-            padding: 5px !important;
+            padding: 3px !important;
         }
 
         .signature-label {
-            font-size: 10px !important;
+            font-size: 9px !important;
         }
 
         .signature-name {
-            font-size: 11px !important;
+            font-size: 10px !important;
+        }
+
+        .teacher-comments {
+            display: none !important;
         }
     }
 </style>
