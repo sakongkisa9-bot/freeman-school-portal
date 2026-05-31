@@ -711,35 +711,10 @@
         <!-- History Section -->
         <div class="history-section">
             <div class="history-title">Performance History</div>
-            
-            {% if previous_exams and previous_exams|length > 0 %}
-            <div class="table-responsive">
-                <table class="history-table">
-                <thead>
-                    <tr>
-                        {% for exam in previous_exams[:8] %}
-                        <th>{{ exam.exam_title[:5] }}</th>
-                        {% endfor %}
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        {% for exam in previous_exams[:8] %}
-                        <td>-</td>
-                        {% endfor %}
-                    </tr>
-                </tbody>
-            </table>
-            </div>
 
             <div class="graph-container">
                 <canvas id="historyChart"></canvas>
             </div>
-            {% else %}
-            <div style="border: 1px solid #000; padding: 20px; text-align: center; font-size: 12px;">
-                No previous exam data available
-            </div>
-            {% endif %}
         </div>
 
         <!-- Comments -->
@@ -783,52 +758,79 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 {% if report %}
+// Rating level order from lowest to highest
+const ratingLevels = ['BE2', 'BE1', 'AE2', 'AE1', 'ME2', 'ME1', 'EE2', 'EE1'];
+const ratingPoints = {'BE2': 1, 'BE1': 2, 'AE2': 3, 'AE1': 4, 'ME2': 5, 'ME1': 6, 'EE2': 7, 'EE1': 8};
+
+// Prepare exam data including current exam
+const examLabels = [];
+const examData = [];
+
+// Add current exam
+examLabels.push('{{ report.exam_title|default("Current") }}');
+const currentAvg = '{{ report.current_marks.average_level|default("BE2") }}';
+examData.push(ratingPoints[currentAvg] || 1);
+
+// Add previous exams (up to 7 more to make total 8)
+{% if previous_exams %}
+{% for prev_exam in previous_exams[:7] %}
+examLabels.push('{{ prev_exam.exam_title[:8] }}');
+const prevAvg{{ loop.index }} = '{{ prev_exam.average_level|default("BE2") }}';
+examData.push(ratingPoints[prevAvg{{ loop.index }}] || 1);
+{% endfor %}
+{% endif %}
+
 const historyCtx = document.getElementById('historyChart').getContext('2d');
 new Chart(historyCtx, {
-    type: 'line',
+    type: 'bar',
     data: {
-        labels: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8'],
+        labels: examLabels,
         datasets: [{
-            label: 'Average Score',
-            data: {{ report.exam_scores[:8]|tojson }},
-            borderColor: '#000',
-            backgroundColor: 'transparent',
+            label: 'Average Level',
+            data: examData,
+            backgroundColor: 'rgba(102, 126, 234, 0.7)',
+            borderColor: '#667eea',
             borderWidth: 2,
-            tension: 0,
-            fill: false,
-            pointRadius: 3,
-            pointBackgroundColor: '#000'
+            borderRadius: 4
         }]
     },
     options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { 
-            legend: { display: false } 
+        plugins: {
+            legend: { display: false }
         },
         scales: {
-            y: { 
-                beginAtZero: true, 
-                max: 80,
-                grid: { 
+            y: {
+                min: 0.5,
+                max: 8.5,
+                grid: {
                     color: '#ccc',
                     drawBorder: true
                 },
                 ticks: {
+                    callback: function(value, index, values) {
+                        if (value >= 1 && value <= 8 && Number.isInteger(value)) {
+                            return ratingLevels[value - 1];
+                        }
+                        return '';
+                    },
                     font: {
-                        family: 'Courier New',
-                        size: 10
-                    }
+                        family: 'Arial',
+                        size: 11,
+                        weight: 'bold'
+                    },
+                    stepSize: 1
                 }
             },
-            x: { 
-                grid: { 
+            x: {
+                grid: {
                     color: '#ccc',
                     drawBorder: true
                 },
                 ticks: {
                     font: {
-                        family: 'Courier New',
+                        family: 'Arial',
                         size: 10
                     }
                 }
