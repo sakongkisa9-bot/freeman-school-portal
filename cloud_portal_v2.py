@@ -1528,6 +1528,8 @@ def parent_dashboard():
             school_address=school_address,
             school_telephone=school_telephone,
             school_logo=school_logo,
+            school_administrator=school.get("school_administrator", "School Administrator") if school else "School Administrator",
+            school_signature=school.get("signatures", {}).get("headteacher", "") if school else "",
             student_photo=student_photo,
             student_stream=student_stream,
             report=report_data,

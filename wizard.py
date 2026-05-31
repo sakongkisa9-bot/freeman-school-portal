@@ -78,10 +78,13 @@ class SchoolSetupWizard(ctk.CTkToplevel):
 
         # 6. Media (Logo/Signature)
         ctk.CTkLabel(self.scroll_frame, text="Branding Assets", font=("Arial", 14, "bold")).pack(pady=(20, 5))
-        
+
+        self.create_label("School Administrator Name:")
+        self.admin_entry = self.create_entry("e.g., Mercy Chelimo (Headteacher) or Maxwell Kiptoo (Director)")
+
         self.logo_path = ctk.StringVar()
         ctk.CTkButton(self.scroll_frame, text="📁 Browse Logo", command=lambda: self.pick_file(self.logo_path)).pack(pady=5)
-        
+
         self.sig_path = ctk.StringVar()
         ctk.CTkButton(self.scroll_frame, text="✍️ Browse Signature", command=lambda: self.pick_file(self.sig_path)).pack(pady=5)
 
@@ -136,6 +139,7 @@ class SchoolSetupWizard(ctk.CTkToplevel):
                 "address": address,
                 "contacts": contacts,
                 "logo": self.logo_path.get(),
+                "school_administrator": self.admin_entry.get().strip(),
                 "signatures": {
                     "headteacher": self.sig_path.get()
                 },
@@ -147,7 +151,7 @@ class SchoolSetupWizard(ctk.CTkToplevel):
                 "playgroup_exam_title": "PLAYGROUP ASSESSMENT REPORT",
                 "primary_exam_title": "PRIMARY SCHOOL MERIT LIST",
                 "jss_exam_title": "JUNIOR SECONDARY ASSESSMENT",
-                
+
                 "subjects": {
                     "playgroup": [s.strip().upper() for s in self.playgroup_subs.get().split(',') if s.strip()],
                     "pp1": [s.strip().upper() for s in self.pp1_subs.get().split(',') if s.strip()],
