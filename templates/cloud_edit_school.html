@@ -229,7 +229,7 @@
         {% endwith %}
 
         <div class="form-card">
-            <form method="POST">
+            <form method="POST" enctype="multipart/form-data">
                 <div class="form-group">
                     <label class="form-label">School Code</label>
                     <input type="text" class="form-input" value="{{ school.school_code }}" disabled>
@@ -244,6 +244,20 @@
                 <div class="form-group">
                     <label class="form-label" for="email">Email</label>
                     <input type="email" id="email" name="email" class="form-input" value="{{ school.email or '' }}">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="school_administrator">School Administrator Name</label>
+                    <input type="text" id="school_administrator" name="school_administrator" class="form-input" value="{{ school.school_administrator or '' }}" placeholder="e.g., Mercy Chelimo (Headteacher)">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="signature">Signature Image</label>
+                    <input type="file" id="signature" name="signature" class="form-input" accept="image/png,image/jpeg">
+                    <p class="form-hint">Upload PNG or JPEG signature image</p>
+                    {% if school.school_signature %}
+                    <p class="form-hint">Current signature: <a href="#" onclick="alert('Signature already uploaded')">Uploaded</a></p>
+                    {% endif %}
                 </div>
 
                 <div class="form-group">

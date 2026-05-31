@@ -731,7 +731,11 @@
             <div class="signature-section">
                 <div class="signature-label">School Administrator</div>
                 <div class="signature-name">{{ school_administrator }}</div>
+                {% if school_signature %}
+                <img src="{{ school_signature }}" alt="Signature" style="height: 60px; max-width: 200px;">
+                {% else %}
                 <div class="signature-line"></div>
+                {% endif %}
                 <div class="signature-label">Date: _______________</div>
             </div>
         </div>

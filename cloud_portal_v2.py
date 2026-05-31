@@ -142,6 +142,27 @@ def get_head_teacher_comment(average_level):
     }
     return comments.get(average_level, "No comment available.")
 
+# Custom Jinja2 filter to convert image file to base64
+def image_to_base64(image_path):
+    """Convert image file to base64 data URL"""
+    if not image_path:
+        return ""
+    import base64
+    import os
+    try:
+        if os.path.exists(image_path):
+            with open(image_path, "rb") as image_file:
+                encoded = base64.b64encode(image_file.read()).decode('utf-8')
+                # Determine file extension
+                ext = os.path.splitext(image_path)[1].lower()
+                mime_type = "image/png" if ext == ".png" else "image/jpeg"
+                return f"data:{mime_type};base64,{encoded}"
+        else:
+            return ""
+    except Exception as e:
+        logging.error(f"Error converting image to base64: {e}")
+        return ""
+
 # Custom Jinja2 filter to convert points to rating
 def points_to_rating(points):
     """Convert points back to rating"""
@@ -160,6 +181,7 @@ app.jinja_env.filters['points_to_rating'] = points_to_rating
 app.jinja_env.filters['rating_to_comment'] = rating_to_comment
 app.jinja_env.filters['get_class_teacher_comment'] = get_class_teacher_comment
 app.jinja_env.filters['get_head_teacher_comment'] = get_head_teacher_comment
+app.jinja_env.filters['image_to_base64'] = image_to_base64
 
 
 @app.before_request
@@ -519,23 +541,43 @@ def admin_edit_school(school_code):
             school_name = request.form.get("school_name", "").strip()
             email = request.form.get("email", "").strip()
             password = request.form.get("password", "")
+            school_administrator = request.form.get("school_administrator", "").strip()
+            signature_file = request.files.get("signature")
 
             if not school_name:
                 flash("School name is required.", "danger")
                 return redirect(url_for("admin_edit_school", school_code=school_code))
 
+            # Convert signature to base64 if uploaded
+            signature_base64 = None
+            if signature_file and signature_file.filename:
+                import base64
+                signature_data = signature_file.read()
+                signature_base64 = base64.b64encode(signature_data).decode('utf-8')
+                # Determine mime type
+                ext = signature_file.filename.lower().split('.')[-1]
+                mime_type = "image/png" if ext == "png" else "image/jpeg"
+                signature_base64 = f"data:{mime_type};base64,{signature_base64}"
+
             if password:
                 # Update password if provided
                 password_hash = generate_password_hash(password)
                 conn.execute(
-                    "UPDATE schools SET school_name = ?, email = ?, password_hash = ? WHERE school_code = ?",
-                    (school_name, email, password_hash, school_code)
+                    "UPDATE schools SET school_name = ?, email = ?, password_hash = ?, school_administrator = ? WHERE school_code = ?",
+                    (school_name, email, password_hash, school_administrator, school_code)
                 )
             else:
                 # Update only name and email
                 conn.execute(
-                    "UPDATE schools SET school_name = ?, email = ? WHERE school_code = ?",
-                    (school_name, email, school_code)
+                    "UPDATE schools SET school_name = ?, email = ?, school_administrator = ? WHERE school_code = ?",
+                    (school_name, email, school_administrator, school_code)
+                )
+
+            # Update signature if uploaded
+            if signature_base64:
+                conn.execute(
+                    "UPDATE schools SET school_signature = ? WHERE school_code = ?",
+                    (signature_base64, school_code)
                 )
 
             conn.commit()
