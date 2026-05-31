@@ -16,6 +16,13 @@
         min-height: 100vh;
     }
 
+    /* Override base template container constraint */
+    .container {
+        max-width: 100% !important;
+        padding: 10px !important;
+        margin: 0 !important;
+    }
+
     .min-h-screen {
         min-height: 100vh;
         padding: 0;
@@ -854,10 +861,27 @@
 
         <!-- Print Button -->
         <div style="text-align: center; margin-top: 30px; margin-bottom: 20px;">
-            <button onclick="window.print()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #020617; border: none; padding: 16px 32px; border-radius: 12px; font-weight: 900; font-size: 16px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">
+            <button onclick="printLandscape()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #020617; border: none; padding: 16px 32px; border-radius: 12px; font-weight: 900; font-size: 16px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">
                 📄 Download as PDF
             </button>
         </div>
+
+        <script>
+        function printLandscape() {
+            // Add a style element to force landscape
+            const style = document.createElement('style');
+            style.textContent = '@page { size: landscape; margin: 0.5cm; }';
+            document.head.appendChild(style);
+
+            // Print
+            window.print();
+
+            // Remove the style after printing
+            setTimeout(() => {
+                document.head.removeChild(style);
+            }, 1000);
+        }
+        </script>
     </div>
     {% else %}
     <div class="max-w-6xl mx-auto">
