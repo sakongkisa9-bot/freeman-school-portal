@@ -801,7 +801,7 @@ class ReportFormsView(ctk.CTkToplevel):
                     subject_names.append(subject_name)
         print(f"DEBUG: Subject names from current marks: {subject_names}")
         
-        for exam_name, exam_date in previous_exams_list[:2]:  # Get up to 2 previous exams
+        for exam_name, exam_date in previous_exams_list:  # Get all previous exams
             marks_data, summary_data = self.db.get_previous_exam_data(exam_name, student['grade'])
             print(f"DEBUG: Got marks_data for {exam_name}: {marks_data is not None}")
             if marks_data:
