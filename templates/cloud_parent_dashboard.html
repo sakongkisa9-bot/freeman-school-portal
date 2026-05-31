@@ -766,14 +766,22 @@ const ratingPoints = {'BE2': 1, 'BE1': 2, 'AE2': 3, 'AE1': 4, 'ME2': 5, 'ME1': 6
 const examLabels = [];
 const examData = [];
 
-// Add previous exams first (oldest to newest)
+// Collect previous exams data (they come in newest-first order from database)
+const previousExamsData = [];
 {% if previous_exams %}
 {% for prev_exam in previous_exams %}
-examLabels.push('{{ prev_exam.exam_title[:15] }}');
-const prevAvg{{ loop.index }} = '{{ prev_exam.average_level|default("BE2") }}';
-examData.push(ratingPoints[prevAvg{{ loop.index }}] || 1);
+previousExamsData.push({
+    title: '{{ prev_exam.exam_title[:15] }}',
+    avg: '{{ prev_exam.average_level|default("BE2") }}'
+});
 {% endfor %}
 {% endif %}
+
+// Reverse to get oldest-first order, then add to chart
+for (let i = previousExamsData.length - 1; i >= 0; i--) {
+    examLabels.push(previousExamsData[i].title);
+    examData.push(ratingPoints[previousExamsData[i].avg] || 1);
+}
 
 // Add current exam at the end
 examLabels.push('{{ report.exam_title|default("Current") }}');
