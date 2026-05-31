@@ -99,8 +99,21 @@ def rating_to_points(rating):
     }
     return rating_points.get(rating, 0)
 
+# Custom Jinja2 filter to convert points to rating
+def points_to_rating(points):
+    """Convert points back to rating"""
+    if points >= 7.5: return "EE1"
+    elif points >= 6.5: return "EE2"
+    elif points >= 5.5: return "ME1"
+    elif points >= 4.5: return "ME2"
+    elif points >= 3.5: return "AE1"
+    elif points >= 2.5: return "AE2"
+    elif points >= 1.5: return "BE1"
+    else: return "BE2"
+
 app.jinja_env.filters['score_to_rating'] = score_to_rating
 app.jinja_env.filters['rating_to_points'] = rating_to_points
+app.jinja_env.filters['points_to_rating'] = points_to_rating
 
 
 @app.before_request
