@@ -39,6 +39,18 @@
             padding: 30px;
             min-height: 100vh;
         }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    }
+
+    @media (min-width: 1200px) {
+        .report-card {
+            max-width: 95%;
+            margin: 0 auto;
+            padding: 40px;
+        }
     }
 
     .report-header {
@@ -439,8 +451,15 @@
 
     /* Print Styles */
     @media print {
+        @page {
+            size: landscape;
+            margin: 0.5cm;
+        }
+
         body {
             background: white !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
 
         .min-h-screen {
@@ -452,19 +471,56 @@
             border-radius: 0 !important;
             max-width: 100% !important;
             margin: 0 !important;
-            padding: 20px !important;
+            padding: 10px !important;
+            min-height: 100vh !important;
         }
 
         button {
             display: none !important;
         }
 
+        .report-header {
+            padding-bottom: 10px !important;
+            margin-bottom: 10px !important;
+        }
+
+        .student-info {
+            font-size: 11px !important;
+            padding: 8px !important;
+        }
+
+        .report-table th,
+        .report-table td,
+        .history-table th,
+        .history-table td {
+            font-size: 9px !important;
+            padding: 3px 2px !important;
+        }
+
         .performance-summary {
             page-break-inside: avoid;
+            padding: 10px !important;
+        }
+
+        .performance-summary h3 {
+            font-size: 14px !important;
+            margin-bottom: 8px !important;
+        }
+
+        .performance-summary p {
+            font-size: 10px !important;
+            line-height: 1.4 !important;
+            margin-bottom: 6px !important;
         }
 
         .performance-history {
             page-break-inside: avoid;
+            padding: 10px !important;
+        }
+
+        .performance-history h3 {
+            font-size: 14px !important;
+            margin-bottom: 8px !important;
         }
 
         table {
@@ -476,8 +532,20 @@
             page-break-after: auto;
         }
 
-        @page {
-            margin: 1cm;
+        .signature-block {
+            margin-top: 10px !important;
+        }
+
+        .signature-section {
+            padding: 5px !important;
+        }
+
+        .signature-label {
+            font-size: 10px !important;
+        }
+
+        .signature-name {
+            font-size: 11px !important;
         }
     }
 </style>
