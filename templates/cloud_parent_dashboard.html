@@ -240,6 +240,14 @@
         text-align: left;
     }
 
+    .report-table td.teacher-comment {
+        min-width: 300px;
+        max-width: 500px;
+        white-space: normal;
+        word-wrap: break-word;
+        text-align: left;
+    }
+
     .report-table tr.summary-row {
         background: linear-gradient(135deg, #f5f7fa 0%, #e8e8e8 100%);
         font-weight: bold;
@@ -565,7 +573,7 @@
                     {% if grade in ["Grade 7", "Grade 8", "Grade 9"] %}
                     <td>{{ points }}</td>
                     {% endif %}
-                    <td class="left-align">{{ rating|rating_to_comment }}</td>
+                    <td class="teacher-comment">{{ rating|rating_to_comment }}</td>
                 </tr>
                 {% endif %}
                 {% endif %}
