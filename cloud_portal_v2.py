@@ -112,6 +112,36 @@ def rating_to_comment(rating):
     }
     return rating_comments.get(rating, "No comment available.")
 
+# Custom Jinja2 filter to get class teacher comment based on average level
+def get_class_teacher_comment(average_level):
+    """Get class teacher comment based on average level"""
+    comments = {
+        "EE1": "Outstanding performance! You have shown a deep and advanced understanding of all subjects.",
+        "EE2": "Excellent work! You are consistently performing at a very high level. Keep it up!",
+        "ME1": "Good work! You have a solid grasp of the core concepts. Keep up the steady progress.",
+        "ME2": "Good effort! You are making steady progress and engaging well with your lessons.",
+        "AE1": "You are making progress. Focus on the finer details to reach full mastery.",
+        "AE2": "A promising performance. Keep practicing to strengthen your understanding of these topics.",
+        "BE1": "You are starting to grasp the basics. Let's keep working together to build your confidence.",
+        "BE2": "A beginning step in your learning journey. Stay dedicated, and we will work on the fundamentals."
+    }
+    return comments.get(average_level, "No comment available.")
+
+# Custom Jinja2 filter to get head teacher comment based on average level
+def get_head_teacher_comment(average_level):
+    """Get head teacher comment based on average level"""
+    comments = {
+        "EE1": "Excellent achievement. Continue to maintain this high standard of excellence.",
+        "EE2": "A remarkable performance this term. Well done on your hard work.",
+        "ME1": "You are meeting expectations well. Continue to be consistent in your studies.",
+        "ME2": "You are performing well. Keep up the consistency as you prepare for the next term.",
+        "AE1": "Good effort shown. With more focus, I am confident you will meet expectations soon.",
+        "AE2": "You are close to the target level. Keep working hard and stay focused.",
+        "BE1": "I see potential in your work. Let's strive to meet the expected goals next term.",
+        "BE2": "There is potential for growth. We will provide the support needed to improve next term."
+    }
+    return comments.get(average_level, "No comment available.")
+
 # Custom Jinja2 filter to convert points to rating
 def points_to_rating(points):
     """Convert points back to rating"""
@@ -128,6 +158,8 @@ app.jinja_env.filters['score_to_rating'] = score_to_rating
 app.jinja_env.filters['rating_to_points'] = rating_to_points
 app.jinja_env.filters['points_to_rating'] = points_to_rating
 app.jinja_env.filters['rating_to_comment'] = rating_to_comment
+app.jinja_env.filters['get_class_teacher_comment'] = get_class_teacher_comment
+app.jinja_env.filters['get_head_teacher_comment'] = get_head_teacher_comment
 
 
 @app.before_request
