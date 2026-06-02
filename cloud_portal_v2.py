@@ -1496,7 +1496,7 @@ def parent_dashboard():
             logging.info("Generating analytics")
             report_data = generate_analytics(report_data, conn, session["parent_grade"])
         else:
-            logging.info("No report found for student, fetching from marksheet table")
+            logging.info("No report found for student, checking available tables for fallback")
             # Fallback: fetch data directly from marksheet table
             grade = session["parent_grade"]
             table_mapping = {
@@ -1507,28 +1507,35 @@ def parent_dashboard():
                 'Grade 2': 'lower_marks',
                 'Grade 3': 'lower_marks',
                 'Grade 4': 'primary_marks',
-                'Grade 5': 'primary_marks',
-                'Grade 6': 'primary_marks',
                 'Grade 7': 'marksheet',
                 'Grade 8': 'marksheet',
                 'Grade 9': 'marksheet',
             }
             table = table_mapping.get(grade)
             if table:
-                conn.execute(f'SELECT * FROM {table} WHERE adm_no = ?', (session["parent_adm_no"],))
-                columns = [desc[0] for desc in conn.description]
-                row = conn.fetchone()
-                if row:
-                    current_marks = dict(zip(columns, row))
-                    # Use average_points for junior, average_level for others
-                    if grade in ['Grade 7', 'Grade 8', 'Grade 9']:
-                        if 'average_points' in current_marks:
-                            if current_marks['average_points']:
-                                current_marks['average_level'] = current_marks['average_points']
-                            else:
-                                current_marks['average_level'] = ''
-                    report_data = {
-                        'current_marks': current_marks,
+                # Check if table exists before querying
+                conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,))
+                table_exists = conn.fetchone()
+                # Log available tables for debugging
+                conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                all_tables = [row[0] for row in conn.fetchall()]
+                logging.info(f"Fallback: Available tables in database: {all_tables}")
+                logging.info(f"Fallback: Looking for table '{table}' for grade '{grade}'")
+                if table_exists:
+                    conn.execute(f'SELECT * FROM {table} WHERE adm_no = ?', (session["parent_adm_no"],))
+                    columns = [desc[0] for desc in conn.description]
+                    row = conn.fetchone()
+                    if row:
+                        current_marks = dict(zip(columns, row))
+                        # Use average_points for junior, average_level for others
+                        if grade in ['Grade 7', 'Grade 8', 'Grade 9']:
+                            if 'average_points' in current_marks:
+                                if current_marks['average_points']:
+                                    current_marks['average_level'] = current_marks['average_points']
+                                else:
+                                    current_marks['average_level'] = ''
+                        report_data = {
+                            'current_marks': current_marks,
                         'exam_title': current_exam_title if 'current_exam_title' in locals() else 'Current Exam',
                         'previous_exams': []
                     }
@@ -1548,8 +1555,10 @@ def parent_dashboard():
                     if 'average_level' in current_marks:
                         logging.info(f"Fallback: average_level = {current_marks['average_level']}")
                 else:
+                    logging.warning(f"Fallback: Table '{table}' does not exist in cloud database")
                     report_data = None
             else:
+                logging.warning(f"Fallback: No table mapping found for grade '{grade}'")
                 report_data = None
 
         # Determine current exam title from report data or use default
