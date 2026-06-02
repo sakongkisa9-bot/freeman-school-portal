@@ -1484,11 +1484,6 @@ def parent_dashboard():
         ).fetchone()
 
         import json
-        # Temporarily always use fallback to bypass old incorrect data in student_reports
-        # TODO: Remove this once student_reports table is cleared and reports are regenerated with correct column names
-        logging.info("Using fallback to fetch from marksheet table (bypassing student_reports)")
-        report = None
-        
         if report:
             logging.info("Report found, parsing JSON")
             report_data = json.loads(report["report_data"])
@@ -1507,9 +1502,9 @@ def parent_dashboard():
                 'Grade 2': 'lower_marks',
                 'Grade 3': 'lower_marks',
                 'Grade 4': 'primary_marks',
-                'Grade 7': 'marksheet',
-                'Grade 8': 'marksheet',
-                'Grade 9': 'marksheet',
+                'Grade 7': 'marks',
+                'Grade 8': 'marks',
+                'Grade 9': 'marks',
             }
             table = table_mapping.get(grade)
             if table:
