@@ -1349,6 +1349,37 @@ def api_save_class_reports():
         conn.close()
 
 
+@app.route("/api/clear_student_reports", methods=["POST"])
+def api_clear_student_reports():
+    """Clear all student reports from the database to force fallback usage"""
+    data = request.json
+    school_code = data.get("school_code", "").strip()
+    
+    if not school_code:
+        return jsonify({"success": False, "message": "Missing school_code"}), 400
+    
+    conn = get_db()
+    try:
+        # Verify school
+        school = conn.execute(
+            "SELECT id FROM schools WHERE school_code = ?", (school_code,)
+        ).fetchone()
+        if not school:
+            return jsonify({"success": False, "message": "School not found"}), 404
+        
+        # Delete all student reports
+        conn.execute("DELETE FROM student_reports")
+        conn.commit()
+        
+        logging.info("Cleared all student reports from database")
+        return jsonify({"success": True, "message": "All student reports cleared"})
+    except Exception as e:
+        logging.error(f"Clear student reports error: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        conn.close()
+
+
 @app.route("/api/fetch_parent_report", methods=["POST"])
 def api_fetch_parent_report():
     """Fetch a student's report for parent view"""
@@ -1453,6 +1484,11 @@ def parent_dashboard():
         ).fetchone()
 
         import json
+        # Temporarily always use fallback to bypass old incorrect data in student_reports
+        # TODO: Remove this once student_reports table is cleared and reports are regenerated with correct column names
+        logging.info("Using fallback to fetch from marksheet table (bypassing student_reports)")
+        report = None
+        
         if report:
             logging.info("Report found, parsing JSON")
             report_data = json.loads(report["report_data"])
