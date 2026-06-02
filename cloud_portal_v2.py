@@ -1486,8 +1486,11 @@ def parent_dashboard():
                     current_marks = dict(zip(columns, row))
                     # Use average_points for junior, average_level for others
                     if grade in ['Grade 7', 'Grade 8', 'Grade 9']:
-                        if 'average_points' in current_marks and current_marks['average_points']:
-                            current_marks['average_level'] = current_marks['average_points']
+                        if 'average_points' in current_marks:
+                            if current_marks['average_points']:
+                                current_marks['average_level'] = current_marks['average_points']
+                            else:
+                                current_marks['average_level'] = ''
                     report_data = {
                         'current_marks': current_marks,
                         'exam_title': current_exam_title if 'current_exam_title' in locals() else 'Current Exam',
@@ -1497,6 +1500,13 @@ def parent_dashboard():
                     subject_keys = [k for k in current_marks.keys() if 'scie' in k.lower() or 'int' in k.lower()]
                     logging.info(f"Fallback: Retrieved data from {table} with subject keys: {subject_keys}")
                     logging.info(f"Fallback: All keys: {list(current_marks.keys())[:15]}")
+                    # Log actual values for int_scie columns
+                    if 'int_scie_s' in current_marks:
+                        logging.info(f"Fallback: int_scie_s = {current_marks['int_scie_s']}")
+                    if 'int_scie_r' in current_marks:
+                        logging.info(f"Fallback: int_scie_r = {current_marks['int_scie_r']}")
+                    if 'int_scie_p' in current_marks:
+                        logging.info(f"Fallback: int_scie_p = {current_marks['int_scie_p']}")
                 else:
                     report_data = None
             else:
