@@ -1507,6 +1507,10 @@ def parent_dashboard():
                         logging.info(f"Fallback: int_scie_r = {current_marks['int_scie_r']}")
                     if 'int_scie_p' in current_marks:
                         logging.info(f"Fallback: int_scie_p = {current_marks['int_scie_p']}")
+                    if 'average_points' in current_marks:
+                        logging.info(f"Fallback: average_points = {current_marks['average_points']}")
+                    if 'average_level' in current_marks:
+                        logging.info(f"Fallback: average_level = {current_marks['average_level']}")
                 else:
                     report_data = None
             else:
