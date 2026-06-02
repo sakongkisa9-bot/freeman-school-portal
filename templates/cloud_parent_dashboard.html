@@ -709,11 +709,11 @@
                     {% endif %}
                     <th>{{ current_exam_title }} (Current)</th>
                     <th>Rate</th>
-                    <th>Improvement</th>
-                    <th class="left-align">Teacher</th>
                     {% if grade in ["Grade 7", "Grade 8", "Grade 9"] %}
                     <th>Points</th>
                     {% endif %}
+                    <th>Improvement</th>
+                    <th class="left-align">Teacher</th>
                     <th class="left-align">Teachers Comments</th>
                 </tr>
             </thead>
@@ -754,6 +754,9 @@
                     {% endif %}
                     <td>{{ current_score }}</td>
                     <td>{{ rating }}</td>
+                    {% if grade in ["Grade 7", "Grade 8", "Grade 9"] %}
+                    <td>{{ points }}</td>
+                    {% endif %}
                     {# Improvement column: compare latest previous exam with current #}
                     {% set latest_prev_score = '-' %}
                     {% if previous_exams and previous_exams|length > 0 %}
@@ -776,16 +779,13 @@
                         <td>-</td>
                     {% endif %}
                     <td class="left-align">{{ teacher_name }}</td>
-                    {% if grade in ["Grade 7", "Grade 8", "Grade 9"] %}
-                    <td>{{ points }}</td>
-                    {% endif %}
                     <td class="teacher-comment">{{ rating|rating_to_comment }}</td>
                 </tr>
                 {% endif %}
                 {% endif %}
                 {% endfor %}
                 <tr class="summary-row">
-                    <td class="left-align">TOTAL SCORES</td>
+                    <td class="left-align">{% if grade in ["Grade 7", "Grade 8", "Grade 9"] %}TOTAL POINTS{% else %}TOTAL SCORES{% endif %}</td>
                     {% set latest_prev_total_list = [] %}
                     {% for prev_exam in previous_exams[:2]|reverse %}
                         {% set prev_exam_title = prev_exam.exam_title %}
@@ -809,6 +809,9 @@
                     {% set current_total = report.current_marks.total_points|default('0')|int %}
                     <td>{{ current_total }}</td>
                     <td>-</td>
+                    {% if grade in ["Grade 7", "Grade 8", "Grade 9"] %}
+                    <td>{{ current_total }}</td>
+                    {% endif %}
                     {# Improvement column for total scores #}
                     {% if latest_prev_total != '-' and current_total != '-' %}
                         {% set improvement = current_total - latest_prev_total %}
@@ -823,9 +826,6 @@
                         <td>-</td>
                     {% endif %}
                     <td class="left-align">-</td>
-                    {% if grade in ["Grade 7", "Grade 8", "Grade 9"] %}
-                    <td>{{ current_total }}</td>
-                    {% endif %}
                     <td class="left-align">-</td>
                 </tr>
                 <tr class="summary-row">
@@ -872,8 +872,8 @@
                     {% if not previous_exams or previous_exams|length == 0 %}
                         <td>-</td>
                     {% endif %}
-                    {% set current_avg = report.current_marks.average_level|default('N/A') %}
-                    <td>{{ current_avg }}</td>
+                    {% set current_avg = report.current_marks.average_level %}
+                    <td>{{ current_avg if current_avg else '-' }}</td>
                     <td>-</td>
                     {# Improvement column for average - compare total scores #}
                     {% if latest_prev_total != '-' and current_total != '-' %}
@@ -889,9 +889,6 @@
                         <td>-</td>
                     {% endif %}
                     <td class="left-align">-</td>
-                    {% if grade in ["Grade 7", "Grade 8", "Grade 9"] %}
-                    <td>-</td>
-                    {% endif %}
                     <td class="left-align">-</td>
                 </tr>
             </tbody>

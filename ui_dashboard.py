@@ -1373,9 +1373,9 @@ class Dashboard(ctk.CTk):
 
     def get_students_in_class(self, class_name):
         try:
-            self.db._cursor.execute('SELECT adm_no, name, grade FROM students WHERE grade = ? ORDER BY name',
+            self.db._cursor.execute('SELECT adm_no, name, grade, stream FROM students WHERE grade = ? ORDER BY name',
                                    (class_name,))
-            students = [{'adm_no': row[0], 'name': row[1], 'grade': row[2]}
+            students = [{'adm_no': row[0], 'name': row[1], 'grade': row[2], 'stream': row[3] if row[3] else 'none'}
                        for row in self.db._cursor.fetchall()]
             return students
         except Exception as e:
@@ -1419,7 +1419,7 @@ class Dashboard(ctk.CTk):
         print_btn = ctk.CTkButton(button_frame, text="📄 Print as PDF",
                                  fg_color="#27ae60", hover_color="#1e8449",
                                  font=("Arial Bold", 14), height=45, width=200,
-                                 command=lambda: temp_report.print_report_pdf(report_container, student))
+                                 command=lambda: temp_report.print_report_pdf(None, temp_report.generate_report_data(student)))
         print_btn.pack(side="left", padx=10)
 
         # Send to parent button
@@ -1474,7 +1474,44 @@ class Dashboard(ctk.CTk):
             messagebox.showinfo("Info", "No students in this class.")
             return
 
-        messagebox.showinfo("Print", f"Would print {len(students)} reports for {class_name}.")
+        from tkinter import filedialog
+        from reportforms import ReportFormsView
+
+        # Ask for directory to save PDFs
+        save_dir = filedialog.askdirectory(title=f"Select folder to save {class_name} reports")
+        if not save_dir:
+            return
+
+        success_count = 0
+        for student in students:
+            try:
+                # Create temporary report object
+                temp_report = ReportFormsView.__new__(ReportFormsView)
+                temp_report.db = self.db
+                temp_report.school_config = self.load_school_config()
+
+                # Generate report data for this student
+                report_data = temp_report.generate_report_data(student)
+                
+                if not report_data:
+                    print(f"Warning: No report data generated for {student.get('name', 'Unknown')}")
+                    continue
+
+                # Generate PDF
+                student_name = student.get("name", "")
+                exam_title = report_data.get("exam_title", "PERFORMANCE REPORT")
+                file_path = f"{save_dir}/{student_name.replace(' ', '_')}_{exam_title.replace(' ', '_')}.pdf"
+
+                # Call the print function with file_path
+                temp_report.print_report_pdf(None, report_data, file_path)
+                success_count += 1
+
+            except Exception as e:
+                print(f"Error generating PDF for {student.get('name', 'Unknown')}: {e}")
+                import traceback
+                traceback.print_exc()
+
+        messagebox.showinfo("Success", f"Generated {success_count}/{len(students)} PDF reports for {class_name}.")
 
     def generate_report_data(self, student):
         from reportforms import ReportFormsView
@@ -1539,8 +1576,53 @@ class Dashboard(ctk.CTk):
             "Grade 5", "Grade 6", "Grade 7", "Grade 8", "Grade 9"
         ]
 
-        total_students = sum(len(self.get_students_in_class(cls)) for cls in classes)
-        messagebox.showinfo("Print", f"Would print {total_students} reports for all classes.")
+        from tkinter import filedialog
+        from reportforms import ReportFormsView
+
+        # Ask for directory to save PDFs
+        save_dir = filedialog.askdirectory(title="Select folder to save all reports")
+        if not save_dir:
+            return
+
+        total_success = 0
+        total_students = 0
+
+        for class_name in classes:
+            students = self.get_students_in_class(class_name)
+            if not students:
+                continue
+
+            total_students += len(students)
+
+            for student in students:
+                try:
+                    # Create temporary report object
+                    temp_report = ReportFormsView.__new__(ReportFormsView)
+                    temp_report.db = self.db
+                    temp_report.school_config = self.load_school_config()
+
+                    # Generate report data for this student
+                    report_data = temp_report.generate_report_data(student)
+                    
+                    if not report_data:
+                        print(f"Warning: No report data generated for {student.get('name', 'Unknown')} in {class_name}")
+                        continue
+
+                    # Generate PDF
+                    student_name = student.get("name", "")
+                    exam_title = report_data.get("exam_title", "PERFORMANCE REPORT")
+                    file_path = f"{save_dir}/{class_name}_{student_name.replace(' ', '_')}_{exam_title.replace(' ', '_')}.pdf"
+
+                    # Call the print function with file_path
+                    temp_report.print_report_pdf(None, report_data, file_path)
+                    total_success += 1
+
+                except Exception as e:
+                    print(f"Error generating PDF for {student.get('name', 'Unknown')} in {class_name}: {e}")
+                    import traceback
+                    traceback.print_exc()
+
+        messagebox.showinfo("Success", f"Generated {total_success}/{total_students} PDF reports for all classes.")
 
     def show_previous_exams_selection(self, class_selected):
         # Clear the old view completely (Class Selection Menu)

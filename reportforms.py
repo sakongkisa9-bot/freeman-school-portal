@@ -176,9 +176,9 @@ class ReportFormsView(ctk.CTkToplevel):
     
     def get_students_in_class(self, class_name):
         try:
-            self.db._cursor.execute('SELECT adm_no, name, grade FROM students WHERE grade = ? ORDER BY name',
+            self.db._cursor.execute('SELECT adm_no, name, grade, stream FROM students WHERE grade = ? ORDER BY name',
                                    (class_name,))
-            students = [{'adm_no': row[0], 'name': row[1], 'grade': row[2]} 
+            students = [{'adm_no': row[0], 'name': row[1], 'grade': row[2], 'stream': row[3] if row[3] else 'none'} 
                        for row in self.db._cursor.fetchall()]
             return students
         except Exception as e:
@@ -335,6 +335,34 @@ class ReportFormsView(ctk.CTkToplevel):
         except Exception as e:
             print(f"Error getting class teacher: {e}")
             return ""
+
+    def get_class_teacher_comment(self, average_level):
+        """Get class teacher comment based on average level"""
+        comments = {
+            "EE1": "Outstanding performance! You have shown a deep and advanced understanding of all subjects.",
+            "EE2": "Excellent work! You are consistently performing at a very high level. Keep it up!",
+            "ME1": "Good work! You have a solid grasp of the core concepts. Keep up the steady progress.",
+            "ME2": "Good effort! You are making steady progress and engaging well with your lessons.",
+            "AE1": "You are making progress. Focus on the finer details to reach full mastery.",
+            "AE2": "A promising performance. Keep practicing to strengthen your understanding of these topics.",
+            "BE1": "You are starting to grasp the basics. Let's keep working together to build your confidence.",
+            "BE2": "A beginning step in your learning journey. Stay dedicated, and we will work on the fundamentals."
+        }
+        return comments.get(average_level, "No comment available.")
+
+    def get_head_teacher_comment(self, average_level):
+        """Get head teacher comment based on average level"""
+        comments = {
+            "EE1": "Excellent achievement. Continue to maintain this high standard of excellence.",
+            "EE2": "A remarkable performance this term. Well done on your hard work.",
+            "ME1": "You are meeting expectations well. Continue to be consistent in your studies.",
+            "ME2": "You are performing well. Keep up the consistency as you prepare for the next term.",
+            "AE1": "Good effort shown. With more focus, I am confident you will meet expectations soon.",
+            "AE2": "You are close to the target level. Keep working hard and stay focused.",
+            "BE1": "I see potential in your work. Let's strive to meet the expected goals next term.",
+            "BE2": "There is potential for growth. We will provide the support needed to improve next term."
+        }
+        return comments.get(average_level, "No comment available.")
     
     def create_current_marks_section(self, container, student):
         section_frame = ctk.CTkFrame(container, fg_color="#f8f9fa")
@@ -516,10 +544,15 @@ class ReportFormsView(ctk.CTkToplevel):
                 'Grade 4': 'primary_marks',
                 'Grade 5': 'primary_marks',
                 'Grade 6': 'primary_marks',
+                'Grade 7': 'marksheet',
+                'Grade 8': 'marksheet',
+                'Grade 9': 'marksheet',
             }
             
             table = table_mapping.get(grade)
+            print(f"DEBUG: get_student_current_marks - adm_no: {adm_no}, grade: {grade}, table: {table}")
             if not table:
+                print(f"DEBUG: No table found for grade {grade}")
                 return None
             
             self.db._cursor.execute(f'SELECT * FROM {table} WHERE adm_no = ?', (adm_no,))
@@ -527,11 +560,16 @@ class ReportFormsView(ctk.CTkToplevel):
             row = self.db._cursor.fetchone()
             
             if row:
-                return dict(zip(columns, row))
+                result = dict(zip(columns, row))
+                print(f"DEBUG: Found current marks for {adm_no}, keys: {list(result.keys())[:5]}")
+                return result
             
+            print(f"DEBUG: No current marks found for {adm_no} in {table}")
             return None
         except Exception as e:
             print(f"Error getting current marks: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def create_marks_table(self, container, marks, grade, is_previous=False):
@@ -562,6 +600,15 @@ class ReportFormsView(ctk.CTkToplevel):
                               text_color="white", width=180)
             lbl.pack(side="left", padx=5, pady=8)
 
+        # Extract subject keys from marks to preserve original column names
+        subject_keys = {}
+        for key in marks.keys():
+            if key.endswith('_s') and key not in ['total_points', 'average_level', 'rank']:
+                subject_name = key.replace('_s', '').replace('_', ' ').title()
+                subject_keys[subject_name] = key.replace('_s', '')
+        print(f"DEBUG: create_marks_table - subject_keys: {subject_keys}")
+        print(f"DEBUG: create_marks_table - subjects from config: {subjects}")
+
         # Data rows with alternating colors
         for i, subject in enumerate(subjects):
             bg_color = "#ecf0f1" if i % 2 == 0 else "#ffffff"
@@ -572,10 +619,14 @@ class ReportFormsView(ctk.CTkToplevel):
             subj_label = ctk.CTkLabel(row_frame, text=subject, font=("Arial Bold", 12), width=180, anchor="w", text_color="#2c3e50")
             subj_label.pack(side="left", padx=5, pady=5)
 
-            # Get score, rating, points for this subject
-            score = marks.get(f'{subject.lower()}_s', '') or marks.get(f'{subject}_s', '')
-            rating = marks.get(f'{subject.lower()}_r', '') or marks.get(f'{subject}_r', '')
-            points = marks.get(f'{subject.lower()}_p', '') or marks.get(f'{subject}_p', '')
+            # Get score, rating, points for this subject using original column key
+            # Normalize subject name to match database column naming (replace hyphens and slashes with underscores)
+            normalized_subject = subject.replace('-', ' ').replace('/', ' ').title()
+            subject_key = subject_keys.get(normalized_subject, subject.lower().replace(' ', '_').replace('-', '_').replace('/', '_'))
+            score = marks.get(f'{subject_key}_s', '')
+            rating = marks.get(f'{subject_key}_r', '')
+            points = marks.get(f'{subject_key}_p', '')
+            print(f"DEBUG: Subject: {subject}, normalized: {normalized_subject}, subject_key: {subject_key}, score: {score}")
 
             # Score
             score_label = ctk.CTkLabel(row_frame, text=str(score), font=("Arial", 12), width=180, text_color="#2c3e50")
@@ -592,7 +643,7 @@ class ReportFormsView(ctk.CTkToplevel):
 
         # Total and average summary
         total = marks.get('total_points', '') or marks.get('total_score', '')
-        avg = marks.get('average_level', '')
+        avg = marks.get('average_points', '') or marks.get('average_level', '')
 
         summary_frame = ctk.CTkFrame(table_frame, fg_color="#2c3e50")
         summary_frame.pack(fill="x", pady=(10, 0))
@@ -619,9 +670,13 @@ class ReportFormsView(ctk.CTkToplevel):
             'Grade 4': 'primary',
             'Grade 5': 'primary',
             'Grade 6': 'primary',
+            'Grade 7': 'jss',
+            'Grade 8': 'jss',
+            'Grade 9': 'jss',
         }
         
         key = grade_mapping.get(grade)
+        print(f"DEBUG: get_subjects_for_grade - grade: {grade}, key: {key}, subjects: {subjects_config.get(key, [])}")
         return subjects_config.get(key, [])
     
     def create_signature_section(self, container, student):
@@ -677,9 +732,305 @@ class ReportFormsView(ctk.CTkToplevel):
                                  font=("Arial", 13), text_color="#2c3e50")
         date_label.pack(pady=5, anchor="w")
     
-    def print_report_pdf(self, container, student):
-        # Placeholder for PDF generation
-        messagebox.showinfo("Print PDF", "PDF generation will be implemented with a PDF library like ReportLab.")
+    def print_report_pdf(self, container, student, file_path=None):
+        from fpdf import FPDF
+        import os
+        from tkinter import filedialog
+
+        # Check if student data is valid
+        if not student:
+            # Only show error message for individual printing (when file_path is not provided)
+            if not file_path:
+                messagebox.showerror("Error", "No student data provided")
+            return
+
+        # Get school configuration
+        school_name = self.school_config.get("school_name", "MY SCHOOL")
+        logo_path = self.school_config.get("logo")
+        school_address = self.school_config.get("address", "")
+        school_telephone = self.school_config.get("contacts", "")
+        school_administrator = self.school_config.get("school_administrator", "School Administrator")
+        signature_path = self.school_config.get("signatures", {}).get("headteacher", "")
+
+        # Get student data from report_data (handle both student object and report_data)
+        student_name = student.get("student_name", student.get("name", "")) if student else ""
+        adm_no = student.get("adm_no", "") if student else ""
+        stream = student.get("stream", "none") if student else "none"
+        grade = student.get("grade", "") if student else ""
+        exam_title = student.get("exam_title", "PERFORMANCE REPORT") if student else "PERFORMANCE REPORT"
+        current_marks = student.get("current_marks", {}) if student else {}
+        previous_exams = student.get("previous_exams", []) if student else []
+        
+        # Get class teacher (first teacher linked to this class)
+        class_teacher = self.get_class_teacher(grade) if grade else ""
+
+        # Ask for save location only if file_path is not provided
+        if not file_path:
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".pdf",
+                initialfile=f"{student_name.replace(' ', '_')}_{exam_title.replace(' ', '_')}.pdf",
+            )
+        if not file_path:
+            return
+
+        try:
+            pdf = FPDF(orientation="L", unit="mm", format="A4")
+            pdf.add_page()
+
+            # Header with logo and school info
+            if logo_path and os.path.exists(logo_path):
+                try:
+                    pdf.image(logo_path, 10, 8, 30)
+                except:
+                    pass
+
+            pdf.set_font("Helvetica", "B", 16)
+            pdf.cell(0, 10, txt=school_name.upper(), border=0, ln=1, align="C")
+            pdf.set_font("Helvetica", "", 9)
+            pdf.cell(0, 5, txt=school_address, border=0, ln=1, align="C")
+            pdf.cell(0, 5, txt=school_telephone, border=0, ln=1, align="C")
+            pdf.ln(5)
+
+            # Student Information Frame
+            pdf.set_fill_color(240, 240, 240)
+            pdf.rect(10, pdf.get_y(), 277, 25, 'DF')  # Draw frame with fill
+            
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.cell(30, 6, txt="NAME:", border=0, ln=0)
+            pdf.set_font("Helvetica", "", 9)
+            pdf.cell(60, 6, txt=student_name, border=0, ln=0)
+            
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.cell(20, 6, txt="ADM NO:", border=0, ln=0)
+            pdf.set_font("Helvetica", "", 9)
+            pdf.cell(30, 6, txt=str(adm_no), border=0, ln=0)
+            
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.cell(20, 6, txt="STREAM:", border=0, ln=0)
+            pdf.set_font("Helvetica", "", 9)
+            pdf.cell(30, 6, txt=stream, border=0, ln=0)
+            
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.cell(20, 6, txt="GRADE:", border=0, ln=0)
+            pdf.set_font("Helvetica", "", 9)
+            pdf.cell(30, 6, txt=grade, border=0, ln=1)
+            
+            pdf.set_xy(10, pdf.get_y() + 2)
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.cell(40, 6, txt="CLASS TEACHER:", border=0, ln=0)
+            pdf.set_font("Helvetica", "", 9)
+            pdf.cell(80, 6, txt=class_teacher if class_teacher else "Not Assigned", border=0, ln=1)
+            
+            pdf.ln(5)
+
+            # Extract subjects from current_marks for subject_keys, but use config subjects for display
+            subject_keys = {}  # Store original column keys
+            if current_marks:
+                print(f"DEBUG: current_marks keys: {list(current_marks.keys())[:10]}")
+                for key in current_marks.keys():
+                    if key.endswith('_s') and key not in ['total_points', 'average_level', 'rank']:
+                        subject_name = key.replace('_s', '').replace('_', ' ').title()
+                        # Store the original key without _s for lookup
+                        subject_keys[subject_name] = key.replace('_s', '')
+                print(f"DEBUG: Subject keys: {subject_keys}")
+            
+            # Use subjects from configuration for display
+            subjects = self.get_subjects_for_grade(grade)
+            print(f"DEBUG: Subjects from config: {subjects}")
+
+            # Data Table - Subjects as columns, exams as rows (marksheet format)
+            if subjects:
+                # Check if junior grade (has points)
+                is_junior = grade in ['Grade 7', 'Grade 8', 'Grade 9']
+                
+                # Prepare exam rows in order: second latest previous exam, latest previous exam, current exam
+                exam_rows = []
+                if previous_exams and len(previous_exams) >= 2:
+                    exam_rows.append({
+                        'name': previous_exams[1].get('exam_name', ''),
+                        'marks': previous_exams[1].get('marks', {}),
+                        'average_level': previous_exams[1].get('average_level', ''),
+                        'is_current': False
+                    })
+                if previous_exams and len(previous_exams) >= 1:
+                    exam_rows.append({
+                        'name': previous_exams[0].get('exam_name', ''),
+                        'marks': previous_exams[0].get('marks', {}),
+                        'average_level': previous_exams[0].get('average_level', ''),
+                        'is_current': False
+                    })
+                exam_rows.append({
+                    'name': exam_title,
+                    'marks': current_marks,
+                    'average_level': current_marks.get('average_points', '') or current_marks.get('average_level', ''),
+                    'is_current': True
+                })
+                
+                # Calculate column widths - reduce for junior grades to fit more subjects
+                if is_junior:
+                    exam_col_width = 25
+                    subject_col_width = 9
+                    total_col_width = 10  # Reduced from 12 to fit on page
+                else:
+                    exam_col_width = 35
+                    subject_col_width = 12
+                    total_col_width = 15
+                
+                # Header row - Subject names with S, R sub-columns
+                pdf.set_fill_color(30, 80, 40)
+                pdf.set_text_color(255, 255, 255)
+                pdf.set_font("Helvetica", "B", 7)
+                pdf.cell(exam_col_width, 8, txt="EXAM", border=1, ln=0, align="L", fill=True)
+                
+                for subject in subjects:
+                    if is_junior:
+                        pdf.cell(subject_col_width * 3, 8, txt=subject[:10], border=1, ln=0, align="C", fill=True)
+                    else:
+                        pdf.cell(subject_col_width * 2, 8, txt=subject[:10], border=1, ln=0, align="C", fill=True)
+                
+                pdf.cell(total_col_width, 8, txt="TOTAL", border=1, ln=0, align="C", fill=True)
+                pdf.cell(total_col_width, 8, txt="AVG", border=1, ln=1, align="C", fill=True)
+                
+                # Second header row - S, R (and P for junior) under each subject
+                pdf.set_fill_color(30, 80, 40)
+                pdf.set_text_color(255, 255, 255)
+                pdf.set_font("Helvetica", "B", 6)
+                pdf.cell(exam_col_width, 6, txt="", border=1, ln=0, align="L", fill=True)
+                
+                for subject in subjects:
+                    if is_junior:
+                        pdf.cell(subject_col_width, 6, txt="S", border=1, ln=0, align="C", fill=True)
+                        pdf.cell(subject_col_width, 6, txt="R", border=1, ln=0, align="C", fill=True)
+                        pdf.cell(subject_col_width, 6, txt="P", border=1, ln=0, align="C", fill=True)
+                    else:
+                        pdf.cell(subject_col_width, 6, txt="S", border=1, ln=0, align="C", fill=True)
+                        pdf.cell(subject_col_width, 6, txt="R", border=1, ln=0, align="C", fill=True)
+                
+                pdf.cell(total_col_width, 6, txt="", border=1, ln=0, align="C", fill=True)
+                pdf.cell(total_col_width, 6, txt="", border=1, ln=1, align="C", fill=True)
+
+                # Data rows - Each exam as a row
+                pdf.set_text_color(0, 0, 0)
+                pdf.set_font("Helvetica", "", 7)
+                
+                for exam_row in exam_rows:
+                    exam_marks = exam_row['marks']
+                    total_score = 0
+                    total_count = 0
+                    
+                    pdf.cell(exam_col_width, 6, txt=exam_row['name'][:15], border=1, ln=0, align="L")
+                    
+                    for subject in subjects:
+                        # Normalize subject name to match database column naming (replace hyphens and slashes with underscores)
+                        normalized_subject = subject.replace('-', ' ').replace('/', ' ').title()
+                        # Use the original column key from the database
+                        subject_key = subject_keys.get(normalized_subject, subject.lower().replace(' ', '_').replace('-', '_').replace('/', '_'))
+                        score = ""
+                        rating = ""
+                        points = ""
+                        
+                        # Debug for all subjects to see what's happening
+                        if exam_row['name'] == exam_title:
+                            print(f"DEBUG: Current exam - Subject from config: {subject}, normalized: {normalized_subject}, subject_key: {subject_key}, found in subject_keys: {normalized_subject in subject_keys}")
+                        
+                        if exam_row['is_current']:
+                            # Get from current_marks using original key
+                            score = current_marks.get(f'{subject_key}_s', '')
+                            rating = current_marks.get(f'{subject_key}_r', '')
+                            points = current_marks.get(f'{subject_key}_p', '')
+                            if exam_row['name'] == exam_title:  # Debug only for current exam
+                                print(f"DEBUG: Current exam - Subject: {subject}, Key: {subject_key}_s, Score: {score}")
+                        else:
+                            # Get from previous exam marks
+                            if isinstance(exam_marks, dict):
+                                subject_upper = subject.upper().replace(' ', '_').replace('-', '_').replace('/', '_')
+                                score = exam_marks.get(subject_upper, {}).get('score', '') if isinstance(exam_marks.get(subject_upper, {}), dict) else ''
+                                rating = exam_marks.get(subject_upper, {}).get('rating', '') if isinstance(exam_marks.get(subject_upper, {}), dict) else ''
+                                points = exam_marks.get(subject_upper, {}).get('points', '') if isinstance(exam_marks.get(subject_upper, {}), dict) else ''
+                        
+                        # Calculate total
+                        if score and score not in ['', '-']:
+                            try:
+                                total_score += float(score)
+                                total_count += 1
+                            except:
+                                pass
+                        
+                        if is_junior:
+                            pdf.cell(subject_col_width, 6, txt=str(score), border=1, ln=0, align="C")
+                            pdf.cell(subject_col_width, 6, txt=str(rating), border=1, ln=0, align="C")
+                            pdf.cell(subject_col_width, 6, txt=str(points), border=1, ln=0, align="C")
+                        else:
+                            pdf.cell(subject_col_width, 6, txt=str(score), border=1, ln=0, align="C")
+                            pdf.cell(subject_col_width, 6, txt=str(rating), border=1, ln=0, align="C")
+                    
+                    # Total and Average (use system's average_level from exam_rows)
+                    avg_grade = exam_row.get('average_level', '')
+                    
+                    pdf.cell(total_col_width, 6, txt=str(int(total_score)) if total_score > 0 else "-", border=1, ln=0, align="C")
+                    pdf.cell(total_col_width, 6, txt=str(avg_grade), border=1, ln=1, align="C")
+
+            # Footer Sections - Comments and Signature
+            pdf.ln(10)
+            
+            # Get average level for comments
+            average_level = current_marks.get('average_level', 'BE2')
+            
+            # Comments Frame
+            pdf.set_fill_color(240, 240, 240)
+            frame_y = pdf.get_y()
+            pdf.rect(10, frame_y, 277, 30, 'DF')  # Draw frame with fill
+            
+            # Class Teacher Comment
+            pdf.set_xy(15, frame_y + 3)
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.cell(70, 6, txt="Class Teacher:", border=0, ln=0, align="L")
+            pdf.set_font("Helvetica", "", 9)
+            class_teacher_comment = self.get_class_teacher_comment(average_level)
+            pdf.cell(190, 6, txt=class_teacher_comment, border=0, ln=1, align="L")
+            
+            # Head Teacher Comment
+            pdf.set_xy(15, frame_y + 12)
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.cell(70, 6, txt="Head Teacher:", border=0, ln=0, align="L")
+            pdf.set_font("Helvetica", "", 9)
+            head_teacher_comment = self.get_head_teacher_comment(average_level)
+            pdf.cell(190, 6, txt=head_teacher_comment, border=0, ln=1, align="L")
+            
+            pdf.set_y(frame_y + 35)
+            
+            # School Administrator Signature
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.cell(0, 6, txt=f"{school_administrator} (School Administrator)", border=0, ln=1)
+            
+            # Signature image or line
+            if signature_path and os.path.exists(signature_path):
+                try:
+                    pdf.image(signature_path, x=10, y=pdf.get_y(), h=30)
+                    pdf.ln(35)
+                except:
+                    pdf.cell(0, 6, txt="_________________", border=0, ln=1)
+                    pdf.ln(5)
+            else:
+                pdf.cell(0, 6, txt="_________________", border=0, ln=1)
+                pdf.ln(5)
+            
+            # Date line
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.cell(0, 6, txt="Date: _______________", border=0, ln=1)
+
+            pdf.output(file_path)
+            # Only show success message for individual printing (when file_path is not provided)
+            if not file_path:
+                messagebox.showinfo("Success", "PDF generated successfully!")
+
+        except Exception as e:
+            # Only show error message for individual printing (when file_path is not provided)
+            if not file_path:
+                messagebox.showerror("Error", f"PDF Generation Failed: {e}")
+            else:
+                # For batch printing, just print to console
+                print(f"PDF Generation Failed: {e}")
     
     def send_student_report_to_portal(self, student):
         credentials = self.get_cloud_credentials()
@@ -771,7 +1122,14 @@ class ReportFormsView(ctk.CTkToplevel):
         messagebox.showinfo("Print", f"Would print {total_students} reports for all classes.")
     
     def generate_report_data(self, student):
+        print(f"DEBUG: generate_report_data called for {student.get('name', 'Unknown')} in {student['grade']}")
         current_marks = self.get_student_current_marks(student['adm_no'], student['grade'])
+        
+        # If no current marks, return None - don't print report
+        if not current_marks:
+            print(f"DEBUG: No current marks found for {student.get('name', 'Unknown')} in {student['grade']}")
+            return None
+        print(f"DEBUG: Current marks found, proceeding with report generation")
         
         # Determine exam title based on grade
         grade = student['grade']
@@ -878,6 +1236,7 @@ class ReportFormsView(ctk.CTkToplevel):
         return {
             'student_name': student['name'],
             'adm_no': student['adm_no'],
+            'stream': student.get('stream', 'none'),
             'grade': student['grade'],
             'school_name': self.school_config.get('school_name', ''),
             'current_marks': current_marks,
