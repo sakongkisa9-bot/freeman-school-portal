@@ -1474,6 +1474,15 @@ def parent_dashboard():
     try:
         # Fetch the student's report
         logging.info(f"Fetching report for student: {session.get('parent_student_name')}, school: {session.get('parent_school_name')}, adm_no: {session.get('parent_adm_no')}")
+        # Log all reports in the database for this school for debugging
+        all_reports = conn.execute(
+            "SELECT student_name, adm_no, school_name, generated_date FROM student_reports WHERE school_name = ?",
+            (session["parent_school_name"],)
+        ).fetchall()
+        logging.info(f"All reports in database for school {session['parent_school_name']}: {len(all_reports)}")
+        for r in all_reports:
+            logging.info(f"  - {r[0]}, adm_no: {r[1]}, school: {r[2]}, date: {r[3]}")
+        
         report = conn.execute(
             """
             SELECT report_data, generated_date FROM student_reports
