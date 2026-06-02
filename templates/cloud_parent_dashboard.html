@@ -727,7 +727,9 @@
                 {% set current_score = report.current_marks[subject]|default('-') %}
                 {% set rating = report.current_marks[subject.replace('_s', '_r')]|default('-') %}
                 {% set points = report.current_marks[subject.replace('_s', '_p')]|default('-') %}
-                {% set teacher_name = teacher_map.get(subject_name.upper().replace(' ', ''), 'None') %}
+                {# Try multiple key formats for teacher lookup #}
+                {% set teacher_key = subject_name.upper().replace(' ', '') %}
+                {% set teacher_name = teacher_map.get(teacher_key, teacher_map.get(subject_name.upper(), teacher_map.get(subject_name, 'None'))) %}
                 <tr>
                     <td class="left-align">{{ subject_name }}</td>
                     {% for prev_exam in previous_exams[:2]|reverse %}

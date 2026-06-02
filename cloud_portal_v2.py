@@ -1460,8 +1460,47 @@ def parent_dashboard():
             logging.info("Generating analytics")
             report_data = generate_analytics(report_data, conn, session["parent_grade"])
         else:
-            logging.info("No report found for student")
-            report_data = None
+            logging.info("No report found for student, fetching from marksheet table")
+            # Fallback: fetch data directly from marksheet table
+            grade = session["parent_grade"]
+            table_mapping = {
+                'playgroup': 'playgroup_marks',
+                'pp1': 'pp1_marks',
+                'pp2': 'pp2_marks',
+                'Grade 1': 'lower_marks',
+                'Grade 2': 'lower_marks',
+                'Grade 3': 'lower_marks',
+                'Grade 4': 'primary_marks',
+                'Grade 5': 'primary_marks',
+                'Grade 6': 'primary_marks',
+                'Grade 7': 'marksheet',
+                'Grade 8': 'marksheet',
+                'Grade 9': 'marksheet',
+            }
+            table = table_mapping.get(grade)
+            if table:
+                conn.execute(f'SELECT * FROM {table} WHERE adm_no = ?', (session["parent_adm_no"],))
+                columns = [desc[0] for desc in conn.description]
+                row = conn.fetchone()
+                if row:
+                    current_marks = dict(zip(columns, row))
+                    # Use average_points for junior, average_level for others
+                    if grade in ['Grade 7', 'Grade 8', 'Grade 9']:
+                        if 'average_points' in current_marks and current_marks['average_points']:
+                            current_marks['average_level'] = current_marks['average_points']
+                    report_data = {
+                        'current_marks': current_marks,
+                        'exam_title': current_exam_title if 'current_exam_title' in locals() else 'Current Exam',
+                        'previous_exams': []
+                    }
+                    # Log subject-related keys for debugging
+                    subject_keys = [k for k in current_marks.keys() if 'scie' in k.lower() or 'int' in k.lower()]
+                    logging.info(f"Fallback: Retrieved data from {table} with subject keys: {subject_keys}")
+                    logging.info(f"Fallback: All keys: {list(current_marks.keys())[:15]}")
+                else:
+                    report_data = None
+            else:
+                report_data = None
 
         # Determine current exam title from report data or use default
         if report_data and 'exam_title' in report_data and report_data['exam_title']:
