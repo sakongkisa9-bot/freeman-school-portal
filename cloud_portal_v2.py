@@ -1514,11 +1514,11 @@ def parent_dashboard():
             table = table_mapping.get(grade)
             if table:
                 # Check if table exists before querying
-                conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,))
-                table_exists = conn.fetchone()
+                cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,))
+                table_exists = cursor.fetchone()
                 # Log available tables for debugging
-                conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
-                all_tables = [row[0] for row in conn.fetchall()]
+                cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                all_tables = [row[0] for row in cursor.fetchall()]
                 logging.info(f"Fallback: Available tables in database: {all_tables}")
                 logging.info(f"Fallback: Looking for table '{table}' for grade '{grade}'")
                 if table_exists:
