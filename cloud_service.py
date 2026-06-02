@@ -184,6 +184,9 @@ class CloudService:
 
     def send_student_report(self, report_data, credentials):
         """Send a student report to the cloud portal"""
+        if report_data is None:
+            print("DEBUG: Cannot send report - report_data is None")
+            return {"success": False, "message": "No report data available"}
         payload = {
             "school_code": credentials["school_code"],
             "report": report_data,

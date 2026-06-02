@@ -1562,6 +1562,9 @@ class Dashboard(ctk.CTk):
 
             for student in students:
                 report_data = self.generate_report_data(student)
+                if report_data is None:
+                    print(f"Skipping {student.get('name', 'Unknown')} - no marks found")
+                    continue
                 result = service.send_student_report(report_data, credentials)
 
                 if result.get('success'):
