@@ -418,6 +418,26 @@ def init_db():
             FOREIGN KEY(student_id) REFERENCES students(id)
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS newsletters (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            attachment_path TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS portal_announcements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            newsletter_id INTEGER,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            class_context TEXT NOT NULL,
+            published_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(newsletter_id) REFERENCES newsletters(id)
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -1763,22 +1783,39 @@ def parent_newsletters():
         student_grade = session.get("parent_grade")
         student_id = session.get("parent_student_id")
         
-        # Get newsletters from portal_announcements table with view status
-        newsletters = conn.execute("""
-            SELECT pa.*, n.attachment_path,
-                   COALESCE(pvs.has_viewed, 0) as has_viewed
-            FROM portal_announcements pa
-            LEFT JOIN newsletters n ON pa.newsletter_id = n.id
-            LEFT JOIN parent_view_status pvs ON pvs.content_id = pa.id 
-                AND pvs.content_type = 'newsletter' 
-                AND pvs.student_id = ?
-            WHERE pa.class_context = ? OR pa.class_context = 'All Classes'
-            ORDER BY pa.published_at DESC
-        """, (student_id, student_grade)).fetchall()
+        # Check if portal_announcements table exists
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='portal_announcements'")
+        table_exists = cursor.fetchone()
+        
+        if not table_exists:
+            # Table doesn't exist, return empty list
+            newsletters = []
+        else:
+            # Get newsletters from portal_announcements table with view status
+            newsletters = conn.execute("""
+                SELECT pa.*, n.attachment_path,
+                       COALESCE(pvs.has_viewed, 0) as has_viewed
+                FROM portal_announcements pa
+                LEFT JOIN newsletters n ON pa.newsletter_id = n.id
+                LEFT JOIN parent_view_status pvs ON pvs.content_id = pa.id 
+                    AND pvs.content_type = 'newsletter' 
+                    AND pvs.student_id = ?
+                WHERE pa.class_context = ? OR pa.class_context = 'All Classes'
+                ORDER BY pa.published_at DESC
+            """, (student_id, student_grade)).fetchall()
         
         return render_template(
             "cloud_parent_newsletters.html",
             newsletters=newsletters,
+            school_name=session.get("parent_school_name"),
+            student_name=session.get("parent_student_name")
+        )
+    except Exception as e:
+        logging.error(f"Error fetching newsletters: {e}")
+        # Return empty list on error
+        return render_template(
+            "cloud_parent_newsletters.html",
+            newsletters=[],
             school_name=session.get("parent_school_name"),
             student_name=session.get("parent_student_name")
         )
