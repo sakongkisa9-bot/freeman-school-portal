@@ -199,6 +199,20 @@ class CloudService:
             print(f"DEBUG: WARNING - No exam_title in report data!")
         return self._post_json("/api/save_student_report", payload)
 
+    def sync_newsletter(self, newsletter_data, credentials):
+        """Send a newsletter to the cloud portal"""
+        if newsletter_data is None:
+            print("DEBUG: Cannot send newsletter - newsletter_data is None")
+            return {"success": False, "message": "No newsletter data available"}
+        payload = {
+            "school_code": credentials["school_code"],
+            "username": credentials["username"],
+            "password": credentials["password"],
+            "newsletter": newsletter_data,
+        }
+        print(f"DEBUG: Sending newsletter with subject: {newsletter_data.get('subject')}")
+        return self._post_json("/api/save_newsletter", payload)
+
     def send_class_reports(self, class_name, reports, credentials):
         """Send multiple reports for a class to the cloud portal"""
         payload = {

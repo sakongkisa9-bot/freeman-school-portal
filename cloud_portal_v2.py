@@ -1339,6 +1339,164 @@ def api_save_student_report():
         conn.close()
 
 
+@app.route("/api/save_newsletter", methods=["POST"])
+def api_save_newsletter():
+    """Save a newsletter to the cloud database"""
+    data = request.json
+    school_code = data.get("school_code", "").strip().lower()
+    username = data.get("username", "")
+    password = data.get("password", "")
+    newsletter_data = data.get("newsletter", {})
+
+    logging.info(f"Received newsletter: {newsletter_data.get('subject')}, target: {newsletter_data.get('target_type')}")
+
+    if not school_code or not newsletter_data:
+        return jsonify({"success": False, "message": "Missing required data"}), 400
+
+    conn = get_db()
+    try:
+        # Verify school and authenticate user
+        school = conn.execute(
+            "SELECT id, school_name FROM schools WHERE school_code = ?", (school_code,)
+        ).fetchone()
+        if not school:
+            return jsonify({"success": False, "message": "School not found"}), 404
+
+        # Create tables if they don't exist
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS newsletters (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subject TEXT NOT NULL,
+                body TEXT NOT NULL,
+                target_type TEXT,
+                class_context TEXT,
+                recipient_role TEXT,
+                attachment_path TEXT,
+                send_email INTEGER DEFAULT 0,
+                send_sms INTEGER DEFAULT 0,
+                is_draft INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                sent_at TIMESTAMP
+            )
+        """)
+        
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS portal_announcements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                newsletter_id INTEGER,
+                subject TEXT NOT NULL,
+                body TEXT NOT NULL,
+                target_type TEXT,
+                class_context TEXT NOT NULL,
+                recipient_role TEXT,
+                attachment_path TEXT,
+                published_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(newsletter_id) REFERENCES newsletters(id)
+            )
+        """)
+        
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS parent_view_status (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                student_id INTEGER NOT NULL,
+                content_type TEXT NOT NULL,
+                content_id INTEGER NOT NULL,
+                has_viewed INTEGER DEFAULT 0,
+                viewed_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(student_id, content_type, content_id),
+                FOREIGN KEY(student_id) REFERENCES students(id)
+            )
+        """)
+
+        # Insert into newsletters table
+        conn.execute("""
+            INSERT INTO newsletters (
+                subject, body, target_type, class_context, recipient_role,
+                attachment_path, send_email, send_sms, is_draft, sent_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            newsletter_data.get("subject"),
+            newsletter_data.get("body"),
+            newsletter_data.get("target_type"),
+            newsletter_data.get("class_context"),
+            newsletter_data.get("recipient_role"),
+            newsletter_data.get("attachment_path"),
+            newsletter_data.get("send_email", 0),
+            newsletter_data.get("send_sms", 0),
+            0,  # is_draft = 0 (published)
+            "CURRENT_TIMESTAMP"
+        ))
+        
+        newsletter_id = conn.lastrowid
+        
+        # Insert into portal_announcements table
+        conn.execute("""
+            INSERT INTO portal_announcements (
+                newsletter_id, subject, body, target_type, 
+                class_context, recipient_role, attachment_path
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            newsletter_id,
+            newsletter_data.get("subject"),
+            newsletter_data.get("body"),
+            newsletter_data.get("target_type"),
+            newsletter_data.get("class_context"),
+            newsletter_data.get("recipient_role"),
+            newsletter_data.get("attachment_path")
+        ))
+        
+        announcement_id = conn.lastrowid
+        
+        # Create notification entries based on target type
+        target_type = newsletter_data.get("target_type")
+        class_context = newsletter_data.get("class_context")
+        recipient_role = newsletter_data.get("recipient_role")
+        
+        student_ids = []
+        if target_type == "Individual Student":
+            # Get specific student
+            cursor = conn.execute(
+                "SELECT id FROM students WHERE name = ? AND grade = ?",
+                (recipient_role, class_context)
+            )
+            student_row = cursor.fetchone()
+            if student_row:
+                student_ids = [student_row[0]]
+        elif target_type == "By Stream":
+            # Get students in specific stream
+            cursor = conn.execute(
+                "SELECT id FROM students WHERE grade = ? AND stream = ?",
+                (class_context, recipient_role)
+            )
+            student_ids = [row[0] for row in cursor.fetchall()]
+        elif class_context == "All Classes" or target_type == "All School":
+            # Get all students
+            cursor = conn.execute("SELECT id FROM students")
+            student_ids = [row[0] for row in cursor.fetchall()]
+        else:
+            # Get students in specific class
+            cursor = conn.execute("SELECT id FROM students WHERE grade = ?", (class_context,))
+            student_ids = [row[0] for row in cursor.fetchall()]
+        
+        # Create notification entries
+        for student_id in student_ids:
+            conn.execute("""
+                INSERT OR IGNORE INTO parent_view_status (student_id, content_type, content_id, has_viewed)
+                VALUES (?, ?, ?, 0)
+            """, (student_id, 'newsletter', announcement_id))
+        
+        conn.commit()
+        logging.info(f"Newsletter synced to cloud: {newsletter_data.get('subject')}, {len(student_ids)} notifications created")
+        return jsonify({"success": True, "message": f"Newsletter saved successfully, {len(student_ids)} notifications created"})
+        
+    except Exception as e:
+        logging.error(f"Save newsletter error: {e}", exc_info=True)
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        conn.close()
+
+
 @app.route("/api/save_class_reports", methods=["POST"])
 def api_save_class_reports():
     """Save multiple reports for a class"""

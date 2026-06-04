@@ -5,6 +5,7 @@ import os
 import json
 import sqlite3
 from datetime import datetime
+from cloud_service import CloudService, ask_cloud_credentials
 
 
 class NewsletterCreator(ctk.CTkToplevel):
@@ -872,6 +873,9 @@ class NewsletterCreator(ctk.CTkToplevel):
             if self.sms_var.get():
                 self._queue_sms_notifications()
             
+            # Sync to cloud
+            self._sync_to_cloud(subject, body)
+            
             messagebox.showinfo(
                 "Published Successfully", 
                 "Circular published to Parent Portal!\n\n"
@@ -882,6 +886,41 @@ class NewsletterCreator(ctk.CTkToplevel):
             
         except Exception as e:
             messagebox.showerror("Publish Error", f"Could not publish to portal: {e}")
+    
+    def _sync_to_cloud(self, subject, body):
+        """Sync newsletter to cloud portal"""
+        try:
+            # Get cloud credentials
+            credentials = ask_cloud_credentials(self)
+            if not credentials:
+                print("Cloud sync cancelled - no credentials provided")
+                return
+            
+            # Prepare newsletter data
+            newsletter_data = {
+                "subject": subject,
+                "body": body,
+                "target_type": self.target_type_var.get(),
+                "class_context": self.class_context_var.get(),
+                "recipient_role": self.recipient_role_var.get(),
+                "attachment_path": self.attachment_path,
+                "send_email": 0,  # Email is no longer supported
+                "send_sms": 1 if self.sms_var.get() else 0
+            }
+            
+            # Sync to cloud
+            cloud_service = CloudService()
+            result = cloud_service.sync_newsletter(newsletter_data, credentials)
+            
+            if result.get("success"):
+                print(f"Newsletter synced to cloud successfully: {result.get('message')}")
+            else:
+                print(f"Cloud sync failed: {result.get('message')}")
+                # Don't show error to user since local save succeeded
+                
+        except Exception as e:
+            print(f"Error syncing to cloud: {e}")
+            # Don't show error to user since local save succeeded
     
     def _save_to_database(self, subject, body, draft=True):
         """Save circular to database"""
@@ -1188,7 +1227,7 @@ class NewsletterCreator(ctk.CTkToplevel):
                     VALUES (?, ?, ?, ?)
                 """, (newsletter_id, email, subject, body))
             
-            self.db._conn.commit()
+            self.db.conn.commit()
             print(f"Queued {len(recipients)} email notifications")
             
         except Exception as e:
