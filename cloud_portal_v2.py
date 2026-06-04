@@ -418,6 +418,19 @@ def init_db():
             FOREIGN KEY(student_id) REFERENCES students(id)
         )
     """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS fcm_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL,
+            token TEXT NOT NULL,
+            device_info TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(student_id, token),
+            FOREIGN KEY(student_id) REFERENCES students(id)
+        )
+    """)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS newsletters (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1339,6 +1352,41 @@ def api_save_student_report():
         conn.close()
 
 
+@app.route("/api/register_fcm_token", methods=["POST"])
+def api_register_fcm_token():
+    """Register an FCM token for a student"""
+    try:
+        data = request.json
+        student_id = data.get("student_id")
+        token = data.get("token")
+        device_info = data.get("device_info", "")
+        
+        if not student_id or not token:
+            return jsonify({"success": False, "message": "Missing student_id or token"}), 400
+        
+        conn = get_db()
+        try:
+            # Insert or update the token
+            conn.execute("""
+                INSERT OR REPLACE INTO fcm_tokens (student_id, token, device_info, updated_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            """, (student_id, token, device_info))
+            
+            conn.commit()
+            logging.info(f"FCM token registered for student_id={student_id}")
+            return jsonify({"success": True, "message": "Token registered successfully"})
+            
+        except Exception as e:
+            logging.error(f"Error registering FCM token: {e}")
+            return jsonify({"success": False, "message": str(e)}), 500
+        finally:
+            conn.close()
+            
+    except Exception as e:
+        logging.error(f"FCM token registration error: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 @app.route("/api/save_newsletter", methods=["POST"])
 def api_save_newsletter():
     """Save a newsletter to the cloud database"""
@@ -1487,6 +1535,45 @@ def api_save_newsletter():
             """, (student_id, 'newsletter', announcement_id))
         
         conn.commit()
+        
+        # Send FCM notifications
+        try:
+            from fcm_service import get_fcm_service
+            fcm_service = get_fcm_service()
+            
+            if fcm_service.is_available():
+                # Get FCM tokens for target students
+                tokens = []
+                for student_id in student_ids:
+                    cursor = conn.execute(
+                        "SELECT token FROM fcm_tokens WHERE student_id = ?",
+                        (student_id,)
+                    )
+                    token_row = cursor.fetchone()
+                    if token_row:
+                        tokens.append(token_row[0])
+                
+                if tokens:
+                    # Send multicast notification
+                    result = fcm_service.send_multicast_notification(
+                        tokens=tokens,
+                        title=f"New Newsletter: {newsletter_data.get('subject')}",
+                        body="A new newsletter has been published. Check your portal.",
+                        data={
+                            "type": "newsletter",
+                            "announcement_id": str(announcement_id),
+                            "subject": newsletter_data.get('subject')
+                        }
+                    )
+                    logging.info(f"FCM notifications sent: {result}")
+                else:
+                    logging.info("No FCM tokens found for target students")
+            else:
+                logging.info("FCM service not available, skipping push notifications")
+                
+        except Exception as e:
+            logging.error(f"Error sending FCM notifications: {e}")
+        
         logging.info(f"Newsletter synced to cloud: {newsletter_data.get('subject')}, {len(student_ids)} notifications created")
         return jsonify({"success": True, "message": f"Newsletter saved successfully, {len(student_ids)} notifications created"})
         
