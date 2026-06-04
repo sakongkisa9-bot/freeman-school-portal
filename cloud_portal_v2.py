@@ -405,6 +405,19 @@ def init_db():
             UNIQUE(exam_name, class_name)
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS parent_view_status (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL,
+            content_type TEXT NOT NULL,
+            content_id INTEGER NOT NULL,
+            has_viewed INTEGER DEFAULT 0,
+            viewed_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(student_id, content_type, content_id),
+            FOREIGN KEY(student_id) REFERENCES students(id)
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -1470,6 +1483,43 @@ def parent_dashboard():
         logging.warning("Parent dashboard: No parent_student_id in session")
         return redirect(url_for("parent_login"))
 
+    # Check for unread notifications
+    conn = get_db()
+    try:
+        student_id = session.get("parent_student_id")
+        
+        # Check unread newsletters
+        unread_newsletters = conn.execute("""
+            SELECT COUNT(*) as count FROM parent_view_status
+            WHERE student_id = ? AND content_type = 'newsletter' AND has_viewed = 0
+        """, (student_id,)).fetchone()["count"]
+        
+        # Check unread reports (assuming reports have content_type 'report')
+        unread_reports = conn.execute("""
+            SELECT COUNT(*) as count FROM parent_view_status
+            WHERE student_id = ? AND content_type = 'report' AND has_viewed = 0
+        """, (student_id,)).fetchone()["count"]
+        
+        return render_template(
+            "cloud_parent_landing.html",
+            school_name=session.get("parent_school_name"),
+            student_name=session.get("parent_student_name"),
+            student_grade=session.get("parent_grade"),
+            student_adm_no=session.get("parent_adm_no"),
+            unread_newsletters=unread_newsletters,
+            unread_reports=unread_reports
+        )
+    finally:
+        conn.close()
+
+
+@app.route("/parent/report")
+def parent_report():
+    logging.info(f"Parent report accessed, session keys: {list(session.keys())}")
+    if "parent_student_id" not in session:
+        logging.warning("Parent report: No parent_student_id in session")
+        return redirect(url_for("parent_login"))
+
     conn = get_db()
     try:
         # Fetch the student's report
@@ -1698,6 +1748,65 @@ def parent_dashboard():
         logging.error(f"Parent dashboard error: {e}", exc_info=True)
         flash("An error occurred loading the dashboard.", "error")
         return redirect(url_for("parent_login"))
+    finally:
+        conn.close()
+
+
+@app.route("/parent/newsletters")
+def parent_newsletters():
+    if "parent_student_id" not in session:
+        return redirect(url_for("parent_login"))
+    
+    # Get newsletters for this parent's student class
+    conn = get_db()
+    try:
+        student_grade = session.get("parent_grade")
+        student_id = session.get("parent_student_id")
+        
+        # Get newsletters from portal_announcements table with view status
+        newsletters = conn.execute("""
+            SELECT pa.*, n.attachment_path,
+                   COALESCE(pvs.has_viewed, 0) as has_viewed
+            FROM portal_announcements pa
+            LEFT JOIN newsletters n ON pa.newsletter_id = n.id
+            LEFT JOIN parent_view_status pvs ON pvs.content_id = pa.id 
+                AND pvs.content_type = 'newsletter' 
+                AND pvs.student_id = ?
+            WHERE pa.class_context = ? OR pa.class_context = 'All Classes'
+            ORDER BY pa.published_at DESC
+        """, (student_id, student_grade)).fetchall()
+        
+        return render_template(
+            "cloud_parent_newsletters.html",
+            newsletters=newsletters,
+            school_name=session.get("parent_school_name"),
+            student_name=session.get("parent_student_name")
+        )
+    finally:
+        conn.close()
+
+
+@app.route("/mark_newsletter_viewed/<int:newsletter_id>", methods=["POST"])
+def mark_newsletter_viewed(newsletter_id):
+    if "parent_student_id" not in session:
+        return jsonify({"success": False}), 401
+    
+    conn = get_db()
+    try:
+        student_id = session.get("parent_student_id")
+        
+        # Mark as viewed
+        conn.execute("""
+            INSERT OR REPLACE INTO parent_view_status 
+            (student_id, content_type, content_id, has_viewed, viewed_at)
+            VALUES (?, 'newsletter', ?, 1, CURRENT_TIMESTAMP)
+        """, (student_id, newsletter_id))
+        
+        conn.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
     finally:
         conn.close()
 

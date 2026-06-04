@@ -164,7 +164,7 @@
             {% endif %}
         {% endwith %}
 
-        <form method="POST">
+        <form method="POST" action="{{ url_for('parent_login') }}">
             <div class="mb-4">
                 <label for="school_name" class="form-label">
                     <i class="fas fa-school"></i> School Name
