@@ -1793,14 +1793,23 @@ def parent_newsletters():
         student_grade = session.get("parent_grade")
         student_id = session.get("parent_student_id")
         
+        logging.info(f"Fetching newsletters for student_id={student_id}, grade={student_grade}")
+        
         # Check if portal_announcements table exists
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='portal_announcements'")
         table_exists = cursor.fetchone()
         
         if not table_exists:
             # Table doesn't exist, return empty list
+            logging.warning("portal_announcements table does not exist")
             newsletters = []
         else:
+            # Get all newsletters for debugging
+            all_newsletters = conn.execute("SELECT * FROM portal_announcements").fetchall()
+            logging.info(f"All newsletters in database: {len(all_newsletters)}")
+            for nl in all_newsletters:
+                logging.info(f"  - ID: {nl[0]}, class_context: {nl[5]}, subject: {nl[2]}")
+            
             # Get newsletters from portal_announcements table with view status
             newsletters = conn.execute("""
                 SELECT pa.*, n.attachment_path,
@@ -1813,6 +1822,8 @@ def parent_newsletters():
                 WHERE pa.class_context = ? OR pa.class_context = 'All Classes'
                 ORDER BY pa.published_at DESC
             """, (student_id, student_grade)).fetchall()
+            
+            logging.info(f"Filtered newsletters for grade {student_grade}: {len(newsletters)}")
         
         return render_template(
             "cloud_parent_newsletters.html",
@@ -1821,7 +1832,7 @@ def parent_newsletters():
             student_name=session.get("parent_student_name")
         )
     except Exception as e:
-        logging.error(f"Error fetching newsletters: {e}")
+        logging.error(f"Error fetching newsletters: {e}", exc_info=True)
         # Return empty list on error
         return render_template(
             "cloud_parent_newsletters.html",
