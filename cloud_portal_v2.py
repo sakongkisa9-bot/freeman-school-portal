@@ -1428,6 +1428,34 @@ def api_save_newsletter():
             )
         """)
         
+        # Migrate old schema if needed (add new columns if they don't exist)
+        try:
+            # Check if table has old columns (title, content) and migrate to new columns (subject, body)
+            cursor = conn.execute("PRAGMA table_info(newsletters)")
+            columns = {row[1] for row in cursor.fetchall()}
+            
+            if 'title' in columns and 'subject' not in columns:
+                logging.info("Migrating newsletters table from old schema to new schema")
+                conn.execute("ALTER TABLE newsletters ADD COLUMN subject TEXT")
+                conn.execute("ALTER TABLE newsletters ADD COLUMN body TEXT")
+                conn.execute("ALTER TABLE newsletters ADD COLUMN target_type TEXT")
+                conn.execute("ALTER TABLE newsletters ADD COLUMN class_context TEXT")
+                conn.execute("ALTER TABLE newsletters ADD COLUMN recipient_role TEXT")
+                conn.execute("ALTER TABLE newsletters ADD COLUMN send_email INTEGER DEFAULT 0")
+                conn.execute("ALTER TABLE newsletters ADD COLUMN send_sms INTEGER DEFAULT 0")
+                conn.execute("ALTER TABLE newsletters ADD COLUMN is_draft INTEGER DEFAULT 1")
+                conn.execute("ALTER TABLE newsletters ADD COLUMN sent_at TIMESTAMP")
+                
+                # Copy data from old columns to new columns
+                conn.execute("UPDATE newsletters SET subject = title WHERE subject IS NULL")
+                conn.execute("UPDATE newsletters SET body = content WHERE body IS NULL")
+                
+                conn.commit()
+                logging.info("Newsletter table migration completed")
+        except Exception as e:
+            logging.error(f"Error migrating newsletters table: {e}")
+            # Continue anyway - table might already have correct schema
+        
         conn.execute("""
             CREATE TABLE IF NOT EXISTS portal_announcements (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -1269,7 +1269,7 @@ class NewsletterCreator(ctk.CTkToplevel):
                     VALUES (?, ?, ?)
                 """, (newsletter_id, phone, sms_message))
             
-            self.db._conn.commit()
+            self.db.conn.commit()
             print(f"Queued {len(recipients)} SMS notifications")
             
         except Exception as e:
