@@ -1567,8 +1567,8 @@ def api_save_newsletter():
                 cursor = conn.execute("""
                     INSERT INTO portal_announcements (
                         newsletter_id, title, content, target_type, 
-                        class_context, recipient_role, attachment_path
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        class_context, recipient_role, attachment_path, published_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """, (
                     newsletter_id,
                     newsletter_data.get("subject"),
@@ -1582,8 +1582,8 @@ def api_save_newsletter():
                 cursor = conn.execute("""
                     INSERT INTO portal_announcements (
                         newsletter_id, title, content, target_type, 
-                        class_context, recipient_role
-                    ) VALUES (?, ?, ?, ?, ?, ?)
+                        class_context, recipient_role, published_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """, (
                     newsletter_id,
                     newsletter_data.get("subject"),
@@ -1598,8 +1598,8 @@ def api_save_newsletter():
                 cursor = conn.execute("""
                     INSERT INTO portal_announcements (
                         newsletter_id, subject, body, target_type, 
-                        class_context, recipient_role, attachment_path
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        class_context, recipient_role, attachment_path, published_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """, (
                     newsletter_id,
                     newsletter_data.get("subject"),
@@ -1613,8 +1613,8 @@ def api_save_newsletter():
                 cursor = conn.execute("""
                     INSERT INTO portal_announcements (
                         newsletter_id, subject, body, target_type, 
-                        class_context, recipient_role
-                    ) VALUES (?, ?, ?, ?, ?, ?)
+                        class_context, recipient_role, published_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """, (
                     newsletter_id,
                     newsletter_data.get("subject"),
