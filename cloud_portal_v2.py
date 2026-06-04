@@ -1482,6 +1482,7 @@ def api_save_newsletter():
                 conn.execute("ALTER TABLE portal_announcements ADD COLUMN body TEXT")
                 conn.execute("ALTER TABLE portal_announcements ADD COLUMN target_type TEXT")
                 conn.execute("ALTER TABLE portal_announcements ADD COLUMN recipient_role TEXT")
+                conn.execute("ALTER TABLE portal_announcements ADD COLUMN attachment_path TEXT")
                 
                 # Copy data from old columns to new columns
                 conn.execute("UPDATE portal_announcements SET subject = title WHERE subject IS NULL")
@@ -1489,6 +1490,11 @@ def api_save_newsletter():
                 
                 conn.commit()
                 logging.info("Portal_announcements table migration completed")
+            elif 'attachment_path' not in columns:
+                # Add attachment_path if missing but other columns exist
+                logging.info("Adding attachment_path column to portal_announcements table")
+                conn.execute("ALTER TABLE portal_announcements ADD COLUMN attachment_path TEXT")
+                conn.commit()
         except Exception as e:
             logging.error(f"Error migrating portal_announcements table: {e}")
         
@@ -1557,36 +1563,66 @@ def api_save_newsletter():
         
         if 'title' in columns:
             # Old schema - use title and content columns
-            cursor = conn.execute("""
-                INSERT INTO portal_announcements (
-                    newsletter_id, title, content, target_type, 
-                    class_context, recipient_role, attachment_path
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                newsletter_id,
-                newsletter_data.get("subject"),
-                newsletter_data.get("body"),
-                newsletter_data.get("target_type"),
-                newsletter_data.get("class_context"),
-                newsletter_data.get("recipient_role"),
-                newsletter_data.get("attachment_path")
-            ))
+            if 'attachment_path' in columns:
+                cursor = conn.execute("""
+                    INSERT INTO portal_announcements (
+                        newsletter_id, title, content, target_type, 
+                        class_context, recipient_role, attachment_path
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    newsletter_id,
+                    newsletter_data.get("subject"),
+                    newsletter_data.get("body"),
+                    newsletter_data.get("target_type"),
+                    newsletter_data.get("class_context"),
+                    newsletter_data.get("recipient_role"),
+                    newsletter_data.get("attachment_path")
+                ))
+            else:
+                cursor = conn.execute("""
+                    INSERT INTO portal_announcements (
+                        newsletter_id, title, content, target_type, 
+                        class_context, recipient_role
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                """, (
+                    newsletter_id,
+                    newsletter_data.get("subject"),
+                    newsletter_data.get("body"),
+                    newsletter_data.get("target_type"),
+                    newsletter_data.get("class_context"),
+                    newsletter_data.get("recipient_role")
+                ))
         else:
             # New schema - use subject and body columns
-            cursor = conn.execute("""
-                INSERT INTO portal_announcements (
-                    newsletter_id, subject, body, target_type, 
-                    class_context, recipient_role, attachment_path
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                newsletter_id,
-                newsletter_data.get("subject"),
-                newsletter_data.get("body"),
-                newsletter_data.get("target_type"),
-                newsletter_data.get("class_context"),
-                newsletter_data.get("recipient_role"),
-                newsletter_data.get("attachment_path")
-            ))
+            if 'attachment_path' in columns:
+                cursor = conn.execute("""
+                    INSERT INTO portal_announcements (
+                        newsletter_id, subject, body, target_type, 
+                        class_context, recipient_role, attachment_path
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    newsletter_id,
+                    newsletter_data.get("subject"),
+                    newsletter_data.get("body"),
+                    newsletter_data.get("target_type"),
+                    newsletter_data.get("class_context"),
+                    newsletter_data.get("recipient_role"),
+                    newsletter_data.get("attachment_path")
+                ))
+            else:
+                cursor = conn.execute("""
+                    INSERT INTO portal_announcements (
+                        newsletter_id, subject, body, target_type, 
+                        class_context, recipient_role
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                """, (
+                    newsletter_id,
+                    newsletter_data.get("subject"),
+                    newsletter_data.get("body"),
+                    newsletter_data.get("target_type"),
+                    newsletter_data.get("class_context"),
+                    newsletter_data.get("recipient_role")
+                ))
         
         announcement_id = cursor.lastrowid
         
