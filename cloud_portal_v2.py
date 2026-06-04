@@ -1485,24 +1485,48 @@ def api_save_newsletter():
             )
         """)
 
-        # Insert into newsletters table
-        conn.execute("""
-            INSERT INTO newsletters (
-                subject, body, target_type, class_context, recipient_role,
-                attachment_path, send_email, send_sms, is_draft, sent_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            newsletter_data.get("subject"),
-            newsletter_data.get("body"),
-            newsletter_data.get("target_type"),
-            newsletter_data.get("class_context"),
-            newsletter_data.get("recipient_role"),
-            newsletter_data.get("attachment_path"),
-            newsletter_data.get("send_email", 0),
-            newsletter_data.get("send_sms", 0),
-            0,  # is_draft = 0 (published)
-            "CURRENT_TIMESTAMP"
-        ))
+        # Insert into newsletters table (handle both old and new schemas)
+        cursor = conn.execute("PRAGMA table_info(newsletters)")
+        columns = {row[1] for row in cursor.fetchall()}
+        
+        if 'title' in columns:
+            # Old schema - use title and content columns
+            conn.execute("""
+                INSERT INTO newsletters (
+                    title, content, target_type, class_context, recipient_role,
+                    attachment_path, send_email, send_sms, is_draft, sent_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                newsletter_data.get("subject"),
+                newsletter_data.get("body"),
+                newsletter_data.get("target_type"),
+                newsletter_data.get("class_context"),
+                newsletter_data.get("recipient_role"),
+                newsletter_data.get("attachment_path"),
+                newsletter_data.get("send_email", 0),
+                newsletter_data.get("send_sms", 0),
+                0,  # is_draft = 0 (published)
+                "CURRENT_TIMESTAMP"
+            ))
+        else:
+            # New schema - use subject and body columns
+            conn.execute("""
+                INSERT INTO newsletters (
+                    subject, body, target_type, class_context, recipient_role,
+                    attachment_path, send_email, send_sms, is_draft, sent_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                newsletter_data.get("subject"),
+                newsletter_data.get("body"),
+                newsletter_data.get("target_type"),
+                newsletter_data.get("class_context"),
+                newsletter_data.get("recipient_role"),
+                newsletter_data.get("attachment_path"),
+                newsletter_data.get("send_email", 0),
+                newsletter_data.get("send_sms", 0),
+                0,  # is_draft = 0 (published)
+                "CURRENT_TIMESTAMP"
+            ))
         
         newsletter_id = conn.lastrowid
         
