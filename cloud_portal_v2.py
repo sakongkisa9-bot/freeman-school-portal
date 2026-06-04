@@ -1559,11 +1559,14 @@ def api_save_newsletter():
         
         # Insert into portal_announcements table (handle both old and new schemas)
         cursor = conn.execute("PRAGMA table_info(portal_announcements)")
-        columns = {row[1] for row in cursor.fetchall()}
+        columns_info = cursor.fetchall()
+        columns = {row[1]: row[2] for row in columns_info}  # column name: type
         
         if 'title' in columns:
             # Old schema - use title and content columns
-            if 'attachment_path' in columns:
+            # Old schema likely has: id, newsletter_id, title, content, class_context, published_at
+            if 'attachment_path' in columns and 'target_type' in columns:
+                # Migrated old schema with new columns
                 cursor = conn.execute("""
                     INSERT INTO portal_announcements (
                         newsletter_id, title, content, target_type, 
@@ -1579,18 +1582,16 @@ def api_save_newsletter():
                     newsletter_data.get("attachment_path")
                 ))
             else:
+                # Pure old schema without new columns
                 cursor = conn.execute("""
                     INSERT INTO portal_announcements (
-                        newsletter_id, title, content, target_type, 
-                        class_context, recipient_role, published_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                        newsletter_id, title, content, class_context, published_at
+                    ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """, (
                     newsletter_id,
                     newsletter_data.get("subject"),
                     newsletter_data.get("body"),
-                    newsletter_data.get("target_type"),
-                    newsletter_data.get("class_context"),
-                    newsletter_data.get("recipient_role")
+                    newsletter_data.get("class_context")
                 ))
         else:
             # New schema - use subject and body columns
