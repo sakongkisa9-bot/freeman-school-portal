@@ -1471,6 +1471,27 @@ def api_save_newsletter():
             )
         """)
         
+        # Migrate portal_announcements table if needed
+        try:
+            cursor = conn.execute("PRAGMA table_info(portal_announcements)")
+            columns = {row[1] for row in cursor.fetchall()}
+            
+            if 'title' in columns and 'subject' not in columns:
+                logging.info("Migrating portal_announcements table from old schema to new schema")
+                conn.execute("ALTER TABLE portal_announcements ADD COLUMN subject TEXT")
+                conn.execute("ALTER TABLE portal_announcements ADD COLUMN body TEXT")
+                conn.execute("ALTER TABLE portal_announcements ADD COLUMN target_type TEXT")
+                conn.execute("ALTER TABLE portal_announcements ADD COLUMN recipient_role TEXT")
+                
+                # Copy data from old columns to new columns
+                conn.execute("UPDATE portal_announcements SET subject = title WHERE subject IS NULL")
+                conn.execute("UPDATE portal_announcements SET body = content WHERE body IS NULL")
+                
+                conn.commit()
+                logging.info("Portal_announcements table migration completed")
+        except Exception as e:
+            logging.error(f"Error migrating portal_announcements table: {e}")
+        
         conn.execute("""
             CREATE TABLE IF NOT EXISTS parent_view_status (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1530,21 +1551,42 @@ def api_save_newsletter():
         
         newsletter_id = cursor.lastrowid
         
-        # Insert into portal_announcements table
-        cursor = conn.execute("""
-            INSERT INTO portal_announcements (
-                newsletter_id, subject, body, target_type, 
-                class_context, recipient_role, attachment_path
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (
-            newsletter_id,
-            newsletter_data.get("subject"),
-            newsletter_data.get("body"),
-            newsletter_data.get("target_type"),
-            newsletter_data.get("class_context"),
-            newsletter_data.get("recipient_role"),
-            newsletter_data.get("attachment_path")
-        ))
+        # Insert into portal_announcements table (handle both old and new schemas)
+        cursor = conn.execute("PRAGMA table_info(portal_announcements)")
+        columns = {row[1] for row in cursor.fetchall()}
+        
+        if 'title' in columns:
+            # Old schema - use title and content columns
+            cursor = conn.execute("""
+                INSERT INTO portal_announcements (
+                    newsletter_id, title, content, target_type, 
+                    class_context, recipient_role, attachment_path
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                newsletter_id,
+                newsletter_data.get("subject"),
+                newsletter_data.get("body"),
+                newsletter_data.get("target_type"),
+                newsletter_data.get("class_context"),
+                newsletter_data.get("recipient_role"),
+                newsletter_data.get("attachment_path")
+            ))
+        else:
+            # New schema - use subject and body columns
+            cursor = conn.execute("""
+                INSERT INTO portal_announcements (
+                    newsletter_id, subject, body, target_type, 
+                    class_context, recipient_role, attachment_path
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                newsletter_id,
+                newsletter_data.get("subject"),
+                newsletter_data.get("body"),
+                newsletter_data.get("target_type"),
+                newsletter_data.get("class_context"),
+                newsletter_data.get("recipient_role"),
+                newsletter_data.get("attachment_path")
+            ))
         
         announcement_id = cursor.lastrowid
         
