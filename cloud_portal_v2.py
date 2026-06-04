@@ -1491,7 +1491,7 @@ def api_save_newsletter():
         
         if 'title' in columns:
             # Old schema - use title and content columns
-            conn.execute("""
+            cursor = conn.execute("""
                 INSERT INTO newsletters (
                     title, content, target_type, class_context, recipient_role,
                     attachment_path, send_email, send_sms, is_draft, sent_at
@@ -1510,7 +1510,7 @@ def api_save_newsletter():
             ))
         else:
             # New schema - use subject and body columns
-            conn.execute("""
+            cursor = conn.execute("""
                 INSERT INTO newsletters (
                     subject, body, target_type, class_context, recipient_role,
                     attachment_path, send_email, send_sms, is_draft, sent_at
@@ -1528,10 +1528,10 @@ def api_save_newsletter():
                 "CURRENT_TIMESTAMP"
             ))
         
-        newsletter_id = conn.lastrowid
+        newsletter_id = cursor.lastrowid
         
         # Insert into portal_announcements table
-        conn.execute("""
+        cursor = conn.execute("""
             INSERT INTO portal_announcements (
                 newsletter_id, subject, body, target_type, 
                 class_context, recipient_role, attachment_path
@@ -1546,7 +1546,7 @@ def api_save_newsletter():
             newsletter_data.get("attachment_path")
         ))
         
-        announcement_id = conn.lastrowid
+        announcement_id = cursor.lastrowid
         
         # Create notification entries based on target type
         target_type = newsletter_data.get("target_type")
