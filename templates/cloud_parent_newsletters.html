@@ -1,0 +1,508 @@
+{% extends "cloud_base.html" %}
+
+{% block title %}Newsletters - {{ school_name }}{% endblock %}
+
+{% block content %}
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+    }
+
+    .navbar {
+        display: none;
+    }
+
+    .newsletters-section {
+        min-height: 100vh;
+        padding: 20px;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        overflow-y: auto;
+    }
+
+    .newsletters-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 20px 0;
+    }
+
+    .header-section {
+        background: white;
+        border-radius: 20px;
+        padding: 30px;
+        margin-bottom: 30px;
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+        animation: slideDown 0.5s ease-out;
+    }
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .header-section h1 {
+        color: #667eea;
+        font-size: 28px;
+        margin-bottom: 10px;
+        font-weight: 700;
+    }
+
+    .header-section p {
+        color: #7f8c8d;
+        font-size: 16px;
+        margin-bottom: 20px;
+    }
+
+    .back-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 24px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        box-shadow: 0 5px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .back-btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 30px rgba(102, 126, 234, 0.5);
+    }
+
+    .newsletter-card {
+        background: white;
+        border-radius: 20px;
+        padding: 30px;
+        margin-bottom: 25px;
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+        animation: fadeInUp 0.6s ease-out;
+        position: relative;
+        overflow: hidden;
+    }
+
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .newsletter-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #667eea, #764ba2, #27ae60);
+        animation: shimmer 3s infinite;
+    }
+
+    .newsletter-card.unread {
+        border-left: 5px solid #27ae60;
+    }
+
+    .unread-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 12px;
+        background: linear-gradient(135deg, #27ae60, #229954);
+        color: white;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        animation: pulse-badge 2s infinite;
+    }
+
+    @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+    }
+
+    .newsletter-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+        transition: all 0.3s ease;
+    }
+
+    .newsletter-card.glow {
+        animation: glow 2s ease-in-out infinite alternate;
+    }
+
+    @keyframes glow {
+        from {
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.15);
+        }
+        to {
+            box-shadow: 0 15px 60px rgba(102, 126, 234, 0.4), 0 0 30px rgba(102, 126, 234, 0.2);
+        }
+    }
+
+    .newsletter-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #f0f0f0;
+    }
+
+    .newsletter-title {
+        flex: 1;
+    }
+
+    .newsletter-title h2 {
+        color: #2c3e50;
+        font-size: 22px;
+        margin-bottom: 8px;
+        font-weight: 700;
+    }
+
+    .newsletter-meta {
+        color: #95a5a6;
+        font-size: 13px;
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+    }
+
+    .newsletter-meta span {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .print-btn {
+        padding: 10px 20px;
+        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+    }
+
+    .print-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(52, 152, 219, 0.5);
+    }
+
+    .newsletter-body {
+        color: #34495e;
+        font-size: 15px;
+        line-height: 1.8;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        max-height: 400px;
+        overflow-y: auto;
+        padding-right: 10px;
+    }
+
+    .newsletter-body::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .newsletter-body::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+
+    .newsletter-body::-webkit-scrollbar-thumb {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        border-radius: 10px;
+    }
+
+    .newsletter-body::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(135deg, #764ba2, #667eea);
+    }
+
+    .attachment-section {
+        margin-top: 20px;
+        padding-top: 15px;
+        border-top: 2px solid #f0f0f0;
+    }
+
+    .attachment-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+        color: white;
+        border-radius: 10px;
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 5px 15px rgba(243, 156, 18, 0.3);
+    }
+
+    .attachment-link:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(243, 156, 18, 0.5);
+    }
+
+    .no-newsletters {
+        text-align: center;
+        padding: 60px 40px;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+    }
+
+    .no-newsletters .icon {
+        font-size: 80px;
+        color: #bdc3c7;
+        margin-bottom: 20px;
+    }
+
+    .no-newsletters h3 {
+        color: #7f8c8d;
+        font-size: 24px;
+        margin-bottom: 10px;
+    }
+
+    .no-newsletters p {
+        color: #95a5a6;
+        font-size: 16px;
+    }
+
+    @media (max-width: 768px) {
+        .newsletter-header {
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .newsletter-title h2 {
+            font-size: 18px;
+        }
+
+        .newsletter-body {
+            font-size: 14px;
+            max-height: 300px;
+        }
+    }
+
+    /* Print Styles */
+    @media print {
+        body {
+            background: white !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .newsletters-section {
+            position: static !important;
+            overflow: visible !important;
+        }
+
+        .header-section,
+        .back-btn {
+            display: none !important;
+        }
+
+        .newsletter-card {
+            box-shadow: none !important;
+            border: 1px solid #ddd !important;
+            page-break-inside: avoid;
+            margin-bottom: 20px !important;
+        }
+
+        .newsletter-card::before {
+            display: none !important;
+        }
+
+        .print-btn {
+            display: none !important;
+        }
+
+        .newsletter-body {
+            max-height: none !important;
+            overflow: visible !important;
+        }
+    }
+</style>
+
+<div class="newsletters-section">
+    <div class="newsletters-container">
+        <!-- Header -->
+        <div class="header-section">
+            <h1><i class="fas fa-envelope-open-text"></i> Newsletters & Circulars</h1>
+            <p>{{ school_name }} - {{ student_name }}</p>
+            <a href="{{ url_for('parent_dashboard') }}" class="back-btn">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+
+        <!-- Newsletters List -->
+        {% if newsletters %}
+            {% for newsletter in newsletters %}
+            <div class="newsletter-card glow {% if newsletter.has_viewed == 0 %}unread{% endif %}" id="newsletter-{{ newsletter.id }}" data-newsletter-id="{{ newsletter.id }}">
+                <div class="newsletter-header">
+                    <div class="newsletter-title">
+                        <h2>{{ newsletter.subject }}</h2>
+                        <div class="newsletter-meta">
+                            <span><i class="fas fa-calendar"></i> {{ newsletter.published_at[:10] }}</span>
+                            <span><i class="fas fa-users"></i> {{ newsletter.class_context }}</span>
+                            {% if newsletter.has_viewed == 0 %}
+                            <span class="unread-badge"><i class="fas fa-circle"></i> NEW</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <button class="print-btn" onclick="printNewsletter({{ newsletter.id }})">
+                        <i class="fas fa-print"></i> Print PDF
+                    </button>
+                </div>
+                
+                <div class="newsletter-body">{{ newsletter.body }}</div>
+                
+                {% if newsletter.attachment_path %}
+                <div class="attachment-section">
+                    <a href="#" class="attachment-link">
+                        <i class="fas fa-paperclip"></i> View Attachment
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+        <div class="no-newsletters">
+            <div class="icon">
+                <i class="fas fa-inbox"></i>
+            </div>
+            <h3>No Newsletters Yet</h3>
+            <p>Check back later for school announcements and circulars.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    // Mark newsletters as viewed when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        const newsletterCards = document.querySelectorAll('[data-newsletter-id]');
+        newsletterCards.forEach(function(card) {
+            const newsletterId = card.getAttribute('data-newsletter-id');
+            // Mark as viewed via AJAX
+            fetch('/mark_newsletter_viewed/' + newsletterId, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            }).then(function(response) {
+                if (response.ok) {
+                    // Remove unread styling
+                    card.classList.remove('unread');
+                    const badge = card.querySelector('.unread-badge');
+                    if (badge) {
+                        badge.remove();
+                    }
+                }
+            }).catch(function(error) {
+                console.log('Error marking as viewed:', error);
+            });
+        });
+    });
+
+    function printNewsletter(id) {
+        const newsletterCard = document.getElementById('newsletter-' + id);
+        const originalContent = document.body.innerHTML;
+        
+        // Create a print-friendly version
+        const printContent = newsletterCard.outerHTML;
+        const printWindow = window.open('', '_blank');
+        
+        printWindow.document.write(
+            '<!DOCTYPE html>' +
+            '<html>' +
+            '<head>' +
+            '<title>Print Newsletter</title>' +
+            '<style>' +
+            'body {' +
+            'font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;' +
+            'padding: 40px;' +
+            'max-width: 800px;' +
+            'margin: 0 auto;' +
+            '}' +
+            '.newsletter-card {' +
+            'border: 1px solid #ddd;' +
+            'border-radius: 10px;' +
+            'padding: 30px;' +
+            'box-shadow: none;' +
+            '}' +
+            '.newsletter-header {' +
+            'display: flex;' +
+            'justify-content: space-between;' +
+            'align-items: flex-start;' +
+            'margin-bottom: 20px;' +
+            'padding-bottom: 15px;' +
+            'border-bottom: 2px solid #f0f0f0;' +
+            '}' +
+            '.newsletter-title h2 {' +
+            'color: #2c3e50;' +
+            'font-size: 22px;' +
+            'margin-bottom: 8px;' +
+            'font-weight: 700;' +
+            '}' +
+            '.newsletter-meta {' +
+            'color: #95a5a6;' +
+            'font-size: 13px;' +
+            '}' +
+            '.newsletter-body {' +
+            'color: #34495e;' +
+            'font-size: 15px;' +
+            'line-height: 1.8;' +
+            'white-space: pre-wrap;' +
+            '}' +
+            '.print-btn, .unread-badge {' +
+            'display: none;' +
+            '}' +
+            '@media print {' +
+            'body { padding: 0; }' +
+            '}' +
+            '</style>' +
+            '</head>' +
+            '<body>' +
+            printContent +
+            '</body>' +
+            '</html>'
+        );
+        
+        printWindow.document.close();
+        printWindow.onload = function() {
+            printWindow.print();
+            printWindow.close();
+        };
+    }
+</script>
+{% endblock %}

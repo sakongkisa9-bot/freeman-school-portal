@@ -152,6 +152,19 @@ def init_db():
             FOREIGN KEY(school_id) REFERENCES schools(id)
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS parent_view_status (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL,
+            content_type TEXT NOT NULL,
+            content_id INTEGER NOT NULL,
+            has_viewed INTEGER DEFAULT 0,
+            viewed_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(student_id, content_type, content_id),
+            FOREIGN KEY(student_id) REFERENCES students(id)
+        )
+    """)
     conn.commit()
     # Migration handling
     try:
@@ -438,6 +451,165 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("home"))
+
+
+@app.route("/parent_login", methods=["GET", "POST"])
+def parent_login():
+    if request.method == "POST":
+        school_name = request.form.get("school_name", "").strip()
+        student_name = request.form.get("student_name", "").strip()
+        adm_no = request.form.get("adm_no", "").strip()
+        
+        if not school_name or not student_name or not adm_no:
+            flash("All fields are required.", "danger")
+            return redirect(url_for("parent_login"))
+        
+        # Find school by name
+        conn = get_db()
+        try:
+            school = conn.execute(
+                "SELECT * FROM schools WHERE LOWER(school_name) = LOWER(?)",
+                (school_name,)
+            ).fetchone()
+            
+            if not school:
+                flash("School not found.", "danger")
+                return redirect(url_for("parent_login"))
+            
+            # Find student
+            student = conn.execute(
+                "SELECT * FROM students WHERE school_id = ? AND LOWER(student_name) = LOWER(?) AND adm_no = ?",
+                (school["id"], student_name, adm_no)
+            ).fetchone()
+            
+            if not student:
+                flash("Student not found. Please check the details.", "danger")
+                return redirect(url_for("parent_login"))
+            
+            # Set session for parent
+            session["school_id"] = school["id"]
+            session["school_name"] = school["school_name"]
+            session["student_id"] = student["id"]
+            session["student_name"] = student["student_name"]
+            session["student_grade"] = student["grade"]
+            session["student_adm_no"] = student["adm_no"]
+            session["role"] = "parent"
+            
+            return redirect(url_for("parent_dashboard"))
+            
+        finally:
+            conn.close()
+    
+    return render_template("cloud_parent_login.html")
+
+
+@app.route("/parent_dashboard")
+def parent_dashboard():
+    if "role" not in session or session["role"] != "parent":
+        return redirect(url_for("parent_login"))
+    
+    # Check for unread notifications
+    conn = get_db()
+    try:
+        student_id = session.get("student_id")
+        
+        # Check unread newsletters
+        unread_newsletters = conn.execute("""
+            SELECT COUNT(*) as count FROM parent_view_status
+            WHERE student_id = ? AND content_type = 'newsletter' AND has_viewed = 0
+        """, (student_id,)).fetchone()["count"]
+        
+        # Check unread reports (assuming reports have content_type 'report')
+        unread_reports = conn.execute("""
+            SELECT COUNT(*) as count FROM parent_view_status
+            WHERE student_id = ? AND content_type = 'report' AND has_viewed = 0
+        """, (student_id,)).fetchone()["count"]
+        
+        return render_template(
+            "cloud_parent_landing.html",
+            school_name=session.get("school_name"),
+            student_name=session.get("student_name"),
+            student_grade=session.get("student_grade"),
+            student_adm_no=session.get("student_adm_no"),
+            unread_newsletters=unread_newsletters,
+            unread_reports=unread_reports
+        )
+    finally:
+        conn.close()
+
+
+@app.route("/parent_report")
+def parent_report():
+    if "role" not in session or session["role"] != "parent":
+        return redirect(url_for("parent_login"))
+    
+    # This will show the existing report - we'll need to adapt the existing dashboard
+    return render_template(
+        "cloud_parent_dashboard.html",
+        school_name=session.get("school_name"),
+        student_name=session.get("student_name"),
+        student_grade=session.get("student_grade"),
+        student_adm_no=session.get("student_adm_no")
+    )
+
+
+@app.route("/parent_newsletters")
+def parent_newsletters():
+    if "role" not in session or session["role"] != "parent":
+        return redirect(url_for("parent_login"))
+    
+    # Get newsletters for this parent's student class
+    conn = get_db()
+    try:
+        student_grade = session.get("student_grade")
+        student_id = session.get("student_id")
+        
+        # Get newsletters from portal_announcements table with view status
+        newsletters = conn.execute("""
+            SELECT pa.*, n.attachment_path,
+                   COALESCE(pvs.has_viewed, 0) as has_viewed
+            FROM portal_announcements pa
+            LEFT JOIN newsletters n ON pa.newsletter_id = n.id
+            LEFT JOIN parent_view_status pvs ON pvs.content_id = pa.id 
+                AND pvs.content_type = 'newsletter' 
+                AND pvs.student_id = ?
+            WHERE pa.class_context = ? OR pa.class_context = 'All Classes'
+            ORDER BY pa.published_at DESC
+        """, (student_id, student_grade)).fetchall()
+        
+        return render_template(
+            "cloud_parent_newsletters.html",
+            newsletters=newsletters,
+            school_name=session.get("school_name"),
+            student_name=session.get("student_name")
+        )
+    finally:
+        conn.close()
+
+
+@app.route("/mark_newsletter_viewed/<int:newsletter_id>", methods=["POST"])
+def mark_newsletter_viewed(newsletter_id):
+    if "role" not in session or session["role"] != "parent":
+        return jsonify({"success": False}), 401
+    
+    conn = get_db()
+    try:
+        student_id = session.get("student_id")
+        
+        # Mark as viewed
+        conn.execute("""
+            INSERT OR REPLACE INTO parent_view_status 
+            (student_id, content_type, content_id, has_viewed, viewed_at)
+            VALUES (?, 'newsletter', ?, 1, CURRENT_TIMESTAMP)
+        """, (student_id, newsletter_id))
+        
+        conn.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        conn.close()
 
 
 @app.route("/dashboard")

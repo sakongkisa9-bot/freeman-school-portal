@@ -119,7 +119,7 @@ class Dashboard(ctk.CTk):
 
         # --- 3. MENU PANEL (Vertical Buttons) ---
         # This matches the boxes you drew on the left
-        self.menu_panel = ctk.CTkFrame(
+        self.menu_panel = ctk.CTkScrollableFrame(
             self, corner_radius=0, border_width=1, border_color="grey"
         )
         self.menu_panel.grid(row=0, column=0, sticky="nsew")
@@ -196,9 +196,18 @@ class Dashboard(ctk.CTk):
         )
         self.btn_report_forms.pack(pady=btn_pady)
 
+        self.btn_newsletter = ctk.CTkButton(
+            self.menu_panel,
+            text="Newsletter & Circular",
+            width=btn_width,
+            height=btn_height,
+            command=self.open_newsletter,
+        )
+        self.btn_newsletter.pack(pady=btn_pady)
+
         # Spacer/Fill (This pushes the Exit button to the bottom)
         self.menu_spacer = ctk.CTkLabel(self.menu_panel, text="")
-        self.menu_spacer.pack(expand=True, fill="y")
+        self.menu_spacer.pack(expand=True, fill="y", pady=10)
 
         # For the Register button:
         self.btn_register.configure(
@@ -330,6 +339,10 @@ class Dashboard(ctk.CTk):
     def open_report_forms(self):
         # Use the existing class selection method
         self.show_class_selection("Report Forms", self.btn_report_forms)
+
+    def open_newsletter(self):
+        from newsletter import NewsletterCreator
+        NewsletterCreator(self, self.db)
 
     def load_school_name(self):
         try:
