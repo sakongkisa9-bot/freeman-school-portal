@@ -421,19 +421,29 @@ def init_db():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS newsletters (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            content TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            body TEXT NOT NULL,
+            target_type TEXT,
+            class_context TEXT,
+            recipient_role TEXT,
             attachment_path TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            send_email INTEGER DEFAULT 0,
+            send_sms INTEGER DEFAULT 0,
+            is_draft INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            sent_at TIMESTAMP
         )
     """)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS portal_announcements (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             newsletter_id INTEGER,
-            title TEXT NOT NULL,
-            content TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            body TEXT NOT NULL,
+            target_type TEXT,
             class_context TEXT NOT NULL,
+            recipient_role TEXT,
+            attachment_path TEXT,
             published_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(newsletter_id) REFERENCES newsletters(id)
         )

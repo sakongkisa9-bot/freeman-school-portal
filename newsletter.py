@@ -3,6 +3,7 @@ from tkinter import messagebox, filedialog
 from tkinter import font as tkfont
 import os
 import json
+import sqlite3
 from datetime import datetime
 
 
@@ -126,7 +127,7 @@ class NewsletterCreator(ctk.CTkToplevel):
         )
         self.class_context_dropdown.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
         
-        # Dropdown 3: Recipient Role
+        # Dropdown 3: Recipient Role (changes based on target type)
         role_label = ctk.CTkLabel(
             dropdowns_frame, 
             text="Send To", 
@@ -187,9 +188,12 @@ class NewsletterCreator(ctk.CTkToplevel):
         )
         self.subject_entry.pack(side="left", fill="x", expand=True)
         
-        # Formatting toolbar
-        toolbar_frame = ctk.CTkFrame(editor_frame, fg_color="#ecf0f1", corner_radius=5)
-        toolbar_frame.pack(fill="x", padx=20, pady=(0, 10))
+        # Formatting toolbar with horizontal scroll
+        toolbar_scroll_frame = ctk.CTkScrollableFrame(editor_frame, fg_color="#ecf0f1", corner_radius=5, orientation="horizontal")
+        toolbar_scroll_frame.pack(fill="x", padx=20, pady=(0, 10))
+        
+        toolbar_frame = ctk.CTkFrame(toolbar_scroll_frame, fg_color="transparent")
+        toolbar_frame.pack(fill="x")
         
         # Toolbar buttons - larger size
         btn_style = {
@@ -436,22 +440,10 @@ class NewsletterCreator(ctk.CTkToplevel):
         checkbox_frame = ctk.CTkFrame(left_frame, fg_color="transparent")
         checkbox_frame.pack(side="left")
         
-        self.email_var = ctk.BooleanVar(value=False)
-        email_checkbox = ctk.CTkCheckBox(
-            checkbox_frame,
-            text="Send via Email",
-            variable=self.email_var,
-            fg_color="#3498db",
-            hover_color="#2980b9",
-            text_color="#2c3e50",
-            font=("Arial", 10)
-        )
-        email_checkbox.pack(anchor="w", pady=2)
-        
-        self.sms_var = ctk.BooleanVar(value=False)
+        self.sms_var = ctk.BooleanVar(value=True)  # Default to True for mandatory SMS
         sms_checkbox = ctk.CTkCheckBox(
             checkbox_frame,
-            text="Send SMS Alert to Parent's Phone",
+            text="Send SMS Alert to Parent's Phone (Required)",
             variable=self.sms_var,
             fg_color="#3498db",
             hover_color="#2980b9",
@@ -520,8 +512,76 @@ class NewsletterCreator(ctk.CTkToplevel):
         if value == "All School":
             self.class_context_dropdown.configure(state="disabled")
             self.class_context_var.set("All Classes")
+            self.recipient_role_dropdown.configure(state="disabled")
+            self.recipient_role_var.set("Both Parents")
+        elif value == "Individual Student":
+            self.class_context_dropdown.configure(state="normal")
+            self.recipient_role_dropdown.configure(state="disabled")
+            self.recipient_role_var.set("Select Student")
+            # Update student dropdown when class changes
+            self.class_context_dropdown.configure(command=self._on_class_change_for_student)
+        elif value == "By Stream":
+            self.class_context_dropdown.configure(state="normal")
+            self.recipient_role_dropdown.configure(state="disabled")
+            self.recipient_role_var.set("Select Stream")
+            # Update stream dropdown when class changes
+            self.class_context_dropdown.configure(command=self._on_class_change_for_stream)
         else:
             self.class_context_dropdown.configure(state="normal")
+            self.recipient_role_dropdown.configure(state="normal")
+            self.recipient_role_var.set("Both Parents")
+    
+    def _on_class_change_for_student(self, value):
+        """Handle class dropdown change when Individual Student is selected"""
+        if self.target_type_var.get() == "Individual Student":
+            # Get students for the selected class
+            students = self._get_students_for_class(value)
+            if students:
+                self.recipient_role_dropdown.configure(values=students)
+                self.recipient_role_dropdown.configure(state="normal")
+                self.recipient_role_var.set(students[0] if students else "Select Student")
+            else:
+                self.recipient_role_dropdown.configure(values=["No Students"])
+                self.recipient_role_var.set("No Students")
+    
+    def _get_students_for_class(self, class_name):
+        """Get list of student names for a specific class"""
+        try:
+            self.db._cursor.execute(
+                "SELECT name FROM students WHERE grade = ? ORDER BY name",
+                (class_name,)
+            )
+            students = [row[0] for row in self.db._cursor.fetchall()]
+            return students if students else []
+        except Exception as e:
+            print(f"Error fetching students for class {class_name}: {e}")
+            return []
+    
+    def _on_class_change_for_stream(self, value):
+        """Handle class dropdown change when By Stream is selected"""
+        if self.target_type_var.get() == "By Stream":
+            # Get streams for the selected class
+            streams = self._get_streams_for_class(value)
+            if streams:
+                self.recipient_role_dropdown.configure(values=streams)
+                self.recipient_role_dropdown.configure(state="normal")
+                self.recipient_role_var.set(streams[0] if streams else "Select Stream")
+            else:
+                self.recipient_role_dropdown.configure(values=["No Streams"])
+                self.recipient_role_var.set("No Streams")
+    
+    def _get_streams_for_class(self, class_name):
+        """Get list of stream names for a specific class"""
+        try:
+            self.db._cursor.execute(
+                "SELECT DISTINCT stream FROM students WHERE grade = ? AND stream IS NOT NULL AND stream != '' ORDER BY stream",
+                (class_name,)
+            )
+            streams = [row[0] for row in self.db._cursor.fetchall()]
+            return streams if streams else []
+        except Exception as e:
+            print(f"Error fetching streams for class {class_name}: {e}")
+            return []
     
     def _apply_format(self, format_type):
         """Apply text formatting to selected text"""
@@ -797,8 +857,8 @@ class NewsletterCreator(ctk.CTkToplevel):
             messagebox.showwarning("Missing Body", "Please write the circular content.")
             return
         
-        if not self.email_var.get() and not self.sms_var.get():
-            messagebox.showwarning("Delivery Method", "Please select at least one delivery method (Email or SMS).")
+        if not self.sms_var.get():
+            messagebox.showwarning("Delivery Method", "SMS notification is required when sending to portal.")
             return
         
         try:
@@ -808,16 +868,15 @@ class NewsletterCreator(ctk.CTkToplevel):
             # Publish to portal_announcements table
             self._publish_to_portal_database(subject, body)
             
-            # Trigger background notification tasks
-            if self.email_var.get():
-                self._queue_email_notifications()
+            # Trigger background SMS notification task
             if self.sms_var.get():
                 self._queue_sms_notifications()
             
             messagebox.showinfo(
                 "Published Successfully", 
                 "Circular published to Parent Portal!\n\n"
-                "Parents can now view it in their portal app."
+                "Parents can now view it in their portal app.\n"
+                "SMS notifications have been queued."
             )
             self.destroy()
             
@@ -858,16 +917,16 @@ class NewsletterCreator(ctk.CTkToplevel):
                 self.class_context_var.get(),
                 self.recipient_role_var.get(),
                 self.attachment_path,
-                1 if self.email_var.get() else 0,
+                0,  # Email is no longer supported
                 1 if self.sms_var.get() else 0,
                 1 if draft else 0,
                 None if draft else "CURRENT_TIMESTAMP"
             ))
             
-            self.db._conn.commit()
+            self.db.conn.commit()
             
         except Exception as e:
-            self.db._conn.rollback()
+            self.db.conn.rollback()
             raise e
     
     def _load_school_config(self):
@@ -1042,10 +1101,10 @@ class NewsletterCreator(ctk.CTkToplevel):
             # Create notification entries for all students in target classes
             self._create_notification_entries(announcement_id, target_class_ids, 'newsletter')
             
-            self.db._conn.commit()
+            self.db.conn.commit()
             
         except Exception as e:
-            self.db._conn.rollback()
+            self.db.conn.rollback()
             raise e
     
     def _get_target_class_ids(self):
@@ -1058,6 +1117,12 @@ class NewsletterCreator(ctk.CTkToplevel):
                 # Return all class IDs
                 self.db._cursor.execute("SELECT DISTINCT grade FROM students WHERE grade IS NOT NULL")
                 return [row[0] for row in self.db._cursor.fetchall()]
+            elif target_type == "Individual Student":
+                # For individual student, return the class but we'll handle student filtering separately
+                return [class_context]
+            elif target_type == "By Stream":
+                # For stream, return the class but we'll handle stream filtering separately
+                return [class_context]
             else:
                 # Return specific class ID
                 return [class_context]
@@ -1176,16 +1241,25 @@ class NewsletterCreator(ctk.CTkToplevel):
         try:
             target_type = self.target_type_var.get()
             class_context = self.class_context_var.get()
+            recipient_role = self.recipient_role_var.get()
             
             query = "SELECT DISTINCT phone FROM students WHERE phone IS NOT NULL AND phone != ''"
             params = []
             
-            if target_type != "All School" and class_context != "All Classes":
+            if target_type == "Individual Student":
+                # Get phone for specific student
+                query = "SELECT phone FROM students WHERE name = ? AND grade = ?"
+                params = [recipient_role, class_context]
+            elif target_type == "By Stream":
+                # Get phones for students in specific stream
+                query = "SELECT DISTINCT phone FROM students WHERE grade = ? AND stream = ? AND phone IS NOT NULL AND phone != ''"
+                params = [class_context, recipient_role]
+            elif target_type != "All School" and class_context != "All Classes":
                 query += " AND grade = ?"
                 params.append(class_context)
             
             self.db._cursor.execute(query, params)
-            return [row[0] for row in self.db._cursor.fetchall()]
+            return [row[0] for row in self.db._cursor.fetchall() if row[0]]
             
         except Exception as e:
             print(f"Error getting recipient emails: {e}")
@@ -1196,16 +1270,25 @@ class NewsletterCreator(ctk.CTkToplevel):
         try:
             target_type = self.target_type_var.get()
             class_context = self.class_context_var.get()
+            recipient_role = self.recipient_role_var.get()
             
             query = "SELECT DISTINCT phone FROM students WHERE phone IS NOT NULL AND phone != ''"
             params = []
             
-            if target_type != "All School" and class_context != "All Classes":
+            if target_type == "Individual Student":
+                # Get phone for specific student
+                query = "SELECT phone FROM students WHERE name = ? AND grade = ?"
+                params = [recipient_role, class_context]
+            elif target_type == "By Stream":
+                # Get phones for students in specific stream
+                query = "SELECT DISTINCT phone FROM students WHERE grade = ? AND stream = ? AND phone IS NOT NULL AND phone != ''"
+                params = [class_context, recipient_role]
+            elif target_type != "All School" and class_context != "All Classes":
                 query += " AND grade = ?"
                 params.append(class_context)
             
             self.db._cursor.execute(query, params)
-            return [row[0] for row in self.db._cursor.fetchall()]
+            return [row[0] for row in self.db._cursor.fetchall() if row[0]]
             
         except Exception as e:
             print(f"Error getting recipient phones: {e}")
@@ -1229,8 +1312,33 @@ class NewsletterCreator(ctk.CTkToplevel):
                 )
             """)
             
-            # Get all student IDs in target classes
-            if "All Classes" in class_ids or len(class_ids) == 0:
+            # Handle individual student case
+            if self.target_type_var.get() == "Individual Student":
+                # Get the specific student ID
+                student_name = self.recipient_role_var.get()
+                class_context = self.class_context_var.get()
+                
+                self.db._cursor.execute(
+                    "SELECT id FROM students WHERE name = ? AND grade = ?",
+                    (student_name, class_context)
+                )
+                student_row = self.db._cursor.fetchone()
+                
+                if student_row:
+                    student_ids = [student_row[0]]
+                else:
+                    student_ids = []
+            elif self.target_type_var.get() == "By Stream":
+                # Get students in specific stream
+                stream_name = self.recipient_role_var.get()
+                class_context = self.class_context_var.get()
+                
+                self.db._cursor.execute(
+                    "SELECT id FROM students WHERE grade = ? AND stream = ?",
+                    (class_context, stream_name)
+                )
+                student_ids = [row[0] for row in self.db._cursor.fetchall()]
+            elif "All Classes" in class_ids or len(class_ids) == 0:
                 # Get all students
                 self.db._cursor.execute("SELECT id FROM students")
                 student_ids = [row[0] for row in self.db._cursor.fetchall()]
