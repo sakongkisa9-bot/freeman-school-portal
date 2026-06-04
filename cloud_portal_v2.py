@@ -1633,9 +1633,9 @@ def api_save_newsletter():
         
         student_ids = []
         if target_type == "Individual Student":
-            # Get specific student
+            # Get specific student - use student_name for cloud database
             cursor = conn.execute(
-                "SELECT id FROM students WHERE name = ? AND grade = ?",
+                "SELECT id FROM students WHERE student_name = ? AND grade = ?",
                 (recipient_role, class_context)
             )
             student_row = cursor.fetchone()
