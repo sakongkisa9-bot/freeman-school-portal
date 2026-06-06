@@ -457,6 +457,11 @@
         const printContent = newsletterCard.outerHTML;
         const printWindow = window.open('', '_blank');
 
+        if (!printWindow) {
+            alert('Please allow popups for this site to print newsletters');
+            return;
+        }
+
         printWindow.document.write(
             '<!DOCTYPE html>' +
             '<html>' +
@@ -522,14 +527,28 @@
 
     // FCM Token Registration
     async function registerFCMToken() {
+        console.log('Starting FCM token registration...');
         try {
+            // Check if Firebase is loaded
+            if (typeof firebase === 'undefined') {
+                console.error('Firebase is not loaded. Check if Firebase SDK scripts are included.');
+                return;
+            }
+            
+            console.log('Firebase is loaded, requesting notification permission...');
+            
             // Request notification permission
             const permission = await Notification.requestPermission();
+            console.log('Notification permission:', permission);
+            
             if (permission !== 'granted') {
                 console.log('Notification permission denied');
+                alert('Please enable notifications to receive updates about newsletters and reports.');
                 return;
             }
 
+            console.log('Permission granted, initializing Firebase...');
+            
             // Initialize Firebase with your config (replace with your actual config)
             const firebaseConfig = {
                 apiKey: "AIzaSyDK78eyayqUeCZxl_RwsC1SZEpwIgxK5EE",  // Get from Firebase Console → Project Settings → General
@@ -543,11 +562,16 @@
             // Initialize Firebase if not already initialized
             if (!firebase.apps.length) {
                 firebase.initializeApp(firebaseConfig);
+                console.log('Firebase initialized');
+            } else {
+                console.log('Firebase already initialized');
             }
 
+            console.log('Getting FCM token...');
+            
             // Get FCM token
             const messaging = firebase.messaging();
-            const token = await messaging.getToken();
+            const token = await messaging.getToken({ vapidKey: "YOUR_VAPID_KEY_HERE" });
             console.log('FCM Token:', token);
 
             // Send token to server
@@ -555,6 +579,7 @@
 
         } catch (error) {
             console.error('Error registering FCM token:', error);
+            alert('Error registering for notifications: ' + error.message);
         }
     }
 
