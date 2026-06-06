@@ -1632,19 +1632,21 @@ def api_save_newsletter():
                     conn.execute("UPDATE portal_announcements SET class_context = ? WHERE id = ?",
                                (newsletter_data.get("class_context"), announcement_id))
             elif 'attachment_path' in columns and 'target_type' in columns:
-                # Migrated old schema with new columns
-                logging.info("Using migrated old schema INSERT")
+                # Migrated old schema with new columns - use positional INSERT to avoid column name issues
+                logging.info("Using migrated old schema INSERT with positional values")
+                # Column order: id, newsletter_id, title, content, class_context, published_at, subject, body, target_type, recipient_role, attachment_path
                 cursor = conn.execute("""
-                    INSERT INTO portal_announcements (
-                        newsletter_id, title, content, target_type, 
-                        class_context, recipient_role, attachment_path, published_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    INSERT INTO portal_announcements 
+                    (newsletter_id, title, content, class_context, published_at, subject, body, target_type, recipient_role, attachment_path)
+                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?)
                 """, (
                     newsletter_id,
                     newsletter_data.get("subject"),
                     newsletter_data.get("body"),
-                    newsletter_data.get("target_type"),
                     newsletter_data.get("class_context"),
+                    newsletter_data.get("subject"),  # subject (new column)
+                    newsletter_data.get("body"),     # body (new column)
+                    newsletter_data.get("target_type"),
                     newsletter_data.get("recipient_role"),
                     newsletter_data.get("attachment_path")
                 ))
