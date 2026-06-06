@@ -28,11 +28,7 @@
     .newsletters-section {
         min-height: 100vh;
         padding: 20px;
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
+        position: relative;
         overflow-y: auto;
     }
 
@@ -141,7 +137,7 @@
         align-items: center;
         gap: 5px;
         padding: 5px 12px;
-        background: linear-gradient(135deg, #27ae60, #229954);
+        background: linear-gradient(135deg, #e74c3c, #c0392b);
         color: white;
         border-radius: 20px;
         font-size: 12px;
@@ -397,9 +393,6 @@
                         {% endif %}
                     </div>
                 </div>
-                <button class="print-btn" onclick="printNewsletter({{ newsletter.id }})">
-                    <i class="fas fa-print"></i> Print PDF
-                </button>
             </div>
 
             <div class="newsletter-body">{{ newsletter.body }}</div>
