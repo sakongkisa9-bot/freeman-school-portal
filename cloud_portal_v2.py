@@ -1343,6 +1343,51 @@ def api_save_student_report():
             )
         )
         conn.commit()
+        
+        # Send FCM notification for report
+        try:
+            from fcm_service import get_fcm_service
+            fcm_service = get_fcm_service()
+            
+            if fcm_service.is_available():
+                # Get student ID for FCM token lookup
+                student_cursor = conn.execute(
+                    "SELECT id FROM students WHERE student_name = ? AND adm_no = ? AND grade = ?",
+                    (report.get("student_name"), report.get("adm_no"), report.get("grade"))
+                )
+                student_row = student_cursor.fetchone()
+                
+                if student_row:
+                    student_id = student_row[0]
+                    # Get FCM token for this student
+                    token_cursor = conn.execute(
+                        "SELECT token FROM fcm_tokens WHERE student_id = ?",
+                        (student_id,)
+                    )
+                    token_row = token_cursor.fetchone()
+                    
+                    if token_row:
+                        token = token_row[0]
+                        exam_title = report.get("exam_title", "New Report")
+                        result = fcm_service.send_notification(
+                            token=token,
+                            title=f"New Report: {exam_title}",
+                            body=f"A new report has been published for {report.get('student_name')}",
+                            data={
+                                "type": "report",
+                                "student_name": report.get("student_name"),
+                                "adm_no": report.get("adm_no")
+                            }
+                        )
+                        logging.info(f"FCM notification sent for report: {result}")
+                    else:
+                        logging.info("No FCM token found for student")
+                else:
+                    logging.info("Student not found in database")
+            else:
+                logging.info("FCM service not available, skipping report notification")
+        except Exception as e:
+            logging.error(f"Error sending FCM notification for report: {e}")
 
         return jsonify({"success": True, "message": "Report saved successfully"})
     except Exception as e:
@@ -1562,11 +1607,33 @@ def api_save_newsletter():
         columns_info = cursor.fetchall()
         columns = {row[1]: row[2] for row in columns_info}  # column name: type
         
+        # Log column order for debugging
+        logging.info(f"Portal announcements columns: {[row[1] for row in columns_info]}")
+        
         if 'title' in columns:
             # Old schema - use title and content columns
-            # Old schema likely has: id, newsletter_id, title, content, class_context, published_at
-            if 'attachment_path' in columns and 'target_type' in columns:
+            # Check if it's the really old schema with published_at in position 4
+            if len(columns_info) <= 5:
+                # Very old schema: id, newsletter_id, title, content, published_at
+                # class_context might not exist or be in wrong position
+                logging.info("Using very old schema INSERT")
+                cursor = conn.execute("""
+                    INSERT INTO portal_announcements (
+                        newsletter_id, title, content, published_at
+                    ) VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                """, (
+                    newsletter_id,
+                    newsletter_data.get("subject"),
+                    newsletter_data.get("body")
+                ))
+                # Try to add class_context if column exists
+                if 'class_context' in columns:
+                    announcement_id = cursor.lastrowid
+                    conn.execute("UPDATE portal_announcements SET class_context = ? WHERE id = ?",
+                               (newsletter_data.get("class_context"), announcement_id))
+            elif 'attachment_path' in columns and 'target_type' in columns:
                 # Migrated old schema with new columns
+                logging.info("Using migrated old schema INSERT")
                 cursor = conn.execute("""
                     INSERT INTO portal_announcements (
                         newsletter_id, title, content, target_type, 
@@ -1583,6 +1650,7 @@ def api_save_newsletter():
                 ))
             else:
                 # Pure old schema without new columns
+                logging.info("Using pure old schema INSERT")
                 cursor = conn.execute("""
                     INSERT INTO portal_announcements (
                         newsletter_id, title, content, class_context, published_at
@@ -1595,6 +1663,7 @@ def api_save_newsletter():
                 ))
         else:
             # New schema - use subject and body columns
+            logging.info("Using new schema INSERT")
             if 'attachment_path' in columns:
                 cursor = conn.execute("""
                     INSERT INTO portal_announcements (
