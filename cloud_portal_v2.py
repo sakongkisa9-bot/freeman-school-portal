@@ -1738,6 +1738,23 @@ def api_save_newsletter():
         
         conn.commit()
         
+        # Keep only the 3 latest newsletters (delete old ones)
+        try:
+            cursor = conn.execute("""
+                DELETE FROM portal_announcements 
+                WHERE id NOT IN (
+                    SELECT id FROM portal_announcements 
+                    ORDER BY published_at DESC 
+                    LIMIT 3
+                )
+            """)
+            deleted_count = cursor.rowcount
+            if deleted_count > 0:
+                logging.info(f"Deleted {deleted_count} old newsletters, keeping only 3 latest")
+            conn.commit()
+        except Exception as e:
+            logging.error(f"Error deleting old newsletters: {e}")
+        
         # Send FCM notifications
         try:
             from fcm_service import get_fcm_service
