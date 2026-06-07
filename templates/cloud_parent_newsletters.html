@@ -10,6 +10,138 @@
 <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js"></script>
 
+<!-- FCM Registration Functions - must be defined before calling -->
+<script>
+    function updateFirebaseStatus(message, status) {
+        let statusDiv = document.getElementById('firebase-status-body');
+        if (!statusDiv) {
+            statusDiv = document.createElement('div');
+            statusDiv.id = 'firebase-status-body';
+            document.body.appendChild(statusDiv);
+        }
+        statusDiv.textContent = message;
+        statusDiv.style.position = 'fixed';
+        statusDiv.style.top = '10px';
+        statusDiv.style.right = '10px';
+        statusDiv.style.padding = '15px';
+        statusDiv.style.borderRadius = '8px';
+        statusDiv.style.zIndex = '9999';
+        statusDiv.style.fontSize = '14px';
+        statusDiv.style.fontWeight = 'bold';
+        statusDiv.style.maxWidth = '300px';
+        
+        if (status === 'loading') {
+            statusDiv.style.background = '#f39c12';
+            statusDiv.style.color = 'white';
+        } else if (status === 'success') {
+            statusDiv.style.background = '#27ae60';
+            statusDiv.style.color = 'white';
+        } else if (status === 'error') {
+            statusDiv.style.background = '#e74c3c';
+            statusDiv.style.color = 'white';
+        }
+    }
+
+    // FCM Token Registration
+    async function registerFCMToken() {
+        console.log('Starting FCM token registration...');
+        try {
+            // Check if Firebase is loaded
+            if (typeof firebase === 'undefined') {
+                console.error('Firebase is not loaded. Check if Firebase SDK scripts are included.');
+                updateFirebaseStatus('Firebase SDK not loaded', 'error');
+                return;
+            }
+            
+            console.log('Firebase is loaded, requesting notification permission...');
+            updateFirebaseStatus('Requesting permission...', 'loading');
+            
+            // Request notification permission
+            const permission = await Notification.requestPermission();
+            console.log('Notification permission:', permission);
+            
+            if (permission !== 'granted') {
+                console.log('Notification permission denied');
+                updateFirebaseStatus('Permission denied - Enable in settings', 'error');
+                return;
+            }
+
+            console.log('Permission granted, initializing Firebase...');
+            updateFirebaseStatus('Permission granted! Initializing...', 'success');
+            
+            // Initialize Firebase with your config
+            const firebaseConfig = {
+                apiKey: "AIzaSyDK78eyayqUeCZxl_RwsC1SZEpwIgxK5EE",
+                authDomain: "freeman-2202a.firebaseapp.com",
+                projectId: "freeman-2202a",
+                storageBucket: "freeman-2202a.appspot.com",
+                messagingSenderId: "435924108891",
+                appId: "1:435924108891:web:c074fb7c630cfaff3b617e"
+            };
+
+            // Initialize Firebase if not already initialized
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+                console.log('Firebase initialized');
+            } else {
+                console.log('Firebase already initialized');
+            }
+
+            console.log('Getting FCM token...');
+            updateFirebaseStatus('Getting FCM token...', 'loading');
+            
+            // Get FCM token
+            const messaging = firebase.messaging();
+            const token = await messaging.getToken({ vapidKey: "YOUR_VAPID_KEY_HERE" });
+            console.log('FCM Token:', token);
+            updateFirebaseStatus('Token obtained! Registering...', 'success');
+
+            // Send token to server
+            await sendTokenToServer(token);
+            updateFirebaseStatus('✓ Notifications enabled!', 'success');
+
+        } catch (error) {
+            console.error('Error registering FCM token:', error);
+            updateFirebaseStatus('Error: ' + error.message, 'error');
+        }
+    }
+
+    async function sendTokenToServer(token) {
+        try {
+            const studentId = "{{ session.get('parent_student_id') or '' }}";
+            if (!studentId) {
+                console.error('No student_id in session');
+                updateFirebaseStatus('Error: No student ID', 'error');
+                return;
+            }
+
+            const response = await fetch('/api/register_fcm_token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    student_id: studentId,
+                    token: token,
+                    device_info: navigator.userAgent
+                })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                console.log('FCM token registered successfully');
+                updateFirebaseStatus('✓ Registered successfully!', 'success');
+            } else {
+                console.error('Failed to register FCM token:', result.message);
+                updateFirebaseStatus('Registration failed: ' + result.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error sending token to server:', error);
+            updateFirebaseStatus('Network error', 'error');
+        }
+    }
+</script>
+
 <!-- JavaScript Test -->
 <script>
     // Test if JavaScript is working
@@ -38,36 +170,12 @@
             console.log('Checking Firebase from body...');
             console.log('Firebase defined:', typeof firebase !== 'undefined');
             
-            const firebaseStatus = document.createElement('div');
-            firebaseStatus.id = 'firebase-status-body';
-            firebaseStatus.style.position = 'fixed';
-            firebaseStatus.style.top = '10px';
-            firebaseStatus.style.right = '10px';
-            firebaseStatus.style.padding = '15px';
-            firebaseStatus.style.borderRadius = '8px';
-            firebaseStatus.style.zIndex = '9999';
-            firebaseStatus.style.fontSize = '14px';
-            firebaseStatus.style.fontWeight = 'bold';
-            firebaseStatus.style.maxWidth = '300px';
-            
             if (typeof firebase !== 'undefined') {
-                firebaseStatus.style.background = '#27ae60';
-                firebaseStatus.style.color = 'white';
-                firebaseStatus.textContent = 'Firebase loaded! Checking registration...';
-                document.body.appendChild(firebaseStatus);
-                
+                updateFirebaseStatus('Firebase loaded! Checking registration...', 'loading');
                 // Try to register FCM
-                if (typeof registerFCMToken === 'function') {
-                    setTimeout(registerFCMToken, 500);
-                } else {
-                    firebaseStatus.textContent = 'Firebase loaded but registerFCMToken not found';
-                    firebaseStatus.style.background = '#f39c12';
-                }
+                setTimeout(registerFCMToken, 500);
             } else {
-                firebaseStatus.style.background = '#e74c3c';
-                firebaseStatus.style.color = 'white';
-                firebaseStatus.textContent = 'Firebase not loaded - CDN blocked?';
-                document.body.appendChild(firebaseStatus);
+                updateFirebaseStatus('Firebase not loaded - CDN blocked?', 'error');
             }
         }, 3000);
     });
