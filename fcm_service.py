@@ -129,11 +129,8 @@ class FCMService:
                 "invalid_tokens": []
             }
             
-        except messaging.InvalidArgumentError as e:
-            # Handle invalid tokens
-            logging.error(f"Invalid tokens in multicast: {e}")
-            return {"success": 0, "failure": len(tokens), "invalid_tokens": tokens}
         except Exception as e:
+            # Handle invalid tokens and other errors
             logging.error(f"Failed to send multicast notification: {e}")
             return {"success": 0, "failure": len(tokens)}
     
