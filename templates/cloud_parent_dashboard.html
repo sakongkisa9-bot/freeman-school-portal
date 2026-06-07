@@ -735,7 +735,11 @@
                     {% for prev_exam in previous_exams[:2]|reverse %}
                         {% set prev_exam_title = prev_exam.exam_title %}
                         {% set prev_marks = previous_exam_marks.get(prev_exam_title, {}) %}
-                        {% if prev_marks is iterable and prev_marks is not string and prev_marks is not mapping %}
+                        {% if prev_marks is mapping %}
+                            {# Dict format: marks are stored as dict with subject keys #}
+                            {% set subject_key = subject_name.upper().replace(' ', '') %}
+                            {% set prev_score = prev_marks.get(subject_key, {}).get('score', '-') %}
+                        {% elif prev_marks is iterable and prev_marks is not string %}
                             {# List format: marks are stored as list [score1, rating1, score2, rating2, ...] #}
                             {# We need to map by index based on subject position #}
                             {% set subject_index = loop.index0 %}
@@ -745,9 +749,8 @@
                                 {% set prev_score = '-' %}
                             {% endif %}
                         {% else %}
-                            {# Dict format: marks are stored as dict with subject keys #}
-                            {% set subject_key = subject_name.upper().replace(' ', '') %}
-                            {% set prev_score = prev_marks.get(subject_key, {}).get('score', '-') %}
+                            {# Fallback for empty or invalid data #}
+                            {% set prev_score = '-' %}
                         {% endif %}
                         <td>{{ prev_score }}</td>
                     {% endfor %}
