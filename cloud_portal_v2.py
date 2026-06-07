@@ -2178,7 +2178,13 @@ def parent_report():
                         logging.error(f"Failed to parse marks as JSON for exam {prev_exam['exam_name']}")
                         marks = {}
                 previous_exam_marks[prev_exam['exam_name']] = marks
-                logging.info(f"Previous exam: {prev_exam['exam_name']}, marks type: {type(marks)}, marks: {marks}, average_level: {prev_exam.get('average_level')}")
+                logging.info(f"Previous exam: {prev_exam['exam_name']}, marks type: {type(marks)}, is dict: {isinstance(marks, dict)}, is list: {isinstance(marks, list)}")
+                if isinstance(marks, dict):
+                    logging.info(f"  marks keys: {list(marks.keys())[:5]}")
+                    logging.info(f"  marks sample: {list(marks.items())[:2]}")
+                elif isinstance(marks, list):
+                    logging.info(f"  marks length: {len(marks)}")
+                    logging.info(f"  marks sample: {marks[:5]}")
             logging.info(f"previous_exam_marks keys: {list(previous_exam_marks.keys())}")
         else:
             # Fallback to querying marks table
