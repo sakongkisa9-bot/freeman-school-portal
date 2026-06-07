@@ -621,12 +621,13 @@ class ReportFormsView(ctk.CTkToplevel):
 
             # Get score, rating, points for this subject using original column key
             # Normalize subject name to match database column naming (replace hyphens and slashes with underscores)
-            normalized_subject = subject.replace('-', ' ').replace('/', ' ').title()
-            subject_key = subject_keys.get(normalized_subject, subject.lower().replace(' ', '_').replace('-', '_').replace('/', '_'))
+            # Use the same normalization as get_clean_col_name in ui_marksheet_junior.py
+            clean_subject = "".join(char if char.isalnum() else "_" for char in subject).lower().strip("_")
+            subject_key = subject_keys.get(subject, clean_subject)
             score = marks.get(f'{subject_key}_s', '')
             rating = marks.get(f'{subject_key}_r', '')
             points = marks.get(f'{subject_key}_p', '')
-            print(f"DEBUG: Subject: {subject}, normalized: {normalized_subject}, subject_key: {subject_key}, score: {score}")
+            print(f"DEBUG: Subject: {subject}, clean_subject: {clean_subject}, subject_key: {subject_key}, score: {score}")
 
             # Score
             score_label = ctk.CTkLabel(row_frame, text=str(score), font=("Arial", 12), width=180, text_color="#2c3e50")
@@ -1150,14 +1151,10 @@ class ReportFormsView(ctk.CTkToplevel):
         for exam_name, exam_date in previous_exams_list:
             print(f"DEBUG: Previous exam: {exam_name} at {exam_date}")
         
-        # Get subject names from current marks to use as reference
-        subject_names = []
-        if current_marks:
-            for key in current_marks.keys():
-                if key.endswith('_s') and key not in ['total_points', 'average_level', 'rank']:
-                    subject_name = key.replace('_s', '').replace('_', ' ').title()
-                    subject_names.append(subject_name)
-        print(f"DEBUG: Subject names from current marks: {subject_names}")
+        # Get subject names from school config instead of current marks
+        # This ensures we use the correct subject names even if current marks are incomplete
+        subject_names = self.get_subjects_for_grade(student['grade'])
+        print(f"DEBUG: Subject names from config: {subject_names}")
         
         for exam_name, exam_date in previous_exams_list:  # Get all previous exams
             marks_data, summary_data = self.db.get_previous_exam_data(exam_name, student['grade'])

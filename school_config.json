@@ -68,5 +68,6 @@
             "C/A"
         ]
     },
-    "portal_open": false
+    "portal_open": false,
+    "current_exam_title": "JESMA"
 }
