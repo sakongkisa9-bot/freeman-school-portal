@@ -1202,6 +1202,8 @@ class ReportFormsView(ctk.CTkToplevel):
                                         'average_level': avg_level
                                     })
                                     print(f"DEBUG: Added previous exam {exam_name} with mapped dict marks")
+                                    print(f"DEBUG: marks_dict keys: {list(marks_dict.keys())}")
+                                    print(f"DEBUG: marks_dict sample: {list(marks_dict.items())[:3]}")
                                     break
                     elif isinstance(marks_data, dict):
                         print(f"DEBUG: Marks dict keys: {list(marks_dict.keys())[:5]}")  # Show first 5 keys
