@@ -528,6 +528,7 @@
             // Check if Firebase is loaded
             if (typeof firebase === 'undefined') {
                 console.error('Firebase is not loaded. Check if Firebase SDK scripts are included.');
+                alert('Firebase SDK not loaded. Please refresh the page.');
                 return;
             }
             
@@ -539,11 +540,12 @@
             
             if (permission !== 'granted') {
                 console.log('Notification permission denied');
-                alert('Please enable notifications to receive updates about newsletters and reports.');
+                alert('Notification permission denied. Please enable notifications in your browser settings to receive updates about newsletters and reports.');
                 return;
             }
 
             console.log('Permission granted, initializing Firebase...');
+            alert('Notification permission granted! Registering for push notifications...');
             
             // Initialize Firebase with your config (replace with your actual config)
             const firebaseConfig = {
@@ -569,6 +571,7 @@
             const messaging = firebase.messaging();
             const token = await messaging.getToken({ vapidKey: "YOUR_VAPID_KEY_HERE" });
             console.log('FCM Token:', token);
+            alert('FCM token obtained! Sending to server...');
 
             // Send token to server
             await sendTokenToServer(token);
