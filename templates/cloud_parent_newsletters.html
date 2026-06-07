@@ -92,7 +92,7 @@
             
             // Get FCM token
             const messaging = firebase.messaging();
-            const token = await messaging.getToken({ vapidKey: "YOUR_VAPID_KEY_HERE" });
+            const token = await messaging.getToken();
             console.log('FCM Token:', token);
             updateFirebaseStatus('Token obtained! Registering...', 'success');
 
@@ -740,7 +740,7 @@
             
             // Get FCM token
             const messaging = firebase.messaging();
-            const token = await messaging.getToken({ vapidKey: "YOUR_VAPID_KEY_HERE" });
+            const token = await messaging.getToken();
             console.log('FCM Token:', token);
             updateFirebaseStatus('Token obtained! Registering...', 'success');
 
