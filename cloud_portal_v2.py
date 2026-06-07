@@ -1400,13 +1400,17 @@ def api_save_student_report():
 @app.route("/api/register_fcm_token", methods=["POST"])
 def api_register_fcm_token():
     """Register an FCM token for a student"""
+    logging.info("=== FCM Token Registration Request ===")
     try:
         data = request.json
         student_id = data.get("student_id")
         token = data.get("token")
         device_info = data.get("device_info", "")
         
+        logging.info(f"Received FCM token registration - student_id: {student_id}, token: {token[:20]}... if token else None, device: {device_info[:50]}...")
+        
         if not student_id or not token:
+            logging.warning("FCM token registration failed: Missing student_id or token")
             return jsonify({"success": False, "message": "Missing student_id or token"}), 400
         
         conn = get_db()
@@ -1418,11 +1422,11 @@ def api_register_fcm_token():
             """, (student_id, token, device_info))
             
             conn.commit()
-            logging.info(f"FCM token registered for student_id={student_id}")
+            logging.info(f"✓ FCM token registered successfully for student_id={student_id}")
             return jsonify({"success": True, "message": "Token registered successfully"})
             
         except Exception as e:
-            logging.error(f"Error registering FCM token: {e}")
+            logging.error(f"Error registering FCM token in database: {e}")
             return jsonify({"success": False, "message": str(e)}), 500
         finally:
             conn.close()
