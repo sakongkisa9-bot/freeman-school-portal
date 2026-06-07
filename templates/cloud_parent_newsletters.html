@@ -3,117 +3,13 @@
 {% block title %}Newsletters - {{ school_name }}{% endblock %}
 
 {% block head %}
-<!-- Firebase SDK -->
-<script>
-    // Track Firebase script loading
-    window.firebaseLoadStatus = {
-        appLoaded: false,
-        messagingLoaded: false,
-        appError: null,
-        messagingError: null
-    };
-</script>
-<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js" 
-    onload="window.firebaseLoadStatus.appLoaded = true; console.log('Firebase app script loaded')" 
-    onerror="window.firebaseLoadStatus.appError = 'Failed to load'; console.error('Firebase app script failed to load')"></script>
-<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js" 
-    onload="window.firebaseLoadStatus.messagingLoaded = true; console.log('Firebase messaging script loaded')" 
-    onerror="window.firebaseLoadStatus.messagingError = 'Failed to load'; console.error('Firebase messaging script failed to load')"></script>
-<style>
-    #firebase-status {
-        position: fixed;
-        top: 10px;
-        right: 10px;
-        background: white;
-        padding: 10px 15px;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        z-index: 9999;
-        font-size: 14px;
-        font-weight: 600;
-        max-width: 300px;
-    }
-    #firebase-status.loading {
-        background: #f39c12;
-        color: white;
-    }
-    #firebase-status.success {
-        background: #27ae60;
-        color: white;
-    }
-    #firebase-status.error {
-        background: #e74c3c;
-        color: white;
-    }
-</style>
-<script>
-    // Test if JavaScript is working
-    console.log('JavaScript is executing');
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('DOM loaded');
-        // Create a test element to verify JS is working
-        const testDiv = document.createElement('div');
-        testDiv.id = 'js-test';
-        testDiv.style.position = 'fixed';
-        testDiv.style.top = '50px';
-        testDiv.style.right = '10px';
-        testDiv.style.background = '#3498db';
-        testDiv.style.color = 'white';
-        testDiv.style.padding = '10px';
-        testDiv.style.borderRadius = '8px';
-        testDiv.style.zIndex = '9998';
-        testDiv.textContent = 'JavaScript is working!';
-        document.body.appendChild(testDiv);
-    });
-
-    function updateFirebaseStatus(message, status) {
-        let statusDiv = document.getElementById('firebase-status');
-        if (!statusDiv) {
-            statusDiv = document.createElement('div');
-            statusDiv.id = 'firebase-status';
-            document.body.appendChild(statusDiv);
-        }
-        statusDiv.textContent = message;
-        statusDiv.className = status;
-    }
-
-    window.addEventListener('load', function() {
-        console.log('Window loaded');
-        console.log('Firebase load status:', window.firebaseLoadStatus);
-        
-        updateFirebaseStatus('Checking Firebase scripts...', 'loading');
-        
-        setTimeout(function() {
-            console.log('Checking if Firebase is defined...');
-            console.log('appLoaded:', window.firebaseLoadStatus.appLoaded);
-            console.log('messagingLoaded:', window.firebaseLoadStatus.messagingLoaded);
-            console.log('appError:', window.firebaseLoadStatus.appError);
-            console.log('messagingError:', window.firebaseLoadStatus.messagingError);
-            
-            if (window.firebaseLoadStatus.appError) {
-                updateFirebaseStatus('Firebase app failed to load', 'error');
-            } else if (window.firebaseLoadStatus.messagingError) {
-                updateFirebaseStatus('Firebase messaging failed to load', 'error');
-            } else if (!window.firebaseLoadStatus.appLoaded) {
-                updateFirebaseStatus('Firebase app not loaded - timeout', 'error');
-            } else if (!window.firebaseLoadStatus.messagingLoaded) {
-                updateFirebaseStatus('Firebase messaging not loaded - timeout', 'error');
-            } else if (typeof firebase !== 'undefined') {
-                console.log('Firebase is defined');
-                updateFirebaseStatus('Firebase loaded! Registering...', 'success');
-                setTimeout(function() {
-                    registerFCMToken();
-                }, 500);
-            } else {
-                console.log('Firebase is NOT defined');
-                updateFirebaseStatus('Firebase not defined after load', 'error');
-            }
-        }, 2000);
-    });
-</script>
 {% endblock %}
 
 {% block content %}
+<!-- Firebase SDK - moved to body -->
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js"></script>
+
 <!-- JavaScript Test -->
 <script>
     // Test if JavaScript is working
@@ -137,10 +33,9 @@
         document.body.appendChild(testDiv);
         console.log('Test div added to body');
         
-        // Check Firebase status from body
+        // Check Firebase status from body - direct check
         setTimeout(function() {
             console.log('Checking Firebase from body...');
-            console.log('Firebase load status:', window.firebaseLoadStatus);
             console.log('Firebase defined:', typeof firebase !== 'undefined');
             
             const firebaseStatus = document.createElement('div');
@@ -155,7 +50,7 @@
             firebaseStatus.style.fontWeight = 'bold';
             firebaseStatus.style.maxWidth = '300px';
             
-            if (window.firebaseLoadStatus && window.firebaseLoadStatus.appLoaded && window.firebaseLoadStatus.messagingLoaded) {
+            if (typeof firebase !== 'undefined') {
                 firebaseStatus.style.background = '#27ae60';
                 firebaseStatus.style.color = 'white';
                 firebaseStatus.textContent = 'Firebase loaded! Checking registration...';
@@ -168,18 +63,13 @@
                     firebaseStatus.textContent = 'Firebase loaded but registerFCMToken not found';
                     firebaseStatus.style.background = '#f39c12';
                 }
-            } else if (window.firebaseLoadStatus) {
-                firebaseStatus.style.background = '#e74c3c';
-                firebaseStatus.style.color = 'white';
-                firebaseStatus.textContent = 'Firebase not loaded: app=' + window.firebaseLoadStatus.appLoaded + ', msg=' + window.firebaseLoadStatus.messagingLoaded;
-                document.body.appendChild(firebaseStatus);
             } else {
                 firebaseStatus.style.background = '#e74c3c';
                 firebaseStatus.style.color = 'white';
-                firebaseStatus.textContent = 'Firebase load status not available';
+                firebaseStatus.textContent = 'Firebase not loaded - CDN blocked?';
                 document.body.appendChild(firebaseStatus);
             }
-        }, 2000);
+        }, 3000);
     });
 </script>
 
