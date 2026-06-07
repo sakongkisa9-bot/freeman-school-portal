@@ -33,6 +33,25 @@
     }
 </style>
 <script>
+    // Test if JavaScript is working
+    console.log('JavaScript is executing');
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM loaded');
+        // Create a test element to verify JS is working
+        const testDiv = document.createElement('div');
+        testDiv.id = 'js-test';
+        testDiv.style.position = 'fixed';
+        testDiv.style.top = '50px';
+        testDiv.style.right = '10px';
+        testDiv.style.background = '#3498db';
+        testDiv.style.color = 'white';
+        testDiv.style.padding = '10px';
+        testDiv.style.borderRadius = '8px';
+        testDiv.style.zIndex = '9998';
+        testDiv.textContent = 'JavaScript is working!';
+        document.body.appendChild(testDiv);
+    });
+
     function updateFirebaseStatus(message, status) {
         let statusDiv = document.getElementById('firebase-status');
         if (!statusDiv) {
@@ -45,15 +64,19 @@
     }
 
     window.addEventListener('load', function() {
+        console.log('Window loaded');
         updateFirebaseStatus('Checking Firebase...', 'loading');
         
         setTimeout(function() {
+            console.log('Checking if Firebase is defined...');
             if (typeof firebase !== 'undefined') {
+                console.log('Firebase is defined');
                 updateFirebaseStatus('Firebase loaded! Registering...', 'success');
                 setTimeout(function() {
                     registerFCMToken();
                 }, 500);
             } else {
+                console.log('Firebase is NOT defined');
                 updateFirebaseStatus('Firebase not loaded - Check internet', 'error');
             }
         }, 1000);
