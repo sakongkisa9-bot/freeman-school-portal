@@ -4,8 +4,21 @@
 
 {% block head %}
 <!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js"></script>
+<script>
+    // Track Firebase script loading
+    window.firebaseLoadStatus = {
+        appLoaded: false,
+        messagingLoaded: false,
+        appError: null,
+        messagingError: null
+    };
+</script>
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js" 
+    onload="window.firebaseLoadStatus.appLoaded = true; console.log('Firebase app script loaded')" 
+    onerror="window.firebaseLoadStatus.appError = 'Failed to load'; console.error('Firebase app script failed to load')"></script>
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js" 
+    onload="window.firebaseLoadStatus.messagingLoaded = true; console.log('Firebase messaging script loaded')" 
+    onerror="window.firebaseLoadStatus.messagingError = 'Failed to load'; console.error('Firebase messaging script failed to load')"></script>
 <style>
     #firebase-status {
         position: fixed;
@@ -18,6 +31,7 @@
         z-index: 9999;
         font-size: 14px;
         font-weight: 600;
+        max-width: 300px;
     }
     #firebase-status.loading {
         background: #f39c12;
@@ -65,11 +79,26 @@
 
     window.addEventListener('load', function() {
         console.log('Window loaded');
-        updateFirebaseStatus('Checking Firebase...', 'loading');
+        console.log('Firebase load status:', window.firebaseLoadStatus);
+        
+        updateFirebaseStatus('Checking Firebase scripts...', 'loading');
         
         setTimeout(function() {
             console.log('Checking if Firebase is defined...');
-            if (typeof firebase !== 'undefined') {
+            console.log('appLoaded:', window.firebaseLoadStatus.appLoaded);
+            console.log('messagingLoaded:', window.firebaseLoadStatus.messagingLoaded);
+            console.log('appError:', window.firebaseLoadStatus.appError);
+            console.log('messagingError:', window.firebaseLoadStatus.messagingError);
+            
+            if (window.firebaseLoadStatus.appError) {
+                updateFirebaseStatus('Firebase app failed to load', 'error');
+            } else if (window.firebaseLoadStatus.messagingError) {
+                updateFirebaseStatus('Firebase messaging failed to load', 'error');
+            } else if (!window.firebaseLoadStatus.appLoaded) {
+                updateFirebaseStatus('Firebase app not loaded - timeout', 'error');
+            } else if (!window.firebaseLoadStatus.messagingLoaded) {
+                updateFirebaseStatus('Firebase messaging not loaded - timeout', 'error');
+            } else if (typeof firebase !== 'undefined') {
                 console.log('Firebase is defined');
                 updateFirebaseStatus('Firebase loaded! Registering...', 'success');
                 setTimeout(function() {
@@ -77,9 +106,9 @@
                 }, 500);
             } else {
                 console.log('Firebase is NOT defined');
-                updateFirebaseStatus('Firebase not loaded - Check internet', 'error');
+                updateFirebaseStatus('Firebase not defined after load', 'error');
             }
-        }, 1000);
+        }, 2000);
     });
 </script>
 {% endblock %}
