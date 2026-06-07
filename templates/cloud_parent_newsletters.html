@@ -4,10 +4,18 @@
 
 {% block head %}
 <!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js" onload="alert('Firebase app loaded successfully')" onerror="alert('Firebase app failed to load - check internet connection')"></script>
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js" onload="alert('Firebase messaging loaded successfully')" onerror="alert('Firebase messaging failed to load - check internet connection')"></script>
 <script>
-    console.log('Firebase SDK scripts loaded');
+    window.addEventListener('load', function() {
+        setTimeout(function() {
+            if (typeof firebase !== 'undefined') {
+                alert('Firebase is ready! Starting registration...');
+            } else {
+                alert('Firebase is not available. Please check your internet connection and refresh the page.');
+            }
+        }, 1000);
+    });
 </script>
 {% endblock %}
 
