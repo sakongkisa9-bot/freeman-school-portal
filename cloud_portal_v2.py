@@ -1334,6 +1334,8 @@ def api_save_student_report():
         report_json = json.dumps(report)
         generated_date = report.get("generated_date", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
+        logging.info(f"Saving report - student_name: {report.get('student_name')}, adm_no: {report.get('adm_no')} (type: {type(report.get('adm_no'))}), grade: {report.get('grade')}, school: {school['school_name']}")
+
         conn.execute(
             """
             INSERT OR REPLACE INTO student_reports
@@ -2028,7 +2030,7 @@ def parent_report():
     conn = get_db()
     try:
         # Fetch the student's report
-        logging.info(f"Fetching report for student: {session.get('parent_student_name')}, school: {session.get('parent_school_name')}, adm_no: {session.get('parent_adm_no')}")
+        logging.info(f"Fetching report for student: {session.get('parent_student_name')}, school: {session.get('parent_school_name')}, adm_no: {session.get('parent_adm_no')} (type: {type(session.get('parent_adm_no'))})")
         # Log all reports in the database for this school for debugging
         all_reports = conn.execute(
             "SELECT student_name, adm_no, school_name, generated_date FROM student_reports WHERE school_name = ?",
@@ -2046,6 +2048,11 @@ def parent_report():
             """,
             (session["parent_student_name"], session["parent_school_name"], session["parent_adm_no"])
         ).fetchone()
+        logging.info(f"Report fetch result: {report is not None}")
+        if report:
+            logging.info(f"Report found for {session['parent_student_name']}, generated_date: {report['generated_date']}")
+        else:
+            logging.warning(f"Report NOT found for {session['parent_student_name']} with adm_no: {session['parent_adm_no']}")
 
         import json
         if report:
