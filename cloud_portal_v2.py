@@ -7,6 +7,7 @@ from flask import (
     session,
     flash,
     jsonify,
+    send_from_directory,
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
@@ -500,6 +501,12 @@ init_db()
 def home():
     # Show role selection page
     return render_template("cloud_home.html")
+
+
+@app.route("/firebase-messaging-sw.js")
+def serve_firebase_sw():
+    """Serve the Firebase Cloud Messaging service worker"""
+    return send_from_directory('static', 'firebase-messaging-sw.js')
 
 
 @app.route("/register", methods=["GET", "POST"])
