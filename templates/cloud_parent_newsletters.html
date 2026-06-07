@@ -85,6 +85,31 @@
 {% endblock %}
 
 {% block content %}
+<!-- JavaScript Test -->
+<script>
+    // Test if JavaScript is working
+    console.log('JavaScript is executing from body');
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM loaded from body');
+        // Create a test element to verify JS is working
+        const testDiv = document.createElement('div');
+        testDiv.id = 'js-test-body';
+        testDiv.style.position = 'fixed';
+        testDiv.style.top = '100px';
+        testDiv.style.right = '10px';
+        testDiv.style.background = '#e74c3c';
+        testDiv.style.color = 'white';
+        testDiv.style.padding = '15px';
+        testDiv.style.borderRadius = '8px';
+        testDiv.style.zIndex = '9997';
+        testDiv.style.fontSize = '16px';
+        testDiv.style.fontWeight = 'bold';
+        testDiv.textContent = 'JS from BODY is working!';
+        document.body.appendChild(testDiv);
+        console.log('Test div added to body');
+    });
+</script>
+
 <style>
     body {
         margin: 0;
