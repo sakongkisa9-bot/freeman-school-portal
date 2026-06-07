@@ -136,6 +136,50 @@
         testDiv.textContent = 'JS from BODY is working!';
         document.body.appendChild(testDiv);
         console.log('Test div added to body');
+        
+        // Check Firebase status from body
+        setTimeout(function() {
+            console.log('Checking Firebase from body...');
+            console.log('Firebase load status:', window.firebaseLoadStatus);
+            console.log('Firebase defined:', typeof firebase !== 'undefined');
+            
+            const firebaseStatus = document.createElement('div');
+            firebaseStatus.id = 'firebase-status-body';
+            firebaseStatus.style.position = 'fixed';
+            firebaseStatus.style.top = '10px';
+            firebaseStatus.style.right = '10px';
+            firebaseStatus.style.padding = '15px';
+            firebaseStatus.style.borderRadius = '8px';
+            firebaseStatus.style.zIndex = '9999';
+            firebaseStatus.style.fontSize = '14px';
+            firebaseStatus.style.fontWeight = 'bold';
+            firebaseStatus.style.maxWidth = '300px';
+            
+            if (window.firebaseLoadStatus && window.firebaseLoadStatus.appLoaded && window.firebaseLoadStatus.messagingLoaded) {
+                firebaseStatus.style.background = '#27ae60';
+                firebaseStatus.style.color = 'white';
+                firebaseStatus.textContent = 'Firebase loaded! Checking registration...';
+                document.body.appendChild(firebaseStatus);
+                
+                // Try to register FCM
+                if (typeof registerFCMToken === 'function') {
+                    setTimeout(registerFCMToken, 500);
+                } else {
+                    firebaseStatus.textContent = 'Firebase loaded but registerFCMToken not found';
+                    firebaseStatus.style.background = '#f39c12';
+                }
+            } else if (window.firebaseLoadStatus) {
+                firebaseStatus.style.background = '#e74c3c';
+                firebaseStatus.style.color = 'white';
+                firebaseStatus.textContent = 'Firebase not loaded: app=' + window.firebaseLoadStatus.appLoaded + ', msg=' + window.firebaseLoadStatus.messagingLoaded;
+                document.body.appendChild(firebaseStatus);
+            } else {
+                firebaseStatus.style.background = '#e74c3c';
+                firebaseStatus.style.color = 'white';
+                firebaseStatus.textContent = 'Firebase load status not available';
+                document.body.appendChild(firebaseStatus);
+            }
+        }, 2000);
     });
 </script>
 
