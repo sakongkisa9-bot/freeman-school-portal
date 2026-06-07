@@ -4,15 +4,57 @@
 
 {% block head %}
 <!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js" onload="alert('Firebase app loaded successfully')" onerror="alert('Firebase app failed to load - check internet connection')"></script>
-<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js" onload="alert('Firebase messaging loaded successfully')" onerror="alert('Firebase messaging failed to load - check internet connection')"></script>
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js"></script>
+<style>
+    #firebase-status {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        background: white;
+        padding: 10px 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        z-index: 9999;
+        font-size: 14px;
+        font-weight: 600;
+    }
+    #firebase-status.loading {
+        background: #f39c12;
+        color: white;
+    }
+    #firebase-status.success {
+        background: #27ae60;
+        color: white;
+    }
+    #firebase-status.error {
+        background: #e74c3c;
+        color: white;
+    }
+</style>
 <script>
+    function updateFirebaseStatus(message, status) {
+        let statusDiv = document.getElementById('firebase-status');
+        if (!statusDiv) {
+            statusDiv = document.createElement('div');
+            statusDiv.id = 'firebase-status';
+            document.body.appendChild(statusDiv);
+        }
+        statusDiv.textContent = message;
+        statusDiv.className = status;
+    }
+
     window.addEventListener('load', function() {
+        updateFirebaseStatus('Checking Firebase...', 'loading');
+        
         setTimeout(function() {
             if (typeof firebase !== 'undefined') {
-                alert('Firebase is ready! Starting registration...');
+                updateFirebaseStatus('Firebase loaded! Registering...', 'success');
+                setTimeout(function() {
+                    registerFCMToken();
+                }, 500);
             } else {
-                alert('Firebase is not available. Please check your internet connection and refresh the page.');
+                updateFirebaseStatus('Firebase not loaded - Check internet', 'error');
             }
         }, 1000);
     });
@@ -536,11 +578,12 @@
             // Check if Firebase is loaded
             if (typeof firebase === 'undefined') {
                 console.error('Firebase is not loaded. Check if Firebase SDK scripts are included.');
-                alert('Firebase SDK not loaded. Please refresh the page.');
+                updateFirebaseStatus('Firebase SDK not loaded', 'error');
                 return;
             }
             
             console.log('Firebase is loaded, requesting notification permission...');
+            updateFirebaseStatus('Requesting permission...', 'loading');
             
             // Request notification permission
             const permission = await Notification.requestPermission();
@@ -548,12 +591,12 @@
             
             if (permission !== 'granted') {
                 console.log('Notification permission denied');
-                alert('Notification permission denied. Please enable notifications in your browser settings to receive updates about newsletters and reports.');
+                updateFirebaseStatus('Permission denied - Enable in settings', 'error');
                 return;
             }
 
             console.log('Permission granted, initializing Firebase...');
-            alert('Notification permission granted! Registering for push notifications...');
+            updateFirebaseStatus('Permission granted! Initializing...', 'success');
             
             // Initialize Firebase with your config (replace with your actual config)
             const firebaseConfig = {
@@ -574,19 +617,21 @@
             }
 
             console.log('Getting FCM token...');
+            updateFirebaseStatus('Getting FCM token...', 'loading');
             
             // Get FCM token
             const messaging = firebase.messaging();
             const token = await messaging.getToken({ vapidKey: "YOUR_VAPID_KEY_HERE" });
             console.log('FCM Token:', token);
-            alert('FCM token obtained! Sending to server...');
+            updateFirebaseStatus('Token obtained! Registering...', 'success');
 
             // Send token to server
             await sendTokenToServer(token);
+            updateFirebaseStatus('✓ Notifications enabled!', 'success');
 
         } catch (error) {
             console.error('Error registering FCM token:', error);
-            alert('Error registering for notifications: ' + error.message);
+            updateFirebaseStatus('Error: ' + error.message, 'error');
         }
     }
 
@@ -595,6 +640,7 @@
             const studentId = "{{ session.get('parent_student_id') or '' }}";
             if (!studentId) {
                 console.error('No student_id in session');
+                updateFirebaseStatus('Error: No student ID', 'error');
                 return;
             }
 
@@ -613,11 +659,14 @@
             const result = await response.json();
             if (result.success) {
                 console.log('FCM token registered successfully');
+                updateFirebaseStatus('✓ Registered successfully!', 'success');
             } else {
                 console.error('Failed to register FCM token:', result.message);
+                updateFirebaseStatus('Registration failed: ' + result.message, 'error');
             }
         } catch (error) {
             console.error('Error sending token to server:', error);
+            updateFirebaseStatus('Network error', 'error');
         }
     }
 
@@ -649,8 +698,7 @@
 
     // Request notification permission on page load
     document.addEventListener('DOMContentLoaded', function () {
-        // Enable FCM token registration
-        registerFCMToken();
+        // FCM registration is now handled by the window.load event in the head section
         setupFCMMessageListener();
     });
 </script>
