@@ -109,23 +109,31 @@ class FCMService:
             return {"success": 0, "failure": len(tokens)}
         
         try:
-            # Create multicast message
-            message = messaging.MulticastMessage(
-                notification=messaging.Notification(
-                    title=title,
-                    body=body
-                ),
-                data=data or {},
-                tokens=tokens
-            )
+            # Send to each token individually (for older Firebase Admin SDK versions)
+            success_count = 0
+            failure_count = 0
             
-            # Send message
-            response = messaging.send_multicast(message)
-            logging.info(f"Multicast notification sent: {response.success_count} success, {response.failure_count} failure")
+            for token in tokens:
+                try:
+                    message = messaging.Message(
+                        notification=messaging.Notification(
+                            title=title,
+                            body=body
+                        ),
+                        data=data or {},
+                        token=token
+                    )
+                    messaging.send(message)
+                    success_count += 1
+                except Exception as e:
+                    logging.error(f"Failed to send to token {token[:20]}...: {e}")
+                    failure_count += 1
+            
+            logging.info(f"Multicast notification sent: {success_count} success, {failure_count} failure")
             
             return {
-                "success": response.success_count,
-                "failure": response.failure_count,
+                "success": success_count,
+                "failure": failure_count,
                 "invalid_tokens": []
             }
             
