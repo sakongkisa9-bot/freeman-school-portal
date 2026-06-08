@@ -2201,6 +2201,17 @@ def parent_report():
         school_signature = school["school_signature"] if school else ""
 
         logging.info(f"School details - administrator: {school_administrator}, signature: {'present' if school_signature else 'missing'}")
+        
+        # Log current marks keys for debugging
+        current_marks_keys = list(report_data.get('current_marks', {}).keys())
+        logging.info(f"Current marks keys (first 10): {current_marks_keys[:10]}")
+        # Extract subject names from current marks keys
+        subject_names = []
+        for key in current_marks_keys:
+            if key.endswith('_s') and key not in ['total_points_s', 'average_level_s', 'rank_s']:
+                subject_name = key.replace('_s', '').replace('_', ' ').title()
+                subject_names.append(subject_name)
+        logging.info(f"Subject names from current marks: {subject_names}")
 
         # Fetch student photo and stream from database
         student = conn.execute(
