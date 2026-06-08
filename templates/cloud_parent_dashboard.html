@@ -785,8 +785,11 @@
                         {% set subject_key = subject_key_map.get(subject_key, subject_key) %}
                         {% set latest_prev_score = latest_prev_marks.get(subject_key, {}).get('score', '-') %}
                     {% endif %}
-                    {% if latest_prev_score != '-' and current_score != '-' and latest_prev_score is number %}
-                        {% set improvement = current_score - latest_prev_score %}
+                    {# Try to convert scores to numbers for comparison #}
+                    {% set current_num = current_score|int if current_score is string and current_score|isdigit else current_score %}
+                    {% set prev_num = latest_prev_score|int if latest_prev_score is string and latest_prev_score|isdigit else latest_prev_score %}
+                    {% if latest_prev_score != '-' and current_score != '-' and current_num is number and prev_num is number %}
+                        {% set improvement = current_num - prev_num %}
                         {% if improvement > 0 %}
                             <td style="color: green;">↑ {{ improvement }}</td>
                         {% elif improvement < 0 %}

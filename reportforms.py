@@ -1195,13 +1195,24 @@ class ReportFormsView(ctk.CTkToplevel):
                                     if len(marks_list) >= len(subject_names) * 2 + 2:
                                         avg_level = marks_list[-1]  # Last item is average_level
                                     
-                                    previous_exams_data.append({
-                                        'exam_name': exam_name,
-                                        'exam_date': exam_date,
-                                        'marks': marks_dict,
-                                        'average_level': avg_level
-                                    })
-                                    print(f"DEBUG: Added previous exam {exam_name} with mapped dict marks")
+                                    # Check if all marks are empty - if so, skip this exam
+                                    has_data = False
+                                    for subject, mark_data in marks_dict.items():
+                                        score = mark_data.get('score', '')
+                                        if score and str(score).strip():
+                                            has_data = True
+                                            break
+                                    
+                                    if not has_data:
+                                        print(f"DEBUG: Skipping {exam_name} - all marks are empty for this student")
+                                    else:
+                                        previous_exams_data.append({
+                                            'exam_name': exam_name,
+                                            'exam_date': exam_date,
+                                            'marks': marks_dict,
+                                            'average_level': avg_level
+                                        })
+                                        print(f"DEBUG: Added previous exam {exam_name} with mapped dict marks")
                                     print(f"DEBUG: marks_dict keys: {list(marks_dict.keys())}")
                                     print(f"DEBUG: marks_dict sample: {list(marks_dict.items())[:3]}")
                                     break
@@ -1215,13 +1226,26 @@ class ReportFormsView(ctk.CTkToplevel):
                             # Extract average_level if present
                             avg_level = student_marks.get('average_level') if isinstance(student_marks, dict) else None
                             
-                            previous_exams_data.append({
-                                'exam_name': exam_name,
-                                'exam_date': exam_date,
-                                'marks': student_marks,
-                                'average_level': avg_level
-                            })
-                            print(f"DEBUG: Added previous exam {exam_name} with dict marks")
+                            # Check if all marks are empty - if so, skip this exam
+                            has_data = False
+                            if isinstance(student_marks, dict):
+                                for subject, mark_data in student_marks.items():
+                                    if isinstance(mark_data, dict):
+                                        score = mark_data.get('score', '')
+                                        if score and str(score).strip():
+                                            has_data = True
+                                            break
+                            
+                            if not has_data:
+                                print(f"DEBUG: Skipping {exam_name} - all marks are empty for this student")
+                            else:
+                                previous_exams_data.append({
+                                    'exam_name': exam_name,
+                                    'exam_date': exam_date,
+                                    'marks': student_marks,
+                                    'average_level': avg_level
+                                })
+                                print(f"DEBUG: Added previous exam {exam_name} with dict marks")
                         else:
                             print(f"DEBUG: Student key not found in marks_dict")
                 except Exception as e:
