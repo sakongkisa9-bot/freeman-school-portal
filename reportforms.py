@@ -1181,10 +1181,17 @@ class ReportFormsView(ctk.CTkToplevel):
                                     # Assuming format: [name, score1, rating1, score2, rating2, ...]
                                     # Map using subject names from current marks
                                     marks_list = student_record[1:]  # Skip name
+                                    # Valid rating patterns
+                                    rating_patterns = ['BE1', 'BE2', 'AE1', 'AE2', 'ME1', 'ME2', 'EE1', 'EE2']
                                     for i, subject_name in enumerate(subject_names):
                                         if i * 2 + 1 < len(marks_list):
                                             score = marks_list[i * 2]
                                             rating = marks_list[i * 2 + 1]
+                                            # Detect if score field contains a rating instead of actual score
+                                            # If score is a rating pattern and rating looks like a score/number, swap them
+                                            if str(score).strip() in rating_patterns and str(rating).isdigit():
+                                                print(f"DEBUG: Swapping score/rating for {subject_name}: score={score}, rating={rating}")
+                                                score, rating = rating, score
                                             marks_dict[subject_name.upper().replace(' ', '')] = {
                                                 'score': score,
                                                 'rating': rating
@@ -1225,6 +1232,21 @@ class ReportFormsView(ctk.CTkToplevel):
                             student_marks = marks_dict[student_key]
                             # Extract average_level if present
                             avg_level = student_marks.get('average_level') if isinstance(student_marks, dict) else None
+                            
+                            # Fix swapped score/rating fields in dict format
+                            # Valid rating patterns
+                            rating_patterns = ['BE1', 'BE2', 'AE1', 'AE2', 'ME1', 'ME2', 'EE1', 'EE2']
+                            if isinstance(student_marks, dict):
+                                for subject, mark_data in student_marks.items():
+                                    if isinstance(mark_data, dict):
+                                        score = mark_data.get('score', '')
+                                        rating = mark_data.get('rating', '')
+                                        # Detect if score field contains a rating instead of actual score
+                                        # If score is a rating pattern and rating looks like a score/number, swap them
+                                        if str(score).strip() in rating_patterns and str(rating).isdigit():
+                                            print(f"DEBUG: Swapping score/rating for {subject}: score={score}, rating={rating}")
+                                            mark_data['score'] = rating
+                                            mark_data['rating'] = score
                             
                             # Check if all marks are empty - if so, skip this exam
                             has_data = False
