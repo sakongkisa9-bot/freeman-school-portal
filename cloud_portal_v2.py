@@ -2217,6 +2217,9 @@ def parent_report():
         logging.info(f"Complete previous_exam_marks structure: {previous_exam_marks}")
         for exam_title, marks in previous_exam_marks.items():
             logging.info(f"  {exam_title}: type={type(marks)}, is_dict={isinstance(marks, dict)}, keys={list(marks.keys()) if isinstance(marks, dict) else 'N/A'}")
+        logging.info(f"previous_exams list for template: {previous_exams}")
+        for prev_exam in previous_exams:
+            logging.info(f"  exam_title: '{prev_exam.get('exam_title')}', will lookup in previous_exam_marks")
 
         # Fetch student photo and stream from database
         student = conn.execute(
