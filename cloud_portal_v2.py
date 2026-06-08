@@ -176,6 +176,17 @@ def points_to_rating(points):
     elif points >= 1.5: return "BE1"
     else: return "BE2"
 
+# Custom Jinja2 filter to check if string is digit
+def isdigit(s):
+    """Check if string represents a digit/number"""
+    if not s:
+        return False
+    try:
+        int(s)
+        return True
+    except (ValueError, TypeError):
+        return False
+
 app.jinja_env.filters['score_to_rating'] = score_to_rating
 app.jinja_env.filters['rating_to_points'] = rating_to_points
 app.jinja_env.filters['points_to_rating'] = points_to_rating
@@ -183,6 +194,7 @@ app.jinja_env.filters['rating_to_comment'] = rating_to_comment
 app.jinja_env.filters['get_class_teacher_comment'] = get_class_teacher_comment
 app.jinja_env.filters['get_head_teacher_comment'] = get_head_teacher_comment
 app.jinja_env.filters['image_to_base64'] = image_to_base64
+app.jinja_env.filters['isdigit'] = isdigit
 
 
 @app.before_request
