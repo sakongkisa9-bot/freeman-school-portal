@@ -743,11 +743,13 @@
                     {% for prev_exam in previous_exams[:2]|reverse %}
                         {% set prev_exam_title = prev_exam.exam_title %}
                         {% set prev_marks = previous_exam_marks.get(prev_exam_title, {}) %}
-                        {% if prev_marks is mapping %}
+                        {% if prev_marks is mapping and prev_marks is not string %}
                             {# Dict format: marks are stored as dict with subject keys #}
                             {% set subject_key = subject_name.upper().replace(' ', '') %}
                             {# Apply subject key mapping if available #}
                             {% set subject_key = subject_key_map.get(subject_key, subject_key) %}
+                            {# Debug: log the lookup #}
+                            {# {{ subject_name }} -> {{ subject_key }} #}
                             {% set prev_score = prev_marks.get(subject_key, {}).get('score', '-') %}
                         {% elif prev_marks is iterable and prev_marks is not string %}
                             {# List format: marks are stored as list [score1, rating1, score2, rating2, ...] #}
