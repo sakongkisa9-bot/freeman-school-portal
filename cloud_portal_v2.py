@@ -2212,6 +2212,11 @@ def parent_report():
                 subject_name = key.replace('_s', '').replace('_', ' ').title()
                 subject_names.append(subject_name)
         logging.info(f"Subject names from current marks: {subject_names}")
+        
+        # Log the complete previous_exam_marks structure for debugging
+        logging.info(f"Complete previous_exam_marks structure: {previous_exam_marks}")
+        for exam_title, marks in previous_exam_marks.items():
+            logging.info(f"  {exam_title}: type={type(marks)}, is_dict={isinstance(marks, dict)}, keys={list(marks.keys()) if isinstance(marks, dict) else 'N/A'}")
 
         # Fetch student photo and stream from database
         student = conn.execute(

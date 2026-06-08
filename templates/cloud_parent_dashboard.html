@@ -779,6 +779,8 @@
                         {% set latest_prev_title = latest_prev_exam.exam_title %}
                         {% set latest_prev_marks = previous_exam_marks.get(latest_prev_title, {}) %}
                         {% set subject_key = subject_name.upper().replace(' ', '') %}
+                        {# Apply subject key mapping if available #}
+                        {% set subject_key = subject_key_map.get(subject_key, subject_key) %}
                         {% set latest_prev_score = latest_prev_marks.get(subject_key, {}).get('score', '-') %}
                     {% endif %}
                     {% if latest_prev_score != '-' and current_score != '-' and latest_prev_score is number %}
