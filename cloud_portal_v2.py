@@ -2186,6 +2186,9 @@ def parent_report():
                 if isinstance(marks, dict):
                     logging.info(f"  marks keys: {list(marks.keys())[:5]}")
                     logging.info(f"  marks sample: {list(marks.items())[:2]}")
+                    # Log complete structure for MOCK exam to debug score/rating/points issue
+                    if prev_exam['exam_name'] == 'MOCK':
+                        logging.info(f"  MOCK exam complete marks structure: {marks}")
                 elif isinstance(marks, list):
                     logging.info(f"  marks length: {len(marks)}")
                     logging.info(f"  marks sample: {marks[:5]}")
