@@ -719,6 +719,14 @@
             </thead>
             <tbody>
                 {% set processed_subjects = [] %}
+                {# Subject name mapping to handle mismatches between current marks and previous exam keys #}
+                {% set subject_key_map = {
+                    'INTCIE': 'INTSCIE',
+                    'PRE TECH': 'PRE-TECH',
+                    'C A': 'C/A',
+                    'PRETECH': 'PRE-TECH',
+                    'CA': 'C/A'
+                } %}
                 {% for subject, data in report.current_marks.items() %}
                 {% if subject not in ['total_points', 'average_level', 'rank'] and subject.endswith('_s') %}
                 {% set subject_name = subject|replace('_s', '')|replace('_', ' ')|title %}
@@ -738,6 +746,8 @@
                         {% if prev_marks is mapping %}
                             {# Dict format: marks are stored as dict with subject keys #}
                             {% set subject_key = subject_name.upper().replace(' ', '') %}
+                            {# Apply subject key mapping if available #}
+                            {% set subject_key = subject_key_map.get(subject_key, subject_key) %}
                             {% set prev_score = prev_marks.get(subject_key, {}).get('score', '-') %}
                         {% elif prev_marks is iterable and prev_marks is not string %}
                             {# List format: marks are stored as list [score1, rating1, score2, rating2, ...] #}
