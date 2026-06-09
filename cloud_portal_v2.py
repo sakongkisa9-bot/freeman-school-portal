@@ -196,6 +196,15 @@ app.jinja_env.filters['get_head_teacher_comment'] = get_head_teacher_comment
 app.jinja_env.filters['image_to_base64'] = image_to_base64
 app.jinja_env.filters['isdigit'] = isdigit
 
+# Custom filter to remove trailing '_s' suffix only
+def rstrip_suffix(s, suffix='_s'):
+    """Remove trailing suffix from string"""
+    if s.endswith(suffix):
+        return s[:-len(suffix)]
+    return s
+
+app.jinja_env.filters['rstrip_suffix'] = rstrip_suffix
+
 
 @app.before_request
 def log_request_info():

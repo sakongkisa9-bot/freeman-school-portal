@@ -729,12 +729,12 @@
                 } %}
                 {% for subject, data in report.current_marks.items() %}
                 {% if subject not in ['total_points', 'average_level', 'rank'] and subject.endswith('_s') %}
-                {% set subject_name = subject|replace('_s', '')|replace('_', ' ')|title %}
+                {% set subject_name = subject|rstrip_suffix|replace('_', ' ')|title %}
                 {% if subject_name not in processed_subjects %}
                 {% set processed_subjects = processed_subjects + [subject_name] %}
                 {% set current_score = report.current_marks[subject]|default('-') %}
-                {% set rating = report.current_marks[subject.replace('_s', '_r')]|default('-') %}
-                {% set points = report.current_marks[subject.replace('_s', '_p')]|default('-') %}
+                {% set rating = report.current_marks[subject|rstrip_suffix + '_r']|default('-') %}
+                {% set points = report.current_marks[subject|rstrip_suffix + '_p']|default('-') %}
                 {# Try multiple key formats for teacher lookup #}
                 {% set teacher_key = subject_name.upper().replace(' ', '') %}
                 {% set teacher_name = teacher_map.get(teacher_key, teacher_map.get(subject_name.upper(), teacher_map.get(subject_name, 'None'))) %}
