@@ -2107,9 +2107,19 @@ def parent_report():
                         if grade in ['Grade 7', 'Grade 8', 'Grade 9']:
                             if 'average_points' in current_marks:
                                 if current_marks['average_points']:
-                                    # Convert numeric average_points to rating string
-                                    avg_points = float(current_marks['average_points'])
-                                    current_marks['average_level'] = points_to_rating(avg_points)
+                                    # Check if average_points is already a rating string or needs conversion
+                                    avg_points = current_marks['average_points']
+                                    if isinstance(avg_points, str) and avg_points in ['EE1', 'EE2', 'ME1', 'ME2', 'AE1', 'AE2', 'BE1', 'BE2']:
+                                        # Already a rating string, use it directly
+                                        current_marks['average_level'] = avg_points
+                                    else:
+                                        # Convert numeric average_points to rating string
+                                        try:
+                                            avg_points_float = float(avg_points)
+                                            current_marks['average_level'] = points_to_rating(avg_points_float)
+                                        except (ValueError, TypeError):
+                                            # If conversion fails, use as-is or default
+                                            current_marks['average_level'] = avg_points if isinstance(avg_points, str) else ''
                                 else:
                                     current_marks['average_level'] = ''
                         report_data = {
@@ -2413,9 +2423,19 @@ def generate_analytics(report_data, conn, grade):
     if grade in ['Grade 7', 'Grade 8', 'Grade 9']:
         if 'average_points' in current_marks:
             if current_marks['average_points']:
-                # Convert numeric average_points to rating string
-                avg_points = float(current_marks['average_points'])
-                current_marks['average_level'] = points_to_rating(avg_points)
+                # Check if average_points is already a rating string or needs conversion
+                avg_points = current_marks['average_points']
+                if isinstance(avg_points, str) and avg_points in ['EE1', 'EE2', 'ME1', 'ME2', 'AE1', 'AE2', 'BE1', 'BE2']:
+                    # Already a rating string, use it directly
+                    current_marks['average_level'] = avg_points
+                else:
+                    # Convert numeric average_points to rating string
+                    try:
+                        avg_points_float = float(avg_points)
+                        current_marks['average_level'] = points_to_rating(avg_points_float)
+                    except (ValueError, TypeError):
+                        # If conversion fails, use as-is or default
+                        current_marks['average_level'] = avg_points if isinstance(avg_points, str) else ''
             else:
                 current_marks['average_level'] = ''
 
