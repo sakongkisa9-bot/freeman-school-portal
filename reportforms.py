@@ -509,6 +509,9 @@ class ReportFormsView(ctk.CTkToplevel):
             'Grade 4': 'primary',
             'Grade 5': 'primary',
             'Grade 6': 'primary',
+            'Grade 7': 'jss',
+            'Grade 8': 'jss',
+            'Grade 9': 'jss',
         }
         key = grade_mapping.get(grade)
         subjects = subjects_config.get(key, [])
@@ -1187,11 +1190,33 @@ class ReportFormsView(ctk.CTkToplevel):
                                         if i * 2 + 1 < len(marks_list):
                                             score = marks_list[i * 2]
                                             rating = marks_list[i * 2 + 1]
-                                            # Detect if score field contains a rating instead of actual score
-                                            # If score is a rating pattern and rating looks like a score/number, swap them
-                                            if str(score).strip() in rating_patterns and str(rating).isdigit():
+                                            
+                                            # Enhanced validation to fix corrupted score/rating fields
+                                            score_str = str(score).strip()
+                                            rating_str = str(rating).strip()
+                                            
+                                            # Case 1: score is a rating pattern and rating looks like a score/number
+                                            if score_str in rating_patterns and rating_str.isdigit():
                                                 print(f"DEBUG: Swapping score/rating for {subject_name}: score={score}, rating={rating}")
                                                 score, rating = rating, score
+                                            # Case 2: score is a rating pattern and rating is also a rating (corrupted)
+                                            elif score_str in rating_patterns and rating_str in rating_patterns:
+                                                print(f"DEBUG: Both score and rating are ratings for {subject_name}: score={score}, rating={rating}")
+                                                # Keep first rating as rating, set score to empty
+                                                rating = score_str
+                                                score = ''
+                                            # Case 3: score is a point (1-8) and rating is a rating (swapped)
+                                            elif score_str.isdigit() and 1 <= int(score_str) <= 8 and rating_str in rating_patterns:
+                                                print(f"DEBUG: Score is point and rating is rating for {subject_name}: score={score}, rating={rating}")
+                                                # This might be correct for playgroup, but for junior we want scores
+                                                # For now, keep as is since points are valid for some grades
+                                            # Case 4: score is a point (1-8) and rating is also a point (corrupted)
+                                            elif score_str.isdigit() and rating_str.isdigit() and 1 <= int(score_str) <= 8 and 1 <= int(rating_str) <= 8:
+                                                print(f"DEBUG: Both score and rating are points for {subject_name}: score={score}, rating={rating}")
+                                                # Keep first point as score, set rating to empty
+                                                score = score_str
+                                                rating = ''
+                                            
                                             marks_dict[subject_name.upper().replace(' ', '')] = {
                                                 'score': score,
                                                 'rating': rating
@@ -1241,12 +1266,33 @@ class ReportFormsView(ctk.CTkToplevel):
                                     if isinstance(mark_data, dict):
                                         score = mark_data.get('score', '')
                                         rating = mark_data.get('rating', '')
-                                        # Detect if score field contains a rating instead of actual score
-                                        # If score is a rating pattern and rating looks like a score/number, swap them
-                                        if str(score).strip() in rating_patterns and str(rating).isdigit():
+                                        
+                                        # Enhanced validation to fix corrupted score/rating fields
+                                        score_str = str(score).strip()
+                                        rating_str = str(rating).strip()
+                                        
+                                        # Case 1: score is a rating pattern and rating looks like a score/number
+                                        if score_str in rating_patterns and rating_str.isdigit():
                                             print(f"DEBUG: Swapping score/rating for {subject}: score={score}, rating={rating}")
                                             mark_data['score'] = rating
                                             mark_data['rating'] = score
+                                        # Case 2: score is a rating pattern and rating is also a rating (corrupted)
+                                        elif score_str in rating_patterns and rating_str in rating_patterns:
+                                            print(f"DEBUG: Both score and rating are ratings for {subject}: score={score}, rating={rating}")
+                                            # Keep first rating as rating, set score to empty
+                                            mark_data['rating'] = score_str
+                                            mark_data['score'] = ''
+                                        # Case 3: score is a point (1-8) and rating is a rating (swapped)
+                                        elif score_str.isdigit() and 1 <= int(score_str) <= 8 and rating_str in rating_patterns:
+                                            print(f"DEBUG: Score is point and rating is rating for {subject}: score={score}, rating={rating}")
+                                            # This might be correct for playgroup, but for junior we want scores
+                                            # For now, keep as is since points are valid for some grades
+                                        # Case 4: score is a point (1-8) and rating is also a point (corrupted)
+                                        elif score_str.isdigit() and rating_str.isdigit() and 1 <= int(score_str) <= 8 and 1 <= int(rating_str) <= 8:
+                                            print(f"DEBUG: Both score and rating are points for {subject}: score={score}, rating={rating}")
+                                            # Keep first point as score, set rating to empty
+                                            mark_data['score'] = score_str
+                                            mark_data['rating'] = ''
                             
                             # Check if all marks are empty - if so, skip this exam
                             has_data = False
