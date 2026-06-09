@@ -594,9 +594,9 @@ class ReportFormsView(ctk.CTkToplevel):
                     # Check if any subject marks are non-empty
                     has_marks = any(result.get(col) for col in result.keys() if col.endswith('_s'))
                     if not has_marks:
-                        print(f"DEBUG: Marksheet has no marks for {adm_no}, trying fallback to student_reports")
-                        # Fallback to student_reports table
-                        return self.get_student_current_marks_from_reports(adm_no, grade)
+                        print(f"DEBUG: Marksheet has no marks for {adm_no}, trying fallback to most recent exam")
+                        # Fallback to most recent exam data
+                        return self.get_student_current_marks_from_exam(adm_no, grade)
                 return result
             
             print(f"DEBUG: No current marks found for {adm_no} in {table}")
@@ -648,6 +648,89 @@ class ReportFormsView(ctk.CTkToplevel):
             return None
         except Exception as e:
             print(f"Error getting current marks from reports: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    def get_student_current_marks_from_exam(self, adm_no, grade):
+        """Fallback: Get current marks from the most recent exam when marksheet is empty"""
+        try:
+            print(f"DEBUG: get_student_current_marks_from_exam - adm_no: {adm_no}, grade: {grade}")
+            # Get the most recent exam for this grade
+            previous_exams = self.db.get_previous_exams(grade)
+            if not previous_exams:
+                print(f"DEBUG: No previous exams found for grade {grade}")
+                return None
+            
+            # Get the most recent exam (first in list)
+            most_recent_exam = previous_exams[0][0]
+            print(f"DEBUG: Using most recent exam: {most_recent_exam}")
+            
+            # Get exam data
+            marks_data, summary_data = self.db.get_previous_exam_data(most_recent_exam, grade)
+            if not marks_data:
+                print(f"DEBUG: No marks data found for exam {most_recent_exam}")
+                return None
+            
+            # Parse marks data
+            import json
+            if isinstance(marks_data, str):
+                marks_data = json.loads(marks_data)
+            
+            # Convert to marksheet format
+            result = {'adm_no': adm_no}
+            subjects = self.get_subjects_for_grade(grade)
+            
+            # Handle list format (junior grades)
+            if isinstance(marks_data, list) and marks_data and isinstance(marks_data[0], list):
+                # Find the student in the list
+                student_marks = None
+                for item in marks_data:
+                    if item and len(item) > 0:
+                        # Try to match by name (first item)
+                        student_name = str(item[0]).strip()
+                        # For now, if there's only one student or we can't match, use the first one
+                        if len(marks_data) == 1:
+                            student_marks = item
+                            break
+                
+                if student_marks:
+                    # Convert list to dict with _s, _r, _p columns
+                    junior_grades = ['Grade 7', 'Grade 8', 'Grade 9']
+                    is_junior = grade in junior_grades
+                    
+                    for i, subject in enumerate(subjects):
+                        if is_junior:
+                            # Junior format: score, rating, points
+                            if i * 3 + 2 < len(student_marks):
+                                score = student_marks[i * 3]
+                                rating = student_marks[i * 3 + 1]
+                                points = student_marks[i * 3 + 2]
+                                subject_key = subject.lower().replace(' ', '_').replace('-', '_')
+                                result[f'{subject_key}_s'] = score
+                                result[f'{subject_key}_r'] = rating
+                                result[f'{subject_key}_p'] = points
+                        else:
+                            # Primary format: score, rating
+                            if i * 2 + 1 < len(student_marks):
+                                score = student_marks[i * 2]
+                                rating = student_marks[i * 2 + 1]
+                                subject_key = subject.lower().replace(' ', '_').replace('-', '_')
+                                result[f'{subject_key}_s'] = score
+                                result[f'{subject_key}_r'] = rating
+                    
+                    # Extract total_points and average_level if present (last 2 items)
+                    if len(student_marks) >= 2:
+                        result['total_points'] = student_marks[-2]
+                        result['average_level'] = student_marks[-1]
+                    
+                    print(f"DEBUG: Converted exam data to marksheet format, keys: {list(result.keys())[:5]}")
+                    return result
+            
+            print(f"DEBUG: Could not convert exam data to marksheet format")
+            return None
+        except Exception as e:
+            print(f"Error getting current marks from exam: {e}")
             import traceback
             traceback.print_exc()
             return None
