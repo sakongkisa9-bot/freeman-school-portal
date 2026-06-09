@@ -1301,11 +1301,13 @@ class ReportFormsView(ctk.CTkToplevel):
                                                     'score': score,
                                                     'rating': rating
                                                 }
-                                    # Extract average_level if present (last 2 items after subjects)
+                                    # Extract total_points and average_level if present (last 2 items after subjects)
                                     # Format: [name, score1, rating1, ..., total, average_level]
+                                    total_points = None
                                     avg_level = None
                                     if len(marks_list) >= len(subject_names) * 2 + 2:
                                         avg_level = marks_list[-1]  # Last item is average_level
+                                        total_points = marks_list[-2]  # Second to last item is total_points
                                     
                                     # Check if all marks are empty - if so, skip this exam
                                     has_data = False
@@ -1322,9 +1324,10 @@ class ReportFormsView(ctk.CTkToplevel):
                                             'exam_name': exam_name,
                                             'exam_date': exam_date,
                                             'marks': marks_dict,
+                                            'total_points': total_points,
                                             'average_level': avg_level
                                         })
-                                        print(f"DEBUG: Added previous exam {exam_name} with mapped dict marks")
+                                        print(f"DEBUG: Added previous exam {exam_name} with mapped dict marks, total_points={total_points}, avg_level={avg_level}")
                                     print(f"DEBUG: marks_dict keys: {list(marks_dict.keys())}")
                                     print(f"DEBUG: marks_dict sample: {list(marks_dict.items())[:3]}")
                                     break
@@ -1335,7 +1338,8 @@ class ReportFormsView(ctk.CTkToplevel):
                         print(f"DEBUG: Looking for student key: {student_key} in marks_dict")
                         if student_key in marks_dict:
                             student_marks = marks_dict[student_key]
-                            # Extract average_level if present
+                            # Extract total_points and average_level if present
+                            total_points = student_marks.get('total_points') if isinstance(student_marks, dict) else None
                             avg_level = student_marks.get('average_level') if isinstance(student_marks, dict) else None
                             
                             # Fix swapped score/rating fields in dict format
@@ -1391,9 +1395,10 @@ class ReportFormsView(ctk.CTkToplevel):
                                     'exam_name': exam_name,
                                     'exam_date': exam_date,
                                     'marks': student_marks,
+                                    'total_points': total_points,
                                     'average_level': avg_level
                                 })
-                                print(f"DEBUG: Added previous exam {exam_name} with dict marks")
+                                print(f"DEBUG: Added previous exam {exam_name} with dict marks, total_points={total_points}, avg_level={avg_level}")
                         else:
                             print(f"DEBUG: Student key not found in marks_dict")
                 except Exception as e:
