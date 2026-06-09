@@ -2252,6 +2252,9 @@ def parent_report():
             if key.endswith('_s') and key not in ['total_points_s', 'average_level_s', 'rank_s']:
                 subject_name = key.replace('_s', '').replace('_', ' ').title()
                 subject_names.append(subject_name)
+                # Log the specific key for int_scie
+                if 'int' in key.lower() and 'scie' in key.lower():
+                    logging.info(f"DEBUG: Found int/scie key: '{key}' -> subject_name: '{subject_name}'")
         logging.info(f"Subject names from current marks: {subject_names}")
         
         # Log the complete previous_exam_marks structure for debugging
