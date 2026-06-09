@@ -2107,7 +2107,9 @@ def parent_report():
                         if grade in ['Grade 7', 'Grade 8', 'Grade 9']:
                             if 'average_points' in current_marks:
                                 if current_marks['average_points']:
-                                    current_marks['average_level'] = current_marks['average_points']
+                                    # Convert numeric average_points to rating string
+                                    avg_points = float(current_marks['average_points'])
+                                    current_marks['average_level'] = points_to_rating(avg_points)
                                 else:
                                     current_marks['average_level'] = ''
                         report_data = {
@@ -2148,18 +2150,29 @@ def parent_report():
                 (session["parent_school_name"],)
             ).fetchone()
             
-            grade = session["parent_grade"]
-            grade_lower = grade.lower() if grade else ""
-            current_exam_title = "Current Exam"
-            
-            if grade_lower in ["playgroup", "pp1", "pp2"]:
-                current_exam_title = "TERM ASSESSMENT"
-            elif grade_lower in ["grade 1", "grade 2", "grade 3", "grade 4", "grade 5", "grade 6"]:
-                current_exam_title = "PRIMARY EXAM"
-            elif grade_lower in ["grade 7", "grade 8", "grade 9"]:
-                current_exam_title = "JSS ASSESSMENT"
-            
-            logging.info(f"Using fallback exam_title for grade {grade}: {current_exam_title}")
+            # Load school_config.json to get current_exam_title
+            import json
+            import os
+            config_path = os.path.join(os.path.dirname(__file__), 'school_config.json')
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                    current_exam_title = config.get('current_exam_title', 'Current Exam')
+                    logging.info(f"Using current_exam_title from school_config.json: {current_exam_title}")
+            else:
+                # Fallback to grade-specific titles if config not found
+                grade = session["parent_grade"]
+                grade_lower = grade.lower() if grade else ""
+                current_exam_title = "Current Exam"
+                
+                if grade_lower in ["playgroup", "pp1", "pp2"]:
+                    current_exam_title = "TERM ASSESSMENT"
+                elif grade_lower in ["grade 1", "grade 2", "grade 3", "grade 4", "grade 5", "grade 6"]:
+                    current_exam_title = "PRIMARY EXAM"
+                elif grade_lower in ["grade 7", "grade 8", "grade 9"]:
+                    current_exam_title = "JSS ASSESSMENT"
+                
+                logging.info(f"Using fallback exam_title for grade {grade}: {current_exam_title}")
 
         # Use previous exams from report data if available
         if report_data and 'previous_exams' in report_data:
@@ -2395,6 +2408,16 @@ def generate_analytics(report_data, conn, grade):
         return report_data
 
     current_marks = report_data['current_marks']
+    
+    # Convert average_points to average_level for junior grades
+    if grade in ['Grade 7', 'Grade 8', 'Grade 9']:
+        if 'average_points' in current_marks:
+            if current_marks['average_points']:
+                # Convert numeric average_points to rating string
+                avg_points = float(current_marks['average_points'])
+                current_marks['average_level'] = points_to_rating(avg_points)
+            else:
+                current_marks['average_level'] = ''
 
     # Get subjects for this grade
     subjects_config = get_subjects_for_grade(grade)
