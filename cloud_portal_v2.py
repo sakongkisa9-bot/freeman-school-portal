@@ -2250,13 +2250,8 @@ def parent_report():
         subject_names = []
         for key in current_marks_keys:
             if key.endswith('_s') and key not in ['total_points_s', 'average_level_s', 'rank_s']:
-                # Log the specific key for int_scie with detailed transformation steps
-                if 'int' in key.lower() and 'scie' in key.lower():
-                    step1 = key.replace('_s', '')
-                    step2 = step1.replace('_', ' ')
-                    step3 = step2.title()
-                    logging.info(f"DEBUG: int/scie transformation: '{key}' -> step1: '{step1}' -> step2: '{step2}' -> step3: '{step3}'")
-                subject_name = key.replace('_s', '').replace('_', ' ').title()
+                # Use rstrip to only remove the '_s' suffix, not all occurrences
+                subject_name = key.rstrip('_s').replace('_', ' ').title()
                 subject_names.append(subject_name)
         logging.info(f"Subject names from current marks: {subject_names}")
         
