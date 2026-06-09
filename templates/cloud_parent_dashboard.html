@@ -812,13 +812,15 @@
                     {% for prev_exam in previous_exams[:2]|reverse %}
                         {% set prev_exam_title = prev_exam.exam_title %}
                         {% set prev_marks = previous_exam_marks.get(prev_exam_title, {}) %}
-                        {# Calculate total from previous exam marks using list accumulation #}
-                        {% set score_list = [] %}
+                        {# Calculate total POINTS from previous exam marks by converting scores to ratings then to points #}
+                        {% set points_list = [] %}
                         {% for subject, subject_data in prev_marks.items() %}
                             {% set score = subject_data.score if subject_data.score is defined else subject_data.get('score', 0) %}
-                            {% set _ = score_list.append(score|int(0)) %}
+                            {% set rating = score|score_to_rating(grade) %}
+                            {% set points = rating|rating_to_points %}
+                            {% set _ = points_list.append(points) %}
                         {% endfor %}
-                        {% set prev_total = score_list|sum %}
+                        {% set prev_total = points_list|sum %}
                         {% if loop.last and prev_total > 0 %}
                             {% set _ = latest_prev_total_list.append(prev_total) %}
                         {% endif %}
@@ -856,36 +858,18 @@
                     {% for prev_exam in previous_exams[:2]|reverse %}
                         {% set prev_exam_title = prev_exam.exam_title %}
                         {% set prev_marks = previous_exam_marks.get(prev_exam_title, {}) %}
-                        {# Use stored average_level if available, otherwise calculate from ratings #}
-                        {% set prev_avg = prev_exam.average_level if prev_exam.average_level is defined else '-' %}
-                        {% if prev_avg == '-' %}
-                            {# Fallback: calculate average from ratings #}
-                            {% set score_list = [] %}
-                            {% set rating_list = [] %}
-                            {% for subject, subject_data in prev_marks.items() %}
-                                {% set score = subject_data.score if subject_data.score is defined else subject_data.get('score', 0) %}
-                                {% set rating = subject_data.rating if subject_data.rating is defined else subject_data.get('rating', 'BE2') %}
-                                {% set _ = score_list.append(score|int(0)) %}
-                                {% set _ = rating_list.append(rating) %}
-                            {% endfor %}
-                            {% set prev_total = score_list|sum %}
-                            {% set prev_count = score_list|length %}
-                            {# Calculate average from ratings by converting to points #}
-                            {% set points_list = [] %}
-                            {% for rating in rating_list %}
-                                {% set _ = points_list.append(rating|rating_to_points) %}
-                            {% endfor %}
-                            {% set avg_points = points_list|sum / points_list|length if points_list|length > 0 else 0 %}
-                            {% set prev_avg = avg_points|points_to_rating if prev_count > 0 else '-' %}
-                        {% else %}
-                            {# Calculate total for improvement comparison #}
-                            {% set score_list = [] %}
-                            {% for subject, subject_data in prev_marks.items() %}
-                                {% set score = subject_data.score if subject_data.score is defined else subject_data.get('score', 0) %}
-                                {% set _ = score_list.append(score|int(0)) %}
-                            {% endfor %}
-                            {% set prev_total = score_list|sum %}
-                        {% endif %}
+                        {# Calculate average rating level from previous exam marks #}
+                        {% set points_list = [] %}
+                        {% for subject, subject_data in prev_marks.items() %}
+                            {% set score = subject_data.score if subject_data.score is defined else subject_data.get('score', 0) %}
+                            {% set rating = score|score_to_rating(grade) %}
+                            {% set points = rating|rating_to_points %}
+                            {% set _ = points_list.append(points) %}
+                        {% endfor %}
+                        {% set avg_points = points_list|sum / points_list|length if points_list|length > 0 else 0 %}
+                        {% set prev_avg = avg_points|points_to_rating if points_list|length > 0 else '-' %}
+                        {# Also calculate total points for improvement comparison #}
+                        {% set prev_total = points_list|sum %}
                         {% if loop.last and prev_total > 0 %}
                             {% set _ = latest_prev_total_list.append(prev_total) %}
                         {% endif %}
@@ -897,9 +881,11 @@
                     {% set current_avg = report.current_marks.average_level %}
                     <td>{{ current_avg if current_avg else '-' }}</td>
                     <td>-</td>
-                    {# Improvement column for average - compare total scores #}
-                    {% if latest_prev_total != '-' and current_total != '-' %}
-                        {% set improvement = current_total - latest_prev_total %}
+                    {# Improvement column for average - compare average points #}
+                    {% set latest_prev_avg_points = latest_prev_total_list[0] if latest_prev_total_list else '-' %}
+                    {% set current_avg_points = report.current_marks.total_points|default('0')|int %}
+                    {% if latest_prev_avg_points != '-' and current_avg_points != '-' %}
+                        {% set improvement = current_avg_points - latest_prev_avg_points %}
                         {% if improvement > 0 %}
                             <td style="color: green;">↑ {{ improvement }}</td>
                         {% elif improvement < 0 %}
@@ -1015,9 +1001,21 @@ const examData = [];
 const previousExamsData = [];
 {% if previous_exams %}
 {% for prev_exam in previous_exams %}
+{% set prev_exam_title = prev_exam.exam_title %}
+{% set prev_marks = previous_exam_marks.get(prev_exam_title, {}) %}
+{# Calculate average points from previous exam marks #}
+{% set points_list = [] %}
+{% for subject, subject_data in prev_marks.items() %}
+    {% set score = subject_data.score if subject_data.score is defined else subject_data.get('score', 0) %}
+    {% set rating = score|score_to_rating(grade) %}
+    {% set points = rating|rating_to_points %}
+    {% set _ = points_list.append(points) %}
+{% endfor %}
+{% set avg_points = points_list|sum / points_list|length if points_list|length > 0 else 0 %}
+{% set avg_rating = avg_points|points_to_rating if points_list|length > 0 else 'BE2' %}
 previousExamsData.push({
     title: '{{ prev_exam.exam_title[:15] }}',
-    avg: '{{ prev_exam.average_level|default("BE2") }}'
+    avg: '{{ avg_rating }}'
 });
 {% endfor %}
 {% endif %}
