@@ -585,12 +585,65 @@ class ReportFormsView(ctk.CTkToplevel):
             if row:
                 result = dict(zip(columns, row))
                 print(f"DEBUG: Found current marks for {adm_no}, keys: {list(result.keys())[:5]}")
+                # Check if marks are empty (for junior grades)
+                if table == 'marksheet':
+                    # Check if any subject marks are non-empty
+                    has_marks = any(result.get(col) for col in result.keys() if col.endswith('_s'))
+                    if not has_marks:
+                        print(f"DEBUG: Marksheet has no marks for {adm_no}, trying fallback to student_reports")
+                        # Fallback to student_reports table
+                        return self.get_student_current_marks_from_reports(adm_no, grade)
                 return result
             
             print(f"DEBUG: No current marks found for {adm_no} in {table}")
+            # Fallback to student_reports table for junior grades
+            if table == 'marksheet':
+                print(f"DEBUG: Trying fallback to student_reports for {adm_no}")
+                return self.get_student_current_marks_from_reports(adm_no, grade)
             return None
         except Exception as e:
             print(f"Error getting current marks: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    def get_student_current_marks_from_reports(self, adm_no, grade):
+        """Fallback: Get current marks from student_reports table when marksheet is empty"""
+        try:
+            print(f"DEBUG: get_student_current_marks_from_reports - adm_no: {adm_no}, grade: {grade}")
+            self.db._cursor.execute('SELECT marks_data FROM student_reports WHERE adm_no = ? AND grade = ?', (adm_no, grade))
+            row = self.db._cursor.fetchone()
+            
+            if row:
+                import json
+                marks_data = json.loads(row[0])
+                print(f"DEBUG: Found marks in student_reports for {adm_no}")
+                
+                # Convert dict format to marksheet format
+                result = {'adm_no': adm_no}
+                subjects = self.get_subjects_for_grade(grade)
+                
+                for subject in subjects:
+                    subject_key = subject.upper().replace(' ', '').replace('-', '')
+                    # Try different key formats
+                    for key_format in [subject_key, subject_key.replace('-', ''), subject.upper().replace(' ', ''), subject.lower().replace(' ', '').replace('-', '')]:
+                        if key_format in marks_data:
+                            mark_data = marks_data[key_format]
+                            if isinstance(mark_data, dict):
+                                result[f'{subject.lower().replace(" ", "_").replace("-", "_")}_s'] = mark_data.get('score', '')
+                                result[f'{subject.lower().replace(" ", "_").replace("-", "_")}_r'] = mark_data.get('rating', '')
+                                result[f'{subject.lower().replace(" ", "_").replace("-", "_")}_p'] = mark_data.get('points', '')
+                            else:
+                                result[f'{subject.lower().replace(" ", "_").replace("-", "_")}_s'] = mark_data
+                            break
+                
+                print(f"DEBUG: Converted marks from student_reports, keys: {list(result.keys())[:5]}")
+                return result
+            
+            print(f"DEBUG: No marks found in student_reports for {adm_no}")
+            return None
+        except Exception as e:
+            print(f"Error getting current marks from reports: {e}")
             import traceback
             traceback.print_exc()
             return None
