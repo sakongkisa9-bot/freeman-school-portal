@@ -1201,51 +1201,51 @@ def api_get_marks():
                     data["points"] = points
                     scores[subject] = data
         
-        # Calculate total_points and average_level if missing
-        # Junior (JSS) uses points for total, all other grades use scores
-        if is_jss:
-            total_points = 0
-            for subject, data in scores.items():
-                if isinstance(data, dict) and data.get("points"):
-                    try:
-                        total_points += int(data["points"])
-                    except ValueError:
-                        pass
-            print(f"DEBUG API: Calculated total_points (from points)={total_points} for JSS")
-        else:
-            total_points = 0
-            for subject, data in scores.items():
-                if isinstance(data, dict) and data.get("score"):
-                    try:
-                        total_points += int(data["score"])
-                    except ValueError:
-                        pass
-            print(f"DEBUG API: Calculated total_points (from scores)={total_points} for non-JSS")
-        
-        # Calculate average level
-        if is_jss:
-            avg_level = calculate_final_level(total_points, is_primary=False)
-        else:
-            avg_level = calculate_final_level(total_points, is_primary=True)
-            print(f"DEBUG API: Calculated avg_level={avg_level} from total_points={total_points}")
-        
-        # Use database values if they exist, otherwise use calculated values
-        db_total_points = r["total_points"] if r["total_points"] is not None else "0"
-        db_avg_level = r["average_level"] if r["average_level"] is not None else ""
+        # Get database values first
+        db_total_points = r["total_points"] if r["total_points"] is not None else None
+        db_avg_level = r["average_level"] if r["average_level"] is not None else None
         
         print(f"DEBUG API: DB values - total_points={db_total_points}, avg_level={db_avg_level}")
-        print(f"DEBUG API: Calculated values - total_points={total_points}, avg_level={avg_level}")
         
-        # Use database values if they are non-empty, otherwise use calculated values
-        # This preserves the original total_points from previous exams instead of recalculating
-        if db_total_points and db_total_points != "0":
-            # Use database value (e.g., from previous_exams table)
-            print(f"DEBUG API: Using database values - total_points={db_total_points}, avg_level={db_avg_level}")
-        else:
-            # Use calculated values
+        # Calculate total_points only if database value is missing (None)
+        # For previous exams, use database total_points if it exists (even if "0")
+        if db_total_points is None:
+            # Junior (JSS) uses points for total, all other grades use scores
+            if is_jss:
+                total_points = 0
+                for subject, data in scores.items():
+                    if isinstance(data, dict) and data.get("points"):
+                        try:
+                            total_points += int(data["points"])
+                        except ValueError:
+                            pass
+                print(f"DEBUG API: Calculated total_points (from points)={total_points} for JSS")
+            else:
+                total_points = 0
+                for subject, data in scores.items():
+                    if isinstance(data, dict) and data.get("score"):
+                        try:
+                            total_points += int(data["score"])
+                        except ValueError:
+                            pass
+                print(f"DEBUG API: Calculated total_points (from scores)={total_points} for non-JSS")
             db_total_points = str(total_points)
+        else:
+            print(f"DEBUG API: Using database total_points={db_total_points}")
+        
+        # Calculate average level only if database value is missing (None)
+        # For previous exams, use database average_level if it exists
+        if db_avg_level is None:
+            # Calculate average level from total_points
+            total_points_int = int(db_total_points) if db_total_points else 0
+            if is_jss:
+                avg_level = calculate_final_level(total_points_int, is_primary=False)
+            else:
+                avg_level = calculate_final_level(total_points_int, is_primary=True)
             db_avg_level = avg_level
-            print(f"DEBUG API: Using calculated values - total_points={db_total_points}, avg_level={db_avg_level}")
+            print(f"DEBUG API: Calculated avg_level={avg_level} from total_points={total_points_int}")
+        else:
+            print(f"DEBUG API: Using database average_level={db_avg_level}")
         
         marks_list.append(
             {
