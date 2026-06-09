@@ -517,14 +517,34 @@ class ReportFormsView(ctk.CTkToplevel):
         subjects = subjects_config.get(key, [])
 
         marks_dict = {}
-        # marks_list format: [name, score1, rating1, score2, rating2, ..., total, average]
+        
+        # Determine format based on grade
+        grade_lower = grade.lower()
+        is_junior = grade_lower in ["grade 7", "grade 8", "grade 9"]
+        
         # Skip the first element (name)
         idx = 1
-        for subject in subjects:
-            if idx + 1 < len(marks_list):
-                marks_dict[f'{subject.lower()}_s'] = marks_list[idx]
-                marks_dict[f'{subject.lower()}_r'] = marks_list[idx + 1]
-                idx += 2
+        if is_junior:
+            # Junior format: [name, score1, rating1, points1, score2, rating2, points2, ..., total, average_rating, average_points]
+            print(f"DEBUG: convert_list_to_dict using junior format for {grade}")
+            for subject in subjects:
+                if idx + 2 < len(marks_list):
+                    score = marks_list[idx]
+                    rating = marks_list[idx + 1]
+                    points = marks_list[idx + 2]
+                    # For junior, use points as the display value (like playgroup)
+                    marks_dict[f'{subject.lower()}_s'] = str(points)  # Use points as score
+                    marks_dict[f'{subject.lower()}_r'] = rating
+                    marks_dict[f'{subject.lower()}_p'] = points
+                    idx += 3
+        else:
+            # Playgroup/Primary format: [name, score1, rating1, score2, rating2, ..., total, average]
+            print(f"DEBUG: convert_list_to_dict using standard format for {grade}")
+            for subject in subjects:
+                if idx + 1 < len(marks_list):
+                    marks_dict[f'{subject.lower()}_s'] = marks_list[idx]
+                    marks_dict[f'{subject.lower()}_r'] = marks_list[idx + 1]
+                    idx += 2
 
         # Add total and average if available
         if idx < len(marks_list):
@@ -1172,7 +1192,15 @@ class ReportFormsView(ctk.CTkToplevel):
                     
                     if isinstance(marks_data, list):
                         # List format: [[name, score1, rating1, score2, rating2, ...], ...]
+                        # Junior format: [[name, score1, rating1, points1, score2, rating2, points2, ...], ...]
                         print(f"DEBUG: Marks data is a list with {len(marks_data)} students")
+                        print(f"DEBUG: Student grade: {student['grade']}")
+                        
+                        # Detect if this is junior format (has 3 values per subject: score, rating, points)
+                        # by checking if the data length suggests 3 values per subject
+                        grade_lower = student['grade'].lower()
+                        is_junior = grade_lower in ["grade 7", "grade 8", "grade 9"]
+                        
                         for student_record in marks_data:
                             if len(student_record) > 0:
                                 record_name = student_record[0]
@@ -1181,46 +1209,40 @@ class ReportFormsView(ctk.CTkToplevel):
                                     # Found the student, extract their marks
                                     # Convert list to dict format with subject names
                                     marks_dict = {}
-                                    # Assuming format: [name, score1, rating1, score2, rating2, ...]
-                                    # Map using subject names from current marks
                                     marks_list = student_record[1:]  # Skip name
                                     # Valid rating patterns
                                     rating_patterns = ['BE1', 'BE2', 'AE1', 'AE2', 'ME1', 'ME2', 'EE1', 'EE2']
-                                    for i, subject_name in enumerate(subject_names):
-                                        if i * 2 + 1 < len(marks_list):
-                                            score = marks_list[i * 2]
-                                            rating = marks_list[i * 2 + 1]
-                                            
-                                            # Enhanced validation to fix corrupted score/rating fields
-                                            score_str = str(score).strip()
-                                            rating_str = str(rating).strip()
-                                            
-                                            # Case 1: score is a rating pattern and rating looks like a score/number
-                                            if score_str in rating_patterns and rating_str.isdigit():
-                                                print(f"DEBUG: Swapping score/rating for {subject_name}: score={score}, rating={rating}")
-                                                score, rating = rating, score
-                                            # Case 2: score is a rating pattern and rating is also a rating (corrupted)
-                                            elif score_str in rating_patterns and rating_str in rating_patterns:
-                                                print(f"DEBUG: Both score and rating are ratings for {subject_name}: score={score}, rating={rating}")
-                                                # Keep first rating as rating, set score to empty
-                                                rating = score_str
-                                                score = ''
-                                            # Case 3: score is a point (1-8) and rating is a rating (swapped)
-                                            elif score_str.isdigit() and 1 <= int(score_str) <= 8 and rating_str in rating_patterns:
-                                                print(f"DEBUG: Score is point and rating is rating for {subject_name}: score={score}, rating={rating}")
-                                                # This might be correct for playgroup, but for junior we want scores
-                                                # For now, keep as is since points are valid for some grades
-                                            # Case 4: score is a point (1-8) and rating is also a point (corrupted)
-                                            elif score_str.isdigit() and rating_str.isdigit() and 1 <= int(score_str) <= 8 and 1 <= int(rating_str) <= 8:
-                                                print(f"DEBUG: Both score and rating are points for {subject_name}: score={score}, rating={rating}")
-                                                # Keep first point as score, set rating to empty
-                                                score = score_str
-                                                rating = ''
-                                            
-                                            marks_dict[subject_name.upper().replace(' ', '')] = {
-                                                'score': score,
-                                                'rating': rating
-                                            }
+                                    
+                                    # Determine format based on grade
+                                    if is_junior:
+                                        # Junior format: [score1, rating1, points1, score2, rating2, points2, ...]
+                                        print(f"DEBUG: Using junior format (score, rating, points)")
+                                        for i, subject_name in enumerate(subject_names):
+                                            if i * 3 + 2 < len(marks_list):
+                                                score = marks_list[i * 3]
+                                                rating = marks_list[i * 3 + 1]
+                                                points = marks_list[i * 3 + 2]
+                                                
+                                                # For junior, use points as the display value (like playgroup)
+                                                # But keep score and rating for reference
+                                                marks_dict[subject_name.upper().replace(' ', '')] = {
+                                                    'score': str(points),  # Use points as the score for display
+                                                    'rating': rating,
+                                                    'points': points
+                                                }
+                                                print(f"DEBUG: Junior {subject_name}: score={score}, rating={rating}, points={points}")
+                                    else:
+                                        # Playgroup/Primary format: [score1, rating1, score2, rating2, ...]
+                                        print(f"DEBUG: Using standard format (score, rating)")
+                                        for i, subject_name in enumerate(subject_names):
+                                            if i * 2 + 1 < len(marks_list):
+                                                score = marks_list[i * 2]
+                                                rating = marks_list[i * 2 + 1]
+                                                
+                                                marks_dict[subject_name.upper().replace(' ', '')] = {
+                                                    'score': score,
+                                                    'rating': rating
+                                                }
                                     # Extract average_level if present (last 2 items after subjects)
                                     # Format: [name, score1, rating1, ..., total, average_level]
                                     avg_level = None
