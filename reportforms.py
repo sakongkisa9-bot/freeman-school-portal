@@ -532,8 +532,8 @@ class ReportFormsView(ctk.CTkToplevel):
                     score = marks_list[idx]
                     rating = marks_list[idx + 1]
                     points = marks_list[idx + 2]
-                    # For junior, use points as the display value (like playgroup)
-                    marks_dict[f'{subject.lower()}_s'] = str(points)  # Use points as score
+                    # For junior, use score as the display value (not points)
+                    marks_dict[f'{subject.lower()}_s'] = score
                     marks_dict[f'{subject.lower()}_r'] = rating
                     marks_dict[f'{subject.lower()}_p'] = points
                     idx += 3
@@ -1223,10 +1223,9 @@ class ReportFormsView(ctk.CTkToplevel):
                                                 rating = marks_list[i * 3 + 1]
                                                 points = marks_list[i * 3 + 2]
                                                 
-                                                # For junior, use points as the display value (like playgroup)
-                                                # But keep score and rating for reference
+                                                # For junior, use score as the display value (not points)
                                                 marks_dict[subject_name.upper().replace(' ', '')] = {
-                                                    'score': str(points),  # Use points as the score for display
+                                                    'score': score,
                                                     'rating': rating,
                                                     'points': points
                                                 }
