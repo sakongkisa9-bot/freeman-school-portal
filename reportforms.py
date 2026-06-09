@@ -533,17 +533,21 @@ class ReportFormsView(ctk.CTkToplevel):
                     rating = marks_list[idx + 1]
                     points = marks_list[idx + 2]
                     # For junior, use score as the display value (not points)
-                    marks_dict[f'{subject.lower()}_s'] = score
-                    marks_dict[f'{subject.lower()}_r'] = rating
-                    marks_dict[f'{subject.lower()}_p'] = points
+                    # Normalize subject name to use underscores (same as marksheet table)
+                    clean_subject = "".join(char if char.isalnum() else "_" for char in subject).lower().strip("_")
+                    marks_dict[f'{clean_subject}_s'] = score
+                    marks_dict[f'{clean_subject}_r'] = rating
+                    marks_dict[f'{clean_subject}_p'] = points
                     idx += 3
         else:
             # Playgroup/Primary format: [name, score1, rating1, score2, rating2, ..., total, average]
             print(f"DEBUG: convert_list_to_dict using standard format for {grade}")
             for subject in subjects:
                 if idx + 1 < len(marks_list):
-                    marks_dict[f'{subject.lower()}_s'] = marks_list[idx]
-                    marks_dict[f'{subject.lower()}_r'] = marks_list[idx + 1]
+                    # Normalize subject name to use underscores (same as marksheet table)
+                    clean_subject = "".join(char if char.isalnum() else "_" for char in subject).lower().strip("_")
+                    marks_dict[f'{clean_subject}_s'] = marks_list[idx]
+                    marks_dict[f'{clean_subject}_r'] = marks_list[idx + 1]
                     idx += 2
 
         # Add total and average if available
@@ -681,6 +685,8 @@ class ReportFormsView(ctk.CTkToplevel):
         for key in marks.keys():
             if key.endswith('_s') and key not in ['total_points', 'average_level', 'rank']:
                 subject_name = key.replace('_s', '').replace('_', ' ').title()
+                # Keep underscores in the key value to match database column names
+                # Don't replace underscores in the value, only in the display name
                 subject_keys[subject_name] = key.replace('_s', '')
         print(f"DEBUG: create_marks_table - subject_keys: {subject_keys}")
         print(f"DEBUG: create_marks_table - subjects from config: {subjects}")
