@@ -2068,6 +2068,13 @@ def parent_report():
         if report:
             logging.info("Report found, parsing JSON")
             report_data = json.loads(report["report_data"])
+            # Log current_marks keys for debugging
+            if 'current_marks' in report_data:
+                logging.info(f"Current marks keys: {list(report_data['current_marks'].keys())[:20]}")
+                # Check for int_scie columns
+                for key in ['int_scie_s', 'int_scie_r', 'int_scie_p', 'intcie_s', 'intcie_r', 'intcie_p']:
+                    if key in report_data['current_marks']:
+                        logging.info(f"Found {key} = {report_data['current_marks'][key]}")
             # Generate analytics data
             logging.info("Generating analytics")
             report_data = generate_analytics(report_data, conn, session["parent_grade"])
@@ -2149,40 +2156,30 @@ def parent_report():
                 logging.warning(f"Fallback: No table mapping found for grade '{grade}'")
                 report_data = None
 
-        # Determine current exam title from report data or use default
-        if report_data and 'exam_title' in report_data and report_data['exam_title']:
-            current_exam_title = report_data['exam_title']
-            logging.info(f"Using exam_title from report data: {current_exam_title}")
+        # Always use current_exam_title from school_config.json to override report data
+        # Load school_config.json to get current_exam_title
+        import json
+        import os
+        config_path = os.path.join(os.path.dirname(__file__), 'school_config.json')
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+                current_exam_title = config.get('current_exam_title', 'Current Exam')
+                logging.info(f"Using current_exam_title from school_config.json: {current_exam_title}")
         else:
-            # Try to get exam title from school config
-            school_config_query = conn.execute(
-                "SELECT school_address, school_telephone, school_logo FROM schools WHERE school_name = ?",
-                (session["parent_school_name"],)
-            ).fetchone()
+            # Fallback to grade-specific titles if config not found
+            grade = session["parent_grade"]
+            grade_lower = grade.lower() if grade else ""
+            current_exam_title = "Current Exam"
             
-            # Load school_config.json to get current_exam_title
-            import json
-            import os
-            config_path = os.path.join(os.path.dirname(__file__), 'school_config.json')
-            if os.path.exists(config_path):
-                with open(config_path, 'r') as f:
-                    config = json.load(f)
-                    current_exam_title = config.get('current_exam_title', 'Current Exam')
-                    logging.info(f"Using current_exam_title from school_config.json: {current_exam_title}")
-            else:
-                # Fallback to grade-specific titles if config not found
-                grade = session["parent_grade"]
-                grade_lower = grade.lower() if grade else ""
-                current_exam_title = "Current Exam"
-                
-                if grade_lower in ["playgroup", "pp1", "pp2"]:
-                    current_exam_title = "TERM ASSESSMENT"
-                elif grade_lower in ["grade 1", "grade 2", "grade 3", "grade 4", "grade 5", "grade 6"]:
-                    current_exam_title = "PRIMARY EXAM"
-                elif grade_lower in ["grade 7", "grade 8", "grade 9"]:
-                    current_exam_title = "JSS ASSESSMENT"
-                
-                logging.info(f"Using fallback exam_title for grade {grade}: {current_exam_title}")
+            if grade_lower in ["playgroup", "pp1", "pp2"]:
+                current_exam_title = "TERM ASSESSMENT"
+            elif grade_lower in ["grade 1", "grade 2", "grade 3", "grade 4", "grade 5", "grade 6"]:
+                current_exam_title = "PRIMARY EXAM"
+            elif grade_lower in ["grade 7", "grade 8", "grade 9"]:
+                current_exam_title = "JSS ASSESSMENT"
+            
+            logging.info(f"Using fallback exam_title for grade {grade}: {current_exam_title}")
 
         # Use previous exams from report data if available
         if report_data and 'previous_exams' in report_data:
