@@ -1229,17 +1229,23 @@ def api_get_marks():
             avg_level = calculate_final_level(total_points, is_primary=True)
             print(f"DEBUG API: Calculated avg_level={avg_level} from total_points={total_points}")
         
-        # Use calculated values if database values are missing or empty
+        # Use database values if they exist, otherwise use calculated values
         db_total_points = r["total_points"] if r["total_points"] is not None else "0"
         db_avg_level = r["average_level"] if r["average_level"] is not None else ""
         
         print(f"DEBUG API: DB values - total_points={db_total_points}, avg_level={db_avg_level}")
         print(f"DEBUG API: Calculated values - total_points={total_points}, avg_level={avg_level}")
         
-        # Always use calculated values to ensure accuracy
-        db_total_points = str(total_points)
-        db_avg_level = avg_level
-        print(f"DEBUG API: Using calculated values - total_points={db_total_points}, avg_level={db_avg_level}")
+        # Use database values if they are non-empty, otherwise use calculated values
+        # This preserves the original total_points from previous exams instead of recalculating
+        if db_total_points and db_total_points != "0":
+            # Use database value (e.g., from previous_exams table)
+            print(f"DEBUG API: Using database values - total_points={db_total_points}, avg_level={db_avg_level}")
+        else:
+            # Use calculated values
+            db_total_points = str(total_points)
+            db_avg_level = avg_level
+            print(f"DEBUG API: Using calculated values - total_points={db_total_points}, avg_level={db_avg_level}")
         
         marks_list.append(
             {
