@@ -70,9 +70,12 @@
             const studentId = "{{ session.get('parent_student_id') or '' }}";
             if (!studentId) {
                 console.error('No student_id in session');
+                updateFCMStatus('No student ID in session', 'error');
                 return;
             }
 
+            updateFCMStatus('Registering token...', 'pending');
+            
             const response = await fetch('/api/register_fcm_token', {
                 method: 'POST',
                 headers: {
@@ -88,11 +91,22 @@
             const result = await response.json();
             if (result.success) {
                 console.log('FCM token registered successfully');
+                updateFCMStatus('✓ Notifications enabled!', 'success');
             } else {
                 console.error('Failed to register FCM token:', result.message);
+                updateFCMStatus('Registration failed: ' + result.message, 'error');
             }
         } catch (error) {
             console.error('Error sending token to server:', error);
+            updateFCMStatus('Network error', 'error');
+        }
+    }
+
+    function updateFCMStatus(message, status) {
+        const statusDiv = document.getElementById('fcm-status');
+        if (statusDiv) {
+            statusDiv.textContent = message;
+            statusDiv.className = 'fcm-status ' + status;
         }
     }
 
@@ -116,12 +130,21 @@
     };
 </script>
 
-<!-- Add a small test button for debugging -->
-<div style="position: fixed; bottom: 10px; right: 10px; z-index: 9999;">
+<!-- Add FCM status indicator and test button -->
+<div style="position: fixed; bottom: 10px; right: 10px; z-index: 9999; display: flex; flex-direction: column; gap: 5px; align-items: flex-end;">
+    <div id="fcm-status" class="fcm-status" style="padding: 5px 10px; font-size: 12px; background: #666; color: white; border-radius: 5px; max-width: 200px;">
+        FCM Status: Checking...
+    </div>
     <button onclick="testFCM()" style="padding: 5px 10px; font-size: 12px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer;">
-        Test FCM
+        Enable Notifications
     </button>
 </div>
+
+<style>
+.fcm-status.success { background: #27ae60 !important; }
+.fcm-status.error { background: #e74c3c !important; }
+.fcm-status.pending { background: #f39c12 !important; }
+</style>
 <style>
     * {
         margin: 0;

@@ -1443,7 +1443,9 @@ def api_register_fcm_token():
         token = data.get("token")
         device_info = data.get("device_info", "")
         
-        logging.info(f"Received FCM token registration - student_id: {student_id}, token: {token[:20]}... if token else None, device: {device_info[:50]}...")
+        logging.info(f"Received FCM token registration - student_id: {student_id}, token: {token[:20] if token else None}..., device: {device_info[:50] if device_info else None}...")
+        logging.info(f"Request IP: {request.remote_addr}")
+        logging.info(f"User-Agent: {request.headers.get('User-Agent', 'Unknown')[:100]}")
         
         if not student_id or not token:
             logging.warning("FCM token registration failed: Missing student_id or token")
