@@ -182,5 +182,8 @@ def get_fcm_service() -> FCMService:
     """Get or create the global FCM service instance"""
     global _fcm_service
     if _fcm_service is None:
+        logging.info("=== Creating new FCM service instance ===")
         _fcm_service = FCMService()
+    else:
+        logging.info("=== Reusing existing FCM service instance ===")
     return _fcm_service

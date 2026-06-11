@@ -1800,6 +1800,10 @@ def api_save_newsletter():
             from fcm_service import get_fcm_service
             fcm_service = get_fcm_service()
             
+            logging.info(f"=== FCM Service Check ===")
+            logging.info(f"FCM service available: {fcm_service.is_available()}")
+            logging.info(f"Target student_ids: {student_ids}")
+            
             if fcm_service.is_available():
                 # Get FCM tokens for target students
                 tokens = []
@@ -1811,6 +1815,11 @@ def api_save_newsletter():
                     token_row = cursor.fetchone()
                     if token_row:
                         tokens.append(token_row[0])
+                        logging.info(f"Found FCM token for student_id={student_id}")
+                    else:
+                        logging.info(f"No FCM token found for student_id={student_id}")
+                
+                logging.info(f"Total FCM tokens found: {len(tokens)}")
                 
                 if tokens:
                     # Send multicast notification
@@ -2661,6 +2670,14 @@ def parent_logout():
 
 
 if __name__ == "__main__":
+    # Initialize FCM service at startup
+    try:
+        from fcm_service import get_fcm_service
+        fcm_service = get_fcm_service()
+        logging.info(f"FCM Service initialized at startup: Available={fcm_service.is_available()}")
+    except Exception as e:
+        logging.error(f"Failed to initialize FCM service at startup: {e}")
+    
     # Crucial for Railway: Listen on 0.0.0.0 and use the dynamic PORT variable
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)

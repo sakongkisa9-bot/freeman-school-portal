@@ -1,6 +1,7 @@
 import customtkinter as ctk
 from PIL import Image
 import os
+import json
 
 class LoginPage(ctk.CTk):
     def __init__(self):
@@ -85,8 +86,27 @@ class LoginPage(ctk.CTk):
         username = self.user_entry.get()
         password = self.pass_entry.get()
         
-        # Temporary check for testing
-        if username == "admin" and password == "1234":
+        # Load credentials from school_config.json
+        try:
+            current_dir = os.path.dirname(os.path.realpath(__file__))
+            json_path = os.path.join(current_dir, 'school_config.json')
+            if os.path.exists(json_path):
+                with open(json_path, 'r') as f:
+                    config = json.load(f)
+                    config_username = config.get('system_username', 'admin')
+                    config_password = config.get('system_password', '1234')
+            else:
+                # Fallback to default credentials if config doesn't exist
+                config_username = 'admin'
+                config_password = '1234'
+        except Exception as e:
+            print(f"Error loading config: {e}")
+            # Fallback to default credentials
+            config_username = 'admin'
+            config_password = '1234'
+        
+        # Check credentials
+        if username == config_username and password == config_password:
             self.success = True
             print("Login Successful!")
             self.destroy() # This will close the login and let main.py continue

@@ -23,6 +23,7 @@ class FreemanDB:
             self.create_previous_exams_table()
             self.create_teachers_table()
             self.create_student_reports_table()
+            self.create_fcm_tokens_table()
             # Temporary fix in database.py
             self.create_marksheet_table() # Ensure this runs at start too
             print(f"DATABASE ACTIVE AT: {DB_PATH}")

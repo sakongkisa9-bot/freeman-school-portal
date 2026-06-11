@@ -142,7 +142,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
                 fg_color="#f57c00",
                 text_color="black",
                 hover_color="#e64a19",
-                command=self.print_to_pdf,
+                command=self.generate_pdf_report,
             ).pack(side="left", padx=5, pady=15)
             ctk.CTkButton(
                 self.bottom_bar,

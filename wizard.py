@@ -82,6 +82,13 @@ class SchoolSetupWizard(ctk.CTkToplevel):
         self.create_label("School Administrator Name:")
         self.admin_entry = self.create_entry("e.g., Mercy Chelimo (Headteacher) or Maxwell Kiptoo (Director)")
 
+        # 7. System Security
+        ctk.CTkLabel(self.scroll_frame, text="System Security", font=("Arial", 14, "bold"), text_color="#e74c3c").pack(pady=(20, 5))
+        self.create_label("System Username:")
+        self.system_username_entry = self.create_entry("e.g., admin")
+        self.create_label("Administrator Password:")
+        self.system_password_entry = self.create_entry("Enter administrator password")
+
         self.logo_path = ctk.StringVar()
         ctk.CTkButton(self.scroll_frame, text="📁 Browse Logo", command=lambda: self.pick_file(self.logo_path)).pack(pady=5)
 
@@ -147,6 +154,9 @@ class SchoolSetupWizard(ctk.CTkToplevel):
                 "cloud_school_code": self.cloud_code_entry.get().strip(),
                 "cloud_teacher_username": self.cloud_teacher_entry.get().strip(),
                 "cloud_teacher_password": self.cloud_password_entry.get().strip(),
+                # System Security Credentials
+                "system_username": self.system_username_entry.get().strip(),
+                "system_password": self.system_password_entry.get().strip(),
                 # Added Exam Titles so the Playgroup view knows what to display
                 "playgroup_exam_title": "PLAYGROUP ASSESSMENT REPORT",
                 "primary_exam_title": "PRIMARY SCHOOL MERIT LIST",

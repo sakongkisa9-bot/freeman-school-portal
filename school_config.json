@@ -1,19 +1,21 @@
 {
     "school_name": "LENANA SCHOOL",
-    "address": "P.O.BOX 12 KAPTAMA",
-    "contacts": "0789657547/0786564689",
+    "address": "P.O.BOX 25 HAK",
+    "contacts": "078975567898",
     "logo": "C:/Users/HomePC/Downloads/lenana-school-emblem-logo-png_seeklogo-288456.png",
-    "school_administrator": "MAXWELL(DIRECTOR)",
+    "school_administrator": "MARKTO",
     "signatures": {
         "headteacher": "C:/Users/HomePC/Pictures/Untitled.png"
     },
     "cloud_portal_url": "https://freeman-school-portal.up.railway.app",
     "cloud_school_code": "FREEMAN26",
-    "cloud_teacher_username": "sakongkisa9@gmail.com",
+    "cloud_teacher_username": "portal",
     "cloud_teacher_password": "FREEMAN26",
-    "playgroup_exam_title": "PLAYGROUP ASSESSMENT REPORT",
-    "primary_exam_title": "PRIMARY SCHOOL MERIT LIST",
-    "jss_exam_title": "JUNIOR SECONDARY ASSESSMENT",
+    "system_username": "kibet",
+    "system_password": "14815",
+    "playgroup_exam_title": "jss",
+    "primary_exam_title": "jss",
+    "jss_exam_title": "jss",
     "subjects": {
         "playgroup": [
             "LANG",
@@ -68,6 +70,8 @@
             "C/A"
         ]
     },
-    "portal_open": false,
-    "current_exam_title": "PAPER"
+    "lower_exam_title": "jss",
+    "pp1_exam_title": "jss",
+    "pp2_exam_title": "jss",
+    "current_exam_title": "MOCK"
 }

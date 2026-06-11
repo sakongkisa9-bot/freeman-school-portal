@@ -917,13 +917,15 @@ class ReportFormsView(ctk.CTkToplevel):
         school_telephone = self.school_config.get("contacts", "")
         school_administrator = self.school_config.get("school_administrator", "School Administrator")
         signature_path = self.school_config.get("signatures", {}).get("headteacher", "")
+        current_exam_title = self.school_config.get("current_exam_title", "PERFORMANCE REPORT")
 
         # Get student data from report_data (handle both student object and report_data)
         student_name = student.get("student_name", student.get("name", "")) if student else ""
         adm_no = student.get("adm_no", "") if student else ""
         stream = student.get("stream", "none") if student else "none"
         grade = student.get("grade", "") if student else ""
-        exam_title = student.get("exam_title", "PERFORMANCE REPORT") if student else "PERFORMANCE REPORT"
+        # Use current_exam_title from school_config.json for consistency with cloud
+        exam_title = current_exam_title
         current_marks = student.get("current_marks", {}) if student else {}
         previous_exams = student.get("previous_exams", []) if student else []
         
@@ -1015,14 +1017,14 @@ class ReportFormsView(ctk.CTkToplevel):
                     exam_rows.append({
                         'name': previous_exams[1].get('exam_name', ''),
                         'marks': previous_exams[1].get('marks', {}),
-                        'average_level': previous_exams[1].get('average_level', ''),
+                        'average_level': '',  # Will be calculated dynamically like cloud
                         'is_current': False
                     })
                 if previous_exams and len(previous_exams) >= 1:
                     exam_rows.append({
                         'name': previous_exams[0].get('exam_name', ''),
                         'marks': previous_exams[0].get('marks', {}),
-                        'average_level': previous_exams[0].get('average_level', ''),
+                        'average_level': '',  # Will be calculated dynamically like cloud
                         'is_current': False
                     })
                 exam_rows.append({
@@ -1109,18 +1111,36 @@ class ReportFormsView(ctk.CTkToplevel):
                         else:
                             # Get from previous exam marks
                             if isinstance(exam_marks, dict):
+                                # Subject key mapping to handle mismatches between config subjects and previous exam keys
+                                subject_key_map = {
+                                    'INT_SCIE': 'INTSCIE',
+                                    'PRE_TECH': 'PRE-TECH',
+                                    'C_A': 'C/A',
+                                    'PRETECH': 'PRE-TECH',
+                                    'CA': 'C/A'
+                                }
                                 subject_upper = subject.upper().replace(' ', '_').replace('-', '_').replace('/', '_')
-                                score = exam_marks.get(subject_upper, {}).get('score', '') if isinstance(exam_marks.get(subject_upper, {}), dict) else ''
-                                rating = exam_marks.get(subject_upper, {}).get('rating', '') if isinstance(exam_marks.get(subject_upper, {}), dict) else ''
-                                points = exam_marks.get(subject_upper, {}).get('points', '') if isinstance(exam_marks.get(subject_upper, {}), dict) else ''
+                                # Try mapped key first, then original
+                                mapped_key = subject_key_map.get(subject_upper, subject_upper)
+                                score = exam_marks.get(mapped_key, {}).get('score', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
+                                rating = exam_marks.get(mapped_key, {}).get('rating', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
+                                points = exam_marks.get(mapped_key, {}).get('points', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
                         
-                        # Calculate total
-                        if score and score not in ['', '-']:
-                            try:
-                                total_score += float(score)
-                                total_count += 1
-                            except:
-                                pass
+                        # Calculate total - for junior grades use points, for others use scores
+                        if is_junior:
+                            if points and points not in ['', '-']:
+                                try:
+                                    total_score += float(points)
+                                    total_count += 1
+                                except:
+                                    pass
+                        else:
+                            if score and score not in ['', '-']:
+                                try:
+                                    total_score += float(score)
+                                    total_count += 1
+                                except:
+                                    pass
                         
                         if is_junior:
                             pdf.cell(subject_col_width, 6, txt=str(score), border=1, ln=0, align="C")
@@ -1130,8 +1150,60 @@ class ReportFormsView(ctk.CTkToplevel):
                             pdf.cell(subject_col_width, 6, txt=str(score), border=1, ln=0, align="C")
                             pdf.cell(subject_col_width, 6, txt=str(rating), border=1, ln=0, align="C")
                     
-                    # Total and Average (use system's average_level from exam_rows)
+                    # Total and Average - calculate average dynamically for previous exams like cloud does
                     avg_grade = exam_row.get('average_level', '')
+                    print(f"DEBUG PDF: Exam row: {exam_row['name']}, is_current: {exam_row['is_current']}, avg_grade from data: '{avg_grade}'")
+                    # Calculate average dynamically for previous exams or if avg_grade is not a valid rating
+                    valid_ratings = ['EE1', 'EE2', 'ME1', 'ME2', 'AE1', 'AE2', 'BE1', 'BE2']
+                    if not exam_row['is_current'] and avg_grade not in valid_ratings:
+                        print(f"DEBUG PDF: Calculating average dynamically for {exam_row['name']}")
+                        # Calculate average dynamically from marks (like cloud does)
+                        points_list = []
+                        if isinstance(exam_marks, dict):
+                            print(f"DEBUG PDF: exam_marks is dict with keys: {list(exam_marks.keys())}")
+                            for subject_key, subject_data in exam_marks.items():
+                                if isinstance(subject_data, dict):
+                                    score = subject_data.get('score', 0)
+                                    if score and score not in ['', '-']:
+                                        try:
+                                            score_float = float(score)
+                                            # Convert score to rating
+                                            if is_junior:
+                                                from grading_logic import get_grade_7_8_rating
+                                                rating_result = get_grade_7_8_rating(score_float)
+                                            else:
+                                                from grading_logic import get_grade_4_6_rating
+                                                rating_result = get_grade_4_6_rating(score_float)
+                                            # Extract rating string if it's a tuple
+                                            if isinstance(rating_result, tuple):
+                                                rating = rating_result[0]
+                                            else:
+                                                rating = rating_result
+                                            # Convert rating to points
+                                            rating_points = {
+                                                "EE1": 8, "EE2": 7, "ME1": 6, "ME2": 5,
+                                                "AE1": 4, "AE2": 3, "BE1": 2, "BE2": 1
+                                            }
+                                            points = rating_points.get(rating, 0)
+                                            points_list.append(points)
+                                            print(f"DEBUG PDF: Subject {subject_key}: score={score_float}, rating={rating}, points={points}")
+                                        except:
+                                            pass
+                        print(f"DEBUG PDF: points_list: {points_list}")
+                        if points_list:
+                            avg_points = sum(points_list) / len(points_list)
+                            # Convert average points back to rating
+                            points_to_rating_map = {
+                                8: "EE1", 7: "EE2", 6: "ME1", 5: "ME2",
+                                4: "AE1", 3: "AE2", 2: "BE1", 1: "BE2"
+                            }
+                            avg_grade = points_to_rating_map.get(round(avg_points), '-')
+                            print(f"DEBUG PDF: Calculated avg_points={avg_points}, avg_grade={avg_grade}")
+                        else:
+                            avg_grade = '-'
+                            print(f"DEBUG PDF: No points found, setting avg_grade to '-'")
+                    else:
+                        print(f"DEBUG PDF: Using existing avg_grade: '{avg_grade}'")
                     
                     pdf.cell(total_col_width, 6, txt=str(int(total_score)) if total_score > 0 else "-", border=1, ln=0, align="C")
                     pdf.cell(total_col_width, 6, txt=str(avg_grade), border=1, ln=1, align="C")
@@ -1139,8 +1211,38 @@ class ReportFormsView(ctk.CTkToplevel):
             # Footer Sections - Comments and Signature
             pdf.ln(10)
             
-            # Get average level for comments
-            average_level = current_marks.get('average_level', 'BE2')
+            # Get average level for comments - use same logic as cloud
+            average_level = current_marks.get('average_level', '')
+            # Extract rating string if it's a tuple
+            if isinstance(average_level, tuple):
+                average_level = average_level[0]
+            # Fallback: calculate average from marks if not provided
+            if not average_level:
+                scores = []
+                for key in current_marks.keys():
+                    if key.endswith('_s') and key not in ['total_points_s', 'average_level_s', 'rank_s']:
+                        score = current_marks.get(key, '')
+                        if score and score not in ['', '-']:
+                            try:
+                                scores.append(float(score))
+                            except:
+                                pass
+                if scores:
+                    avg_score = sum(scores) / len(scores)
+                    # Convert to rating for junior grades
+                    if is_junior:
+                        from grading_logic import get_grade_7_8_rating
+                        rating_result = get_grade_7_8_rating(avg_score)
+                    else:
+                        from grading_logic import get_grade_4_6_rating
+                        rating_result = get_grade_4_6_rating(avg_score)
+                    # Extract rating string if it's a tuple
+                    if isinstance(rating_result, tuple):
+                        average_level = rating_result[0]
+                    else:
+                        average_level = rating_result
+                else:
+                    average_level = 'BE2'
             
             # Comments Frame
             pdf.set_fill_color(240, 240, 240)
@@ -1150,18 +1252,12 @@ class ReportFormsView(ctk.CTkToplevel):
             # Class Teacher Comment
             pdf.set_xy(15, frame_y + 3)
             pdf.set_font("Helvetica", "B", 9)
-            pdf.cell(70, 6, txt="Class Teacher:", border=0, ln=0, align="L")
-            pdf.set_font("Helvetica", "", 9)
-            class_teacher_comment = self.get_class_teacher_comment(average_level)
-            pdf.cell(190, 6, txt=class_teacher_comment, border=0, ln=1, align="L")
+            pdf.cell(0, 6, txt="Class Teacher: " + self.get_class_teacher_comment(average_level), border=0, ln=1, align="L")
             
             # Head Teacher Comment
             pdf.set_xy(15, frame_y + 12)
             pdf.set_font("Helvetica", "B", 9)
-            pdf.cell(70, 6, txt="Head Teacher:", border=0, ln=0, align="L")
-            pdf.set_font("Helvetica", "", 9)
-            head_teacher_comment = self.get_head_teacher_comment(average_level)
-            pdf.cell(190, 6, txt=head_teacher_comment, border=0, ln=1, align="L")
+            pdf.cell(0, 6, txt="Head Teacher: " + self.get_head_teacher_comment(average_level), border=0, ln=1, align="L")
             
             pdf.set_y(frame_y + 35)
             

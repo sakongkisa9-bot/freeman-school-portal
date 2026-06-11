@@ -1,0 +1,9 @@
+{
+    "year": "2025",
+    "class": "Grade 7",
+    "exam_name": "jss",
+    "exam_date": "2026-06-10 17:15:40",
+    "summary_data": "{\"total_students\": 1, \"distribution\": {\"EE1\": 0, \"EE2\": 0, \"ME1\": 0, \"ME2\": 0, \"AE1\": 1, \"AE2\": 0, \"BE1\": 0, \"BE2\": 0}, \"gender_counts\": {\"male\": 1, \"female\": 0, \"other\": 0}, \"gender_totals\": {\"male\": 42, \"female\": 0, \"other\": 0}, \"subject_averages\": [[\"KISW\", 7.0], [\"CRE\", 6.0], [\"MATH\", 5.0], [\"ENG\", 5.0], [\"INT SCIE\", 5.0], [\"AGRI\", 5.0], [\"PRE-TECH\", 4.0], [\"SST\", 3.0], [\"C/A\", 2.0]], \"has_history\": false, \"trend_text\": \"No previous exam\"}",
+    "marks_data": "[[\"Morgan kiplagat cheroboi\", \"45\", \"ME2\", \"5\", \"56\", \"ME2\", \"5\", \"76\", \"EE2\", \"7\", \"45\", \"ME2\", \"5\", \"34\", \"AE1\", \"4\", \"23\", \"AE2\", \"3\", \"67\", \"ME1\", \"6\", \"45\", \"ME2\", \"5\", \"20\", \"BE1\", \"2\", 42, \"AE1\", 1]]",
+    "archived_date": "2026-06-10 17:16:21.755150"
+}

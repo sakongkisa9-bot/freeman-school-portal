@@ -10,3 +10,4 @@ build/
 cloud_portal.db
 *.log
 firebase-service-account.json
+.license_key

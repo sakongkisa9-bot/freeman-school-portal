@@ -4,6 +4,49 @@ from PIL import Image
 import security
 import os
 import random
+import sys
+from license_manager import check_and_activate_license
+
+# LICENSE CHECK - Must pass before application can start
+def check_license_before_start():
+    """Check license validity before allowing application to start"""
+    is_allowed, message = check_and_activate_license()
+    
+    if not is_allowed:
+        # Show error dialog and exit
+        root = ctk.CTk()
+        root.title("License Error")
+        root.geometry("600x400")
+        
+        # Center the window
+        screen_width = root.winfo_screenwidth()
+        screen_height = root.winfo_screenheight()
+        x = (screen_width // 2) - (600 // 2)
+        y = (screen_height // 2) - (400 // 2)
+        root.geometry(f"600x400+{x}+{y}")
+        root.resizable(False, False)
+        
+        # Error message frame
+        frame = ctk.CTkFrame(root)
+        frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Error icon/text
+        ctk.CTkLabel(frame, text="⚠️ LICENSE ERROR", font=("Arial Bold", 24), 
+                   text_color="#e74c3c").pack(pady=(20, 10))
+        
+        # Error message
+        msg_label = ctk.CTkLabel(frame, text=message, font=("Arial", 12), 
+                                wraplength=500, justify="center")
+        msg_label.pack(pady=20)
+        
+        # Exit button
+        ctk.CTkButton(frame, text="Exit", command=root.destroy, 
+                     width=150, height=40, fg_color="#e74c3c").pack(pady=20)
+        
+        root.mainloop()
+        sys.exit(1)
+    
+    return True
 
 class SplashScreen(ctk.CTk):
     def __init__(self):
@@ -94,6 +137,9 @@ class SplashScreen(ctk.CTk):
         security.show_login()
 
 if __name__ == "__main__":
+    # Check license before starting application
+    check_license_before_start()
+    
     app = SplashScreen()
     app.mainloop()
 
@@ -104,6 +150,8 @@ from splash import SplashScreen2 # Assuming you saved the splash class here
 from ui_dashboard import Dashboard     # Your beautiful registry GUI
 
 def run_freeman_os():
+    # Check license before starting application
+    check_license_before_start()
 
     # STEP 1: OPEN LOGIN
     login = LoginPage()
