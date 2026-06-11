@@ -1485,6 +1485,17 @@ def api_log_fcm_click():
     return jsonify({"success": True})
 
 
+@app.route("/parent/enable_notifications")
+def parent_enable_notifications():
+    """Server-side FCM registration page (works without JavaScript)"""
+    logging.info("=== Server-side FCM Registration Page Accessed ===")
+    student_id = session.get('parent_student_id')
+    if not student_id:
+        return redirect(url_for('parent_login'))
+    
+    return render_template('fcm_registration.html', student_id=student_id)
+
+
 @app.route("/api/save_newsletter", methods=["POST"])
 def api_save_newsletter():
     """Save a newsletter to the cloud database"""

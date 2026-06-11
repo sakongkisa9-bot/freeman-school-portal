@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enable Notifications</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 500px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        p {
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        .status.checking { background: #f39c12; color: white; }
+        .status.success { background: #27ae60; color: white; }
+        .status.error { background: #e74c3c; color: white; }
+        button {
+            padding: 15px 30px;
+            font-size: 16px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .back-link {
+            display: block;
+            margin-top: 20px;
+            color: #667eea;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Enable Notifications</h1>
+        <p>Click the button below to enable push notifications for newsletters and announcements.</p>
+        
+        <div id="status" class="status checking">Ready to enable notifications</div>
+        
+        <button id="enableBtn" onclick="enableNotifications()">Enable Notifications</button>
+        
+        <a href="/parent/dashboard" class="back-link">← Back to Dashboard</a>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js"></script>
+
+    <script>
+        const studentId = {{ student_id }};
+        
+        function updateStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = 'status ' + type;
+        }
+        
+        async function enableNotifications() {
+            const btn = document.getElementById('enableBtn');
+            btn.disabled = true;
+            updateStatus('Starting...', 'checking');
+            
+            try {
+                // Check if Firebase is loaded
+                if (typeof firebase === 'undefined') {
+                    updateStatus('Error: Firebase SDK not loaded. Please refresh.', 'error');
+                    btn.disabled = false;
+                    return;
+                }
+                
+                updateStatus('Requesting permission...', 'checking');
+                
+                // Request notification permission
+                const permission = await Notification.requestPermission();
+                
+                if (permission !== 'granted') {
+                    updateStatus('Permission denied. Please enable notifications in browser settings.', 'error');
+                    btn.disabled = false;
+                    return;
+                }
+                
+                updateStatus('Initializing Firebase...', 'checking');
+                
+                // Initialize Firebase
+                const firebaseConfig = {
+                    apiKey: "AIzaSyDK78eyayqUeCZxl_RwsC1SZEpwIgxK5EE",
+                    authDomain: "freeman-2202a.firebaseapp.com",
+                    projectId: "freeman-2202a",
+                    storageBucket: "freeman-2202a.appspot.com",
+                    messagingSenderId: "435924108891",
+                    appId: "1:435924108891:web:c074fb7c630cfaff3b617e"
+                };
+
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+                
+                updateStatus('Getting token...', 'checking');
+                
+                // Get FCM token
+                const messaging = firebase.messaging();
+                const token = await messaging.getToken();
+                
+                if (!token) {
+                    updateStatus('Failed to get token. Please try again.', 'error');
+                    btn.disabled = false;
+                    return;
+                }
+                
+                updateStatus('Registering with server...', 'checking');
+                
+                // Send token to server
+                const response = await fetch('/api/register_fcm_token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        student_id: studentId,
+                        token: token,
+                        device_info: navigator.userAgent
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    updateStatus('✓ Notifications enabled successfully!', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/parent/dashboard';
+                    }, 2000);
+                } else {
+                    updateStatus('Registration failed: ' + result.message, 'error');
+                    btn.disabled = false;
+                }
+                
+            } catch (error) {
+                updateStatus('Error: ' + error.message, 'error');
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
