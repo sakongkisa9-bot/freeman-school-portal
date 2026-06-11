@@ -2022,17 +2022,22 @@ def parent_login():
             flash("Please fill in all fields", "error")
             return render_template("cloud_parent_login.html")
 
-        # Verify student exists
+        # Verify student exists (case-insensitive and flexible name matching)
         conn = get_db()
         try:
+            # Normalize inputs for flexible matching
+            student_name_normalized = student_name.lower().strip()
+            school_name_normalized = school_name.lower().strip()
+            adm_no_normalized = adm_no.strip()
+            
             student = conn.execute(
                 """
                 SELECT s.id, s.school_id, s.grade, sc.school_name
                 FROM students s
                 JOIN schools sc ON s.school_id = sc.id
-                WHERE s.student_name = ? AND sc.school_name = ? AND s.adm_no = ?
+                WHERE LOWER(s.student_name) = ? AND LOWER(sc.school_name) = ? AND s.adm_no = ?
                 """,
-                (student_name, school_name, adm_no)
+                (student_name_normalized, school_name_normalized, adm_no_normalized)
             ).fetchone()
 
             if student:
