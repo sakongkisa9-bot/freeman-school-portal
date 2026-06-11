@@ -915,8 +915,15 @@ class NewsletterCreator(ctk.CTkToplevel):
             if result.get("success"):
                 print(f"Newsletter synced to cloud successfully: {result.get('message')}")
             else:
-                print(f"Cloud sync failed: {result.get('message')}")
-                # Don't show error to user since local save succeeded
+                error_msg = result.get('message', 'Unknown error')
+                print(f"Cloud sync failed: {error_msg}")
+                # Show error to user if it's a credentials issue
+                if "Invalid username or password" in error_msg or "School not found" in error_msg:
+                    from tkinter import messagebox
+                    messagebox.showerror("Cloud Sync Failed", f"Wrong cloud credentials!\n\n{error_msg}")
+                else:
+                    # Don't show other errors to user since local save succeeded
+                    pass
                 
         except Exception as e:
             print(f"Error syncing to cloud: {e}")

@@ -3,6 +3,125 @@
 {% block title %}Parent Dashboard - {{ student_name }}{% endblock %}
 
 {% block content %}
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js"></script>
+
+<!-- FCM Registration Functions -->
+<script>
+    // FCM Token Registration
+    async function registerFCMToken() {
+        console.log('Starting FCM token registration...');
+        try {
+            // Check if Firebase is loaded
+            if (typeof firebase === 'undefined') {
+                console.error('Firebase is not loaded. Check if Firebase SDK scripts are included.');
+                return;
+            }
+            
+            console.log('Firebase is loaded, requesting notification permission...');
+            
+            // Request notification permission
+            const permission = await Notification.requestPermission();
+            console.log('Notification permission:', permission);
+            
+            if (permission !== 'granted') {
+                console.log('Notification permission denied');
+                return;
+            }
+
+            console.log('Permission granted, initializing Firebase...');
+            
+            // Initialize Firebase with your config
+            const firebaseConfig = {
+                apiKey: "AIzaSyDK78eyayqUeCZxl_RwsC1SZEpwIgxK5EE",
+                authDomain: "freeman-2202a.firebaseapp.com",
+                projectId: "freeman-2202a",
+                storageBucket: "freeman-2202a.appspot.com",
+                messagingSenderId: "435924108891",
+                appId: "1:435924108891:web:c074fb7c630cfaff3b617e"
+            };
+
+            // Initialize Firebase if not already initialized
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+                console.log('Firebase initialized');
+            } else {
+                console.log('Firebase already initialized');
+            }
+
+            console.log('Getting FCM token...');
+            
+            // Get FCM token
+            const messaging = firebase.messaging();
+            const token = await messaging.getToken();
+            console.log('FCM Token:', token);
+
+            // Send token to server
+            await sendTokenToServer(token);
+
+        } catch (error) {
+            console.error('Error registering FCM token:', error);
+        }
+    }
+
+    async function sendTokenToServer(token) {
+        try {
+            const studentId = "{{ session.get('parent_student_id') or '' }}";
+            if (!studentId) {
+                console.error('No student_id in session');
+                return;
+            }
+
+            const response = await fetch('/api/register_fcm_token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    student_id: studentId,
+                    token: token,
+                    device_info: navigator.userAgent
+                })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                console.log('FCM token registered successfully');
+            } else {
+                console.error('Failed to register FCM token:', result.message);
+            }
+        } catch (error) {
+            console.error('Error sending token to server:', error);
+        }
+    }
+
+    // Register FCM token on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM loaded, checking Firebase...');
+        setTimeout(function() {
+            if (typeof firebase !== 'undefined') {
+                console.log('Firebase is defined, calling registerFCMToken');
+                registerFCMToken();
+            } else {
+                console.error('Firebase is not defined after 2 seconds');
+            }
+        }, 2000);
+    });
+
+    // Manual trigger for testing
+    window.testFCM = function() {
+        console.log('Manual FCM registration triggered');
+        registerFCMToken();
+    };
+</script>
+
+<!-- Add a small test button for debugging -->
+<div style="position: fixed; bottom: 10px; right: 10px; z-index: 9999;">
+    <button onclick="testFCM()" style="padding: 5px 10px; font-size: 12px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer;">
+        Test FCM
+    </button>
+</div>
 <style>
     * {
         margin: 0;

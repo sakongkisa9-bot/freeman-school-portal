@@ -1493,7 +1493,17 @@ def api_save_newsletter():
             "SELECT id, school_name FROM schools WHERE school_code = ?", (school_code,)
         ).fetchone()
         if not school:
-            return jsonify({"success": False, "message": "School not found"}), 404
+            return jsonify({"success": False, "message": "School not found. Please check your school code."}), 404
+
+        # Authenticate user credentials
+        teacher = conn.execute(
+            "SELECT * FROM teachers WHERE school_id = ? AND username = ?",
+            (school["id"], username.strip().lower())
+        ).fetchone()
+        
+        if not teacher or not check_password_hash(teacher["password_hash"], password):
+            logging.warning(f"Failed authentication attempt for school_code={school_code}, username={username}")
+            return jsonify({"success": False, "message": "Invalid username or password. Please check your cloud credentials."}), 401
 
         # Create tables if they don't exist
         conn.execute("""
