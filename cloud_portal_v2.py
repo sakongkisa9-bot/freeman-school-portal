@@ -1474,6 +1474,17 @@ def api_register_fcm_token():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+@app.route("/api/log_fcm_click", methods=["POST"])
+def api_log_fcm_click():
+    """Log FCM button clicks for debugging"""
+    logging.info("=== FCM Button Clicked ===")
+    data = request.json
+    action = data.get("action", "unknown")
+    logging.info(f"FCM button action: {action}")
+    logging.info(f"Request IP: {request.remote_addr}")
+    return jsonify({"success": True})
+
+
 @app.route("/api/save_newsletter", methods=["POST"])
 def api_save_newsletter():
     """Save a newsletter to the cloud database"""

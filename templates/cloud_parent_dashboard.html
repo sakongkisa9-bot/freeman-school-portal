@@ -12,14 +12,19 @@
     // FCM Token Registration
     async function registerFCMToken() {
         console.log('Starting FCM token registration...');
+        updateFCMStatus('Starting registration...', 'pending');
+        
         try {
             // Check if Firebase is loaded
             if (typeof firebase === 'undefined') {
                 console.error('Firebase is not loaded. Check if Firebase SDK scripts are included.');
+                updateFCMStatus('Firebase SDK not loaded', 'error');
+                alert('Error: Firebase SDK not loaded. Please refresh the page.');
                 return;
             }
             
             console.log('Firebase is loaded, requesting notification permission...');
+            updateFCMStatus('Requesting permission...', 'pending');
             
             // Request notification permission
             const permission = await Notification.requestPermission();
@@ -27,10 +32,13 @@
             
             if (permission !== 'granted') {
                 console.log('Notification permission denied');
+                updateFCMStatus('Permission denied', 'error');
+                alert('Notification permission was denied. Please enable notifications in your browser settings.');
                 return;
             }
 
             console.log('Permission granted, initializing Firebase...');
+            updateFCMStatus('Initializing Firebase...', 'pending');
             
             // Initialize Firebase with your config
             const firebaseConfig = {
@@ -51,17 +59,26 @@
             }
 
             console.log('Getting FCM token...');
+            updateFCMStatus('Getting token...', 'pending');
             
             // Get FCM token
             const messaging = firebase.messaging();
             const token = await messaging.getToken();
             console.log('FCM Token:', token);
 
+            if (!token) {
+                updateFCMStatus('Failed to get token', 'error');
+                alert('Failed to get FCM token. Please try again.');
+                return;
+            }
+
             // Send token to server
             await sendTokenToServer(token);
 
         } catch (error) {
             console.error('Error registering FCM token:', error);
+            updateFCMStatus('Error: ' + error.message, 'error');
+            alert('Error registering FCM token: ' + error.message);
         }
     }
 
@@ -126,6 +143,15 @@
     // Manual trigger for testing
     window.testFCM = function() {
         console.log('Manual FCM registration triggered');
+        updateFCMStatus('Button clicked', 'pending');
+        
+        // Log to server that button was clicked
+        fetch('/api/log_fcm_click', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'enable_notifications_clicked' })
+        }).catch(e => console.error('Failed to log click:', e));
+        
         registerFCMToken();
     };
 </script>
