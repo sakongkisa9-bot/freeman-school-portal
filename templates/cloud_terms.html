@@ -1,0 +1,125 @@
+{% extends 'cloud_base.html' %}
+{% block content %}
+<style>
+    .content-container {
+        max-width: 900px;
+        margin: 40px auto;
+        padding: 40px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    
+    .page-title {
+        font-size: 2.5rem;
+        color: #2c3e50;
+        margin-bottom: 30px;
+        text-align: center;
+        border-bottom: 3px solid #3498db;
+        padding-bottom: 15px;
+    }
+    
+    .section {
+        margin-bottom: 30px;
+    }
+    
+    .section-title {
+        font-size: 1.3rem;
+        color: #3498db;
+        margin-bottom: 15px;
+        font-weight: bold;
+    }
+    
+    .section-content {
+        font-size: 1.05rem;
+        line-height: 1.8;
+        color: #555;
+    }
+    
+    .section-content ul {
+        margin: 10px 0;
+        padding-left: 25px;
+    }
+    
+    .section-content li {
+        margin-bottom: 8px;
+    }
+    
+    .back-link {
+        display: inline-block;
+        margin: 20px 0;
+        color: #3498db;
+        text-decoration: none;
+        font-weight: bold;
+    }
+    
+    .back-link:hover {
+        text-decoration: underline;
+    }
+</style>
+
+<div class="content-container">
+    <a href="{{ url_for('home') }}" class="back-link">← Back to Home</a>
+    
+    <h1 class="page-title">Terms of Use</h1>
+    
+    <div class="section">
+        <h2 class="section-title">1. OWNERSHIP AND INTELLECTUAL PROPERTY</h2>
+        <p class="section-content">
+            This software (the "School management system") is the sole and exclusive property of Freeman-Tech Solutions. The School acknowledges that it is being granted a limited, non-exclusive, non-transferable, and revocable license to use the System for its internal academic management purposes. The School does not acquire any ownership interest, title, or rights in the System.
+        </p>
+    </div>
+    
+    <div class="section">
+        <h2 class="section-title">2. RESTRICTIONS AND PROHIBITED USE</h2>
+        <p class="section-content">
+            The School shall not, and shall not permit any third party to:
+        </p>
+        <ul class="section-content">
+            <li>Decompile, disassemble, reverse-engineer, or attempt to derive the source code or underlying logic of the System.</li>
+            <li>Modify, adapt, or create derivative works based on the System.</li>
+            <li>Rent, lease, sublicense, or distribute the System to any other school or entity. Any attempt to bypass security features, license keys, or update mechanisms will result in the immediate termination of this license.</li>
+        </ul>
+    </div>
+    
+    <div class="section">
+        <h2 class="section-title">3. TRIAL PERIOD AND LICENSING</h2>
+        <p class="section-content">
+            <strong>Trial Period:</strong> A School may be granted a Free Trial period. If the System is installed during an academic term, the Free Trial shall remain active until the conclusion of that current academic term.
+        </p>
+        <p class="section-content">
+            <strong>Transition to Premium:</strong> Upon the conclusion of the Trial Period, the School must pay the agreed-upon Premium License Fee to maintain access to the System.
+        </p>
+        <p class="section-content">
+            <strong>Renewal:</strong> Failure to remit payment within 14 days of the start of the following term will result in the suspension of all system features, including cloud synchronization, report generation, and data export capabilities.
+        </p>
+    </div>
+    
+    <div class="section">
+        <h2 class="section-title">4. UPDATES, MAINTENANCE, AND SUPPORT</h2>
+        <p class="section-content">
+            <strong>Automatic Updates:</strong> The System may periodically connect to Freeman-Tech Solutions' servers to check for and apply updates, security patches, or feature enhancements. The School consents to these automatic updates to ensure continued functionality.
+        </p>
+        <p class="section-content">
+            <strong>Support Services:</strong> Basic support for system errors is included during the active license period. Major feature requests or personalized customizations outside the standard scope of the System are subject to separate negotiation and additional fees.
+        </p>
+        <p class="section-content">
+            <strong>Disclaimer:</strong> Freeman-Tech Solutions provides the System on an "as-is" basis and does not guarantee that access will be 100% uninterrupted.
+        </p>
+    </div>
+    
+    <div class="section">
+        <h2 class="section-title">5. LIMITATION OF LIABILITY</h2>
+        <p class="section-content">
+            Freeman-Tech Solutions shall not be held liable for any data loss, administrative errors, or hardware issues resulting from the use of the System. The School is responsible for maintaining its own periodic backups of all academic data.
+        </p>
+    </div>
+    
+    <div class="section">
+        <h2 class="section-title">6. TERMINATION</h2>
+        <p class="section-content">
+            This license remains in effect until terminated. Freeman-Tech Solutions reserves the right to terminate this license if the School fails to comply with any terms herein, specifically regarding payment or unauthorized redistribution. Upon termination, the School must cease all use of the System immediately.
+        </p>
+    </div>
+</div>
+{% endblock %}

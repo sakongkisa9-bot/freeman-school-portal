@@ -1,0 +1,10 @@
+{
+    "telegram_bot_token": "8336724183:AAHtbZKccrn12vZs76e30l1dV1PDgD_p__c",
+    "telegram_chat_id": "8738868624",
+    "smtp_server": "smtp.gmail.com",
+    "smtp_port": 587,
+    "smtp_username": "",
+    "smtp_password": "",
+    "from_email": "",
+    "to_email": ""
+}

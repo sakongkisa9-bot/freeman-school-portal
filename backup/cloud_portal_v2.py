@@ -532,30 +532,6 @@ def home():
     return render_template("cloud_home.html")
 
 
-@app.route("/about")
-def about():
-    # About Us page
-    return render_template("cloud_about.html")
-
-
-@app.route("/privacy")
-def privacy():
-    # Privacy Policy page
-    return render_template("cloud_privacy.html")
-
-
-@app.route("/terms")
-def terms():
-    # Terms of Use page
-    return render_template("cloud_terms.html")
-
-
-@app.route("/contact")
-def contact():
-    # Contact page
-    return render_template("cloud_contact.html")
-
-
 @app.route("/firebase-messaging-sw.js")
 def serve_firebase_sw():
     """Serve the Firebase Cloud Messaging service worker"""

@@ -21,27 +21,11 @@ import network_manager
 from cloud_service import CloudService, ask_cloud_credentials
 
 
-# Handle both development and executable environments
-def get_app_dir():
-    """Get the application directory, handling both script and executable environments"""
-    if getattr(sys, 'frozen', False):
-        # Running as executable
-        BASE_DIR = sys._MEIPASS
-        USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
-        os.makedirs(USER_DATA_DIR, exist_ok=True)
-    else:
-        # Running as script
-        BASE_DIR = os.path.dirname(os.path.realpath(__file__))
-        USER_DATA_DIR = BASE_DIR
-    return BASE_DIR, USER_DATA_DIR
-
-
 class Dashboard(ctk.CTk):
     def __init__(self, school_name_placeholder="Freeman Tech Solutions (Demo)"):
         super().__init__()
 
         self.db = FreemanDB()
-        self.BASE_DIR, self.USER_DATA_DIR = get_app_dir()
 
         # --- ADD THESE TWO LINES HERE ---
         self.search_var = ctk.StringVar()
@@ -71,7 +55,8 @@ class Dashboard(ctk.CTk):
         # This makes the window take up the entire screen
 
         # --- 1. ASSET PATHS ---
-        bg_image_path = os.path.join(self.BASE_DIR, "assets", "dashboard_bg.jpg")
+        current_dir = os.path.dirname(os.path.realpath(__file__))
+        bg_image_path = os.path.join(current_dir, "assets", "dashboard_bg.jpg")
 
         # --- THE BACKGROUND IMAGE WITH DIAGONAL WATERMARK ---
         try:
@@ -355,13 +340,10 @@ class Dashboard(ctk.CTk):
             self.header_buttons_frame,
             text="🔄 Update Available",
             command=lambda: self.require_auth(self.check_for_updates),
-            fg_color="#3498db",
-            hover_color="#2980b9",
-            height=40,
-            font=("Arial Bold", 13),
-            corner_radius=8,
-            border_width=2,
-            border_color="#2980b9"
+            fg_color="#e74c3c",
+            hover_color="#c0392b",
+            height=35,
+            font=("Arial Bold", 12),
         )
         # Don't pack initially - will show when update available
 
@@ -655,7 +637,8 @@ class Dashboard(ctk.CTk):
             print(f"[ARCHIVE] Starting archiving process for year: {year}")
             
             # Create archives directory if it doesn't exist
-            archives_dir = os.path.join(self.USER_DATA_DIR, "archives")
+            import os
+            archives_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "archives")
             print(f"[ARCHIVE] Archives directory: {archives_dir}")
             
             if not os.path.exists(archives_dir):
@@ -964,7 +947,8 @@ class Dashboard(ctk.CTk):
         
         # Save to school_config.json
         try:
-            json_path = os.path.join(self.USER_DATA_DIR, "school_config.json")
+            current_dir = os.path.dirname(os.path.realpath(__file__))
+            json_path = os.path.join(current_dir, "school_config.json")
             with open(json_path, "w") as f:
                 json.dump(config, f, indent=4)
             
@@ -987,7 +971,8 @@ class Dashboard(ctk.CTk):
         ctk.CTkLabel(header_frame, text="/ ARCHIVES", font=("Arial Italic", 14), text_color="gray").pack(side="left", anchor="sw")
 
         # Get available years from archives directory
-        archives_dir = os.path.join(self.USER_DATA_DIR, "archives")
+        import os
+        archives_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "archives")
         years = set()
 
         if os.path.exists(archives_dir):
@@ -1052,8 +1037,9 @@ class Dashboard(ctk.CTk):
         ctk.CTkLabel(header_frame, text=f"/ ARCHIVES / {year}", font=("Arial Italic", 14), text_color="gray").pack(side="left", anchor="sw")
 
         # Get ALL available classes from ALL years (not filtered by year)
+        import os
         import json
-        archives_dir = os.path.join(self.USER_DATA_DIR, "archives")
+        archives_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "archives")
         classes = set()
 
         if os.path.exists(archives_dir):
@@ -1120,8 +1106,9 @@ class Dashboard(ctk.CTk):
         ctk.CTkLabel(header_frame, text=f"/ ARCHIVES / {year} / {class_name}", font=("Arial Italic", 14), text_color="gray").pack(side="left", anchor="sw")
 
         # Get archived exams for this year and class
+        import os
         import json
-        archives_dir = os.path.join(self.USER_DATA_DIR, "archives")
+        archives_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "archives")
         archives = []
 
         if os.path.exists(archives_dir):
@@ -1186,7 +1173,8 @@ class Dashboard(ctk.CTk):
         """Delete an archived exam"""
         if messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this archived exam?"):
             try:
-                archives_dir = os.path.join(self.USER_DATA_DIR, "archives")
+                import os
+                archives_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "archives")
                 # Use exam name from archive data to construct correct filename
                 exam_name = archive.get('exam_name', '')
                 safe_exam_name = exam_name.replace(" ", "_").replace("/", "_").replace("\\", "_")
@@ -1361,7 +1349,8 @@ class Dashboard(ctk.CTk):
         """Delete all archives for a specific year"""
         if messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete ALL archives for year {year}? This action cannot be undone."):
             try:
-                archives_dir = os.path.join(self.USER_DATA_DIR, "archives")
+                import os
+                archives_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "archives")
                 deleted_count = 0
                 
                 if os.path.exists(archives_dir):
@@ -1454,7 +1443,8 @@ class Dashboard(ctk.CTk):
 
     def load_school_name(self):
         try:
-            json_path = os.path.join(self.USER_DATA_DIR, "school_config.json")
+            current_dir = os.path.dirname(os.path.realpath(__file__))
+            json_path = os.path.join(current_dir, "school_config.json")
             if os.path.exists(json_path):
                 with open(json_path, "r") as f:
                     config = json.load(f)
@@ -1470,7 +1460,8 @@ class Dashboard(ctk.CTk):
 
     def load_school_config(self):
         try:
-            json_path = os.path.join(self.USER_DATA_DIR, "school_config.json")
+            current_dir = os.path.dirname(os.path.realpath(__file__))
+            json_path = os.path.join(current_dir, "school_config.json")
             if os.path.exists(json_path):
                 with open(json_path, "r") as f:
                     return json.load(f)
@@ -1495,7 +1486,8 @@ class Dashboard(ctk.CTk):
 
     def save_school_config(self, updates):
         try:
-            json_path = os.path.join(self.USER_DATA_DIR, "school_config.json")
+            current_dir = os.path.dirname(os.path.realpath(__file__))
+            json_path = os.path.join(current_dir, "school_config.json")
             config = self.load_school_config()
             config.update(updates)
             with open(json_path, "w", encoding="utf-8") as f:
@@ -1552,7 +1544,9 @@ class Dashboard(ctk.CTk):
         # Load school details from config
         school_details = {}
         try:
-            config_path = os.path.join(self.USER_DATA_DIR, "school_config.json")
+            config_path = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "school_config.json"
+            )
             if os.path.exists(config_path):
                 with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
@@ -3451,7 +3445,9 @@ class Dashboard(ctk.CTk):
 
         # Save updated school config
         try:
-            json_path = os.path.join(self.USER_DATA_DIR, "school_config.json")
+            json_path = os.path.join(
+                os.path.dirname(os.path.realpath(__file__)), "school_config.json"
+            )
             with open(json_path, "w") as f:
                 json.dump(school_config, f, indent=4)
         except Exception as e:
@@ -3655,7 +3651,9 @@ class Dashboard(ctk.CTk):
     def load_school_config(self):
         """Load school configuration from JSON"""
         try:
-            json_path = os.path.join(self.USER_DATA_DIR, "school_config.json")
+            json_path = os.path.join(
+                os.path.dirname(os.path.realpath(__file__)), "school_config.json"
+            )
             if os.path.exists(json_path):
                 with open(json_path, "r") as f:
                     return json.load(f)
@@ -3666,7 +3664,9 @@ class Dashboard(ctk.CTk):
     def load_mpesa_config(self):
         """Load M-Pesa configuration from separate config file"""
         try:
-            json_path = os.path.join(self.USER_DATA_DIR, "mpesa_config.json")
+            json_path = os.path.join(
+                os.path.dirname(os.path.realpath(__file__)), "mpesa_config.json"
+            )
             if os.path.exists(json_path):
                 with open(json_path, "r") as f:
                     return json.load(f)
@@ -3841,7 +3841,7 @@ class Dashboard(ctk.CTk):
         # Create update dialog
         update_dialog = ctk.CTkToplevel(self)
         update_dialog.title("Update Available")
-        update_dialog.geometry("500x450")
+        update_dialog.geometry("500x400")
         
         ctk.CTkLabel(
             update_dialog,
@@ -3875,18 +3875,6 @@ class Dashboard(ctk.CTk):
             font=("Arial", 10),
             wraplength=450
         ).pack(pady=5)
-        
-        # Check if download URL is available
-        has_download_url = update_info.get('download_url') and not update_info['download_url'].endswith('.zip')
-        
-        if not has_download_url:
-            ctk.CTkLabel(
-                update_dialog,
-                text="⚠️ Update package not yet available.\nContact developer for manual update.",
-                font=("Arial", 11),
-                text_color="#f39c12",
-                wraplength=450
-            ).pack(pady=10)
         
         def download_and_install():
             try:
@@ -3930,26 +3918,15 @@ class Dashboard(ctk.CTk):
             except Exception as e:
                 messagebox.showerror("Error", f"Error during update: {str(e)}")
         
-        if has_download_url:
-            ctk.CTkButton(
-                update_dialog,
-                text="Download and Install",
-                fg_color="#10b981",
-                hover_color="#059669",
-                height=40,
-                font=("Arial Bold", 12),
-                command=download_and_install
-            ).pack(pady=20)
-        else:
-            ctk.CTkButton(
-                update_dialog,
-                text="Close",
-                fg_color="#3498db",
-                hover_color="#2980b9",
-                height=40,
-                font=("Arial Bold", 12),
-                command=update_dialog.destroy
-            ).pack(pady=20)
+        ctk.CTkButton(
+            update_dialog,
+            text="Download and Install",
+            fg_color="#10b981",
+            hover_color="#059669",
+            height=40,
+            font=("Arial Bold", 12),
+            command=download_and_install
+        ).pack(pady=20)
         
         ctk.CTkButton(
             update_dialog,
@@ -4025,7 +4002,7 @@ class Dashboard(ctk.CTk):
             'btn_portal',
             'btn_cloud_sync',
             'btn_promote',
-            'btn_previous_exams',
+            'btn_previous_exam',
             'btn_system_settings',
             'btn_check_updates',
         ]
@@ -4049,7 +4026,7 @@ class Dashboard(ctk.CTk):
             'btn_portal',
             'btn_cloud_sync',
             'btn_promote',
-            'btn_previous_exams',
+            'btn_previous_exam',
             'btn_system_settings',
             'btn_check_updates',
         ]

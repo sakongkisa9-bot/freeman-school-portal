@@ -1,0 +1,13 @@
+*.pyc
+__pycache__/
+*.db
+.env
+.env.local
+*.egg-info/
+dist/
+build/
+.DS_Store
+cloud_portal.db
+*.log
+firebase-service-account.json
+.license_key
