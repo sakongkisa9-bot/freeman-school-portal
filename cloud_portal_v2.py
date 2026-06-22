@@ -722,15 +722,22 @@ def teacher_login():
             pw = request.form.get("password", "")
             teacher_code = request.form.get("teacher_code", "").strip()
 
+            print(f"[DEBUG] Teacher login attempt: school_code={sc}, username={un}, teacher_code={teacher_code}")
+
             auth, err = authenticate_user(sc, un, pw)
             if err:
+                print(f"[DEBUG] Authentication failed: {err}")
                 flash(err, "danger")
                 return redirect(url_for("teacher_login"))
+
+            print(f"[DEBUG] Authentication successful: {auth}")
 
             # --- THE FIX IS HERE ---
             # Convert the Row objects to real dictionaries so .get() works elsewhere
             school_data = dict(auth["school"])
             teacher_data = dict(auth["teacher"])
+
+            print(f"[DEBUG] school_data: {school_data}, teacher_data: {teacher_data}")
 
             # Verify teacher code exists in teacher_assignments
             conn = get_db()
@@ -740,7 +747,10 @@ def teacher_login():
             ).fetchone()
             conn.close()
 
+            print(f"[DEBUG] teacher_assignment: {teacher_assignment}")
+
             if not teacher_assignment:
+                print(f"[DEBUG] Teacher code not found in teacher_assignments")
                 flash("Teacher code does not exist. Please contact your administrator.", "danger")
                 return redirect(url_for("teacher_login"))
 
@@ -750,10 +760,12 @@ def teacher_login():
             session["role"] = teacher_data.get("role", "teacher")  # .get() works now!
             session["teacher_code"] = teacher_code  # Store teacher code for later verification
 
+            print(f"[DEBUG] Login successful, redirecting to dashboard")
             return redirect(url_for("dashboard"))
 
     except Exception as e:
         # This will tell us exactly which key is missing if it happens again
+        print(f"[DEBUG] Exception in teacher_login: {e}")
         return f"Database Error: {str(e)}"
 
     return render_template("cloud_login.html")
@@ -942,11 +954,16 @@ def api_sync_teachers():
                 404,
             )
         school_id = school["id"]
+        
         # 2. Delete all existing teacher assignments for this school
         conn.execute("DELETE FROM teacher_assignments WHERE school_id = ?", (school_id,))
+        
+        # 3. Delete all existing teachers for this school (to handle credential updates)
+        conn.execute("DELETE FROM teachers WHERE school_id = ?", (school_id,))
 
-        # 3. Insert new teacher assignments
+        # 4. Insert new teacher assignments and teacher credentials
         for t in teachers_list:
+            # Insert into teacher_assignments
             conn.execute(
                 """
                 INSERT INTO teacher_assignments (school_id, class_name, subject, teacher_name, teacher_code)
@@ -960,6 +977,37 @@ def api_sync_teachers():
                     t["teacher_code"],
                 ),
             )
+            
+            # Insert into teachers table if username and password are provided
+            username = t.get("username", "").strip()
+            password = t.get("password", "").strip()
+            if username and password:
+                from werkzeug.security import generate_password_hash
+                from datetime import datetime
+                password_hash = generate_password_hash(password)
+                now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                # Check if teacher already exists
+                existing = conn.execute(
+                    "SELECT id FROM teachers WHERE school_id = ? AND username = ?",
+                    (school_id, username)
+                ).fetchone()
+                
+                if existing:
+                    # Update existing teacher
+                    conn.execute(
+                        "UPDATE teachers SET password_hash = ? WHERE id = ?",
+                        (password_hash, existing["id"])
+                    )
+                else:
+                    # Insert new teacher
+                    conn.execute(
+                        """
+                        INSERT INTO teachers (school_id, username, password_hash, role, created_at)
+                        VALUES (?, ?, ?, ?, ?)
+                    """,
+                        (school_id, username, password_hash, "teacher", now)
+                    )
 
         conn.commit()
         return jsonify(

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Freeman School Portal</title>
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="manifest" href="/static/manifest.json">
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #3498db;
+            --bg: #f4f7f6;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background: var(--bg);
+        }
+
+        /* Navbar Styling */
+        .navbar {
+            background: var(--primary);
+            color: white;
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .logo {
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        /* Professional Flash Messages */
+        .flash-message {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            color: #333;
+            border-left: 5px solid #ccc;
+            /* Default */
+        }
+
+        .flash-danger {
+            border-left-color: #d9534f;
+        }
+
+        .flash-success {
+            border-left-color: #5cb85c;
+        }
+
+        .flash-warning {
+            border-left-color: #f0ad4e;
+        }
+
+        /* Hamburger Menu */
+        .menu-icon {
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .side-menu {
+            position: fixed;
+            top: 0;
+            right: -280px;
+            width: 280px;
+            height: 100%;
+            background: white;
+            box-shadow: -2px 0 5px rgba(0, 0, 0, 0.2);
+            transition: 0.3s;
+            z-index: 1001;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .side-menu.active {
+            right: 0;
+        }
+
+        .menu-header {
+            background: var(--primary);
+            color: white;
+            padding: 20px;
+            font-weight: bold;
+        }
+
+        .menu-items {
+            flex-grow: 1;
+            padding: 20px 0;
+        }
+
+        .menu-link {
+            display: block;
+            padding: 15px 25px;
+            color: #333;
+            text-decoration: none;
+            border-bottom: 1px solid #eee;
+        }
+
+        .menu-link:hover {
+            background: #f0f0f0;
+        }
+
+        /* Developer Section at Bottom */
+        .menu-footer {
+            margin-top: auto;
+            padding: 20px;
+            border-top: 2px solid #eee;
+            background: #fafafa;
+        }
+
+        .container {
+            padding: 20px;
+            max-width: 600px;
+            margin: auto;
+        }
+
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 6px;
+            width: 100%;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .overlay.active {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+
+    <nav class="navbar">
+        <div class="logo">Freeman Portal</div>
+        <div class="menu-icon" onclick="toggleMenu()"><i class="fas fa-bars"></i></div>
+    </nav>
+
+    <div class="overlay" id="overlay" onclick="toggleMenu()"></div>
+
+    <div class="side-menu" id="side-menu">
+        <div class="menu-header">Menu</div>
+        <div class="menu-items">
+            <a href="{{ url_for('home') }}" class="menu-link"><i class="fas fa-home"></i> Home</a>
+            <a href="{{ url_for('teacher_login') }}" class="menu-link"><i class="fas fa-chalkboard-teacher"></i> Teacher
+                Login</a>
+            <a href="{{ url_for('parent_login') }}" class="menu-link"><i class="fas fa-user-friends"></i> Parents</a>
+        </div>
+        <div class="menu-footer">
+            <a href="{{ url_for('register') }}" class="menu-link" style="color: #d9534f; border-bottom: none;">
+                <i class="fas fa-code"></i> Developer Settings
+            </a>
+        </div>
+    </div>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash-message flash-{{ category }}"></div>
+        {{ message }}
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+    </div>
+
+    <script>
+        function toggleMenu() {
+            document.getElementById('side-menu').classList.toggle('active');
+            document.getElementById('overlay').classList.toggle('active');
+        }
+    </script>
+</body>
+
+</html>

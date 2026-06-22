@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Edit School | Freeman Portal</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #020617;
+            color: #f8fafc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        #canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: -1;
+            width: 100%;
+            height: 100%;
+            opacity: 0.7;
+        }
+
+        .edit-container {
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header-section {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px 20px;
+        }
+
+        .header-title {
+            font-size: clamp(28px, 5vw, 42px);
+            font-weight: 900;
+            color: #ffffff;
+            letter-spacing: -1.5px;
+            margin-bottom: 10px;
+        }
+
+        .highlight {
+            color: #10b981;
+        }
+
+        .welcome-text {
+            color: #94a3b8;
+            font-size: clamp(14px, 2.5vw, 16px);
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        .form-card {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 20px;
+            padding: 32px 28px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        .form-label {
+            display: block;
+            color: #cbd5e1;
+            font-weight: 700;
+            font-size: 14px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 14px 16px;
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 12px;
+            color: #f8fafc;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+
+        .form-input:disabled {
+            background: #0f172a;
+            color: #64748b;
+            cursor: not-allowed;
+        }
+
+        .form-hint {
+            color: #64748b;
+            font-size: 12px;
+            margin-top: 6px;
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 16px 24px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #020617;
+            border: none;
+            border-radius: 12px;
+            font-weight: 900;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 12px;
+        }
+
+        .btn-submit:hover {
+            transform: scale(1.02);
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-back {
+            display: inline-block;
+            background: transparent;
+            color: #64748b;
+            border: 2px solid #334155;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 14px;
+            text-decoration: none;
+            margin-top: 30px;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-back:hover {
+            background: #334155;
+            color: #f8fafc;
+            border-color: #475569;
+        }
+
+        .back-container {
+            text-align: center;
+            margin-top: 40px;
+        }
+
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+
+        .flash-message {
+            padding: 16px 24px;
+            border-radius: 16px;
+            margin-bottom: 12px;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .flash-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #020617;
+        }
+
+        .flash-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: #ffffff;
+        }
+
+        @media (max-width: 480px) {
+            .edit-container {
+                padding: 15px;
+            }
+
+            .header-section {
+                padding: 20px 15px;
+                margin-bottom: 30px;
+            }
+
+            .form-card {
+                padding: 24px 20px;
+            }
+
+            .form-input {
+                padding: 12px 14px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <div class="edit-container">
+        <div class="header-section">
+            <h1 class="header-title">Edit <span class="highlight">School</span></h1>
+            <p class="welcome-text">Update school details. Leave password blank to keep it unchanged.</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <div class="form-card">
+            <form method="POST" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label class="form-label">School Code</label>
+                    <input type="text" class="form-input" value="{{ school.school_code }}" disabled>
+                    <p class="form-hint">School code cannot be changed</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="school_name">School Name</label>
+                    <input type="text" id="school_name" name="school_name" class="form-input" value="{{ school.school_name }}" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="email">Email</label>
+                    <input type="email" id="email" name="email" class="form-input" value="{{ school.email or '' }}">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="school_administrator">School Administrator Name</label>
+                    <input type="text" id="school_administrator" name="school_administrator" class="form-input" value="{{ school.school_administrator or '' }}" placeholder="e.g., Mercy Chelimo (Headteacher)">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="signature">Signature Image</label>
+                    <input type="file" id="signature" name="signature" class="form-input" accept="image/png,image/jpeg">
+                    <p class="form-hint">Upload PNG or JPEG signature image</p>
+                    {% if school.school_signature %}
+                    <p class="form-hint">Current signature: <a href="#" onclick="alert('Signature already uploaded')">Uploaded</a></p>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="password">Password</label>
+                    <input type="password" id="password" name="password" class="form-input" placeholder="Leave blank to keep current password">
+                    <p class="form-hint">Only enter a new password if you want to change it</p>
+                </div>
+
+                <button type="submit" class="btn-submit">Save Changes</button>
+            </form>
+        </div>
+
+        <div class="back-container">
+            <a href="{{ url_for('admin_schools') }}" class="btn-back">← Back to Schools</a>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function init() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            particles = [];
+            for (let i = 0; i < 30; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    vx: (Math.random() - 0.5) * 0.4,
+                    vy: (Math.random() - 0.5) * 0.4,
+                    size: 2.5
+                });
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "rgba(16, 185, 129, 0.6)";
+            ctx.strokeStyle = "rgba(16, 185, 129, 0.3)";
+            ctx.lineWidth = 1.5;
+
+            particles.forEach(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+                if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+
+                particles.forEach(p2 => {
+                    let dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+                    if (dist < 120) {
+                        ctx.beginPath();
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.stroke();
+                    }
+                });
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        init();
+        animate();
+        window.addEventListener('resize', init);
+    </script>
+</body>
+</html>

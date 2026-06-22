@@ -1,0 +1,80 @@
+{
+    "school_name": "",
+    "address": "",
+    "contacts": "",
+    "logo": "",
+    "school_administrator": "",
+    "signatures": {
+        "headteacher": ""
+    },
+    "cloud_portal_url": "",
+    "cloud_school_code": "",
+    "cloud_teacher_username": "",
+    "cloud_teacher_password": "",
+    "system_username": "",
+    "system_password": "",
+    "installation_fee": 5000,
+    "amount_per_student": 100,
+    "grace_period_days": 1,
+    "trial_days": 120,
+    "premium_days": 120,
+    "playgroup_exam_title": "PLAYGROUP ASSESSMENT REPORT",
+    "primary_exam_title": "PRIMARY SCHOOL MERIT LIST",
+    "jss_exam_title": "JUNIOR SECONDARY ASSESSMENT",
+    "subjects": {
+        "playgroup": [
+            "LANG",
+            "MATH",
+            "CREAT",
+            "ENV"
+        ],
+        "pp1": [
+            "LANG",
+            "MATH",
+            "ENV",
+            "PSYCH",
+            "REL"
+        ],
+        "pp2": [
+            "LANG",
+            "MATH",
+            "ENV",
+            "PSYCH",
+            "REL"
+        ],
+        "lower": [
+            "ENG",
+            "KISW",
+            "MAT",
+            "ENV",
+            "LIT",
+            "CRE",
+            "ART",
+            "MOV"
+        ],
+        "primary": [
+            "ENG",
+            "KISW",
+            "MATH",
+            "SCIE",
+            "AGRI",
+            "SST",
+            "CRE",
+            "C/A",
+            "PHE"
+        ],
+        "jss": [
+            "MATH",
+            "ENG",
+            "KISW",
+            "INT SCIE",
+            "PRE-TECH",
+            "SST",
+            "CRE",
+            "AGRI",
+            "C/A"
+        ]
+    },
+    "terms_accepted_version": "1.0",
+    "terms_accepted_date": "2026-06-17"
+}

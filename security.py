@@ -9,6 +9,17 @@ class LoginPage(ctk.CTk):
 
         self.success = False
         
+        # Determine correct directory for config files
+        if getattr(__import__('sys'), 'frozen', False):
+            # Running as executable
+            self.BASE_DIR = __import__('sys')._MEIPASS
+            self.USER_DATA_DIR = __import__('os').path.join(__import__('os').path.expanduser("~"), "FreemanSchoolPortal")
+            __import__('os').makedirs(self.USER_DATA_DIR, exist_ok=True)
+        else:
+            # Running as script
+            self.BASE_DIR = __import__('os').path.dirname(__import__('os').path.realpath(__file__))
+            self.USER_DATA_DIR = self.BASE_DIR
+        
         # --- 1. WINDOW CONFIGURATION & CENTERING ---
         self.title("Freeman Tech Solutions - Login")
         
@@ -88,8 +99,8 @@ class LoginPage(ctk.CTk):
         
         # Load credentials from school_config.json
         try:
-            current_dir = os.path.dirname(os.path.realpath(__file__))
-            json_path = os.path.join(current_dir, 'school_config.json')
+            # Use USER_DATA_DIR for config files (works in both script and executable)
+            json_path = os.path.join(self.USER_DATA_DIR, 'school_config.json')
             if os.path.exists(json_path):
                 with open(json_path, 'r') as f:
                     config = json.load(f)

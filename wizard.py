@@ -14,7 +14,21 @@ class SchoolSetupWizard(ctk.CTkToplevel):
         self.parent = parent
         self.attributes("-topmost", True)
         self.grab_set()
+        
+        # Determine correct directory for config files
+        if getattr(__import__('sys'), 'frozen', False):
+            # Running as executable
+            self.BASE_DIR = __import__('sys')._MEIPASS
+            self.USER_DATA_DIR = __import__('os').path.join(__import__('os').path.expanduser("~"), "FreemanSchoolPortal")
+            __import__('os').makedirs(self.USER_DATA_DIR, exist_ok=True)
+        else:
+            # Running as script
+            self.BASE_DIR = __import__('os').path.dirname(__import__('os').path.realpath(__file__))
+            self.USER_DATA_DIR = self.BASE_DIR
 
+        # Load existing config if available
+        self.load_existing_config()
+        
         # --- SCROLLABLE CONTAINER (In case we add many subjects) ---
         self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.scroll_frame.pack(fill="both", expand=True, padx=10, pady=10)
@@ -120,6 +134,9 @@ class SchoolSetupWizard(ctk.CTkToplevel):
         # Save Button
         ctk.CTkButton(self, text="🚀 SAVE ALL SETTINGS", fg_color="#10b981", text_color="black",
                       font=("Arial Bold", 16), height=50, command=self.save_all).pack(fill="x", padx=20, pady=20)
+        
+        # Populate fields with existing configuration
+        self.populate_fields_from_config()
 
     # --- HELPER UI METHODS ---
     def create_label(self, text):
@@ -138,6 +155,124 @@ class SchoolSetupWizard(ctk.CTkToplevel):
             var.set(path)
             self.lift()
 
+    def load_existing_config(self):
+        """Load existing configuration and populate fields"""
+        try:
+            json_path = os.path.join(self.USER_DATA_DIR, 'school_config.json')
+            if os.path.exists(json_path):
+                with open(json_path, 'r') as f:
+                    config = json.load(f)
+                
+                # Store config to populate fields after they're created
+                self.existing_config = config
+        except Exception as e:
+            print(f"Could not load existing config: {e}")
+            self.existing_config = None
+    
+    def populate_fields_from_config(self):
+        """Populate fields with existing configuration values"""
+        if not hasattr(self, 'existing_config') or not self.existing_config:
+            return
+        
+        config = self.existing_config
+        
+        # Populate school info
+        if hasattr(self, 'name_entry') and config.get('school_name'):
+            self.name_entry.delete(0, 'end')
+            self.name_entry.insert(0, config['school_name'])
+        
+        if hasattr(self, 'address_entry') and config.get('address'):
+            self.address_entry.delete(0, 'end')
+            self.address_entry.insert(0, config['address'])
+        
+        if hasattr(self, 'contact_entry') and config.get('contacts'):
+            self.contact_entry.delete(0, 'end')
+            self.contact_entry.insert(0, config['contacts'])
+        
+        # Populate branding
+        if hasattr(self, 'admin_entry') and config.get('school_administrator'):
+            self.admin_entry.delete(0, 'end')
+            self.admin_entry.insert(0, config['school_administrator'])
+        
+        if hasattr(self, 'logo_path') and config.get('logo'):
+            self.logo_path.set(config['logo'])
+        
+        if hasattr(self, 'sig_path') and config.get('signatures', {}).get('headteacher'):
+            self.sig_path.set(config['signatures']['headteacher'])
+        
+        # Populate cloud settings
+        if hasattr(self, 'cloud_url_entry') and config.get('cloud_portal_url'):
+            self.cloud_url_entry.delete(0, 'end')
+            self.cloud_url_entry.insert(0, config['cloud_portal_url'])
+        
+        if hasattr(self, 'cloud_code_entry') and config.get('cloud_school_code'):
+            self.cloud_code_entry.delete(0, 'end')
+            self.cloud_code_entry.insert(0, config['cloud_school_code'])
+        
+        if hasattr(self, 'cloud_teacher_entry') and config.get('cloud_teacher_username'):
+            self.cloud_teacher_entry.delete(0, 'end')
+            self.cloud_teacher_entry.insert(0, config['cloud_teacher_username'])
+        
+        if hasattr(self, 'cloud_password_entry') and config.get('cloud_teacher_password'):
+            self.cloud_password_entry.delete(0, 'end')
+            self.cloud_password_entry.insert(0, config['cloud_teacher_password'])
+        
+        # Populate security settings
+        if hasattr(self, 'system_username_entry') and config.get('system_username'):
+            self.system_username_entry.delete(0, 'end')
+            self.system_username_entry.insert(0, config['system_username'])
+        
+        if hasattr(self, 'system_password_entry') and config.get('system_password'):
+            self.system_password_entry.delete(0, 'end')
+            self.system_password_entry.insert(0, config['system_password'])
+        
+        # Populate payment settings
+        if hasattr(self, 'installation_fee_entry') and config.get('installation_fee'):
+            self.installation_fee_entry.delete(0, 'end')
+            self.installation_fee_entry.insert(0, str(config['installation_fee']))
+        
+        if hasattr(self, 'amount_per_student_entry') and config.get('amount_per_student'):
+            self.amount_per_student_entry.delete(0, 'end')
+            self.amount_per_student_entry.insert(0, str(config['amount_per_student']))
+        
+        if hasattr(self, 'grace_period_entry') and config.get('grace_period_days'):
+            self.grace_period_entry.delete(0, 'end')
+            self.grace_period_entry.insert(0, str(config['grace_period_days']))
+        
+        if hasattr(self, 'trial_days_entry') and config.get('trial_days'):
+            self.trial_days_entry.delete(0, 'end')
+            self.trial_days_entry.insert(0, str(config['trial_days']))
+        
+        if hasattr(self, 'premium_days_entry') and config.get('premium_days'):
+            self.premium_days_entry.delete(0, 'end')
+            self.premium_days_entry.insert(0, str(config['premium_days']))
+        
+        # Populate subjects
+        subjects = config.get('subjects', {})
+        if hasattr(self, 'playgroup_subs') and subjects.get('playgroup'):
+            self.playgroup_subs.delete(0, 'end')
+            self.playgroup_subs.insert(0, ', '.join(subjects['playgroup']))
+        
+        if hasattr(self, 'pp1_subs') and subjects.get('pp1'):
+            self.pp1_subs.delete(0, 'end')
+            self.pp1_subs.insert(0, ', '.join(subjects['pp1']))
+        
+        if hasattr(self, 'pp2_subs') and subjects.get('pp2'):
+            self.pp2_subs.delete(0, 'end')
+            self.pp2_subs.insert(0, ', '.join(subjects['pp2']))
+        
+        if hasattr(self, 'lower_subs') and subjects.get('lower'):
+            self.lower_subs.delete(0, 'end')
+            self.lower_subs.insert(0, ', '.join(subjects['lower']))
+        
+        if hasattr(self, 'primary_subs') and subjects.get('primary'):
+            self.primary_subs.delete(0, 'end')
+            self.primary_subs.insert(0, ', '.join(subjects['primary']))
+        
+        if hasattr(self, 'jss_subs') and subjects.get('jss'):
+            self.jss_subs.delete(0, 'end')
+            self.jss_subs.insert(0, ', '.join(subjects['jss']))
+
     def normalize_cloud_url(self, url):
         url = (url or '').strip()
         if not url:
@@ -150,10 +285,8 @@ class SchoolSetupWizard(ctk.CTkToplevel):
         return url.rstrip('/')
 
     def save_all(self):
-        # FIX 1: Use a reliable path. 
-        # If your script is in a subfolder, use .. to go up to the root project folder
-        project_dir = os.path.dirname(os.path.realpath(__file__))
-        json_path = os.path.join(project_dir, 'school_config.json')
+        # Use USER_DATA_DIR for config files (works in both script and executable)
+        json_path = os.path.join(self.USER_DATA_DIR, 'school_config.json')
             
         try:
             name = self.name_entry.get().upper()

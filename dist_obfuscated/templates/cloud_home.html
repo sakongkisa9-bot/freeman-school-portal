@@ -1,0 +1,265 @@
+{% extends 'cloud_base.html' %}
+{% block content %}
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        overflow-x: hidden;
+    }
+
+    .navbar {
+        display: none;
+    }
+
+    .hero-section {
+        background: linear-gradient(135deg, rgba(44, 62, 80, 0.95), rgba(52, 152, 219, 0.9)),
+                    url('https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1920') center/cover;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        margin: 0;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        overflow-y: auto;
+    }
+
+    .hero-content {
+        text-align: center;
+        color: white;
+        max-width: 500px;
+        width: 100%;
+    }
+
+    .hero-title {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 1rem;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .hero-subtitle {
+        font-size: 1.1rem;
+        margin-bottom: 2rem;
+        opacity: 0.9;
+    }
+
+    .role-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        margin: 20px 0;
+    }
+
+    .role-button {
+        background: white;
+        color: #2c3e50;
+        border: none;
+        padding: 18px 30px;
+        border-radius: 12px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+
+    .role-button:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    }
+
+    .role-button.disabled {
+        background: rgba(255,255,255,0.3);
+        color: rgba(255,255,255,0.7);
+        cursor: not-allowed;
+    }
+
+    .role-button i {
+        font-size: 1.3rem;
+    }
+
+    .dev-section {
+        margin-top: 30px;
+        padding-top: 20px;
+        border-top: 1px solid rgba(255,255,255,0.3);
+    }
+
+    .dev-link {
+        background: rgba(23, 162, 184, 0.9);
+        color: white;
+        padding: 12px 24px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-size: 0.9rem;
+        display: inline-block;
+        transition: background 0.3s;
+    }
+
+    .dev-link:hover {
+        background: rgba(23, 162, 184, 1);
+    }
+
+    .install-prompt {
+        margin-top: 20px;
+        padding: 15px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 8px;
+        font-size: 0.9rem;
+    }
+
+    .install-button {
+        background: #27ae60;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        margin-top: 10px;
+        font-size: 0.9rem;
+    }
+
+    .footer {
+        margin-top: auto;
+        padding: 30px 20px;
+        text-align: center;
+        color: rgba(255,255,255,0.8);
+        font-size: 0.9rem;
+    }
+
+    .footer-links {
+        display: flex;
+        justify-content: center;
+        gap: 30px;
+        margin-bottom: 15px;
+    }
+
+    .footer-links a {
+        color: rgba(255,255,255,0.9);
+        text-decoration: none;
+        transition: color 0.3s;
+    }
+
+    .footer-links a:hover {
+        color: white;
+    }
+
+    @media (max-width: 600px) {
+        .hero-title {
+            font-size: 2rem;
+        }
+
+        .hero-subtitle {
+            font-size: 1rem;
+        }
+
+        .role-button {
+            padding: 15px 20px;
+            font-size: 1rem;
+        }
+
+        .footer-links {
+            flex-direction: column;
+            gap: 15px;
+        }
+    }
+</style>
+
+<div class="hero-section">
+    <div class="hero-content">
+        <h1 class="hero-title">Freeman School Portal</h1>
+        <p class="hero-subtitle">Access student marks, track progress, and stay connected with your child's education</p>
+
+        <div class="role-buttons">
+            <a href="{{ url_for('teacher_login') }}" class="role-button">
+                <i class="fas fa-chalkboard-teacher"></i>
+                Teacher Login
+            </a>
+            <a href="{{ url_for('parent_login') }}" class="role-button">
+                <i class="fas fa-user-friends"></i>
+                Parent Login
+            </a>
+        </div>
+
+        <div class="install-prompt" id="install-prompt" style="display: none;">
+            <p>Add Freeman Portal to your home screen for quick access</p>
+            <button class="install-button" id="install-btn">Install App</button>
+        </div>
+
+        <div class="dev-section">
+            <button id="dev-btn" class="dev-link" style="background: rgba(23, 162, 184, 0.9); color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-size: 0.9rem; display: inline-block; transition: background 0.3s; border: none; cursor: pointer;">
+                <i class="fas fa-code"></i> Developer
+            </button>
+            <div id="dev-options" style="display: none; margin-top: 16px;">
+                <a href="{{ url_for('register') }}" class="dev-link">
+                    <i class="fas fa-code"></i> Register School
+                </a>
+                <br><br>
+                <a href="{{ url_for('admin_schools') }}" class="dev-link">
+                    <i class="fas fa-cogs"></i> Manage Schools
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <div class="footer-links">
+            <a href="{{ url_for('about') }}">About Us</a>
+            <a href="{{ url_for('terms') }}">Terms of Service</a>
+            <a href="{{ url_for('privacy') }}">Privacy Policy</a>
+            <a href="{{ url_for('contact') }}">Contact</a>
+        </div>
+        <p>&copy; 2026 Freeman School Portal. All rights reserved.</p>
+    </div>
+</div>
+
+<script>
+    // Developer password prompt
+    document.getElementById('dev-btn').addEventListener('click', function() {
+        const password = prompt('Enter developer password:');
+        if (password === '16592@FREE man') {
+            document.getElementById('dev-options').style.display = 'block';
+            document.getElementById('dev-btn').style.display = 'none';
+        } else if (password !== null) {
+            alert('Incorrect password');
+        }
+    });
+
+    // PWA Install Prompt
+    let deferredPrompt;
+    const installPrompt = document.getElementById('install-prompt');
+    const installBtn = document.getElementById('install-btn');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        installPrompt.style.display = 'block';
+    });
+
+    installBtn.addEventListener('click', async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+                installPrompt.style.display = 'none';
+            }
+            deferredPrompt = null;
+        }
+    });
+
+    // Check if app is already installed
+    window.addEventListener('appinstalled', () => {
+        installPrompt.style.display = 'none';
+    });
+</script>
+{% endblock %}

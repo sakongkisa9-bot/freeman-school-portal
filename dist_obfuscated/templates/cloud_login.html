@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Teacher Login - Freeman Portal</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <style>
+        body { 
+            margin: 0; background: #020617; color: #f8fafc; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            display: flex; flex-direction: column; align-items: center; 
+            justify-content: center; min-height: 100vh; overflow-x: hidden;
+        }
+        #canvas { position: fixed; top: 0; left: 0; z-index: -1; width: 100%; height: 100%; opacity: 0.7; }
+        
+        .portal-card {
+            background: #0f172a; border: 1px solid #1e293b;
+            width: 90%; max-width: 400px; border-radius: 28px;
+            padding: 35px 30px; box-shadow: 0 25px 50px rgba(0, 0, 0, 0.7);
+            text-align: center; box-sizing: border-box;
+        }
+        
+        .header-title { 
+            margin: 0 0 8px 0; font-size: 32px; font-weight: 900; 
+            color: #ffffff !important; letter-spacing: -1.5px; 
+        }
+        .highlight { color: #10b981; }
+        .subtitle { 
+            color: #475569; font-size: 11px; font-weight: bold; 
+            text-transform: uppercase; letter-spacing: 3px; 
+            margin-bottom: 30px; 
+        }
+
+        .form-group { text-align: left; margin-bottom: 22px; }
+        label { 
+            font-size: 11px; font-weight: 800; color: #10b981; 
+            text-transform: uppercase; letter-spacing: 1px; 
+        }
+        
+        input {
+            width: 100%; background: #1e293b; border: 2px solid #334155;
+            color: white; padding: 16px; border-radius: 14px;
+            margin-top: 8px; font-weight: 600; font-size: 15px; 
+            outline: none; transition: all 0.3s ease;
+            box-sizing: border-box;
+        }
+        input:focus {
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+        input::placeholder {
+            color: #64748b;
+        }
+
+        .btn-action {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #020617; border: none;
+            width: 100%; padding: 18px; border-radius: 16px;
+            font-weight: 900; font-size: 16px; cursor: pointer; 
+            transition: all 0.3s ease; margin-top: 10px;
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+        .btn-action:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(16, 185, 129, 0.3);
+        }
+        .btn-action:active { transform: scale(0.98); }
+
+        .btn-back {
+            display: block; width: 100%; background: transparent;
+            color: #64748b; border: 2px solid #334155;
+            padding: 14px; border-radius: 16px;
+            font-weight: 700; font-size: 14px;
+            text-decoration: none; margin-top: 20px;
+            transition: all 0.3s ease; box-sizing: border-box;
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+        .btn-back:hover { 
+            background: #334155; 
+            color: #f8fafc;
+            border-color: #475569;
+        }
+
+        .icon-container {
+            width: 80px; height: 80px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border-radius: 20px;
+            margin: 0 auto 25px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <div class="portal-card">
+        <div class="icon-container">👨‍🏫</div>
+        <h1 class="header-title">Teacher <span class="highlight">Login</span></h1>
+        <div class="subtitle">Access Your Portal</div>
+        
+        <form method="post">
+            <div class="form-group">
+                <label for="school_code">School Code</label>
+                <input id="school_code" name="school_code" placeholder="Enter school code" required>
+            </div>
+
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input id="username" name="username" placeholder="Enter your username" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input id="password" name="password" type="password" placeholder="Enter your password" required>
+            </div>
+
+            <div class="form-group">
+                <label for="teacher_code">Teacher Code</label>
+                <input id="teacher_code" name="teacher_code" placeholder="Enter your teacher code" required>
+            </div>
+
+            <button type="submit" class="btn-action">🚀 Login to Portal</button>
+        </form>
+        
+        <a href="/" class="btn-back">← Back to Home</a>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        function init() {
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            particles = [];
+            for (let i = 0; i < 30; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width, y: Math.random() * canvas.height,
+                    vx: (Math.random() - 0.5) * 0.4, vy: (Math.random() - 0.5) * 0.4, size: 2.5
+                });
+            }
+        }
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "rgba(16, 185, 129, 0.6)";
+            ctx.strokeStyle = "rgba(16, 185, 129, 0.3)";
+            ctx.lineWidth = 1.5;
+            particles.forEach(p => {
+                p.x += p.vx; p.y += p.vy;
+                if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+                if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+                particles.forEach(p2 => {
+                    let dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+                    if (dist < 120) {
+                        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+                    }
+                });
+            });
+            requestAnimationFrame(animate);
+        }
+        init(); animate();
+        window.addEventListener('resize', init);
+    </script>
+</body>
+</html>

@@ -1,0 +1,1259 @@
+{% extends "cloud_base.html" %}
+
+{% block title %}Parent Dashboard - {{ student_name }}{% endblock %}
+
+{% block content %}
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js"></script>
+
+<!-- FCM Registration Functions -->
+<script>
+    // FCM Token Registration
+    async function registerFCMToken() {
+        console.log('Starting FCM token registration...');
+        updateFCMStatus('Starting registration...', 'pending');
+        
+        try {
+            // Check if Firebase is loaded
+            if (typeof firebase === 'undefined') {
+                console.error('Firebase is not loaded. Check if Firebase SDK scripts are included.');
+                updateFCMStatus('Firebase SDK not loaded', 'error');
+                alert('Error: Firebase SDK not loaded. Please refresh the page.');
+                return;
+            }
+            
+            console.log('Firebase is loaded, requesting notification permission...');
+            updateFCMStatus('Requesting permission...', 'pending');
+            
+            // Request notification permission
+            const permission = await Notification.requestPermission();
+            console.log('Notification permission:', permission);
+            
+            if (permission !== 'granted') {
+                console.log('Notification permission denied');
+                updateFCMStatus('Permission denied', 'error');
+                alert('Notification permission was denied. Please enable notifications in your browser settings.');
+                return;
+            }
+
+            console.log('Permission granted, initializing Firebase...');
+            updateFCMStatus('Initializing Firebase...', 'pending');
+            
+            // Initialize Firebase with your config
+            const firebaseConfig = {
+                apiKey: "AIzaSyDK78eyayqUeCZxl_RwsC1SZEpwIgxK5EE",
+                authDomain: "freeman-2202a.firebaseapp.com",
+                projectId: "freeman-2202a",
+                storageBucket: "freeman-2202a.appspot.com",
+                messagingSenderId: "435924108891",
+                appId: "1:435924108891:web:c074fb7c630cfaff3b617e"
+            };
+
+            // Initialize Firebase if not already initialized
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+                console.log('Firebase initialized');
+            } else {
+                console.log('Firebase already initialized');
+            }
+
+            console.log('Getting FCM token...');
+            updateFCMStatus('Getting token...', 'pending');
+            
+            // Get FCM token
+            const messaging = firebase.messaging();
+            const token = await messaging.getToken();
+            console.log('FCM Token:', token);
+
+            if (!token) {
+                updateFCMStatus('Failed to get token', 'error');
+                alert('Failed to get FCM token. Please try again.');
+                return;
+            }
+
+            // Send token to server
+            await sendTokenToServer(token);
+
+        } catch (error) {
+            console.error('Error registering FCM token:', error);
+            updateFCMStatus('Error: ' + error.message, 'error');
+            alert('Error registering FCM token: ' + error.message);
+        }
+    }
+
+    async function sendTokenToServer(token) {
+        try {
+            const studentId = "{{ session.get('parent_student_id') or '' }}";
+            if (!studentId) {
+                console.error('No student_id in session');
+                updateFCMStatus('No student ID in session', 'error');
+                return;
+            }
+
+            updateFCMStatus('Registering token...', 'pending');
+            
+            const response = await fetch('/api/register_fcm_token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    student_id: studentId,
+                    token: token,
+                    device_info: navigator.userAgent
+                })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                console.log('FCM token registered successfully');
+                updateFCMStatus('✓ Notifications enabled!', 'success');
+            } else {
+                console.error('Failed to register FCM token:', result.message);
+                updateFCMStatus('Registration failed: ' + result.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error sending token to server:', error);
+            updateFCMStatus('Network error', 'error');
+        }
+    }
+
+    function updateFCMStatus(message, status) {
+        const statusDiv = document.getElementById('fcm-status');
+        if (statusDiv) {
+            statusDiv.textContent = message;
+            statusDiv.className = 'fcm-status ' + status;
+        }
+    }
+
+    // Register FCM token on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM loaded, checking Firebase...');
+        setTimeout(function() {
+            if (typeof firebase !== 'undefined') {
+                console.log('Firebase is defined, calling registerFCMToken');
+                registerFCMToken();
+            } else {
+                console.error('Firebase is not defined after 2 seconds');
+            }
+        }, 2000);
+    });
+
+    // Manual trigger for testing
+    window.testFCM = function() {
+        console.log('Manual FCM registration triggered');
+        updateFCMStatus('Button clicked', 'pending');
+        
+        // Log to server that button was clicked
+        fetch('/api/log_fcm_click', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'enable_notifications_clicked' })
+        }).catch(e => console.error('Failed to log click:', e));
+        
+        registerFCMToken();
+    };
+</script>
+
+<!-- Add FCM status indicator and test button -->
+<div style="position: fixed; bottom: 10px; right: 10px; z-index: 9999; display: flex; flex-direction: column; gap: 5px; align-items: flex-end;">
+    <div id="fcm-status" class="fcm-status" style="padding: 5px 10px; font-size: 12px; background: #666; color: white; border-radius: 5px; max-width: 200px;">
+        FCM Status: Checking...
+    </div>
+    <button onclick="testFCM()" style="padding: 5px 10px; font-size: 12px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer;">
+        Enable Notifications
+    </button>
+    <a href="/parent/enable_notifications" style="padding: 5px 10px; font-size: 12px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; display: inline-block;">
+        Enable (Server)
+    </a>
+</div>
+
+<style>
+.fcm-status.success { background: #27ae60 !important; }
+.fcm-status.error { background: #e74c3c !important; }
+.fcm-status.pending { background: #f39c12 !important; }
+</style>
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+    }
+
+    /* Override base template container constraint */
+    .container {
+        max-width: 100% !important;
+        padding: 10px !important;
+        margin: 0 !important;
+    }
+
+    .min-h-screen {
+        min-height: 100vh;
+        padding: 0;
+    }
+
+    .report-card {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+    }
+
+    @media (min-width: 768px) {
+        .report-card {
+            max-width: 100%;
+            margin: 0;
+            padding: 30px;
+            min-height: 100vh;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    }
+
+    @media (min-width: 1200px) {
+        .report-card {
+            max-width: 95%;
+            margin: 0 auto;
+            padding: 40px;
+        }
+    }
+
+    .report-header {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        border-bottom: 3px solid #667eea;
+        padding-bottom: 20px;
+        margin-bottom: 20px;
+        gap: 20px;
+    }
+
+    @media (min-width: 768px) {
+        .report-header {
+            flex-direction: row;
+            justify-content: space-between;
+            gap: 0;
+        }
+    }
+
+    .school-logo {
+        width: 100px;
+        height: 100px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 3px solid #667eea;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+
+    @media (min-width: 768px) {
+        .school-logo {
+            width: 120px;
+            height: 120px;
+        }
+    }
+
+    .school-logo img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        border-radius: 10px;
+    }
+
+    .school-info {
+        flex: 1;
+        text-align: center;
+        padding: 0 10px;
+    }
+
+    .school-info h1 {
+        font-size: 20px;
+        font-weight: bold;
+        margin: 0 0 8px 0;
+        text-transform: uppercase;
+        color: #667eea;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    @media (min-width: 768px) {
+        .school-info h1 {
+            font-size: 28px;
+        }
+    }
+
+    .school-info p {
+        font-size: 13px;
+        margin: 4px 0;
+        color: #555;
+    }
+
+    @media (min-width: 768px) {
+        .school-info p {
+            font-size: 14px;
+        }
+    }
+
+    .student-photo {
+        width: 100px;
+        height: 120px;
+        border: 3px solid #764ba2;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(118, 75, 162, 0.3);
+    }
+
+    @media (min-width: 768px) {
+        .student-photo {
+            width: 120px;
+            height: 140px;
+        }
+    }
+
+    .student-photo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 10px;
+    }
+
+    .passport-placeholder {
+        background: linear-gradient(135deg, #e0e0e0 0%, #ffffff 50%, #e0e0e0 100%) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 11px !important;
+        text-align: center !important;
+        color: #666 !important;
+        border: 2px solid #999 !important;
+        border-radius: 10px !important;
+    }
+
+    .student-metadata {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        margin-bottom: 20px;
+        font-size: 13px;
+        justify-content: center;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        padding: 15px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    @media (min-width: 768px) {
+        .student-metadata {
+            gap: 30px;
+            font-size: 14px;
+            justify-content: flex-start;
+        }
+    }
+
+    .metadata-item {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .metadata-label {
+        font-weight: bold;
+        color: #667eea;
+    }
+
+    .report-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+        font-size: 12px;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    @media (min-width: 768px) {
+        .report-table {
+            font-size: 13px;
+        }
+    }
+
+    .report-table thead {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .report-table th,
+    .report-table td {
+        border: 1px solid #e0e0e0;
+        padding: 10px 8px;
+        text-align: center;
+    }
+
+    @media (min-width: 768px) {
+        .report-table th,
+        .report-table td {
+            padding: 12px 10px;
+        }
+    }
+
+    .report-table th {
+        color: white;
+        font-weight: bold;
+        text-transform: uppercase;
+        font-size: 11px;
+    }
+
+    @media (min-width: 768px) {
+        .report-table th {
+            font-size: 12px;
+        }
+    }
+
+    .report-table td.left-align {
+        text-align: left;
+    }
+
+    .report-table td.teacher-comment {
+        min-width: 300px;
+        max-width: 500px;
+        white-space: normal;
+        word-wrap: break-word;
+        text-align: left;
+    }
+
+    .report-table tr.summary-row {
+        background: linear-gradient(135deg, #f5f7fa 0%, #e8e8e8 100%);
+        font-weight: bold;
+        color: #667eea;
+    }
+
+    .report-table tbody tr:nth-child(even) {
+        background: #f9f9f9;
+    }
+
+    .report-table tbody tr:hover {
+        background: #e8f4f8;
+    }
+
+    .performance-summary {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        padding: 20px;
+        margin-bottom: 20px;
+        font-size: 13px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        color: white;
+    }
+
+    @media (min-width: 768px) {
+        .performance-summary {
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+        }
+    }
+
+    .summary-item {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .summary-label {
+        font-weight: bold;
+    }
+
+    .history-section {
+        margin-bottom: 20px;
+    }
+
+    .history-title {
+        font-weight: bold;
+        font-size: 16px;
+        margin-bottom: 15px;
+        text-transform: uppercase;
+        color: #667eea;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    @media (min-width: 768px) {
+        .history-title {
+            font-size: 18px;
+        }
+    }
+
+    .history-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+        font-size: 11px;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    @media (min-width: 768px) {
+        .history-table {
+            font-size: 12px;
+        }
+    }
+
+    .history-table thead {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .history-table th,
+    .history-table td {
+        border: 1px solid #e0e0e0;
+        padding: 8px 6px;
+        text-align: center;
+        color: #333;
+    }
+
+    @media (min-width: 768px) {
+        .history-table th,
+        .history-table td {
+            padding: 10px 8px;
+        }
+    }
+
+    .history-table th {
+        color: white;
+        font-weight: bold;
+    }
+
+    .history-table tbody tr:nth-child(even) {
+        background: #f9f9f9;
+    }
+
+    .graph-container {
+        border: 2px solid #667eea;
+        padding: 15px;
+        height: 250px;
+        position: relative;
+        border-radius: 12px;
+        background: white;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+    }
+
+    @media (min-width: 768px) {
+        .graph-container {
+            height: 300px;
+        }
+    }
+
+    .signature-block {
+        display: flex;
+        flex-direction: column;
+        gap: 30px;
+        margin-top: 30px;
+        padding-top: 20px;
+    }
+
+    @media (min-width: 768px) {
+        .signature-block {
+            flex-direction: row;
+            justify-content: space-between;
+        }
+    }
+
+    .signature-section {
+        width: 100%;
+    }
+
+    @media (min-width: 768px) {
+        .signature-section {
+            width: 45%;
+        }
+    }
+
+    .signature-line {
+        border-bottom: 2px solid #667eea;
+        margin: 20px 0 5px 0;
+        height: 40px;
+    }
+
+    .signature-label {
+        font-size: 12px;
+        margin-bottom: 3px;
+        color: #667eea;
+        font-weight: bold;
+    }
+
+    .signature-name {
+        font-weight: bold;
+        font-size: 14px;
+        color: #333;
+    }
+
+    /* Table scroll for mobile */
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    @media (max-width: 767px) {
+        .report-table,
+        .history-table {
+            font-size: 10px;
+        }
+
+        .report-table th,
+        .report-table td,
+        .history-table th,
+        .history-table td {
+            padding: 6px 4px;
+        }
+    }
+
+    /* Print Styles */
+    @media print {
+        @page {
+            size: landscape;
+            margin: 0.3cm;
+        }
+
+        body {
+            background: white !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .min-h-screen {
+            padding: 0 !important;
+        }
+
+        .report-card {
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 5px !important;
+            min-height: 100vh !important;
+        }
+
+        button {
+            display: none !important;
+        }
+
+        /* Hide the performance summary to save space */
+        .performance-summary {
+            display: none !important;
+        }
+
+        /* Hide performance history for print to save space */
+        .performance-history {
+            display: none !important;
+        }
+
+        .report-header {
+            padding-bottom: 5px !important;
+            margin-bottom: 5px !important;
+            flex-direction: row !important;
+            gap: 10px !important;
+        }
+
+        .school-logo {
+            width: 40px !important;
+            height: 40px !important;
+        }
+
+        .school-logo img {
+            width: 40px !important;
+            height: 40px !important;
+        }
+
+        .school-info {
+            flex: 1 !important;
+            text-align: center !important;
+        }
+
+        .school-info h1 {
+            font-size: 14px !important;
+            margin: 0 !important;
+        }
+
+        .school-info p {
+            font-size: 9px !important;
+            margin: 0 !important;
+        }
+
+        .student-photo {
+            width: 40px !important;
+            height: 40px !important;
+        }
+
+        .student-photo img {
+            width: 40px !important;
+            height: 40px !important;
+        }
+
+        .student-info {
+            font-size: 10px !important;
+            padding: 5px !important;
+        }
+
+        .student-metadata {
+            padding: 3px !important;
+            margin-bottom: 3px !important;
+        }
+
+        .metadata-item {
+            font-size: 9px !important;
+            padding: 2px !important;
+        }
+
+        .metadata-label {
+            font-size: 9px !important;
+        }
+
+        .report-table th,
+        .report-table td,
+        .history-table th,
+        .history-table td {
+            font-size: 7px !important;
+            padding: 1px !important;
+        }
+
+        /* Expand main table */
+        .report-table {
+            font-size: 8px !important;
+        }
+
+        .report-table th,
+        .report-table td {
+            font-size: 8px !important;
+            padding: 2px 1px !important;
+        }
+
+        .performance-history {
+            page-break-inside: avoid;
+            padding: 5px !important;
+        }
+
+        .performance-history h3 {
+            font-size: 12px !important;
+            margin-bottom: 5px !important;
+        }
+
+        table {
+            page-break-inside: auto;
+        }
+
+        tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+        }
+
+        /* Prevent blank second page */
+        body {
+            height: auto !important;
+        }
+
+        .report-card {
+            height: auto !important;
+            min-height: auto !important;
+        }
+
+        /* Prevent page breaks after signature */
+        .signature-block {
+            page-break-after: auto !important;
+        }
+
+        /* Ensure everything fits on one page */
+        * {
+            page-break-before: auto !important;
+            page-break-after: auto !important;
+        }
+
+        .signature-block {
+            margin-top: 3px !important;
+            padding: 3px !important;
+        }
+
+        .signature-section {
+            padding: 2px !important;
+        }
+
+        .signature-label {
+            font-size: 8px !important;
+        }
+
+        .signature-name {
+            font-size: 9px !important;
+        }
+
+        .teacher-comments {
+            display: none !important;
+        }
+
+        /* Hide improvement column to save space */
+        .improvement-column {
+            display: none !important;
+        }
+    }
+</style>
+
+<div class="min-h-screen bg-gray-200 p-4">
+    {% if report %}
+    <div class="report-card">
+        <!-- Header -->
+        <div class="report-header">
+            <!-- School Logo (Left) -->
+            {% if school_logo and (school_logo.startswith('http') or school_logo.startswith('data:')) %}
+            <div class="school-logo">
+                <img src="{{ school_logo }}" alt="School Logo">
+            </div>
+            {% else %}
+            <div class="school-logo" style="background: linear-gradient(135deg, #e0e0e0 0%, #ffffff 50%, #e0e0e0 100%); display: flex; align-items: center; justify-content: center; font-size: 10px; text-align: center; color: #666;">
+                School<br>Logo
+            </div>
+            {% endif %}
+            
+            <!-- School Info (Center) -->
+            <div class="school-info">
+                <h1>{{ school_name }}</h1>
+                <p>{{ school_address|default('School Address') }}</p>
+                <p>{{ school_telephone|default('Tel: ') }}</p>
+            </div>
+            
+            <!-- Student Photo (Right) -->
+            {% if student_photo and (student_photo.startswith('http') or student_photo.startswith('data:')) %}
+            <div class="student-photo">
+                <img src="{{ student_photo }}" alt="Student Photo">
+            </div>
+            {% else %}
+            <div class="student-photo" style="background: linear-gradient(135deg, #e0e0e0 0%, #ffffff 50%, #e0e0e0 100%); display: flex; align-items: center; justify-content: center; font-size: 10px; text-align: center; color: #666;">
+                Student<br>Photo
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Student Metadata -->
+        <div class="student-metadata">
+            <div class="metadata-item">
+                <span class="metadata-label">Name:</span>
+                <span>{{ student_name }}</span>
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">Class:</span>
+                <span>{{ grade }}</span>
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">Stream:</span>
+                <span>{{ student_stream }}</span>
+            </div>
+        </div>
+
+        <!-- Performance Table -->
+        <div class="table-responsive">
+            <table class="report-table">
+            <thead>
+                <tr>
+                    <th class="left-align">Learning Area</th>
+                    {% for prev_exam in previous_exams[:2]|reverse %}
+                        <th>{{ prev_exam.exam_title[:15] }}</th>
+                    {% endfor %}
+                    {% if not previous_exams or previous_exams|length == 0 %}
+                        <th>No Previous Exam</th>
+                    {% endif %}
+                    <th>{{ current_exam_title }} (Current)</th>
+                    <th>Rate</th>
+                    {% if grade in ["Grade 7", "Grade 8", "Grade 9"] %}
+                    <th>Points</th>
+                    {% endif %}
+                    <th>Improvement</th>
+                    <th class="left-align">Teacher</th>
+                    <th class="left-align">Teachers Comments</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set processed_subjects = [] %}
+                {# Subject name mapping to handle mismatches between current marks and previous exam keys #}
+                {% set subject_key_map = {
+                    'INTCIE': 'INTSCIE',
+                    'PRE TECH': 'PRE-TECH',
+                    'C A': 'C/A',
+                    'PRETECH': 'PRE-TECH',
+                    'CA': 'C/A'
+                } %}
+                {% for subject, data in report.current_marks.items() %}
+                {% if subject not in ['total_points', 'average_level', 'rank'] and subject.endswith('_s') %}
+                {% set subject_name = subject|rstrip_suffix|replace('_', ' ')|title %}
+                {% if subject_name not in processed_subjects %}
+                {% set processed_subjects = processed_subjects + [subject_name] %}
+                {% set current_score = report.current_marks[subject]|default('-') %}
+                {% set rating = report.current_marks[subject|rstrip_suffix + '_r']|default('-') %}
+                {% set points = report.current_marks[subject|rstrip_suffix + '_p']|default('-') %}
+                {# Try multiple key formats for teacher lookup #}
+                {% set teacher_key = subject_name.upper().replace(' ', '') %}
+                {% set teacher_name = teacher_map.get(teacher_key, teacher_map.get(subject_name.upper(), teacher_map.get(subject_name, 'None'))) %}
+                <tr>
+                    <td class="left-align">{{ subject_name }}</td>
+                    {% for prev_exam in previous_exams[:2]|reverse %}
+                        {% set prev_exam_title = prev_exam.exam_title %}
+                        {% set prev_marks = previous_exam_marks.get(prev_exam_title, {}) %}
+                        {% if prev_marks is mapping and prev_marks is not string %}
+                            {# Dict format: marks are stored as dict with subject keys #}
+                            {% set subject_key = subject_name.upper().replace(' ', '') %}
+                            {# Apply subject key mapping if available #}
+                            {% set subject_key = subject_key_map.get(subject_key, subject_key) %}
+                            {# Debug: log the lookup #}
+                            {# {{ subject_name }} -> {{ subject_key }} #}
+                            {% set prev_score = prev_marks.get(subject_key, {}).get('score', '-') %}
+                        {% elif prev_marks is iterable and prev_marks is not string %}
+                            {# List format: marks are stored as list [score1, rating1, score2, rating2, ...] #}
+                            {# We need to map by index based on subject position #}
+                            {% set subject_index = loop.index0 %}
+                            {% if subject_index * 2 < prev_marks|length %}
+                                {% set prev_score = prev_marks[subject_index * 2] %}
+                            {% else %}
+                                {% set prev_score = '-' %}
+                            {% endif %}
+                        {% else %}
+                            {# Fallback for empty or invalid data #}
+                            {% set prev_score = '-' %}
+                        {% endif %}
+                        <td>{{ prev_score }}</td>
+                    {% endfor %}
+                    {% if not previous_exams or previous_exams|length == 0 %}
+                        <td>-</td>
+                    {% endif %}
+                    <td>{{ current_score }}</td>
+                    <td>{{ rating }}</td>
+                    {% if grade in ["Grade 7", "Grade 8", "Grade 9"] %}
+                    <td>{{ points }}</td>
+                    {% endif %}
+                    {# Improvement column: compare latest previous exam with current #}
+                    {% set latest_prev_score = '-' %}
+                    {% if previous_exams and previous_exams|length > 0 %}
+                        {% set latest_prev_exam = previous_exams[0] %}
+                        {% set latest_prev_title = latest_prev_exam.exam_title %}
+                        {% set latest_prev_marks = previous_exam_marks.get(latest_prev_title, {}) %}
+                        {% set subject_key = subject_name.upper().replace(' ', '') %}
+                        {# Apply subject key mapping if available #}
+                        {% set subject_key = subject_key_map.get(subject_key, subject_key) %}
+                        {% set latest_prev_score = latest_prev_marks.get(subject_key, {}).get('score', '-') %}
+                    {% endif %}
+                    {# Try to convert scores to numbers for comparison #}
+                    {% set current_num = current_score|int if current_score is string and current_score|isdigit else current_score %}
+                    {% set prev_num = latest_prev_score|int if latest_prev_score is string and latest_prev_score|isdigit else latest_prev_score %}
+                    {% if latest_prev_score != '-' and current_score != '-' and current_num is number and prev_num is number %}
+                        {% set improvement = current_num - prev_num %}
+                        {% if improvement > 0 %}
+                            <td style="color: green;">↑ {{ improvement }}</td>
+                        {% elif improvement < 0 %}
+                            <td style="color: red;">↓ {{ improvement }}</td>
+                        {% else %}
+                            <td>-</td>
+                        {% endif %}
+                    {% else %}
+                        <td>-</td>
+                    {% endif %}
+                    <td class="left-align">{{ teacher_name }}</td>
+                    <td class="teacher-comment">{{ rating|rating_to_comment }}</td>
+                </tr>
+                {% endif %}
+                {% endif %}
+                {% endfor %}
+                <tr class="summary-row">
+                    <td class="left-align">{% if grade in ["Grade 7", "Grade 8", "Grade 9"] %}TOTAL POINTS{% else %}TOTAL SCORES{% endif %}</td>
+                    {% set latest_prev_total_list = [] %}
+                    {% for prev_exam in previous_exams[:2]|reverse %}
+                        {% set prev_exam_title = prev_exam.exam_title %}
+                        {% set prev_marks = previous_exam_marks.get(prev_exam_title, {}) %}
+                        {# Calculate total POINTS from previous exam marks by converting scores to ratings then to points #}
+                        {% set points_list = [] %}
+                        {% for subject, subject_data in prev_marks.items() %}
+                            {% set score = subject_data.score if subject_data.score is defined else subject_data.get('score', 0) %}
+                            {% set rating = score|score_to_rating(grade) %}
+                            {% set points = rating|rating_to_points %}
+                            {% set _ = points_list.append(points) %}
+                        {% endfor %}
+                        {% set prev_total = points_list|sum %}
+                        {% if loop.last and prev_total > 0 %}
+                            {% set _ = latest_prev_total_list.append(prev_total) %}
+                        {% endif %}
+                        <td>{{ prev_total if prev_total > 0 else '-' }}</td>
+                    {% endfor %}
+                    {% set latest_prev_total = latest_prev_total_list[0] if latest_prev_total_list else '-' %}
+                    {% if not previous_exams or previous_exams|length == 0 %}
+                        <td>-</td>
+                    {% endif %}
+                    {% set current_total = report.current_marks.total_points|default('0')|int %}
+                    <td>{{ current_total }}</td>
+                    <td>-</td>
+                    {% if grade in ["Grade 7", "Grade 8", "Grade 9"] %}
+                    <td>{{ current_total }}</td>
+                    {% endif %}
+                    {# Improvement column for total scores #}
+                    {% if latest_prev_total != '-' and current_total != '-' %}
+                        {% set improvement = current_total - latest_prev_total %}
+                        {% if improvement > 0 %}
+                            <td style="color: green;">↑ {{ improvement }}</td>
+                        {% elif improvement < 0 %}
+                            <td style="color: red;">↓ {{ improvement }}</td>
+                        {% else %}
+                            <td>-</td>
+                        {% endif %}
+                    {% else %}
+                        <td>-</td>
+                    {% endif %}
+                    <td class="left-align">-</td>
+                    <td class="left-align">-</td>
+                </tr>
+                <tr class="summary-row">
+                    <td class="left-align">AVERAGE</td>
+                    {% set latest_prev_total_list = [] %}
+                    {% for prev_exam in previous_exams[:2]|reverse %}
+                        {% set prev_exam_title = prev_exam.exam_title %}
+                        {% set prev_marks = previous_exam_marks.get(prev_exam_title, {}) %}
+                        {# Calculate average rating level from previous exam marks #}
+                        {% set points_list = [] %}
+                        {% for subject, subject_data in prev_marks.items() %}
+                            {% set score = subject_data.score if subject_data.score is defined else subject_data.get('score', 0) %}
+                            {% set rating = score|score_to_rating(grade) %}
+                            {% set points = rating|rating_to_points %}
+                            {% set _ = points_list.append(points) %}
+                        {% endfor %}
+                        {% set avg_points = points_list|sum / points_list|length if points_list|length > 0 else 0 %}
+                        {% set prev_avg = avg_points|points_to_rating if points_list|length > 0 else '-' %}
+                        {# Also calculate total points for improvement comparison #}
+                        {% set prev_total = points_list|sum %}
+                        {% if loop.last and prev_total > 0 %}
+                            {% set _ = latest_prev_total_list.append(prev_total) %}
+                        {% endif %}
+                        <td>{{ prev_avg }}</td>
+                    {% endfor %}
+                    {% if not previous_exams or previous_exams|length == 0 %}
+                        <td>-</td>
+                    {% endif %}
+                    {% set current_avg = report.current_marks.average_level %}
+                    <td>{{ current_avg if current_avg else '-' }}</td>
+                    <td>-</td>
+                    {# Improvement column for average - compare average points #}
+                    {% set latest_prev_avg_points = latest_prev_total_list[0] if latest_prev_total_list else '-' %}
+                    {% set current_avg_points = report.current_marks.total_points|default('0')|int %}
+                    {% if latest_prev_avg_points != '-' and current_avg_points != '-' %}
+                        {% set improvement = current_avg_points - latest_prev_avg_points %}
+                        {% if improvement > 0 %}
+                            <td style="color: green;">↑ {{ improvement }}</td>
+                        {% elif improvement < 0 %}
+                            <td style="color: red;">↓ {{ improvement }}</td>
+                        {% else %}
+                            <td>-</td>
+                        {% endif %}
+                    {% else %}
+                        <td>-</td>
+                    {% endif %}
+                    <td class="left-align">-</td>
+                    <td class="left-align">-</td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+
+        <!-- Performance Summary -->
+        <div class="performance-summary" style="flex-direction: column; align-items: flex-start;">
+            <h3 style="color: white; font-size: 18px; margin-bottom: 15px; font-weight: bold;">Summary for Parents: Understanding Your Child's Progress</h3>
+            <p style="color: white; font-size: 13px; margin-bottom: 15px; line-height: 1.6;">
+                We use a Competency-Based Curriculum (CBC) assessment scale to track your child's growth. This scale measures how well your child has mastered specific skills throughout the term.
+            </p>
+            <div style="color: white; font-size: 12px; line-height: 1.8;">
+                <p style="margin-bottom: 10px;"><strong>EE1 & EE2 (Exceeding Expectations):</strong> Your child has demonstrated a deep and outstanding understanding of the material. They are performing at an advanced level and are consistently showing mastery of the required skills.</p>
+                <p style="margin-bottom: 10px;"><strong>ME1 & ME2 (Meeting Expectations):</strong> Your child is making good progress and is successfully grasping the core concepts taught in class. They are on the right track and continuing to gain confidence.</p>
+                <p style="margin-bottom: 10px;"><strong>AE1 & AE2 (Approaching Expectations):</strong> Your child is working toward meeting the expected outcomes. They are beginning to handle the finer details of the work and are very close to mastering these competencies.</p>
+                <p style="margin-bottom: 10px;"><strong>BE1 & BE2 (Below Expectations):</strong> Your child is in the early stages of learning these concepts. At this level, we are focusing on building a solid foundation and providing the necessary support to strengthen their understanding of the basics.</p>
+            </div>
+        </div>
+
+        <!-- History Section -->
+        <div class="history-section">
+            <div class="history-title">Performance History</div>
+
+            <div class="graph-container">
+                <canvas id="historyChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Comments -->
+        <div class="history-section">
+            <div class="history-title">Teacher and Administrator Comments</div>
+            <div style="border: 1px solid #000; padding: 10px; margin-bottom: 10px; font-size: 12px;">
+                <strong>Class Teacher:</strong> {{ report.current_marks.average_level|default('BE2')|get_class_teacher_comment }}
+            </div>
+            <div style="border: 1px solid #000; padding: 10px; font-size: 12px;">
+                <strong>Head Teacher:</strong> {{ report.current_marks.average_level|default('BE2')|get_head_teacher_comment }}
+            </div>
+        </div>
+
+        <!-- Signature Block -->
+        <div class="signature-block">
+            <div class="signature-section">
+                <div class="signature-label">School Administrator</div>
+                <div class="signature-name">{{ school_administrator }}</div>
+                {% if school_signature %}
+                <img src="{{ school_signature }}" alt="Signature" style="height: 60px; max-width: 200px;">
+                {% else %}
+                <div class="signature-line"></div>
+                {% endif %}
+                <div class="signature-label">Date: _______________</div>
+            </div>
+        </div>
+
+
+        <script>
+        function printLandscape() {
+            // Add a style element to force landscape
+            const style = document.createElement('style');
+            style.textContent = '@page { size: landscape; margin: 0.5cm; }';
+            document.head.appendChild(style);
+
+            // Print
+            window.print();
+
+            // Remove the style after printing
+            setTimeout(() => {
+                document.head.removeChild(style);
+            }, 1000);
+        }
+        </script>
+    </div>
+    {% else %}
+    <div class="max-w-6xl mx-auto">
+        <div class="bg-white rounded-lg shadow-sm p-12 text-center">
+            <h3 class="text-xl font-semibold text-gray-900 mb-2">No Report Available</h3>
+            <p class="text-gray-600">The report for this student has not been generated yet.</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+{% if report %}
+// Rating level order from lowest to highest
+const ratingLevels = ['BE2', 'BE1', 'AE2', 'AE1', 'ME2', 'ME1', 'EE2', 'EE1'];
+const ratingPoints = {'BE2': 1, 'BE1': 2, 'AE2': 3, 'AE1': 4, 'ME2': 5, 'ME1': 6, 'EE2': 7, 'EE1': 8};
+
+// Prepare exam data including current exam
+const examLabels = [];
+const examData = [];
+
+// Collect previous exams data (they come in newest-first order from database)
+const previousExamsData = [];
+{% if previous_exams %}
+{% for prev_exam in previous_exams %}
+{% set prev_exam_title = prev_exam.exam_title %}
+{% set prev_marks = previous_exam_marks.get(prev_exam_title, {}) %}
+{# Calculate average points from previous exam marks #}
+{% set points_list = [] %}
+{% for subject, subject_data in prev_marks.items() %}
+    {% set score = subject_data.score if subject_data.score is defined else subject_data.get('score', 0) %}
+    {% set rating = score|score_to_rating(grade) %}
+    {% set points = rating|rating_to_points %}
+    {% set _ = points_list.append(points) %}
+{% endfor %}
+{% set avg_points = points_list|sum / points_list|length if points_list|length > 0 else 0 %}
+{% set avg_rating = avg_points|points_to_rating if points_list|length > 0 else 'BE2' %}
+previousExamsData.push({
+    title: '{{ prev_exam.exam_title[:15] }}',
+    avg: '{{ avg_rating }}'
+});
+{% endfor %}
+{% endif %}
+
+// Reverse to get oldest-first order, then add to chart
+for (let i = previousExamsData.length - 1; i >= 0; i--) {
+    examLabels.push(previousExamsData[i].title);
+    examData.push(ratingPoints[previousExamsData[i].avg] || 1);
+}
+
+// Add current exam at the end
+examLabels.push('{{ report.exam_title|default("Current") }}');
+const currentAvg = '{{ report.current_marks.average_level|default("BE2") }}';
+examData.push(ratingPoints[currentAvg] || 1);
+
+const historyCtx = document.getElementById('historyChart').getContext('2d');
+new Chart(historyCtx, {
+    type: 'bar',
+    data: {
+        labels: examLabels,
+        datasets: [{
+            label: 'Average Level',
+            data: examData,
+            backgroundColor: 'rgba(102, 126, 234, 0.7)',
+            borderColor: '#667eea',
+            borderWidth: 2,
+            borderRadius: 4
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false }
+        },
+        scales: {
+            y: {
+                min: 0.5,
+                max: 8.5,
+                grid: {
+                    color: '#ccc',
+                    drawBorder: true
+                },
+                ticks: {
+                    callback: function(value, index, values) {
+                        if (value >= 1 && value <= 8 && Number.isInteger(value)) {
+                            return ratingLevels[value - 1];
+                        }
+                        return '';
+                    },
+                    font: {
+                        family: 'Arial',
+                        size: 11,
+                        weight: 'bold'
+                    },
+                    stepSize: 1
+                }
+            },
+            x: {
+                grid: {
+                    color: '#ccc',
+                    drawBorder: true
+                },
+                ticks: {
+                    font: {
+                        family: 'Arial',
+                        size: 10
+                    }
+                }
+            }
+        }
+    }
+});
+{% endif %}
+</script>
+{% endblock %}

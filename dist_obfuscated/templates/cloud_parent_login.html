@@ -1,0 +1,203 @@
+{% extends "cloud_base.html" %}
+
+{% block title %}Parent Login - Freeman School Portal{% endblock %}
+
+{% block content %}
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        overflow-x: hidden;
+    }
+
+    .navbar {
+        display: none;
+    }
+
+    .login-section {
+        background: linear-gradient(135deg, rgba(44, 62, 80, 0.95), rgba(52, 152, 219, 0.9)),
+                    url('https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=1920') center/cover;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        overflow-y: auto;
+    }
+
+    .login-card {
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        max-width: 500px;
+        width: 100%;
+        padding: 40px;
+        animation: slideUp 0.5s ease-out;
+    }
+
+    @keyframes slideUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .login-header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+    .login-header h2 {
+        color: #2c3e50;
+        font-weight: 700;
+        margin-bottom: 10px;
+    }
+
+    .login-header p {
+        color: #7f8c8d;
+        font-size: 14px;
+    }
+
+    .login-header .icon {
+        font-size: 60px;
+        color: #3498db;
+        margin-bottom: 15px;
+    }
+
+    .form-control {
+        border: 2px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 12px 15px;
+        font-size: 15px;
+        transition: all 0.3s ease;
+    }
+
+    .form-control:focus {
+        border-color: #3498db;
+        box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+    }
+
+    .form-label {
+        font-weight: 600;
+        color: #34495e;
+        margin-bottom: 8px;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #3498db, #2980b9);
+        border: none;
+        border-radius: 10px;
+        padding: 15px;
+        font-weight: 600;
+        font-size: 16px;
+        transition: all 0.3s ease;
+    }
+
+    .btn-primary:hover {
+        background: linear-gradient(135deg, #2980b9, #1a5276);
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(52, 152, 219, 0.3);
+    }
+
+    .back-link {
+        text-align: center;
+        margin-top: 20px;
+    }
+
+    .back-link a {
+        color: #7f8c8d;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.3s ease;
+    }
+
+    .back-link a:hover {
+        color: #3498db;
+    }
+
+    .alert {
+        border-radius: 10px;
+        border: none;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+
+    @media (max-width: 600px) {
+        .login-card {
+            padding: 30px 20px;
+        }
+
+        .login-header h2 {
+            font-size: 24px;
+        }
+    }
+</style>
+
+<div class="login-section">
+    <div class="login-card">
+        <div class="login-header">
+            <div class="icon">
+                <i class="fas fa-user-friends"></i>
+            </div>
+            <h2>Parent Portal</h2>
+            <p>Access your child's academic performance and progress reports</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        <i class="fas fa-{% if category == 'error' %}exclamation-circle{% else %}check-circle{% endif %}"></i>
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('parent_login') }}">
+            <div class="mb-4">
+                <label for="school_name" class="form-label">
+                    <i class="fas fa-school"></i> School Name
+                </label>
+                <input type="text" class="form-control" id="school_name" name="school_name" required placeholder="Enter school name">
+            </div>
+
+            <div class="mb-4">
+                <label for="student_name" class="form-label">
+                    <i class="fas fa-user"></i> Student Name
+                </label>
+                <input type="text" class="form-control" id="student_name" name="student_name" required placeholder="Enter student's full name">
+            </div>
+
+            <div class="mb-4">
+                <label for="adm_no" class="form-label">
+                    <i class="fas fa-id-card"></i> Admission Number
+                </label>
+                <input type="text" class="form-control" id="adm_no" name="adm_no" required placeholder="Enter admission number">
+            </div>
+
+            <div class="d-grid mt-5">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                </button>
+            </div>
+        </form>
+
+        <div class="back-link">
+            <a href="{{ url_for('home') }}">
+                <i class="fas fa-arrow-left"></i> Back to Home
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

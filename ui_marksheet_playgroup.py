@@ -1104,15 +1104,15 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
             # 1. Ensure base table exists (created in database.py)
 
-            self.db._cursor.execute(
+            self.db.cursor().execute(
                 "CREATE TABLE IF NOT EXISTS playgroup_marks (adm_no TEXT PRIMARY KEY)"
             )
 
             # 2. Get currently existing columns
 
-            self.db._cursor.execute("PRAGMA table_info(playgroup_marks)")
+            self.db.cursor().execute("PRAGMA table_info(playgroup_marks)")
 
-            existing_cols = [row[1].lower() for row in self.db._cursor.fetchall()]
+            existing_cols = [row[1].lower() for row in self.db.cursor().fetchall()]
 
             # 3. Check every subject from JSON
 
@@ -1140,9 +1140,15 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
                         f"DEBUG: Adding missing column [{s_col}] to playgroup_marks..."
                     )
 
-                    self.db._cursor.execute(
-                        f"ALTER TABLE playgroup_marks ADD COLUMN {s_col} INTEGER"
-                    )
+                    try:
+                        self.db.cursor().execute(
+                            f"ALTER TABLE playgroup_marks ADD COLUMN {s_col} INTEGER"
+                        )
+                    except Exception as e:
+                        if "duplicate column" in str(e).lower():
+                            print(f"DEBUG: Column [{s_col}] already exists, skipping...")
+                        else:
+                            raise
 
                 # Check Rate Column
 
@@ -1152,23 +1158,41 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
                         f"DEBUG: Adding missing column [{r_col}] to playgroup_marks..."
                     )
 
-                    self.db._cursor.execute(
-                        f"ALTER TABLE playgroup_marks ADD COLUMN {r_col} TEXT"
-                    )
+                    try:
+                        self.db.cursor().execute(
+                            f"ALTER TABLE playgroup_marks ADD COLUMN {r_col} TEXT"
+                        )
+                    except Exception as e:
+                        if "duplicate column" in str(e).lower():
+                            print(f"DEBUG: Column [{r_col}] already exists, skipping...")
+                        else:
+                            raise
 
             # 4. Final check for Totals/Level
 
             if "total_points" not in existing_cols:
 
-                self.db._cursor.execute(
-                    "ALTER TABLE playgroup_marks ADD COLUMN total_points INTEGER"
-                )
+                try:
+                    self.db.cursor().execute(
+                        "ALTER TABLE playgroup_marks ADD COLUMN total_points INTEGER"
+                    )
+                except Exception as e:
+                    if "duplicate column" in str(e).lower():
+                        print("DEBUG: Column [total_points] already exists, skipping...")
+                    else:
+                        raise
 
             if "average_level" not in existing_cols:
 
-                self.db._cursor.execute(
-                    "ALTER TABLE playgroup_marks ADD COLUMN average_level TEXT"
-                )
+                try:
+                    self.db.cursor().execute(
+                        "ALTER TABLE playgroup_marks ADD COLUMN average_level TEXT"
+                    )
+                except Exception as e:
+                    if "duplicate column" in str(e).lower():
+                        print("DEBUG: Column [average_level] already exists, skipping...")
+                    else:
+                        raise
 
             self.db.conn.commit()
 
@@ -1264,7 +1288,7 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 for row_data, pos in final_list:
 
-                    self.add_student_row_with_data(row_data, pos, read_only=True)
+                    self.add_student_row_with_data(row_data, pos, read_only=self.read_only)
 
             else:
 
@@ -1298,7 +1322,7 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                     LEFT JOIN playgroup_marks m ON s.adm_no = m.adm_no
 
-                    WHERE s.grade = ?
+                    WHERE UPPER(s.grade) = UPPER(?)
 
                 """
 
@@ -1306,9 +1330,11 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 # ... (Your existing SQL SELECT query logic here) ...
 
-                self.db._cursor.execute(query, (self.class_name,))
+                self.db.cursor().execute(query, (self.class_name,))
 
-                records = self.db._cursor.fetchall()
+                records = self.db.cursor().fetchall()
+
+                print(f"DEBUG: Loaded {len(records)} students for grade '{self.class_name}' from database")
 
                 # 2. Rank calculation
 
@@ -1411,10 +1437,6 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 row = w.grid_info()["row"]
 
-                if row < 2:  # Skip header rows (0 and 1)
-
-                    continue
-
                 if row not in rows:
 
                     rows[row] = []
@@ -1449,11 +1471,11 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 # Get Admission Number
 
-                self.db._cursor.execute(
+                self.db.cursor().execute(
                     "SELECT adm_no FROM students WHERE name = ?", (student_name,)
                 )
 
-                res = self.db._cursor.fetchone()
+                res = self.db.cursor().fetchone()
 
                 if not res:
 
@@ -1461,16 +1483,14 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 adm_no = res[0]
 
-                # 1. Collect dynamic marks from Entry boxes
-
-                # We skip index 0 (Name) and take the next (num_subs * 2) widgets
+                # 1. Collect dynamic marks from Entry boxes using the grouped widgets list
 
                 marks_data = []
 
                 for i in range(1, (num_subs * 2) + 1):
 
-                    val = widgets[i].get()
-
+                    widget = widgets[i]
+                    val = widget.get() if hasattr(widget, 'get') else None
                     marks_data.append(val if val != "" else None)
 
                 # 2. Collect Totals and Level (The last 3 widgets are Total, Level, Pos)
@@ -1511,7 +1531,7 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 final_data = [adm_no] + marks_data + [total_val, lvl_val]
 
-                self.db._cursor.execute(query, final_data)
+                self.db.cursor().execute(query, final_data)
 
                 success_count += 1
 
@@ -1809,8 +1829,8 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                     # Clear DB marks
 
-                    self.db._cursor.execute(
-                        "DELETE FROM playgroup_marks WHERE adm_no IN (SELECT adm_no FROM students WHERE grade = ?)",
+                    self.db.cursor().execute(
+                        "DELETE FROM playgroup_marks WHERE adm_no IN (SELECT adm_no FROM students WHERE UPPER(grade) = UPPER(?))",
                         (self.class_name,),
                     )
 
@@ -1889,13 +1909,13 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
             LEFT JOIN playgroup_marks m ON s.adm_no = m.adm_no
 
-            WHERE s.grade = ?
+            WHERE UPPER(s.grade) = UPPER(?)
 
         """
 
-        self.db._cursor.execute(query, (self.class_name,))
+        self.db.cursor().execute(query, (self.class_name,))
 
-        records = self.db._cursor.fetchall()
+        records = self.db.cursor().fetchall()
 
         # Convert to JSON
 
@@ -1948,13 +1968,13 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
             LEFT JOIN playgroup_marks m ON s.adm_no = m.adm_no
 
-            WHERE s.grade = ?
+            WHERE UPPER(s.grade) = UPPER(?)
 
         """
 
-        self.db._cursor.execute(query, (self.class_name,))
+        self.db.cursor().execute(query, (self.class_name,))
 
-        rows = self.db._cursor.fetchall()
+        rows = self.db.cursor().fetchall()
 
         for row in rows:
 
@@ -2022,13 +2042,13 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 JOIN students s ON m.adm_no = s.adm_no
 
-                WHERE s.grade = ?
+                WHERE UPPER(s.grade) = UPPER(?)
 
             """
 
-            self.db._cursor.execute(query, (self.class_name,))
+            self.db.cursor().execute(query, (self.class_name,))
 
-            subject_rows = self.db._cursor.fetchall()
+            subject_rows = self.db.cursor().fetchall()
 
             for score_row in subject_rows:
 

@@ -7,6 +7,7 @@ from ui_marksheet_lower import LowerMarkSheetView
 from ui_summary import ClassSummaryView
 from teachers_linked import TeachersLinkedView
 from reportforms import ReportFormsView
+from ocr_student_dialog import show_ocr_dialog
 import os
 import sys
 import json
@@ -564,8 +565,8 @@ class Dashboard(ctk.CTk):
 
             # Get all students
             print("[PROMOTION] Fetching all students from database...")
-            self.db._cursor.execute("SELECT adm_no, name, grade, gender, phone, photo, stream FROM students")
-            students = self.db._cursor.fetchall()
+            self.db.cursor().execute("SELECT adm_no, name, grade, gender, phone, photo, stream FROM students")
+            students = self.db.cursor().fetchall()
             print(f"[PROMOTION] Found {len(students)} students")
 
             promoted_count = 0
@@ -596,12 +597,12 @@ class Dashboard(ctk.CTk):
                     if new_grade is None:
                         # Remove Grade 9 students
                         print(f"[PROMOTION] Removing Grade 9 student: {name}")
-                        self.db._cursor.execute("DELETE FROM students WHERE adm_no = ?", (adm_no,))
+                        self.db.cursor().execute("DELETE FROM students WHERE adm_no = ?", (adm_no,))
                         removed_count += 1
                     else:
                         # Promote to next grade
                         print(f"[PROMOTION] Promoting student {name} to {new_grade}")
-                        self.db._cursor.execute(
+                        self.db.cursor().execute(
                             "UPDATE students SET grade = ? WHERE adm_no = ?",
                             (new_grade, adm_no)
                         )
@@ -669,8 +670,8 @@ class Dashboard(ctk.CTk):
 
             # Archive based on previous_exams table (which contains exam titles)
             print(f"[ARCHIVE] Fetching previous_exams data...")
-            self.db._cursor.execute("SELECT exam_name, class_name, exam_date, summary_data, marks_data FROM previous_exams")
-            previous_exams = self.db._cursor.fetchall()
+            self.db.cursor().execute("SELECT exam_name, class_name, exam_date, summary_data, marks_data FROM previous_exams")
+            previous_exams = self.db.cursor().fetchall()
             print(f"[ARCHIVE] Found {len(previous_exams)} previous exams")
 
             for exam_name, class_name, exam_date, summary_data, marks_data in previous_exams:
@@ -701,8 +702,8 @@ class Dashboard(ctk.CTk):
 
             # Also archive current marks from marksheet tables
             print(f"[ARCHIVE] Archiving current marks from marksheet tables...")
-            self.db._cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%_marks'")
-            exam_tables = self.db._cursor.fetchall()
+            self.db.cursor().execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%_marks'")
+            exam_tables = self.db.cursor().fetchall()
             print(f"[ARCHIVE] Found {len(exam_tables)} marksheet tables")
 
             for (table_name,) in exam_tables:
@@ -714,15 +715,15 @@ class Dashboard(ctk.CTk):
 
                 # Get all data from this marksheet table
                 print(f"[ARCHIVE] Fetching data from {table_name}...")
-                self.db._cursor.execute(f"SELECT * FROM {table_name}")
-                marks_data = self.db._cursor.fetchall()
+                self.db.cursor().execute(f"SELECT * FROM {table_name}")
+                marks_data = self.db.cursor().fetchall()
                 print(f"[ARCHIVE] Found {len(marks_data)} records in {table_name}")
 
                 if marks_data:
                     # Get column names
                     print(f"[ARCHIVE] Getting column names for {table_name}...")
-                    self.db._cursor.execute(f"PRAGMA table_info({table_name})")
-                    columns = [col[1] for col in self.db._cursor.fetchall()]
+                    self.db.cursor().execute(f"PRAGMA table_info({table_name})")
+                    columns = [col[1] for col in self.db.cursor().fetchall()]
                     print(f"[ARCHIVE] Columns: {columns}")
 
                     # Group marks by grade (for tables like primary_marks that have multiple grades)
@@ -730,8 +731,8 @@ class Dashboard(ctk.CTk):
                     for row in marks_data:
                         adm_no = row[0]  # First column is adm_no
                         # Get student's grade from students table
-                        self.db._cursor.execute("SELECT grade FROM students WHERE adm_no = ?", (adm_no,))
-                        student_grade = self.db._cursor.fetchone()
+                        self.db.cursor().execute("SELECT grade FROM students WHERE adm_no = ?", (adm_no,))
+                        student_grade = self.db.cursor().fetchone()
                         if student_grade:
                             grade = student_grade[0]
                             if grade not in grade_groups:
@@ -767,14 +768,14 @@ class Dashboard(ctk.CTk):
 
             # Clear the previous_exams table after archiving
             print(f"[ARCHIVE] Clearing previous_exams table...")
-            self.db._cursor.execute("DELETE FROM previous_exams")
+            self.db.cursor().execute("DELETE FROM previous_exams")
             print(f"[ARCHIVE] Deleted all records from previous_exams table")
 
             # Also clear the marksheet tables
             print(f"[ARCHIVE] Clearing marksheet tables...")
             for (table_name,) in exam_tables:
                 print(f"[ARCHIVE] Clearing table: {table_name}")
-                self.db._cursor.execute(f"DELETE FROM {table_name}")
+                self.db.cursor().execute(f"DELETE FROM {table_name}")
 
             print(f"[ARCHIVE] Committing database changes...")
             self.db.conn.commit()
@@ -1505,10 +1506,10 @@ class Dashboard(ctk.CTk):
 
     def get_local_student_list(self):
         try:
-            self.db._cursor.execute(
+            self.db.cursor().execute(
                 "SELECT adm_no, name, grade, gender, phone, photo, stream FROM students ORDER BY grade, adm_no"
             )
-            rows = self.db._cursor.fetchall()
+            rows = self.db.cursor().fetchall()
             return [
                 {
                     "adm_no": row[0] or "",
@@ -1535,6 +1536,8 @@ class Dashboard(ctk.CTk):
                     "subject": row[1] or "",
                     "teacher_name": row[2] or "",
                     "teacher_code": row[3] or "",
+                    "username": row[4] or "",
+                    "password": row[5] or "",
                 }
                 for row in teachers
                 if row[0] and row[1] and row[2] and row[3]
@@ -2333,6 +2336,16 @@ class Dashboard(ctk.CTk):
         )
         self.btn_add.pack(pady=10)
 
+        self.btn_ocr = ctk.CTkButton(
+            self.control_panel,
+            text="📷 OCR Register",
+            fg_color="#9b59b6",
+            hover_color="#8e44ad",
+            **btn_style,
+            command=lambda: self.open_ocr_dialog(class_name),
+        )
+        self.btn_ocr.pack(pady=10)
+
         self.btn_remove = ctk.CTkButton(
             self.control_panel,
             text="Remove all Students",
@@ -2362,20 +2375,40 @@ class Dashboard(ctk.CTk):
 
         self.btn_remove.configure(command=self.clear_all_students)
 
+    def open_ocr_dialog(self, class_name):
+        """Open the OCR student registration dialog"""
+        def refresh_registry():
+            # Refresh the student registry after OCR registration
+            self.show_student_registry(class_name)
+        
+        show_ocr_dialog(self, refresh_registry, self.db)
+
     def load_students_from_db(self, class_name):
         try:
-            # Check if the DB tool is broken
-            if not hasattr(self.db.conn, "cursor"):
-                print("Database connection issue.")
-                return
-
-            # Use the connection directly to be safe
-            cursor = self.db.conn.cursor()
-
-            query = "SELECT adm_no, name, grade, gender, phone, photo, stream FROM students WHERE grade = ?"
-            cursor.execute(query, (class_name,))
-
-            records = cursor.fetchall()
+            # Use the public cursor method for consistency with case-insensitive grade matching
+            print(f"DEBUG: Loading students for class_name='{class_name}'")
+            print(f"DEBUG: Database connection: {self.db.conn}")
+            print(f"DEBUG: Database connection ID: {id(self.db.conn)}")
+            print(f"DEBUG: Database path: {self.db.conn.execute('PRAGMA database_list').fetchall()}")
+            
+            # Check if we're using the same connection as the dashboard
+            print(f"DEBUG: Dashboard DB connection ID: {id(self.db.conn)}")
+            
+            # First, let's check what grades exist in the database
+            print(f"DEBUG: Executing SELECT DISTINCT grade FROM students...")
+            self.db.cursor().execute("SELECT DISTINCT grade FROM students")
+            all_grades = self.db.cursor().fetchall()
+            print(f"DEBUG: All grades in database: {all_grades}")
+            
+            # Check total student count
+            self.db.cursor().execute("SELECT COUNT(*) FROM students")
+            total_count = self.db.cursor().fetchone()[0]
+            print(f"DEBUG: Total students in database: {total_count}")
+            
+            self.db.cursor().execute("SELECT adm_no, name, grade, gender, phone, photo, stream FROM students WHERE UPPER(grade) = UPPER(?)", (class_name,))
+            records = self.db.cursor().fetchall()
+            print(f"DEBUG: Loaded {len(records)} students for grade '{class_name}' from database")
+            print(f"DEBUG: Student records: {records}")
 
             # Clear current list tracker before adding new ones
             self.all_student_rows = []
@@ -2385,6 +2418,8 @@ class Dashboard(ctk.CTk):
 
         except Exception as e:
             print(f"CRITICAL ERROR: {e}")
+            import traceback
+            traceback.print_exc()
 
     def add_locked_row(self, data):
         """Creates a row that is already saved and disabled with perfect alignment"""
@@ -2879,7 +2914,7 @@ class Dashboard(ctk.CTk):
 
     def get_students_in_class(self, class_name):
         try:
-            self.db._cursor.execute(
+            self.db.cursor().execute(
                 "SELECT adm_no, name, grade, stream FROM students WHERE grade = ? ORDER BY name",
                 (class_name,),
             )
@@ -2890,7 +2925,7 @@ class Dashboard(ctk.CTk):
                     "grade": row[2],
                     "stream": row[3] if row[3] else "none",
                 }
-                for row in self.db._cursor.fetchall()
+                for row in self.db.cursor().fetchall()
             ]
             return students
         except Exception as e:
@@ -3500,7 +3535,7 @@ class Dashboard(ctk.CTk):
                 old_exam_title = old_exam_titles.get(grade_type, "")
                 if old_exam_title:  # Only save if there was an old exam title
                     exam_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    self.db._cursor.execute(
+                    self.db.cursor().execute(
                         "INSERT OR REPLACE INTO previous_exams (exam_name, class_name, exam_date, marks_data, summary_data) VALUES (?, ?, ?, ?, ?)",
                         (
                             old_exam_title,
@@ -3515,14 +3550,14 @@ class Dashboard(ctk.CTk):
                 # Clear current marks table for this class to start fresh with new exam
                 try:
                     # Get admission numbers for students in this class
-                    self.db._cursor.execute(
+                    self.db.cursor().execute(
                         "SELECT adm_no FROM students WHERE grade = ?", (class_name,)
                     )
-                    adm_nos = [row[0] for row in self.db._cursor.fetchall()]
+                    adm_nos = [row[0] for row in self.db.cursor().fetchall()]
 
                     # Delete marks for these students
                     for adm_no in adm_nos:
-                        self.db._cursor.execute(
+                        self.db.cursor().execute(
                             f"DELETE FROM {table_name} WHERE adm_no = ?", (adm_no,)
                         )
                     self.db.conn.commit()
@@ -3637,8 +3672,8 @@ class Dashboard(ctk.CTk):
             col_str = ", ".join(select_cols)
             query = f"SELECT {col_str} FROM students s LEFT JOIN {table_name} m ON s.adm_no = m.adm_no WHERE s.grade = ?"
 
-            self.db._cursor.execute(query, (class_name,))
-            rows = self.db._cursor.fetchall()
+            self.db.cursor().execute(query, (class_name,))
+            rows = self.db.cursor().fetchall()
 
             # Convert to JSON
             records = []
@@ -3667,7 +3702,18 @@ class Dashboard(ctk.CTk):
         """Load M-Pesa configuration from separate config file"""
         try:
             json_path = os.path.join(self.USER_DATA_DIR, "mpesa_config.json")
+            
+            # First check if config exists in user data directory
             if os.path.exists(json_path):
+                with open(json_path, "r") as f:
+                    return json.load(f)
+            
+            # If not in user data directory, check bundled location (for executable)
+            bundled_config = os.path.join(self.BASE_DIR, "mpesa_config.json")
+            if os.path.exists(bundled_config):
+                # Copy bundled config to user data directory
+                import shutil
+                shutil.copy2(bundled_config, json_path)
                 with open(json_path, "r") as f:
                     return json.load(f)
         except Exception:

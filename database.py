@@ -10,19 +10,21 @@ else:
     # Running as script
     BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 
-# Save it inside the project folder to avoid Windows Permission errors
-DB_PATH = os.path.join(BASE_DIR, "freeman_data.db")
-
 # For executable, use user data directory for database
 if getattr(sys, 'frozen', False):
     import tempfile
     USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
     os.makedirs(USER_DATA_DIR, exist_ok=True)
     DB_PATH = os.path.join(USER_DATA_DIR, "freeman_data.db")
+    print(f"[EXECUTABLE MODE] Database path: {DB_PATH}")
+else:
+    # Save it inside the project folder for development
+    DB_PATH = os.path.join(BASE_DIR, "freeman_data.db")
+    print(f"[DEV MODE] Database path: {DB_PATH}")
 
-                # Double check if it exists, if not, print where the script THINKs it is
+# Double check if it exists, if not, print where the script THINKs it is
 if not os.path.exists(DB_PATH):
- print(f"WARNING: Database not found at {DB_PATH}. Check your username.")
+    print(f"WARNING: Database not found at {DB_PATH}. A new one will be created.")
 
 class FreemanDB:
     def __init__(self):
@@ -31,10 +33,16 @@ class FreemanDB:
             # Use a different internal name so it doesn't conflict with the function call
             self._cursor = self.conn.cursor()
             print(f"DATABASE ACTIVE AT: {DB_PATH}")
+            print(f"DATABASE CONNECTION ID: {id(self.conn)}")
+            # Check if database has data
+            self._cursor.execute("SELECT COUNT(*) FROM students")
+            count = self._cursor.fetchone()[0]
+            print(f"DATABASE STUDENT COUNT ON INIT: {count}")
         except Exception as e:
             print(f"Desktop Access Denied: {e}. Saving in project folder instead.")
             self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
             self._cursor = self.conn.cursor()
+            print(f"DATABASE CONNECTION ID: {id(self.conn)}")
         
         # Create all tables (run regardless of connection success)
         self.create_table()
@@ -68,10 +76,9 @@ class FreemanDB:
             ''')
             self.conn.commit()
             
-            # Get current migration version
-            self._cursor.execute('SELECT version FROM schema_migrations ORDER BY applied_at DESC LIMIT 1')
-            result = self._cursor.fetchone()
-            current_version = result[0] if result else None
+            # Get all applied migration versions
+            self._cursor.execute('SELECT version FROM schema_migrations ORDER BY applied_at DESC')
+            applied_versions = set(row[0] for row in self._cursor.fetchall())
             
             # Define migrations
             migrations = [
@@ -81,7 +88,7 @@ class FreemanDB:
             
             # Run pending migrations
             for version, migration_func in migrations:
-                if current_version is None or self._compare_versions(version, current_version) > 0:
+                if version not in applied_versions:
                     print(f"Running migration to version {version}")
                     migration_func()
                     self._cursor.execute('INSERT INTO schema_migrations (version) VALUES (?)', (version,))
@@ -123,7 +130,8 @@ class FreemanDB:
 
     def cursor(self):
         """This allows self.db.cursor() to work in your other files!"""
-        return self.conn.cursor()
+        # Return the internal cursor to avoid creating new cursors that might not see committed data
+        return self._cursor
 
     def create_table(self):
         self._cursor.execute('''
@@ -195,14 +203,14 @@ class FreemanDB:
                     except Exception as e:
                         print(f"Alert queued (will retry on startup) - Error: {e}")
             
-            # We use the internal _cursor here
+            # Use public cursor method for consistency
             self._cursor.execute('''
                 INSERT OR REPLACE INTO students (adm_no, name, grade, gender, phone, photo, stream)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (adm, name, grade, gender, phone, photo, stream or "None"))
 
             self.conn.commit()
-            print(f"Successfully committed {name} to {grade}")
+            print(f"Successfully committed {name} to {grade} (Database: {DB_PATH})")
             return True
         except Exception as e:
             print(f"Database Error: {e}")
@@ -364,9 +372,20 @@ class FreemanDB:
                 subject TEXT NOT NULL,
                 teacher_name TEXT NOT NULL,
                 teacher_code TEXT NOT NULL,
+                username TEXT,
+                password TEXT,
                 UNIQUE(class_name, subject)
             )
         ''')
+        # Add username and password columns if they don't exist (for existing databases)
+        self._cursor.execute("PRAGMA table_info(teachers)")
+        columns = [column[1] for column in self._cursor.fetchall()]
+        if 'username' not in columns:
+            self._cursor.execute("ALTER TABLE teachers ADD COLUMN username TEXT")
+            self.conn.commit()
+        if 'password' not in columns:
+            self._cursor.execute("ALTER TABLE teachers ADD COLUMN password TEXT")
+            self.conn.commit()
         self.conn.commit()
 
     def create_student_reports_table(self):
@@ -419,12 +438,12 @@ class FreemanDB:
         ''', (exam_name, class_name))
         self.conn.commit()
 
-    def add_teacher_assignment(self, class_name, subject, teacher_name, teacher_code):
+    def add_teacher_assignment(self, class_name, subject, teacher_name, teacher_code, username=None, password=None):
         """Add or update a teacher-subject assignment"""
         self._cursor.execute('''
-            INSERT OR REPLACE INTO teachers (class_name, subject, teacher_name, teacher_code)
-            VALUES (?, ?, ?, ?)
-        ''', (class_name, subject, teacher_name, teacher_code))
+            INSERT OR REPLACE INTO teachers (class_name, subject, teacher_name, teacher_code, username, password)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (class_name, subject, teacher_name, teacher_code, username, password))
         self.conn.commit()
         print(f"Teacher assignment saved: {teacher_name} for {subject} in {class_name}")
 
@@ -455,7 +474,7 @@ class FreemanDB:
     def get_all_teachers(self):
         """Get all teacher assignments for sync to cloud"""
         self._cursor.execute('''
-            SELECT class_name, subject, teacher_name, teacher_code FROM teachers
+            SELECT class_name, subject, teacher_name, teacher_code, username, password FROM teachers
         ''')
         return self._cursor.fetchall()
 

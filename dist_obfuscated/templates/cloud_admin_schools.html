@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Admin - Schools | Freeman Portal</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #020617;
+            color: #f8fafc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        #canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: -1;
+            width: 100%;
+            height: 100%;
+            opacity: 0.7;
+        }
+
+        .admin-container {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header-section {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px 20px;
+        }
+
+        .header-title {
+            font-size: clamp(28px, 5vw, 42px);
+            font-weight: 900;
+            color: #ffffff;
+            letter-spacing: -1.5px;
+            margin-bottom: 10px;
+        }
+
+        .highlight {
+            color: #10b981;
+        }
+
+        .welcome-text {
+            color: #94a3b8;
+            font-size: clamp(14px, 2.5vw, 16px);
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        .schools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            padding: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .schools-grid {
+                grid-template-columns: 1fr;
+                gap: 16px;
+                padding: 5px;
+            }
+        }
+
+        .school-card {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 20px;
+            padding: 28px 24px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .school-card:hover {
+            transform: translateY(-5px);
+            border-color: #10b981;
+            box-shadow: 0 15px 30px rgba(16, 185, 129, 0.2);
+        }
+
+        .school-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin-bottom: 16px;
+        }
+
+        .school-title {
+            font-size: 20px;
+            font-weight: 800;
+            color: #ffffff;
+            margin-bottom: 8px;
+        }
+
+        .school-code {
+            color: #64748b;
+            font-size: 14px;
+            margin-bottom: 12px;
+            font-family: monospace;
+        }
+
+        .school-detail {
+            color: #94a3b8;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .school-detail strong {
+            color: #cbd5e1;
+        }
+
+        .card-buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn-card {
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 14px;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            flex: 1;
+            min-width: 100px;
+        }
+
+        .btn-edit {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: #ffffff;
+            border: none;
+        }
+
+        .btn-edit:hover {
+            transform: scale(1.02);
+            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-delete {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: #ffffff;
+            border: none;
+        }
+
+        .btn-delete:hover {
+            transform: scale(1.02);
+            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-back {
+            display: inline-block;
+            background: transparent;
+            color: #64748b;
+            border: 2px solid #334155;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 14px;
+            text-decoration: none;
+            margin-top: 30px;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-back:hover {
+            background: #334155;
+            color: #f8fafc;
+            border-color: #475569;
+        }
+
+        .back-container {
+            text-align: center;
+            margin-top: 40px;
+        }
+
+        .no-schools {
+            text-align: center;
+            padding: 60px 20px;
+            color: #64748b;
+            font-size: 18px;
+        }
+
+        .no-schools-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 480px) {
+            .admin-container {
+                padding: 15px;
+            }
+
+            .header-section {
+                padding: 20px 15px;
+                margin-bottom: 30px;
+            }
+
+            .school-card {
+                padding: 24px 20px;
+            }
+
+            .school-icon {
+                width: 50px;
+                height: 50px;
+                font-size: 24px;
+            }
+
+            .school-title {
+                font-size: 18px;
+            }
+
+            .card-buttons {
+                flex-direction: column;
+            }
+
+            .btn-card {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <div class="admin-container">
+        <div class="header-section">
+            <h1 class="header-title">Admin <span class="highlight">Schools</span></h1>
+            <p class="welcome-text">Manage registered schools. You can edit school details or delete schools along with all their data.</p>
+        </div>
+
+        {% if schools %}
+        <div class="schools-grid">
+            {% for s in schools %}
+            <div class="school-card">
+                <div class="school-icon">🏫</div>
+                <h3 class="school-title">{{ s.school_name }}</h3>
+                <p class="school-code">Code: {{ s.school_code }}</p>
+                <p class="school-detail"><strong>Email:</strong> {{ s.email or 'Not provided' }}</p>
+                <p class="school-detail"><strong>Created:</strong> {{ s.created_at }}</p>
+                <p class="school-detail"><strong>Portal:</strong> {{ 'Open' if s.portal_open == 1 else 'Closed' }}</p>
+                <div class="card-buttons">
+                    <a href="{{ url_for('admin_edit_school', school_code=s.school_code) }}" class="btn-card btn-edit">✎ Edit</a>
+                    <form method="post" action="{{ url_for('admin_delete_school', school_code=s.school_code) }}"
+                          onsubmit="return confirm('Delete school {{ s.school_name }}? This will permanently remove all teachers, students, and marks. This action cannot be undone.');">
+                        <button type="submit" class="btn-card btn-delete">🗑 Delete</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="no-schools">
+            <div class="no-schools-icon">📭</div>
+            <p>No schools registered yet.</p>
+        </div>
+        {% endif %}
+
+        <div class="back-container">
+            <a href="{{ url_for('dashboard') }}" class="btn-back">← Back to Dashboard</a>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function init() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            particles = [];
+            for (let i = 0; i < 30; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    vx: (Math.random() - 0.5) * 0.4,
+                    vy: (Math.random() - 0.5) * 0.4,
+                    size: 2.5
+                });
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "rgba(16, 185, 129, 0.6)";
+            ctx.strokeStyle = "rgba(16, 185, 129, 0.3)";
+            ctx.lineWidth = 1.5;
+
+            particles.forEach(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+                if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+
+                particles.forEach(p2 => {
+                    let dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+                    if (dist < 120) {
+                        ctx.beginPath();
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.stroke();
+                    }
+                });
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        init();
+        animate();
+        window.addEventListener('resize', init);
+    </script>
+</body>
+</html>

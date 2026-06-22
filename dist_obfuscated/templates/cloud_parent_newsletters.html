@@ -1,0 +1,763 @@
+{% extends "cloud_base.html" %}
+
+{% block title %}Newsletters - {{ school_name }}{% endblock %}
+
+{% block head %}
+{% endblock %}
+
+{% block content %}
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js"></script>
+
+<!-- FCM Registration Functions -->
+<script>
+    // FCM Token Registration
+    async function registerFCMToken() {
+        console.log('Starting FCM token registration...');
+        try {
+            // Check if Firebase is loaded
+            if (typeof firebase === 'undefined') {
+                console.error('Firebase is not loaded. Check if Firebase SDK scripts are included.');
+                return;
+            }
+            
+            console.log('Firebase is loaded, requesting notification permission...');
+            
+            // Request notification permission
+            const permission = await Notification.requestPermission();
+            console.log('Notification permission:', permission);
+            
+            if (permission !== 'granted') {
+                console.log('Notification permission denied');
+                return;
+            }
+
+            console.log('Permission granted, initializing Firebase...');
+            
+            // Initialize Firebase with your config
+            const firebaseConfig = {
+                apiKey: "AIzaSyDK78eyayqUeCZxl_RwsC1SZEpwIgxK5EE",
+                authDomain: "freeman-2202a.firebaseapp.com",
+                projectId: "freeman-2202a",
+                storageBucket: "freeman-2202a.appspot.com",
+                messagingSenderId: "435924108891",
+                appId: "1:435924108891:web:c074fb7c630cfaff3b617e"
+            };
+
+            // Initialize Firebase if not already initialized
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+                console.log('Firebase initialized');
+            } else {
+                console.log('Firebase already initialized');
+            }
+
+            console.log('Getting FCM token...');
+            
+            // Get FCM token
+            const messaging = firebase.messaging();
+            const token = await messaging.getToken();
+            console.log('FCM Token:', token);
+
+            // Send token to server
+            await sendTokenToServer(token);
+
+        } catch (error) {
+            console.error('Error registering FCM token:', error);
+        }
+    }
+
+    async function sendTokenToServer(token) {
+        try {
+            const studentId = "{{ session.get('parent_student_id') or '' }}";
+            if (!studentId) {
+                console.error('No student_id in session');
+                return;
+            }
+
+            const response = await fetch('/api/register_fcm_token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    student_id: studentId,
+                    token: token,
+                    device_info: navigator.userAgent
+                })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                console.log('FCM token registered successfully');
+            } else {
+                console.error('Failed to register FCM token:', result.message);
+            }
+        } catch (error) {
+            console.error('Error sending token to server:', error);
+        }
+    }
+
+    // Register FCM token on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM loaded, checking Firebase...');
+        setTimeout(function() {
+            if (typeof firebase !== 'undefined') {
+                console.log('Firebase is defined, calling registerFCMToken');
+                registerFCMToken();
+            } else {
+                console.error('Firebase is not defined after 2 seconds');
+                updateFirebaseStatus('Firebase SDK not loaded', 'error');
+            }
+        }, 2000);
+    });
+
+    // Manual trigger for testing
+    window.testFCM = function() {
+        console.log('Manual FCM registration triggered');
+        registerFCMToken();
+    };
+</script>
+
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+    }
+
+    .navbar {
+        display: none;
+    }
+
+    .newsletters-section {
+        min-height: 100vh;
+        padding: 20px;
+        position: relative;
+        overflow-y: auto;
+    }
+
+    .newsletters-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 20px 0;
+    }
+
+    .header-section {
+        background: white;
+        border-radius: 20px;
+        padding: 30px;
+        margin-bottom: 30px;
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+        animation: slideDown 0.5s ease-out;
+    }
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-30px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .header-section h1 {
+        color: #667eea;
+        font-size: 28px;
+        margin-bottom: 10px;
+        font-weight: 700;
+    }
+
+    .header-section p {
+        color: #7f8c8d;
+        font-size: 16px;
+        margin-bottom: 20px;
+    }
+
+    .back-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 24px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        box-shadow: 0 5px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .back-btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 30px rgba(102, 126, 234, 0.5);
+    }
+
+    .newsletter-card {
+        background: white;
+        border-radius: 20px;
+        padding: 30px;
+        margin-bottom: 25px;
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+        animation: fadeInUp 0.6s ease-out;
+        position: relative;
+        overflow: hidden;
+    }
+
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .newsletter-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #667eea, #764ba2, #27ae60);
+        animation: shimmer 3s infinite;
+    }
+
+    .newsletter-card.unread {
+        border-left: 5px solid #27ae60;
+    }
+
+    .unread-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 12px;
+        background: linear-gradient(135deg, #e74c3c, #c0392b);
+        color: white;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        animation: pulse-badge 2s infinite;
+    }
+
+    @keyframes shimmer {
+        0% {
+            background-position: -200% 0;
+        }
+
+        100% {
+            background-position: 200% 0;
+        }
+    }
+
+    .newsletter-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+        transition: all 0.3s ease;
+    }
+
+    .newsletter-card.glow {
+        animation: glow 2s ease-in-out infinite alternate;
+    }
+
+    @keyframes glow {
+        from {
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.15);
+        }
+
+        to {
+            box-shadow: 0 15px 60px rgba(102, 126, 234, 0.4), 0 0 30px rgba(102, 126, 234, 0.2);
+        }
+    }
+
+    .newsletter-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #f0f0f0;
+    }
+
+    .newsletter-title {
+        flex: 1;
+    }
+
+    .newsletter-title h2 {
+        color: #2c3e50;
+        font-size: 22px;
+        margin-bottom: 8px;
+        font-weight: 700;
+    }
+
+    .newsletter-meta {
+        color: #95a5a6;
+        font-size: 13px;
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+    }
+
+    .newsletter-meta span {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .print-btn {
+        padding: 10px 20px;
+        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+    }
+
+    .print-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(52, 152, 219, 0.5);
+    }
+
+    .newsletter-body {
+        color: #34495e;
+        font-size: 15px;
+        line-height: 1.8;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        max-height: 400px;
+        overflow-y: auto;
+        padding-right: 10px;
+    }
+
+    .newsletter-body::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .newsletter-body::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+
+    .newsletter-body::-webkit-scrollbar-thumb {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        border-radius: 10px;
+    }
+
+    .newsletter-body::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(135deg, #764ba2, #667eea);
+    }
+
+    .attachment-section {
+        margin-top: 20px;
+        padding-top: 15px;
+        border-top: 2px solid #f0f0f0;
+    }
+
+    .attachment-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+        color: white;
+        border-radius: 10px;
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 5px 15px rgba(243, 156, 18, 0.3);
+    }
+
+    .attachment-link:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(243, 156, 18, 0.5);
+    }
+
+    .no-newsletters {
+        text-align: center;
+        padding: 60px 40px;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+    }
+
+    .no-newsletters .icon {
+        font-size: 80px;
+        color: #bdc3c7;
+        margin-bottom: 20px;
+    }
+
+    .no-newsletters h3 {
+        color: #7f8c8d;
+        font-size: 24px;
+        margin-bottom: 10px;
+    }
+
+    .no-newsletters p {
+        color: #95a5a6;
+        font-size: 16px;
+    }
+
+    @media (max-width: 768px) {
+        .newsletter-header {
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .newsletter-title h2 {
+            font-size: 18px;
+        }
+
+        .newsletter-body {
+            font-size: 14px;
+            max-height: 300px;
+        }
+    }
+
+    /* Print Styles */
+    @media print {
+        body {
+            background: white !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .newsletters-section {
+            position: static !important;
+            overflow: visible !important;
+        }
+
+        .header-section,
+        .back-btn {
+            display: none !important;
+        }
+
+        .newsletter-card {
+            box-shadow: none !important;
+            border: 1px solid #ddd !important;
+            page-break-inside: avoid;
+            margin-bottom: 20px !important;
+        }
+
+        .newsletter-card::before {
+            display: none !important;
+        }
+
+        .print-btn {
+            display: none !important;
+        }
+
+        .newsletter-body {
+            max-height: none !important;
+            overflow: visible !important;
+        }
+    }
+</style>
+
+<div class="newsletters-section">
+    <div class="newsletters-container">
+        <!-- Header -->
+        <div class="header-section">
+            <h1><i class="fas fa-envelope-open-text"></i> Newsletters & Circulars</h1>
+            <p>{{ school_name }} - {{ student_name }}</p>
+            <a href="{{ url_for('parent_dashboard') }}" class="back-btn">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+
+        <!-- Newsletters List -->
+        {% if newsletters %}
+        {% for newsletter in newsletters %}
+        <div class="newsletter-card glow {% if newsletter.has_viewed == 0 %}unread{% endif %}"
+            id="newsletter-{{ newsletter.id }}" data-newsletter-id="{{ newsletter.id }}">
+            <div class="newsletter-header">
+                <div class="newsletter-title">
+                    <h2>{{ newsletter.subject }}</h2>
+                    <div class="newsletter-meta">
+                        <span><i class="fas fa-calendar"></i> {{ newsletter.published_at[:10] }}</span>
+                        <span><i class="fas fa-users"></i> {{ newsletter.class_context }}</span>
+                        {% if newsletter.has_viewed == 0 %}
+                        <span class="unread-badge"><i class="fas fa-circle"></i> NEW</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="newsletter-body">{{ newsletter.body }}</div>
+
+            {% if newsletter.attachment_path %}
+            <div class="attachment-section">
+                <a href="#" class="attachment-link">
+                    <i class="fas fa-paperclip"></i> View Attachment
+                </a>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="no-newsletters">
+            <div class="icon">
+                <i class="fas fa-inbox"></i>
+            </div>
+            <h3>No Newsletters Yet</h3>
+            <p>Check back later for school announcements and circulars.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    // Mark newsletters as viewed when page loads
+    document.addEventListener('DOMContentLoaded', function () {
+        const newsletterCards = document.querySelectorAll('[data-newsletter-id]');
+        newsletterCards.forEach(function (card) {
+            const newsletterId = card.getAttribute('data-newsletter-id');
+            // Mark as viewed via AJAX
+            fetch('/mark_newsletter_viewed/' + newsletterId, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            }).then(function (response) {
+                if (response.ok) {
+                    // Remove unread styling
+                    card.classList.remove('unread');
+                    const badge = card.querySelector('.unread-badge');
+                    if (badge) {
+                        badge.remove();
+                    }
+                }
+            }).catch(function (error) {
+                console.log('Error marking as viewed:', error);
+            });
+        });
+    });
+
+    function printNewsletter(id) {
+        const newsletterCard = document.getElementById('newsletter-' + id);
+        const originalContent = document.body.innerHTML;
+
+        // Create a print-friendly version
+        const printContent = newsletterCard.outerHTML;
+        const printWindow = window.open('', '_blank');
+
+        if (!printWindow) {
+            alert('Please allow popups for this site to print newsletters');
+            return;
+        }
+
+        printWindow.document.write(
+            '<!DOCTYPE html>' +
+            '<html>' +
+            '<head>' +
+            '<title>Print Newsletter</title>' +
+            '<style>' +
+            'body {' +
+            'font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;' +
+            'padding: 40px;' +
+            'max-width: 800px;' +
+            'margin: 0 auto;' +
+            '}' +
+            '.newsletter-card {' +
+            'border: 1px solid #ddd;' +
+            'border-radius: 10px;' +
+            'padding: 30px;' +
+            'box-shadow: none;' +
+            '}' +
+            '.newsletter-header {' +
+            'display: flex;' +
+            'justify-content: space-between;' +
+            'align-items: flex-start;' +
+            'margin-bottom: 20px;' +
+            'padding-bottom: 15px;' +
+            'border-bottom: 2px solid #f0f0f0;' +
+            '}' +
+            '.newsletter-title h2 {' +
+            'color: #2c3e50;' +
+            'font-size: 22px;' +
+            'margin-bottom: 8px;' +
+            'font-weight: 700;' +
+            '}' +
+            '.newsletter-meta {' +
+            'color: #95a5a6;' +
+            'font-size: 13px;' +
+            '}' +
+            '.newsletter-body {' +
+            'color: #34495e;' +
+            'font-size: 15px;' +
+            'line-height: 1.8;' +
+            'white-space: pre-wrap;' +
+            '}' +
+            '.print-btn, .unread-badge {' +
+            'display: none;' +
+            '}' +
+            '@media print {' +
+            'body { padding: 0; }' +
+            '}' +
+            '</style>' +
+            '</head>' +
+            '<body>' +
+            printContent +
+            '</body>' +
+            '</html>'
+        );
+
+        printWindow.document.close();
+        printWindow.onload = function () {
+            printWindow.print();
+            printWindow.close();
+        };
+    }
+
+    // FCM Token Registration
+    async function registerFCMToken() {
+        console.log('Starting FCM token registration...');
+        try {
+            // Check if Firebase is loaded
+            if (typeof firebase === 'undefined') {
+                console.error('Firebase is not loaded. Check if Firebase SDK scripts are included.');
+                updateFirebaseStatus('Firebase SDK not loaded', 'error');
+                return;
+            }
+            
+            console.log('Firebase is loaded, requesting notification permission...');
+            updateFirebaseStatus('Requesting permission...', 'loading');
+            
+            // Request notification permission
+            const permission = await Notification.requestPermission();
+            console.log('Notification permission:', permission);
+            
+            if (permission !== 'granted') {
+                console.log('Notification permission denied');
+                updateFirebaseStatus('Permission denied - Enable in settings', 'error');
+                return;
+            }
+
+            console.log('Permission granted, initializing Firebase...');
+            updateFirebaseStatus('Permission granted! Initializing...', 'success');
+            
+            // Initialize Firebase with your config (replace with your actual config)
+            const firebaseConfig = {
+                apiKey: "AIzaSyDK78eyayqUeCZxl_RwsC1SZEpwIgxK5EE",  // Get from Firebase Console → Project Settings → General
+                authDomain: "freeman-2202a.firebaseapp.com",
+                projectId: "freeman-2202a",
+                storageBucket: "freeman-2202a.appspot.com",
+                messagingSenderId: "435924108891",  // Get from Firebase Console → Project Settings → General
+                appId: "1:435924108891:web:c074fb7c630cfaff3b617e"  // Get from Firebase Console → Project Settings → General
+            };
+
+            // Initialize Firebase if not already initialized
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+                console.log('Firebase initialized');
+            } else {
+                console.log('Firebase already initialized');
+            }
+
+            console.log('Getting FCM token...');
+            updateFirebaseStatus('Getting FCM token...', 'loading');
+            
+            // Get FCM token
+            const messaging = firebase.messaging();
+            const token = await messaging.getToken();
+            console.log('FCM Token:', token);
+            updateFirebaseStatus('Token obtained! Registering...', 'success');
+
+            // Send token to server
+            await sendTokenToServer(token);
+            updateFirebaseStatus('✓ Notifications enabled!', 'success');
+
+        } catch (error) {
+            console.error('Error registering FCM token:', error);
+            updateFirebaseStatus('Error: ' + error.message, 'error');
+        }
+    }
+
+    async function sendTokenToServer(token) {
+        try {
+            const studentId = "{{ session.get('parent_student_id') or '' }}";
+            if (!studentId) {
+                console.error('No student_id in session');
+                updateFirebaseStatus('Error: No student ID', 'error');
+                return;
+            }
+
+            const response = await fetch('/api/register_fcm_token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    student_id: studentId,
+                    token: token,
+                    device_info: navigator.userAgent
+                })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                console.log('FCM token registered successfully');
+                updateFirebaseStatus('✓ Registered successfully!', 'success');
+            } else {
+                console.error('Failed to register FCM token:', result.message);
+                updateFirebaseStatus('Registration failed: ' + result.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error sending token to server:', error);
+            updateFirebaseStatus('Network error', 'error');
+        }
+    }
+
+    // Handle incoming FCM messages
+    function setupFCMMessageListener() {
+        try {
+            const messaging = firebase.messaging();
+            messaging.onMessage((payload) => {
+                console.log('Received FCM message:', payload);
+                // Show notification
+                if (payload.notification) {
+                    new Notification(payload.notification.title, {
+                        body: payload.notification.body,
+                        icon: '/static/icon-144x144.png'
+                    });
+                }
+            });
+
+            // Handle token refresh
+            messaging.onTokenRefresh(async () => {
+                const newToken = await messaging.getToken();
+                console.log('FCM token refreshed:', newToken);
+                await sendTokenToServer(newToken);
+            });
+        } catch (error) {
+            console.error('Error setting up FCM message listener:', error);
+        }
+    }
+
+    // Request notification permission on page load
+    document.addEventListener('DOMContentLoaded', function () {
+        // FCM registration is now handled by the window.load event in the head section
+        setupFCMMessageListener();
+    });
+</script>
+{% endblock %}

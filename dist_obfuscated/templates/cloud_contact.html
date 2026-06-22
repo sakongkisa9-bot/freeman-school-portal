@@ -1,0 +1,89 @@
+{% extends 'cloud_base.html' %}
+{% block content %}
+<style>
+    .content-container {
+        max-width: 900px;
+        margin: 40px auto;
+        padding: 40px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    
+    .page-title {
+        font-size: 2.5rem;
+        color: #2c3e50;
+        margin-bottom: 30px;
+        text-align: center;
+        border-bottom: 3px solid #3498db;
+        padding-bottom: 15px;
+    }
+    
+    .contact-info {
+        background: #f8f9fa;
+        padding: 30px;
+        border-radius: 8px;
+        margin-bottom: 30px;
+    }
+    
+    .contact-item {
+        margin-bottom: 20px;
+    }
+    
+    .contact-label {
+        font-size: 1.1rem;
+        color: #3498db;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    
+    .contact-value {
+        font-size: 1.2rem;
+        color: #555;
+    }
+    
+    .support-hours {
+        background: #e8f4f8;
+        padding: 20px;
+        border-radius: 8px;
+        border-left: 4px solid #3498db;
+    }
+    
+    .back-link {
+        display: inline-block;
+        margin: 20px 0;
+        color: #3498db;
+        text-decoration: none;
+        font-weight: bold;
+    }
+    
+    .back-link:hover {
+        text-decoration: underline;
+    }
+</style>
+
+<div class="content-container">
+    <a href="{{ url_for('home') }}" class="back-link">← Back to Home</a>
+    
+    <h1 class="page-title">Contact Us</h1>
+    
+    <div class="contact-info">
+        <div class="contact-item">
+            <div class="contact-label">Phone Number</div>
+            <div class="contact-value">0142300062</div>
+        </div>
+        
+        <div class="contact-item">
+            <div class="contact-label">Email</div>
+            <div class="contact-value">kibetmorgan90@gmail.com</div>
+        </div>
+    </div>
+    
+    <div class="support-hours">
+        <div class="contact-label">Support Hours</div>
+        <div class="contact-value" style="margin-top: 10px;">
+            Support available Mon-Fri, 8 AM - 5 PM. We aim to respond to all inquiries within 24 hours.
+        </div>
+    </div>
+</div>
+{% endblock %}
