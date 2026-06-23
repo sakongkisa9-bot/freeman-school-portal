@@ -499,9 +499,12 @@ def authenticate_user(school_code, username, password):
     conn = get_db()
     # Normalize school_code to lowercase to match your register logic
     sc = school_code.strip().lower()
+    print(f"[DEBUG] authenticate_user: school_code={sc}, username={username}")
+    
     school = conn.execute(
         "SELECT * FROM schools WHERE school_code = ?", (sc,)
     ).fetchone()
+    print(f"[DEBUG] school query result: {school}")
 
     if not school:
         conn.close()
@@ -511,11 +514,18 @@ def authenticate_user(school_code, username, password):
         "SELECT * FROM teachers WHERE school_id = ? AND username = ?",
         (school["id"], username.strip().lower()),  # Use [] instead of .get()
     ).fetchone()
+    print(f"[DEBUG] teacher query result: {teacher}")
     conn.close()
 
-    if not teacher or not check_password_hash(teacher["password_hash"], password):
+    if not teacher:
+        print(f"[DEBUG] Teacher not found in database")
+        return None, "Invalid username or password."
+    
+    if not check_password_hash(teacher["password_hash"], password):
+        print(f"[DEBUG] Password hash mismatch")
         return None, "Invalid username or password."
 
+    print(f"[DEBUG] Authentication successful")
     return {"school": school, "teacher": teacher}, None
 
 
