@@ -1715,14 +1715,7 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 rows[row][col] = widget
 
-            # Skip header rows (0 and 1)
-
             for row in sorted(rows.keys()):
-
-                if row < 2:
-
-                    continue
-
                 row_widgets = rows[row]
 
                 if not row_widgets:
