@@ -20,7 +20,12 @@ from grading_logic import get_grade_7_8_rating, get_grade_4_6_rating, calculate_
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(PROJECT_DIR, "templates")
 app = Flask(__name__, template_folder=TEMPLATES_DIR)
+
+# Configure session for Railway (multi-container environment)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-2026")
+app.config["SESSION_COOKIE_SECURE"] = os.environ.get("RAILWAY_ENVIRONMENT") is not None
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 # Custom Jinja2 filter to convert numerical score to rating
 def score_to_rating(score, grade):
@@ -783,7 +788,9 @@ def teacher_login():
 
 @app.route("/dashboard")
 def dashboard():
+    print(f"[DEBUG] Dashboard accessed, session keys: {list(session.keys())}")
     if "school_id" not in session:
+        print(f"[DEBUG] school_id not in session, redirecting to login")
         return redirect(url_for("teacher_login"))
 
     conn = get_db()
