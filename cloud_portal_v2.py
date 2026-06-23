@@ -973,6 +973,7 @@ def api_sync_teachers():
 
         # 4. Insert new teacher assignments and teacher credentials
         for t in teachers_list:
+            print(f"[DEBUG] Processing teacher: {t}")
             # Insert into teacher_assignments
             conn.execute(
                 """
@@ -991,12 +992,14 @@ def api_sync_teachers():
             # Insert into teachers table if username and password are provided
             username = t.get("username", "").strip()
             password = t.get("password", "").strip()
+            print(f"[DEBUG] username='{username}', password='{password}'")
             if username and password:
                 from werkzeug.security import generate_password_hash
                 from datetime import datetime
                 password_hash = generate_password_hash(password)
                 now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 
+                print(f"[DEBUG] Inserting teacher into teachers table")
                 # Check if teacher already exists
                 existing = conn.execute(
                     "SELECT id FROM teachers WHERE school_id = ? AND username = ?",
@@ -1009,6 +1012,7 @@ def api_sync_teachers():
                         "UPDATE teachers SET password_hash = ? WHERE id = ?",
                         (password_hash, existing["id"])
                     )
+                    print(f"[DEBUG] Updated existing teacher")
                 else:
                     # Insert new teacher
                     conn.execute(
@@ -1018,6 +1022,9 @@ def api_sync_teachers():
                     """,
                         (school_id, username, password_hash, "teacher", now)
                     )
+                    print(f"[DEBUG] Inserted new teacher")
+            else:
+                print(f"[DEBUG] Skipping teacher insert - username or password empty")
 
         conn.commit()
         return jsonify(
