@@ -9,8 +9,8 @@
     },
     "cloud_portal_url": "https://freeman-school-portal.up.railway.app",
     "cloud_school_code": "shinners20",
-    "cloud_teacher_username": "shinners",
-    "cloud_teacher_password": "shinners20",
+    "cloud_school_email": "sakongkisa9@gmail.com",
+    "cloud_school_password": "shinners20",
     "system_username": "kibet",
     "system_password": "1659",
     "installation_fee": 5000,
@@ -75,5 +75,5 @@
             "C/A"
         ]
     },
-    "portal_open": true
+    "portal_open": false
 }

@@ -1,21 +1,21 @@
 {
-    "school_name": "",
-    "address": "",
-    "contacts": "",
-    "logo": "",
-    "school_administrator": "",
+    "school_name": "SHINNERS SCHOOL",
+    "address": "P.O.BOX12 MATUNDA",
+    "contacts": "0789087654",
+    "logo": "C:/Users/HomePC/Downloads/images.png",
+    "school_administrator": "MISTER MOSS",
     "signatures": {
-        "headteacher": ""
+        "headteacher": "C:/Users/HomePC/Pictures/SIGNATURE.png"
     },
-    "cloud_portal_url": "",
-    "cloud_school_code": "",
-    "cloud_teacher_username": "",
-    "cloud_teacher_password": "",
-    "system_username": "",
-    "system_password": "",
+    "cloud_portal_url": "https://freeman-school-portal.up.railway.app",
+    "cloud_school_code": "shinners20",
+    "cloud_teacher_username": "shinners",
+    "cloud_teacher_password": "shinners20",
+    "system_username": "kibet",
+    "system_password": "1659",
     "installation_fee": 5000,
     "amount_per_student": 100,
-    "grace_period_days": 1,
+    "grace_period_days": 0,
     "trial_days": 120,
     "premium_days": 120,
     "playgroup_exam_title": "PLAYGROUP ASSESSMENT REPORT",
@@ -75,6 +75,5 @@
             "C/A"
         ]
     },
-    "terms_accepted_version": "1.0",
-    "terms_accepted_date": "2026-06-17"
+    "portal_open": true
 }

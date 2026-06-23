@@ -106,11 +106,9 @@ class TeachersLinkedView(ctk.CTkFrame):
         header_frame.grid_columnconfigure(0, weight=2)
         header_frame.grid_columnconfigure(1, weight=2)
         header_frame.grid_columnconfigure(2, weight=2)
-        header_frame.grid_columnconfigure(3, weight=2)
-        header_frame.grid_columnconfigure(4, weight=2)
-        header_frame.grid_columnconfigure(5, weight=0, minsize=150)
+        header_frame.grid_columnconfigure(3, weight=0, minsize=150)
         
-        cols = ["SUBJECT", "TEACHER NAME", "TEACHER CODE", "USERNAME", "PASSWORD", "ACTIONS"]
+        cols = ["SUBJECT", "TEACHER NAME", "TEACHER CODE", "ACTIONS"]
         for i, text in enumerate(cols):
             lbl = ctk.CTkLabel(header_frame, text=text, font=("Arial Bold", 12), text_color="white")
             lbl.grid(row=0, column=i, padx=10, pady=5, sticky="w")
@@ -123,9 +121,7 @@ class TeachersLinkedView(ctk.CTkFrame):
         row_frame.grid_columnconfigure(0, weight=2)
         row_frame.grid_columnconfigure(1, weight=2)
         row_frame.grid_columnconfigure(2, weight=2)
-        row_frame.grid_columnconfigure(3, weight=2)
-        row_frame.grid_columnconfigure(4, weight=2)
-        row_frame.grid_columnconfigure(5, weight=0, minsize=150)
+        row_frame.grid_columnconfigure(3, weight=0, minsize=150)
         
         # Subject dropdown
         subjects = GRADE_SUBJECTS.get(self.class_name, [])
@@ -149,17 +145,9 @@ class TeachersLinkedView(ctk.CTkFrame):
         teacher_code = ctk.CTkEntry(row_frame, placeholder_text="Teacher Code", fg_color="white", text_color="black", height=30)
         teacher_code.grid(row=0, column=2, padx=2, pady=5, sticky="ew")
         
-        # Username entry
-        username = ctk.CTkEntry(row_frame, placeholder_text="Username", fg_color="white", text_color="black", height=30)
-        username.grid(row=0, column=3, padx=2, pady=5, sticky="ew")
-        
-        # Password entry
-        password = ctk.CTkEntry(row_frame, placeholder_text="Password", fg_color="white", text_color="black", height=30, show="*")
-        password.grid(row=0, column=4, padx=2, pady=5, sticky="ew")
-        
         # Actions frame
         actions_frame = ctk.CTkFrame(row_frame, fg_color="transparent")
-        actions_frame.grid(row=0, column=5, padx=5)
+        actions_frame.grid(row=0, column=3, padx=5)
         
         # Save button
         save_btn = ctk.CTkButton(
@@ -167,7 +155,7 @@ class TeachersLinkedView(ctk.CTkFrame):
             text="✓",
             width=30,
             fg_color="green",
-            command=lambda: self.save_to_db(subject_var, teacher_name, teacher_code, username, password, save_btn, row_frame)
+            command=lambda: self.save_to_db(subject_var, teacher_name, teacher_code, save_btn, row_frame)
         )
         save_btn.pack(side="left", padx=2)
         
@@ -181,19 +169,17 @@ class TeachersLinkedView(ctk.CTkFrame):
         )
         del_btn.pack(side="left", padx=2)
     
-    def save_to_db(self, subject_var, teacher_name_entry, teacher_code_entry, username_entry, password_entry, btn, row_frame):
+    def save_to_db(self, subject_var, teacher_name_entry, teacher_code_entry, btn, row_frame):
         subject = subject_var.get()
         teacher_name = teacher_name_entry.get().strip()
         teacher_code = teacher_code_entry.get().strip()
-        username = username_entry.get().strip()
-        password = password_entry.get().strip()
         
         if not subject or not teacher_name or not teacher_code:
             messagebox.showwarning("Input Error", "Subject, Teacher Name, and Teacher Code are required!")
             return
         
         try:
-            self.db.add_teacher_assignment(self.class_name, subject, teacher_name, teacher_code, username, password)
+            self.db.add_teacher_assignment(self.class_name, subject, teacher_name, teacher_code)
             
             # Lock the row
             for widget in row_frame.winfo_children():

@@ -372,20 +372,9 @@ class FreemanDB:
                 subject TEXT NOT NULL,
                 teacher_name TEXT NOT NULL,
                 teacher_code TEXT NOT NULL,
-                username TEXT,
-                password TEXT,
                 UNIQUE(class_name, subject)
             )
         ''')
-        # Add username and password columns if they don't exist (for existing databases)
-        self._cursor.execute("PRAGMA table_info(teachers)")
-        columns = [column[1] for column in self._cursor.fetchall()]
-        if 'username' not in columns:
-            self._cursor.execute("ALTER TABLE teachers ADD COLUMN username TEXT")
-            self.conn.commit()
-        if 'password' not in columns:
-            self._cursor.execute("ALTER TABLE teachers ADD COLUMN password TEXT")
-            self.conn.commit()
         self.conn.commit()
 
     def create_student_reports_table(self):
@@ -438,12 +427,12 @@ class FreemanDB:
         ''', (exam_name, class_name))
         self.conn.commit()
 
-    def add_teacher_assignment(self, class_name, subject, teacher_name, teacher_code, username=None, password=None):
+    def add_teacher_assignment(self, class_name, subject, teacher_name, teacher_code):
         """Add or update a teacher-subject assignment"""
         self._cursor.execute('''
-            INSERT OR REPLACE INTO teachers (class_name, subject, teacher_name, teacher_code, username, password)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (class_name, subject, teacher_name, teacher_code, username, password))
+            INSERT OR REPLACE INTO teachers (class_name, subject, teacher_name, teacher_code)
+            VALUES (?, ?, ?, ?)
+        ''', (class_name, subject, teacher_name, teacher_code))
         self.conn.commit()
         print(f"Teacher assignment saved: {teacher_name} for {subject} in {class_name}")
 
@@ -474,7 +463,7 @@ class FreemanDB:
     def get_all_teachers(self):
         """Get all teacher assignments for sync to cloud"""
         self._cursor.execute('''
-            SELECT class_name, subject, teacher_name, teacher_code, username, password FROM teachers
+            SELECT class_name, subject, teacher_name, teacher_code FROM teachers
         ''')
         return self._cursor.fetchall()
 

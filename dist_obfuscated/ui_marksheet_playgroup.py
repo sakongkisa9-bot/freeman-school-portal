@@ -1288,7 +1288,7 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 for row_data, pos in final_list:
 
-                    self.add_student_row_with_data(row_data, pos, read_only=True)
+                    self.add_student_row_with_data(row_data, pos, read_only=self.read_only)
 
             else:
 
@@ -1437,10 +1437,6 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 row = w.grid_info()["row"]
 
-                if row < 2:  # Skip header rows (0 and 1)
-
-                    continue
-
                 if row not in rows:
 
                     rows[row] = []
@@ -1487,16 +1483,14 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 adm_no = res[0]
 
-                # 1. Collect dynamic marks from Entry boxes
-
-                # We skip index 0 (Name) and take the next (num_subs * 2) widgets
+                # 1. Collect dynamic marks from Entry boxes using the grouped widgets list
 
                 marks_data = []
 
                 for i in range(1, (num_subs * 2) + 1):
 
-                    val = widgets[i].get()
-
+                    widget = widgets[i]
+                    val = widget.get() if hasattr(widget, 'get') else None
                     marks_data.append(val if val != "" else None)
 
                 # 2. Collect Totals and Level (The last 3 widgets are Total, Level, Pos)

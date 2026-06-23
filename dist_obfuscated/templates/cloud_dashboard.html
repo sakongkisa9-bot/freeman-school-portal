@@ -286,9 +286,7 @@
                 <h3 class="grade-title">{{ grade }}</h3>
                 <p class="grade-description">Manage students and marks for this class</p>
                 <div class="card-buttons">
-                    {% if session.get('role') == 'admin' %}
                     <a href="{{ url_for('manage_students', grade=grade) }}" class="btn-card btn-primary">👥 Students</a>
-                    {% endif %}
                     <a href="{{ url_for('select_subject', grade=grade) }}" class="btn-card btn-secondary">✏️ Enter Marks</a>
                 </div>
             </div>

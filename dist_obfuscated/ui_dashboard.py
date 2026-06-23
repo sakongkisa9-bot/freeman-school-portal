@@ -1536,6 +1536,8 @@ class Dashboard(ctk.CTk):
                     "subject": row[1] or "",
                     "teacher_name": row[2] or "",
                     "teacher_code": row[3] or "",
+                    "username": row[4] or "",
+                    "password": row[5] or "",
                 }
                 for row in teachers
                 if row[0] and row[1] and row[2] and row[3]
@@ -2384,9 +2386,29 @@ class Dashboard(ctk.CTk):
     def load_students_from_db(self, class_name):
         try:
             # Use the public cursor method for consistency with case-insensitive grade matching
+            print(f"DEBUG: Loading students for class_name='{class_name}'")
+            print(f"DEBUG: Database connection: {self.db.conn}")
+            print(f"DEBUG: Database connection ID: {id(self.db.conn)}")
+            print(f"DEBUG: Database path: {self.db.conn.execute('PRAGMA database_list').fetchall()}")
+            
+            # Check if we're using the same connection as the dashboard
+            print(f"DEBUG: Dashboard DB connection ID: {id(self.db.conn)}")
+            
+            # First, let's check what grades exist in the database
+            print(f"DEBUG: Executing SELECT DISTINCT grade FROM students...")
+            self.db.cursor().execute("SELECT DISTINCT grade FROM students")
+            all_grades = self.db.cursor().fetchall()
+            print(f"DEBUG: All grades in database: {all_grades}")
+            
+            # Check total student count
+            self.db.cursor().execute("SELECT COUNT(*) FROM students")
+            total_count = self.db.cursor().fetchone()[0]
+            print(f"DEBUG: Total students in database: {total_count}")
+            
             self.db.cursor().execute("SELECT adm_no, name, grade, gender, phone, photo, stream FROM students WHERE UPPER(grade) = UPPER(?)", (class_name,))
             records = self.db.cursor().fetchall()
             print(f"DEBUG: Loaded {len(records)} students for grade '{class_name}' from database")
+            print(f"DEBUG: Student records: {records}")
 
             # Clear current list tracker before adding new ones
             self.all_student_rows = []
@@ -2396,6 +2418,8 @@ class Dashboard(ctk.CTk):
 
         except Exception as e:
             print(f"CRITICAL ERROR: {e}")
+            import traceback
+            traceback.print_exc()
 
     def add_locked_row(self, data):
         """Creates a row that is already saved and disabled with perfect alignment"""
