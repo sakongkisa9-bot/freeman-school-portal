@@ -1493,7 +1493,6 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
                     widget = widgets[i]
                     val = widget.get() if hasattr(widget, 'get') else None
                     marks_data.append(val if val != "" else None)
-                    print(f"[DEBUG SAVE] Row {row_idx}, Col {i}, Widget type: {type(widget).__name__}, Value: {val}")
 
                 # 2. Collect Totals and Level (The last 3 widgets are Total, Level, Pos)
 
@@ -1501,7 +1500,6 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 total_val = widgets[-3].get()
                 lvl_val = widgets[-2].get()
-                print(f"[DEBUG SAVE] Row {row_idx}, Total: {total_val}, Level: {lvl_val}")
 
                 # 3. DYNAMIC SQL QUERY
 
