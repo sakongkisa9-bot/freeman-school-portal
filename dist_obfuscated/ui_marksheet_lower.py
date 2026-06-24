@@ -1038,8 +1038,6 @@ class LowerMarkSheetView(ctk.CTkFrame):
             rows = {}
             for w in all_widgets:
                 row = w.grid_info()["row"]
-                if row < 2:  # Skip header rows (0 and 1)
-                    continue
                 if row not in rows:
                     rows[row] = []
                 rows[row].append(w)
@@ -1222,11 +1220,7 @@ class LowerMarkSheetView(ctk.CTkFrame):
                     rows[row] = {}
                 rows[row][col] = widget
 
-            # Skip header rows (0 and 1)
             for row in sorted(rows.keys()):
-                if row < 2:
-                    continue
-
                 row_widgets = rows[row]
                 if not row_widgets:
                     continue

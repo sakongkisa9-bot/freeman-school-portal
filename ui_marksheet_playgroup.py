@@ -1410,7 +1410,9 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
             print(f"Loading/Sorting Error: {e}")
 
     def save_playgroup_marks(self, skip_reload=False):
-
+        # Force focus away from any entry widget to commit values
+        self.table_inner.focus_set()
+        
         success_count = 0
 
         subjects = self.get_subjects_from_json()
@@ -1488,18 +1490,18 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
                 marks_data = []
 
                 for i in range(1, (num_subs * 2) + 1):
-
                     widget = widgets[i]
                     val = widget.get() if hasattr(widget, 'get') else None
                     marks_data.append(val if val != "" else None)
+                    print(f"[DEBUG SAVE] Row {row_idx}, Col {i}, Widget type: {type(widget).__name__}, Value: {val}")
 
                 # 2. Collect Totals and Level (The last 3 widgets are Total, Level, Pos)
 
                 # Position is not saved in the marks table, only Total and Level
 
                 total_val = widgets[-3].get()
-
                 lvl_val = widgets[-2].get()
+                print(f"[DEBUG SAVE] Row {row_idx}, Total: {total_val}, Level: {lvl_val}")
 
                 # 3. DYNAMIC SQL QUERY
 

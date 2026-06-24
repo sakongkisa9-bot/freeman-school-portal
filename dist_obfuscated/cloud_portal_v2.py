@@ -500,11 +500,11 @@ def init_db():
     conn.close()
 
 
-def authenticate_user(school_code, username, password):
+def authenticate_user(school_code, username, password, teacher_code=None):
     conn = get_db()
     # Normalize school_code to lowercase to match your register logic
     sc = school_code.strip().lower()
-    print(f"[DEBUG] authenticate_user: school_code={sc}, username={username}")
+    print(f"[DEBUG] authenticate_user: school_code={sc}, username={username}, teacher_code={teacher_code}")
     
     school = conn.execute(
         "SELECT * FROM schools WHERE school_code = ?", (sc,)
@@ -515,23 +515,28 @@ def authenticate_user(school_code, username, password):
         conn.close()
         return None, "School code not found."
 
-    teacher = conn.execute(
-        "SELECT * FROM teachers WHERE school_id = ? AND username = ?",
-        (school["id"], username.strip().lower()),  # Use [] instead of .get()
-    ).fetchone()
-    print(f"[DEBUG] teacher query result: {teacher}")
-    conn.close()
-
-    if not teacher:
-        print(f"[DEBUG] Teacher not found in database")
+    # Verify password against school password (all teachers use school credentials)
+    if not check_password_hash(school["password_hash"], password):
+        print(f"[DEBUG] Password hash mismatch")
+        conn.close()
         return None, "Invalid username or password."
     
-    if not check_password_hash(teacher["password_hash"], password):
-        print(f"[DEBUG] Password hash mismatch")
-        return None, "Invalid username or password."
-
-    print(f"[DEBUG] Authentication successful")
-    return {"school": school, "teacher": teacher}, None
+    # If teacher_code is provided, verify teacher exists in teacher_assignments
+    if teacher_code:
+        teacher = conn.execute(
+            "SELECT * FROM teacher_assignments WHERE school_id = ? AND teacher_code = ?",
+            (school["id"], teacher_code.strip())
+        ).fetchone()
+        print(f"[DEBUG] teacher query result: {teacher}")
+        if not teacher:
+            conn.close()
+            return None, "Invalid teacher code."
+        
+        print(f"[DEBUG] Authentication successful")
+        return {"school": school, "teacher": teacher}, None
+    
+    print(f"[DEBUG] Authentication successful (school admin)")
+    return {"school": school, "teacher": None}, None
 
 
 def is_admin():
@@ -739,7 +744,7 @@ def teacher_login():
 
             print(f"[DEBUG] Teacher login attempt: school_code={sc}, username={un}, teacher_code={teacher_code}")
 
-            auth, err = authenticate_user(sc, un, pw)
+            auth, err = authenticate_user(sc, un, pw, teacher_code)
             if err:
                 print(f"[DEBUG] Authentication failed: {err}")
                 flash(err, "danger")
@@ -747,33 +752,17 @@ def teacher_login():
 
             print(f"[DEBUG] Authentication successful: {auth}")
 
-            # --- THE FIX IS HERE ---
             # Convert the Row objects to real dictionaries so .get() works elsewhere
             school_data = dict(auth["school"])
-            teacher_data = dict(auth["teacher"])
+            teacher_data = dict(auth["teacher"]) if auth["teacher"] else None
 
             print(f"[DEBUG] school_data: {school_data}, teacher_data: {teacher_data}")
 
-            # Verify teacher code exists in teacher_assignments
-            conn = get_db()
-            teacher_assignment = conn.execute(
-                "SELECT * FROM teacher_assignments WHERE school_id = ? AND teacher_code = ?",
-                (school_data["id"], teacher_code)
-            ).fetchone()
-            conn.close()
-
-            print(f"[DEBUG] teacher_assignment: {teacher_assignment}")
-
-            if not teacher_assignment:
-                print(f"[DEBUG] Teacher code not found in teacher_assignments")
-                flash("Teacher code does not exist. Please contact your administrator.", "danger")
-                return redirect(url_for("teacher_login"))
-
             session["school_id"] = school_data["id"]
             session["school_name"] = school_data["school_name"]
-            session["username"] = teacher_data["username"]
-            session["role"] = teacher_data.get("role", "teacher")  # .get() works now!
-            session["teacher_code"] = teacher_code  # Store teacher code for later verification
+            session["username"] = un  # Use the username from login form (school email)
+            session["role"] = "teacher"
+            session["teacher_code"] = teacher_code
 
             print(f"[DEBUG] Login successful, redirecting to dashboard")
             return redirect(url_for("dashboard"))
@@ -811,33 +800,26 @@ def api_toggle_portal():
     username = data.get("username", "").strip().lower()
     password = data.get("password", "")
 
+    print(f"[DEBUG] toggle_portal: school_code={school_code}, username={username}")
+
     if not school_code or not username or not password:
         return jsonify({"success": False, "message": "Missing credentials"}), 400
 
     conn = get_db()
     try:
-        # Authenticate school and user
+        # Authenticate school
         school = conn.execute(
             "SELECT * FROM schools WHERE school_code = ?", (school_code,)
         ).fetchone()
 
+        print(f"[DEBUG] school query result: {school}")
+
         if not school:
             return jsonify({"success": False, "message": "School not found"}), 404
 
-        # Verify password
+        # Verify password against school password
         if not check_password_hash(school["password_hash"], password):
             return jsonify({"success": False, "message": "Invalid password"}), 401
-
-        # Allow either school admin (from registration) or teachers to toggle portal
-        # Check if username matches school email (admin) or exists in teachers table
-        is_admin = (username == school["email"].strip().lower())
-        teacher = conn.execute(
-            "SELECT * FROM teachers WHERE school_id = ? AND username = ?",
-            (school["id"], username)
-        ).fetchone()
-
-        if not is_admin and not teacher:
-            return jsonify({"success": False, "message": "User not found"}), 404
 
         # Get current portal state
         current_state = school["portal_open"]
@@ -974,11 +956,8 @@ def api_sync_teachers():
         
         # 2. Delete all existing teacher assignments for this school
         conn.execute("DELETE FROM teacher_assignments WHERE school_id = ?", (school_id,))
-        
-        # 3. Delete all existing teachers for this school (to handle credential updates)
-        conn.execute("DELETE FROM teachers WHERE school_id = ?", (school_id,))
 
-        # 4. Insert new teacher assignments and teacher credentials
+        # 3. Insert new teacher assignments
         for t in teachers_list:
             print(f"[DEBUG] Processing teacher: {t}")
             # Insert into teacher_assignments
@@ -995,43 +974,6 @@ def api_sync_teachers():
                     t["teacher_code"],
                 ),
             )
-            
-            # Insert into teachers table if username and password are provided
-            username = t.get("username", "").strip()
-            password = t.get("password", "").strip()
-            print(f"[DEBUG] username='{username}', password='{password}'")
-            if username and password:
-                from werkzeug.security import generate_password_hash
-                from datetime import datetime
-                password_hash = generate_password_hash(password)
-                now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                
-                print(f"[DEBUG] Inserting teacher into teachers table")
-                # Check if teacher already exists
-                existing = conn.execute(
-                    "SELECT id FROM teachers WHERE school_id = ? AND username = ?",
-                    (school_id, username)
-                ).fetchone()
-                
-                if existing:
-                    # Update existing teacher
-                    conn.execute(
-                        "UPDATE teachers SET password_hash = ? WHERE id = ?",
-                        (password_hash, existing["id"])
-                    )
-                    print(f"[DEBUG] Updated existing teacher")
-                else:
-                    # Insert new teacher
-                    conn.execute(
-                        """
-                        INSERT INTO teachers (school_id, username, password_hash, role, created_at)
-                        VALUES (?, ?, ?, ?, ?)
-                    """,
-                        (school_id, username, password_hash, "teacher", now)
-                    )
-                    print(f"[DEBUG] Inserted new teacher")
-            else:
-                print(f"[DEBUG] Skipping teacher insert - username or password empty")
 
         conn.commit()
         return jsonify(
