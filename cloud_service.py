@@ -206,8 +206,6 @@ class CloudService:
             return {"success": False, "message": "No newsletter data available"}
         payload = {
             "school_code": credentials["school_code"],
-            "username": credentials["username"],
-            "password": credentials["password"],
             "newsletter": newsletter_data,
         }
         print(f"DEBUG: Sending newsletter with subject: {newsletter_data.get('subject')}")

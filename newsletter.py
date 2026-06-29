@@ -1160,11 +1160,16 @@ class NewsletterCreator(ctk.CTkToplevel):
     def _sync_to_cloud(self, subject, body):
         """Sync newsletter to cloud portal"""
         try:
-            # Get cloud credentials
-            credentials = ask_cloud_credentials(self)
-            if not credentials:
-                print("Cloud sync cancelled - no credentials provided")
+            # Get cloud credentials (only school code needed now)
+            from cloud_service import get_cloud_url
+            school_code = askstring(
+                "Cloud School Code", "Enter your school code:", parent=self
+            )
+            if not school_code:
+                print("Cloud sync cancelled - no school code provided")
                 return
+            
+            credentials = {"school_code": school_code.strip()}
             
             # Prepare newsletter data
             newsletter_data = {
