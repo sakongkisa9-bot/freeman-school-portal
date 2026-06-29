@@ -28,25 +28,46 @@ def get_grade_4_6_rating(score):
         else: return "BE2"
     except: return ""
 
-def calculate_final_level(total_val, is_primary=False):
-    """Maps total sum to Likuyani scale"""
+def calculate_final_level(total_val, is_primary=False, num_subjects=9):
+    """Maps total sum to Likuyani scale
+    
+    Args:
+        total_val: Total score or points sum
+        is_primary: True for Grade 4-6 (uses raw scores), False for Grade 7-8 (uses points)
+        num_subjects: Number of subjects (default 9, used for dynamic threshold calculation)
+    """
     if is_primary:
-        # Grade 4-6: Using Raw Score Sum (0-900)
-        if total_val >= 540: return "EE1"
-        elif total_val >= 450: return "EE2"
-        elif total_val >= 348: return "ME1"
-        elif total_val >= 246: return "ME2"
-        elif total_val >= 186: return "AE1"
-        elif total_val >= 126: return "AE2"
-        elif total_val >= 66: return "BE1"
-        return "BE2"
+        # Grade 4-6: Using Raw Score Sum (0-900 for 9 subjects)
+        # Scale thresholds dynamically based on number of subjects
+        max_score_per_subject = 100  # Maximum score per subject
+        max_total_score = num_subjects * max_score_per_subject
+        
+        if max_total_score > 0:
+            # Calculate thresholds dynamically based on percentage of maximum possible score
+            if total_val >= int(max_total_score * 0.60): return "EE1"  # 60% or higher
+            elif total_val >= int(max_total_score * 0.50): return "EE2"  # 50% or higher
+            elif total_val >= int(max_total_score * 0.387): return "ME1"  # 38.7% or higher
+            elif total_val >= int(max_total_score * 0.273): return "ME2"  # 27.3% or higher
+            elif total_val >= int(max_total_score * 0.207): return "AE1"  # 20.7% or higher
+            elif total_val >= int(max_total_score * 0.14): return "AE2"  # 14% or higher
+            elif total_val >= int(max_total_score * 0.073): return "BE1"  # 7.3% or higher
+            return "BE2"
+        else:
+            return "BE2"
     else:
-        # Grade 7-8: Using Points Sum (0-72)
-        if total_val >= 66: return "EE1"
-        elif total_val >= 58: return "EE2"
-        elif total_val >= 48: return "ME1"
-        elif total_val >= 38: return "ME2"
-        elif total_val >= 28: return "AE1"
-        elif total_val >= 18: return "AE2"
-        elif total_val >= 9: return "BE1"
-        return "BE2"
+        # Grade 7-8: Using Points Sum (max 8 points per subject)
+        max_points_per_subject = 8  # Maximum points per subject (EE1)
+        max_total_points = num_subjects * max_points_per_subject
+        
+        if max_total_points > 0:
+            # Calculate thresholds dynamically based on percentage of maximum possible points
+            if total_val >= int(max_total_points * 0.90): return "EE1"  # 90% or higher
+            elif total_val >= int(max_total_points * 0.75): return "EE2"  # 75% or higher
+            elif total_val >= int(max_total_points * 0.58): return "ME1"  # 58% or higher
+            elif total_val >= int(max_total_points * 0.41): return "ME2"  # 41% or higher
+            elif total_val >= int(max_total_points * 0.31): return "AE1"  # 31% or higher
+            elif total_val >= int(max_total_points * 0.21): return "AE2"  # 21% or higher
+            elif total_val >= int(max_total_points * 0.11): return "BE1"  # 11% or higher
+            return "BE2"
+        else:
+            return "BE2"

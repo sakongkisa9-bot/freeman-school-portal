@@ -1080,13 +1080,14 @@ def enter_marks(grade):
             scores[subject] = {"score": score, "rating": rating, "points": points}
 
             # 4. Calculate total points and average level across all subjects
+            num_subjects = len(scores)
             if is_jss:
                 # JSS uses points sum for total
                 total_points = 0
                 for subj, data in scores.items():
                     if data.get("points"):
                         total_points += int(data["points"])
-                avg_level = calculate_final_level(total_points, is_primary=False)
+                avg_level = calculate_final_level(total_points, is_primary=False, num_subjects=num_subjects)
             else:
                 # Other grades use raw score sum for total
                 total_points = 0
@@ -1096,7 +1097,7 @@ def enter_marks(grade):
                             total_points += int(data["score"])
                         except ValueError:
                             pass
-                avg_level = calculate_final_level(total_points, is_primary=True)
+                avg_level = calculate_final_level(total_points, is_primary=True, num_subjects=num_subjects)
 
             conn.execute(
                 """
@@ -1289,10 +1290,12 @@ def api_get_marks():
         if db_avg_level is None:
             # Calculate average level from total_points
             total_points_int = int(db_total_points) if db_total_points else 0
+            # Get number of subjects from the scores JSON
+            num_subjects = len(json.loads(row["subject_scores_json"])) if row and row.get("subject_scores_json") else 9
             if is_jss:
-                avg_level = calculate_final_level(total_points_int, is_primary=False)
+                avg_level = calculate_final_level(total_points_int, is_primary=False, num_subjects=num_subjects)
             else:
-                avg_level = calculate_final_level(total_points_int, is_primary=True)
+                avg_level = calculate_final_level(total_points_int, is_primary=True, num_subjects=num_subjects)
             db_avg_level = avg_level
             print(f"DEBUG API: Calculated avg_level={avg_level} from total_points={total_points_int}")
         else:
