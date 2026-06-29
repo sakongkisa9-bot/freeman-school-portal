@@ -2391,8 +2391,12 @@ def parent_report():
         logging.info(f"School details - administrator: {school_administrator}, signature: {'present' if school_signature else 'missing'}")
         
         # Log current marks keys for debugging
-        current_marks_keys = list(report_data.get('current_marks', {}).keys())
-        logging.info(f"Current marks keys (first 10): {current_marks_keys[:10]}")
+        if report_data:
+            current_marks_keys = list(report_data.get('current_marks', {}).keys())
+            logging.info(f"Current marks keys (first 10): {current_marks_keys[:10]}")
+        else:
+            current_marks_keys = []
+            logging.info("No report data available, current_marks_keys set to empty")
         # Extract subject names from current marks keys
         subject_names = []
         for key in current_marks_keys:

@@ -25,19 +25,28 @@ from cloud_service import (
 )
 
 import os
+import sys
+
+
+def get_app_dir():
+    """Get the application directory, handling both script and executable environments"""
+    if getattr(sys, 'frozen', False):
+        # Running as executable
+        BASE_DIR = sys._MEIPASS
+        USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
+        os.makedirs(USER_DATA_DIR, exist_ok=True)
+    else:
+        # Running as script
+        BASE_DIR = os.path.dirname(os.path.realpath(__file__))
+        USER_DATA_DIR = BASE_DIR
+    return BASE_DIR, USER_DATA_DIR
 
 
 class PrimaryMarkSheetView(ctk.CTkFrame):
 
     def get_json_path(self):
-
-        import os
-
-        # This automatically finds the folder where the script is running
-
-        return os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "school_config.json"
-        )
+        # Use USER_DATA_DIR for config file (works in both script and executable)
+        return os.path.join(self.USER_DATA_DIR, "school_config.json")
 
     def __init__(
         self,
@@ -53,6 +62,8 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
         super().__init__(parent, fg_color="transparent")
 
         self.db = db_connection
+        # Initialize proper paths for executable environment
+        self.BASE_DIR, self.USER_DATA_DIR = get_app_dir()
 
         self.class_name = class_name
 
@@ -1303,11 +1314,11 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
             print(f"Loading/Sorting Error: {e}")
 
     def save_primary_marks(self, skip_reload=False):
-
+        # Force focus away from any entry widget to commit values
+        self.table_inner.focus_set()
+        
         success_count = 0
-
         subjects = self.get_subjects_from_json()
-
         num_subs = len(subjects)
 
         try:

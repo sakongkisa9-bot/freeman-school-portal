@@ -1,9 +1,24 @@
 import os
+import sys
 import json
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 from fpdf import FPDF
 from grading_logic import get_grade_4_6_rating, get_grade_7_8_rating
+
+
+def get_app_dir():
+    """Get the application directory, handling both script and executable environments"""
+    if getattr(sys, 'frozen', False):
+        # Running as executable
+        BASE_DIR = sys._MEIPASS
+        USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
+        os.makedirs(USER_DATA_DIR, exist_ok=True)
+    else:
+        # Running as script
+        BASE_DIR = os.path.dirname(os.path.realpath(__file__))
+        USER_DATA_DIR = BASE_DIR
+    return BASE_DIR, USER_DATA_DIR
 
 LEVEL_ORDER = ["EE1", "EE2", "ME1", "ME2", "AE1", "AE2", "BE1", "BE2"]
 LEVEL_POINTS = {"EE1": 8, "EE2": 7, "ME1": 6, "ME2": 5, "AE1": 4, "AE2": 3, "BE1": 2, "BE2": 1}
@@ -22,6 +37,8 @@ class ClassSummaryView(ctk.CTkFrame):
         super().__init__(parent, fg_color="transparent")
         self.db = db_connection
         self.class_name = class_name
+        # Initialize proper paths for executable environment
+        self.BASE_DIR, self.USER_DATA_DIR = get_app_dir()
         self.grade_type, self.table_name = self.resolve_class_metadata(class_name)
         self.school_config = self.load_school_config()
         self.subjects = self.get_subjects_from_json(self.grade_type)
@@ -41,7 +58,8 @@ class ClassSummaryView(ctk.CTkFrame):
         self.create_bottom_controls()
 
     def get_json_path(self):
-        return os.path.join(os.path.dirname(os.path.realpath(__file__)), 'school_config.json')
+        # Use USER_DATA_DIR for config file (works in both script and executable)
+        return os.path.join(self.USER_DATA_DIR, 'school_config.json')
 
     def load_school_config(self):
         try:

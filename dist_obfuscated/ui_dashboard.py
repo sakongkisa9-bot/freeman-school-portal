@@ -625,17 +625,17 @@ class Dashboard(ctk.CTk):
             config = self.load_school_config()
             cloud_url = config.get("cloud_portal_url", "").strip()
             cloud_school_code = config.get("cloud_school_code", "").strip()
-            cloud_school_email = config.get("cloud_school_email", "").strip()
-            cloud_school_password = config.get("cloud_school_password", "").strip()
+            cloud_teacher_username = config.get("cloud_teacher_username", "").strip()
+            cloud_teacher_password = config.get("cloud_teacher_password", "").strip()
 
-            if not cloud_url or not cloud_school_code or not cloud_school_email:
+            if not cloud_url or not cloud_school_code or not cloud_teacher_username:
                 print("[PROMOTION] Cloud portal not configured, skipping sync")
             else:
-                if cloud_school_password:
+                if cloud_teacher_password:
                     credentials = {
                         "school_code": cloud_school_code,
-                        "username": cloud_school_email,
-                        "password": cloud_school_password,
+                        "username": cloud_teacher_username,
+                        "password": cloud_teacher_password,
                     }
                     try:
                         self.sync_students_to_cloud(credentials)
@@ -1636,7 +1636,7 @@ class Dashboard(ctk.CTk):
         cloud_config = self.load_school_config()
         cloud_url = cloud_config.get("cloud_portal_url", "").strip()
         cloud_school_code = cloud_config.get("cloud_school_code", "").strip()
-        cloud_school_email = cloud_config.get("cloud_school_email", "").strip()
+        cloud_teacher_username = cloud_config.get("cloud_teacher_username", "").strip()
 
         # Toggle portal state
         if not self.portal_open:
@@ -1667,15 +1667,15 @@ class Dashboard(ctk.CTk):
                 messagebox.showinfo("Portal Active", "\n".join(portal_text))
 
                 # Toggle cloud portal if configured
-                if cloud_school_code and cloud_school_email and cloud_url:
-                    cloud_school_password = cloud_config.get(
-                        "cloud_school_password", ""
+                if cloud_school_code and cloud_teacher_username and cloud_url:
+                    cloud_teacher_password = cloud_config.get(
+                        "cloud_teacher_password", ""
                     ).strip()
-                    if cloud_school_password:
+                    if cloud_teacher_password:
                         credentials = {
                             "school_code": cloud_school_code,
-                            "username": cloud_school_email,
-                            "password": cloud_school_password,
+                            "username": cloud_teacher_username,
+                            "password": cloud_teacher_password,
                         }
                     else:
                         credentials = ask_cloud_credentials(self)
@@ -1720,15 +1720,15 @@ class Dashboard(ctk.CTk):
         else:
             # Close portal
             cloud_close_success = True
-            if cloud_school_code and cloud_school_email and cloud_url:
-                cloud_school_password = cloud_config.get(
-                    "cloud_school_password", ""
+            if cloud_school_code and cloud_teacher_username and cloud_url:
+                cloud_teacher_password = cloud_config.get(
+                    "cloud_teacher_password", ""
                 ).strip()
-                if cloud_school_password:
+                if cloud_teacher_password:
                     credentials = {
                         "school_code": cloud_school_code,
-                        "username": cloud_school_email,
-                        "password": cloud_school_password,
+                        "username": cloud_teacher_username,
+                        "password": cloud_teacher_password,
                     }
                 else:
                     credentials = ask_cloud_credentials(self)
@@ -1776,21 +1776,21 @@ class Dashboard(ctk.CTk):
         config = self.load_school_config()
         cloud_url = config.get("cloud_portal_url", "").strip()
         cloud_school_code = config.get("cloud_school_code", "").strip()
-        cloud_school_email = config.get("cloud_school_email", "").strip()
-        cloud_school_password = config.get("cloud_school_password", "").strip()
+        cloud_teacher_username = config.get("cloud_teacher_username", "").strip()
+        cloud_teacher_password = config.get("cloud_teacher_password", "").strip()
 
-        if not cloud_url or not cloud_school_code or not cloud_school_email:
+        if not cloud_url or not cloud_school_code or not cloud_teacher_username:
             messagebox.showwarning(
                 "Cloud Sync",
                 "Cloud portal is not fully configured. Please register the school or add cloud portal settings in school_config.json.",
             )
             return
 
-        if cloud_school_password:
+        if cloud_teacher_password:
             credentials = {
                 "school_code": cloud_school_code,
-                "username": cloud_school_email,
-                "password": cloud_school_password,
+                "username": cloud_teacher_username,
+                "password": cloud_teacher_password,
             }
         else:
             credentials = ask_cloud_credentials(self)
@@ -3106,21 +3106,21 @@ class Dashboard(ctk.CTk):
 
         cloud_config = self.load_school_config()
         cloud_school_code = cloud_config.get("cloud_school_code", "").strip()
-        cloud_school_email = cloud_config.get("cloud_school_email", "").strip()
-        cloud_school_password = cloud_config.get("cloud_school_password", "").strip()
+        cloud_teacher_username = cloud_config.get("cloud_teacher_username", "").strip()
+        cloud_teacher_password = cloud_config.get("cloud_teacher_password", "").strip()
 
-        if not cloud_school_code or not cloud_school_email:
+        if not cloud_school_code or not cloud_teacher_username:
             messagebox.showwarning(
                 "Cloud Not Configured",
                 "Please configure cloud credentials in school settings.",
             )
             return None
 
-        if cloud_school_password:
+        if cloud_teacher_password:
             return {
                 "school_code": cloud_school_code,
-                "username": cloud_school_email,
-                "password": cloud_school_password,
+                "username": cloud_teacher_username,
+                "password": cloud_teacher_password,
             }
         else:
             return ask_cloud_credentials(self)

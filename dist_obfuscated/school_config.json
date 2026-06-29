@@ -9,7 +9,7 @@
     },
     "cloud_portal_url": "https://freeman-school-portal.up.railway.app",
     "cloud_school_code": "shinners20",
-    "cloud_teacher_username": "sakongkisa9@gmail.com",
+    "cloud_teacher_username": "shinners20",
     "cloud_teacher_password": "shinners20",
     "system_username": "kibet",
     "system_password": "1659",
@@ -18,7 +18,7 @@
     "grace_period_days": 0,
     "trial_days": 120,
     "premium_days": 120,
-    "playgroup_exam_title": "PLAYGROUP ASSESSMENT REPORT",
+    "playgroup_exam_title": "MAT",
     "primary_exam_title": "PRIMARY SCHOOL MERIT LIST",
     "jss_exam_title": "JUNIOR SECONDARY ASSESSMENT",
     "subjects": {
@@ -75,5 +75,6 @@
             "C/A"
         ]
     },
-    "portal_open": true
+    "portal_open": false,
+    "current_exam_title": "JOWKER"
 }
