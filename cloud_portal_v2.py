@@ -1080,27 +1080,23 @@ def enter_marks(grade):
             scores[subject] = {"score": score, "rating": rating, "points": points}
 
             # 4. Calculate total points and average level across all subjects
-            total_points = 0
-            subject_count = 0
-            for subj, data in scores.items():
-                if data.get("points"):
-                    total_points += int(data["points"])
-                    subject_count += 1
-
-            # Calculate average level
             if is_jss:
-                # JSS uses points sum for final level
+                # JSS uses points sum for total
+                total_points = 0
+                for subj, data in scores.items():
+                    if data.get("points"):
+                        total_points += int(data["points"])
                 avg_level = calculate_final_level(total_points, is_primary=False)
             else:
-                # Primary uses raw score sum for final level
-                total_score = 0
+                # Other grades use raw score sum for total
+                total_points = 0
                 for subj, data in scores.items():
                     if data.get("score"):
                         try:
-                            total_score += int(data["score"])
+                            total_points += int(data["score"])
                         except ValueError:
                             pass
-                avg_level = calculate_final_level(total_score, is_primary=True)
+                avg_level = calculate_final_level(total_points, is_primary=True)
 
             conn.execute(
                 """
@@ -1265,7 +1261,7 @@ def api_get_marks():
         # Calculate total_points only if database value is missing (None)
         # For previous exams, use database total_points if it exists (even if "0")
         if db_total_points is None:
-            # Junior (JSS) uses points for total, all other grades use scores
+            # JSS uses points for total, all other grades use raw scores
             if is_jss:
                 total_points = 0
                 for subject, data in scores.items():
