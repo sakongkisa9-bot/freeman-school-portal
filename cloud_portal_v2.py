@@ -2200,10 +2200,10 @@ def parent_report():
         report = conn.execute(
             """
             SELECT report_data, generated_date FROM student_reports
-            WHERE student_name = ? AND school_name = ? AND adm_no = ?
+            WHERE LOWER(student_name) = ? AND LOWER(school_name) = ? AND adm_no = ?
             ORDER BY generated_date DESC LIMIT 1
             """,
-            (session["parent_student_name"], session["parent_school_name"], session["parent_adm_no"])
+            (session["parent_student_name"].lower(), session["parent_school_name"].lower(), session["parent_adm_no"])
         ).fetchone()
         logging.info(f"Report fetch result: {report is not None}")
         if report:
