@@ -5,6 +5,11 @@
   "deploy": {
     "startCommand": "python cloud_portal_v2.py",
     "restartPolicyType": "on_failure",
-    "restartPolicyMaxRetries": 5
+    "restartPolicyMaxRetries": 5,
+    "healthcheckPath": "/",
+    "healthcheckTimeout": 100
+  },
+  "volumes": {
+    "data": "/data"
   }
 }
