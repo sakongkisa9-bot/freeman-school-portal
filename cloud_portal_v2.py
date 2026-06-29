@@ -17,6 +17,14 @@ from datetime import datetime
 import logging
 from grading_logic import get_grade_7_8_rating, get_grade_4_6_rating, calculate_final_level
 
+# PostgreSQL support
+try:
+    import psycopg2
+    import psycopg2.extras
+    POSTGRES_AVAILABLE = True
+except ImportError:
+    POSTGRES_AVAILABLE = False
+
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(PROJECT_DIR, "templates")
 app = Flask(__name__, template_folder=TEMPLATES_DIR)
@@ -221,7 +229,10 @@ def log_request_info():
 
 from functools import wraps
 
-DB_PATH = "/data/freeman_cloud.db"
+# Database configuration
+# Use PostgreSQL if DATABASE_URL is available (Railway), otherwise use SQLite
+DATABASE_URL = os.environ.get("DATABASE_URL")
+DB_PATH = "/data/freeman_cloud.db" if not DATABASE_URL else None
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -292,7 +303,19 @@ SYSTEM_ADMIN_KEY = "16592@FREE man"
 
 
 def get_db():
-    # Ensure database directory exists
+    """Get database connection (PostgreSQL or SQLite)"""
+    if DATABASE_URL and POSTGRES_AVAILABLE:
+        # Use PostgreSQL
+        try:
+            conn = psycopg2.connect(DATABASE_URL)
+            conn.autocommit = True
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            logging.info("Database connected: PostgreSQL")
+            return PostgresConnection(conn, cursor)
+        except Exception as e:
+            logging.error(f"PostgreSQL connection failed: {e}, falling back to SQLite")
+    
+    # Fallback to SQLite
     db_dir = os.path.dirname(DB_PATH)
     if db_dir and not os.path.exists(db_dir):
         os.makedirs(db_dir, exist_ok=True)
@@ -301,15 +324,100 @@ def get_db():
     conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
     logging.info(f"Database connected at: {DB_PATH}")
-    return conn
+    return SQLiteConnection(conn)
+
+
+class PostgresConnection:
+    """Wrapper for PostgreSQL connection to match SQLite interface"""
+    def __init__(self, conn, cursor):
+        self.conn = conn
+        self.cursor = cursor
+    
+    def execute(self, query, params=None):
+        if params:
+            self.cursor.execute(query, params)
+        else:
+            self.cursor.execute(query)
+        return self.cursor
+    
+    def fetchone(self):
+        return self.cursor.fetchone()
+    
+    def fetchall(self):
+        return self.cursor.fetchall()
+    
+    def commit(self):
+        self.conn.commit()
+    
+    def rollback(self):
+        self.conn.rollback()
+    
+    def close(self):
+        self.cursor.close()
+        self.conn.close()
+
+
+class SQLiteConnection:
+    """Wrapper for SQLite connection to match PostgreSQL interface"""
+    def __init__(self, conn):
+        self.conn = conn
+    
+    def execute(self, query, params=None):
+        if params:
+            return self.conn.execute(query, params)
+        else:
+            return self.conn.execute(query)
+    
+    def fetchone(self):
+        return self.conn.fetchone()
+    
+    def fetchall(self):
+        return self.conn.fetchall()
+    
+    def commit(self):
+        self.conn.commit()
+    
+    def rollback(self):
+        self.conn.rollback()
+    
+    def close(self):
+        self.conn.close()
 
 
 def init_db():
+    """Initialize database tables (works with both SQLite and PostgreSQL)"""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("""
+    
+    # Determine if using PostgreSQL
+    is_postgres = DATABASE_URL and POSTGRES_AVAILABLE
+    
+    # Helper function to get primary key syntax
+    def get_primary_key():
+        return "SERIAL PRIMARY KEY" if is_postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    
+    # Helper function to add column if not exists
+    def add_column_if_not_exists(table_name, column_name, column_def):
+        if is_postgres:
+            cursor.execute(f"""
+                SELECT column_name FROM information_schema.columns 
+                WHERE table_name = '{table_name}' AND column_name = '{column_name}'
+            """)
+            if not cursor.fetchone():
+                cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_def}")
+                conn.commit()
+        else:
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            columns = [column[1] for column in cursor.fetchall()]
+            if column_name not in columns:
+                cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_def}")
+                conn.commit()
+    
+    pk = get_primary_key()
+    
+    cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS schools (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {pk},
             school_name TEXT NOT NULL,
             school_code TEXT NOT NULL UNIQUE,
             email TEXT,
@@ -321,38 +429,20 @@ def init_db():
             school_logo TEXT
         )
     """)
-    # Add portal_open column if it doesn't exist (for existing databases)
-    cursor.execute("PRAGMA table_info(schools)")
-    columns = [column[1] for column in cursor.fetchall()]
-    if 'portal_open' not in columns:
-        cursor.execute("ALTER TABLE schools ADD COLUMN portal_open INTEGER DEFAULT 0")
-        conn.commit()
-    else:
-        # Update existing schools to have portal_open = 0 (closed) by default
-        cursor.execute("UPDATE schools SET portal_open = 0 WHERE portal_open IS NULL")
-        conn.commit()
     
-    # Add school details columns if they don't exist
-    cursor.execute("PRAGMA table_info(schools)")
-    columns = [column[1] for column in cursor.fetchall()]
-    if 'school_address' not in columns:
-        cursor.execute("ALTER TABLE schools ADD COLUMN school_address TEXT")
-        conn.commit()
-    if 'school_telephone' not in columns:
-        cursor.execute("ALTER TABLE schools ADD COLUMN school_telephone TEXT")
-        conn.commit()
-    if 'school_logo' not in columns:
-        cursor.execute("ALTER TABLE schools ADD COLUMN school_logo TEXT")
-        conn.commit()
-    if 'school_administrator' not in columns:
-        cursor.execute("ALTER TABLE schools ADD COLUMN school_administrator TEXT")
-        conn.commit()
-    if 'school_signature' not in columns:
-        cursor.execute("ALTER TABLE schools ADD COLUMN school_signature TEXT")
-        conn.commit()
-    cursor.execute("""
+    add_column_if_not_exists('schools', 'portal_open', 'INTEGER DEFAULT 0')
+    cursor.execute("UPDATE schools SET portal_open = 0 WHERE portal_open IS NULL")
+    conn.commit()
+    
+    add_column_if_not_exists('schools', 'school_address', 'TEXT')
+    add_column_if_not_exists('schools', 'school_telephone', 'TEXT')
+    add_column_if_not_exists('schools', 'school_logo', 'TEXT')
+    add_column_if_not_exists('schools', 'school_administrator', 'TEXT')
+    add_column_if_not_exists('schools', 'school_signature', 'TEXT')
+    
+    cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS teachers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {pk},
             school_id INTEGER NOT NULL,
             username TEXT NOT NULL,
             password_hash TEXT NOT NULL,
@@ -363,9 +453,10 @@ def init_db():
             FOREIGN KEY(school_id) REFERENCES schools(id)
         )
     """)
-    cursor.execute("""
+    
+    cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS students (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {pk},
             school_id INTEGER NOT NULL,
             grade TEXT NOT NULL,
             adm_no TEXT NOT NULL,
@@ -378,19 +469,13 @@ def init_db():
             FOREIGN KEY(school_id) REFERENCES schools(id)
         )
     """)
-    # Add photo column if it doesn't exist
-    cursor.execute("PRAGMA table_info(students)")
-    columns = [column[1] for column in cursor.fetchall()]
-    if 'photo' not in columns:
-        cursor.execute("ALTER TABLE students ADD COLUMN photo TEXT")
-        conn.commit()
-    # Add stream column if it doesn't exist
-    if 'stream' not in columns:
-        cursor.execute("ALTER TABLE students ADD COLUMN stream TEXT")
-        conn.commit()
-    cursor.execute("""
+    
+    add_column_if_not_exists('students', 'photo', 'TEXT')
+    add_column_if_not_exists('students', 'stream', 'TEXT')
+    
+    cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS marks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {pk},
             school_id INTEGER NOT NULL,
             grade TEXT NOT NULL,
             adm_no TEXT NOT NULL,
@@ -404,9 +489,10 @@ def init_db():
             FOREIGN KEY(school_id) REFERENCES schools(id)
         )
     """)
-    cursor.execute("""
+    
+    cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS teacher_assignments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {pk},
             school_id INTEGER NOT NULL,
             class_name TEXT NOT NULL,
             subject TEXT NOT NULL,
@@ -416,9 +502,10 @@ def init_db():
             FOREIGN KEY(school_id) REFERENCES schools(id)
         )
     """)
-    cursor.execute("""
+    
+    cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS student_reports (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {pk},
             student_name TEXT NOT NULL,
             adm_no TEXT NOT NULL,
             grade TEXT NOT NULL,
@@ -428,9 +515,10 @@ def init_db():
             UNIQUE(student_name, adm_no, school_name, generated_date)
         )
     """)
-    cursor.execute("""
+    
+    cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS previous_exams (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {pk},
             exam_name TEXT,
             class_name TEXT,
             exam_date TEXT,
@@ -439,9 +527,10 @@ def init_db():
             UNIQUE(exam_name, class_name)
         )
     """)
-    cursor.execute("""
+    
+    cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS parent_view_status (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {pk},
             student_id INTEGER NOT NULL,
             content_type TEXT NOT NULL,
             content_id INTEGER NOT NULL,
@@ -453,9 +542,9 @@ def init_db():
         )
     """)
     
-    cursor.execute("""
+    cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS fcm_tokens (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {pk},
             student_id INTEGER NOT NULL,
             token TEXT NOT NULL,
             device_info TEXT,
@@ -465,9 +554,10 @@ def init_db():
             FOREIGN KEY(student_id) REFERENCES students(id)
         )
     """)
-    cursor.execute("""
+    
+    cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS newsletters (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {pk},
             subject TEXT NOT NULL,
             body TEXT NOT NULL,
             target_type TEXT,
@@ -481,9 +571,10 @@ def init_db():
             sent_at TIMESTAMP
         )
     """)
-    cursor.execute("""
+    
+    cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS portal_announcements (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {pk},
             newsletter_id INTEGER,
             subject TEXT NOT NULL,
             body TEXT NOT NULL,
