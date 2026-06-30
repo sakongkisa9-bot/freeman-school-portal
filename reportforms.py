@@ -2,6 +2,7 @@ import customtkinter as ctk
 from tkinter import messagebox, filedialog
 from PIL import Image, ImageDraw, ImageFont
 import os
+import sys
 import json
 from database import FreemanDB
 from cloud_service import CloudService, ask_cloud_credentials
@@ -16,6 +17,16 @@ class ReportFormsView(ctk.CTkToplevel):
         self.db = db
         self.current_class = None
         self.current_student = None
+        
+        # Initialize proper paths for executable environment
+        if getattr(sys, 'frozen', False):
+            # Running as executable
+            self.USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
+            os.makedirs(self.USER_DATA_DIR, exist_ok=True)
+        else:
+            # Running as script
+            self.USER_DATA_DIR = os.path.dirname(os.path.realpath(__file__))
+        
         self.school_config = self.load_school_config()
         
         # Window configuration
@@ -35,8 +46,7 @@ class ReportFormsView(ctk.CTkToplevel):
         
     def load_school_config(self):
         try:
-            current_dir = os.path.dirname(os.path.realpath(__file__))
-            json_path = os.path.join(current_dir, 'school_config.json')
+            json_path = os.path.join(self.USER_DATA_DIR, 'school_config.json')
             if os.path.exists(json_path):
                 with open(json_path, 'r') as f:
                     return json.load(f)

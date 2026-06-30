@@ -2332,7 +2332,8 @@ def parent_report():
                 previous_exams.append({
                     'exam_title': prev_exam['exam_name'],
                     'exam_date': prev_exam['exam_date'],
-                    'average_level': prev_exam.get('average_level')
+                    'average_level': prev_exam.get('average_level'),
+                    'total_points': prev_exam.get('total_points')
                 })
                 marks = prev_exam['marks']
                 # Parse marks if it's a JSON string
