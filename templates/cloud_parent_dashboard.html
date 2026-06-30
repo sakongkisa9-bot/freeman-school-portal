@@ -120,11 +120,7 @@
     }
 
     function updateFCMStatus(message, status) {
-        const statusDiv = document.getElementById('fcm-status');
-        if (statusDiv) {
-            statusDiv.textContent = message;
-            statusDiv.className = 'fcm-status ' + status;
-        }
+        console.log('FCM Status:', message, status);
     }
 
     // Register FCM token on page load
@@ -139,41 +135,8 @@
             }
         }, 2000);
     });
-
-    // Manual trigger for testing
-    window.testFCM = function() {
-        console.log('Manual FCM registration triggered');
-        updateFCMStatus('Button clicked', 'pending');
-        
-        // Log to server that button was clicked
-        fetch('/api/log_fcm_click', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'enable_notifications_clicked' })
-        }).catch(e => console.error('Failed to log click:', e));
-        
-        registerFCMToken();
-    };
 </script>
 
-<!-- Add FCM status indicator and test button -->
-<div style="position: fixed; bottom: 10px; right: 10px; z-index: 9999; display: flex; flex-direction: column; gap: 5px; align-items: flex-end;">
-    <div id="fcm-status" class="fcm-status" style="padding: 5px 10px; font-size: 12px; background: #666; color: white; border-radius: 5px; max-width: 200px;">
-        FCM Status: Checking...
-    </div>
-    <button onclick="testFCM()" style="padding: 5px 10px; font-size: 12px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer;">
-        Enable Notifications
-    </button>
-    <a href="/parent/enable_notifications" style="padding: 5px 10px; font-size: 12px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; display: inline-block;">
-        Enable (Server)
-    </a>
-</div>
-
-<style>
-.fcm-status.success { background: #27ae60 !important; }
-.fcm-status.error { background: #e74c3c !important; }
-.fcm-status.pending { background: #f39c12 !important; }
-</style>
 <style>
     * {
         margin: 0;
