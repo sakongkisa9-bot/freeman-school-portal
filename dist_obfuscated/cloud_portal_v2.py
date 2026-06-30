@@ -1080,27 +1080,24 @@ def enter_marks(grade):
             scores[subject] = {"score": score, "rating": rating, "points": points}
 
             # 4. Calculate total points and average level across all subjects
-            total_points = 0
-            subject_count = 0
-            for subj, data in scores.items():
-                if data.get("points"):
-                    total_points += int(data["points"])
-                    subject_count += 1
-
-            # Calculate average level
+            num_subjects = len(scores)
             if is_jss:
-                # JSS uses points sum for final level
-                avg_level = calculate_final_level(total_points, is_primary=False)
+                # JSS uses points sum for total
+                total_points = 0
+                for subj, data in scores.items():
+                    if data.get("points"):
+                        total_points += int(data["points"])
+                avg_level = calculate_final_level(total_points, is_primary=False, num_subjects=num_subjects)
             else:
-                # Primary uses raw score sum for final level
-                total_score = 0
+                # Other grades use raw score sum for total
+                total_points = 0
                 for subj, data in scores.items():
                     if data.get("score"):
                         try:
-                            total_score += int(data["score"])
+                            total_points += int(data["score"])
                         except ValueError:
                             pass
-                avg_level = calculate_final_level(total_score, is_primary=True)
+                avg_level = calculate_final_level(total_points, is_primary=True, num_subjects=num_subjects)
 
             conn.execute(
                 """
@@ -1265,7 +1262,7 @@ def api_get_marks():
         # Calculate total_points only if database value is missing (None)
         # For previous exams, use database total_points if it exists (even if "0")
         if db_total_points is None:
-            # Junior (JSS) uses points for total, all other grades use scores
+            # JSS uses points for total, all other grades use raw scores
             if is_jss:
                 total_points = 0
                 for subject, data in scores.items():
@@ -1293,10 +1290,12 @@ def api_get_marks():
         if db_avg_level is None:
             # Calculate average level from total_points
             total_points_int = int(db_total_points) if db_total_points else 0
+            # Get number of subjects from the scores JSON
+            num_subjects = len(json.loads(row["subject_scores_json"])) if row and row.get("subject_scores_json") else 9
             if is_jss:
-                avg_level = calculate_final_level(total_points_int, is_primary=False)
+                avg_level = calculate_final_level(total_points_int, is_primary=False, num_subjects=num_subjects)
             else:
-                avg_level = calculate_final_level(total_points_int, is_primary=True)
+                avg_level = calculate_final_level(total_points_int, is_primary=True, num_subjects=num_subjects)
             db_avg_level = avg_level
             print(f"DEBUG API: Calculated avg_level={avg_level} from total_points={total_points_int}")
         else:
@@ -1602,22 +1601,12 @@ def api_save_newsletter():
 
     conn = get_db()
     try:
-        # Verify school and authenticate user
+        # Verify school
         school = conn.execute(
             "SELECT id, school_name FROM schools WHERE school_code = ?", (school_code,)
         ).fetchone()
         if not school:
             return jsonify({"success": False, "message": "School not found. Please check your school code."}), 404
-
-        # Authenticate user credentials
-        teacher = conn.execute(
-            "SELECT * FROM teachers WHERE school_id = ? AND username = ?",
-            (school["id"], username.strip().lower())
-        ).fetchone()
-        
-        if not teacher or not check_password_hash(teacher["password_hash"], password):
-            logging.warning(f"Failed authentication attempt for school_code={school_code}, username={username}")
-            return jsonify({"success": False, "message": "Invalid username or password. Please check your cloud credentials."}), 401
 
         # Create tables if they don't exist
         conn.execute("""
@@ -2200,10 +2189,10 @@ def parent_report():
         report = conn.execute(
             """
             SELECT report_data, generated_date FROM student_reports
-            WHERE student_name = ? AND school_name = ? AND adm_no = ?
+            WHERE LOWER(student_name) = ? AND LOWER(school_name) = ? AND adm_no = ?
             ORDER BY generated_date DESC LIMIT 1
             """,
-            (session["parent_student_name"], session["parent_school_name"], session["parent_adm_no"])
+            (session["parent_student_name"].lower(), session["parent_school_name"].lower(), session["parent_adm_no"])
         ).fetchone()
         logging.info(f"Report fetch result: {report is not None}")
         if report:

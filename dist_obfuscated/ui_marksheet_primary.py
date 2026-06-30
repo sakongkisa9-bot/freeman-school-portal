@@ -1090,7 +1090,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
         # 3. Calculate Final Level using your calculate_final_level (is_primary=True)
 
-        avg_lvl = gl.calculate_final_level(total_score, is_primary=True)
+        avg_lvl = gl.calculate_final_level(total_score, is_primary=True, num_subjects=num_subs)
 
         l_box = widgets[t_idx + 1]
 

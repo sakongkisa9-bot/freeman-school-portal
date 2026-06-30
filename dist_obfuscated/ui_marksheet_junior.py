@@ -541,19 +541,25 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                 total_box.insert(0, str(total_points_sum))
                 total_box.configure(state="disabled")
 
-            # 3. Calculate Average Grade
-            mean_points = total_points_sum / num_subjects if total_points_sum > 0 else 0
-            # Use the same level codes expected by summary distribution
-            grades = [
-                (7.5, "EE1"),
-                (6.5, "EE2"),
-                (5.5, "ME1"),
-                (4.5, "ME2"),
-                (3.5, "AE1"),
-                (2.5, "AE2"),
-                (1.5, "BE1"),
-            ]
-            avg_grade = next((g for p, g in grades if mean_points >= p), "BE2")
+            # 3. Calculate Average Grade using dynamic thresholds based on number of subjects
+            # Scale thresholds: EE1=90% of max points, EE2=75%, ME1=58%, ME2=41%, AE1=31%, AE2=21%, BE1=11%
+            max_points_per_subject = 8  # Maximum points per subject (EE1)
+            max_total_points = num_subjects * max_points_per_subject
+            
+            if max_total_points > 0:
+                # Calculate thresholds dynamically based on percentage of maximum possible points
+                thresholds = [
+                    (int(max_total_points * 0.90), "EE1"),  # 90% or higher
+                    (int(max_total_points * 0.75), "EE2"),  # 75% or higher
+                    (int(max_total_points * 0.58), "ME1"),  # 58% or higher
+                    (int(max_total_points * 0.41), "ME2"),  # 41% or higher
+                    (int(max_total_points * 0.31), "AE1"),  # 31% or higher
+                    (int(max_total_points * 0.21), "AE2"),  # 21% or higher
+                    (int(max_total_points * 0.11), "BE1"),  # 11% or higher
+                ]
+                avg_grade = next((g for t, g in thresholds if total_points_sum >= t), "BE2")
+            else:
+                avg_grade = "BE2"
 
             # Update Average Level Box (inside row_frame)
             avg_widgets = row_frame.grid_slaves(row=0, column=total_box_col + 1)
