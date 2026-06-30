@@ -306,9 +306,34 @@ class ReportFormsView(ctk.CTkToplevel):
                                    font=("Arial Bold", 16), text_color="#2c3e50")
         title_label.pack(pady=10)
 
-        # Student details in a grid layout
-        details_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
-        details_frame.pack(fill="x", padx=20, pady=10)
+        # Main content frame with photo and details
+        content_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
+        content_frame.pack(fill="x", padx=20, pady=10)
+
+        # Student photo frame (left side)
+        photo_frame = ctk.CTkFrame(content_frame, width=150, height=150)
+        photo_frame.pack(side="left", padx=(0, 20), pady=5)
+
+        # Try to load student photo
+        student_photo = student.get('photo', '')
+        if student_photo and os.path.exists(student_photo):
+            try:
+                photo_img = ctk.CTkImage(Image.open(student_photo), size=(140, 140))
+                photo_label = ctk.CTkLabel(photo_frame, image=photo_img, text="")
+                photo_label.pack(pady=5)
+            except Exception as e:
+                print(f"Error loading student photo: {e}")
+                photo_label = ctk.CTkLabel(photo_frame, text="NO\nPHOTO",
+                                         font=("Arial Bold", 12), text_color="gray")
+                photo_label.pack(pady=40)
+        else:
+            photo_label = ctk.CTkLabel(photo_frame, text="NO\nPHOTO",
+                                     font=("Arial Bold", 12), text_color="gray")
+            photo_label.pack(pady=40)
+
+        # Student details frame (right side)
+        details_frame = ctk.CTkFrame(content_frame, fg_color="transparent")
+        details_frame.pack(side="left", fill="both", expand=True, padx=10)
 
         details = [
             ("Student Name:", student['name']),
@@ -969,10 +994,20 @@ class ReportFormsView(ctk.CTkToplevel):
             pdf.cell(0, 5, txt=school_telephone, border=0, ln=1, align="C")
             pdf.ln(5)
 
-            # Student Information Frame
+            # Student Information Frame with photo
             pdf.set_fill_color(240, 240, 240)
-            pdf.rect(10, pdf.get_y(), 277, 25, 'DF')  # Draw frame with fill
+            pdf.rect(10, pdf.get_y(), 277, 35, 'DF')  # Draw frame with fill (increased height for photo)
             
+            # Student photo
+            student_photo = student.get('photo', '')
+            if student_photo and os.path.exists(student_photo):
+                try:
+                    pdf.image(student_photo, 12, pdf.get_y() + 2, 25)
+                except Exception as e:
+                    print(f"Error loading student photo in PDF: {e}")
+            
+            # Student details (offset to the right of photo)
+            pdf.set_xy(40, pdf.get_y() + 2)
             pdf.set_font("Helvetica", "B", 9)
             pdf.cell(30, 6, txt="NAME:", border=0, ln=0)
             pdf.set_font("Helvetica", "", 9)
@@ -986,14 +1021,14 @@ class ReportFormsView(ctk.CTkToplevel):
             pdf.set_font("Helvetica", "B", 9)
             pdf.cell(20, 6, txt="STREAM:", border=0, ln=0)
             pdf.set_font("Helvetica", "", 9)
-            pdf.cell(30, 6, txt=stream, border=0, ln=0)
+            pdf.cell(30, 6, txt=stream, border=0, ln=1)
             
+            pdf.set_xy(40, pdf.get_y() + 2)
             pdf.set_font("Helvetica", "B", 9)
             pdf.cell(20, 6, txt="GRADE:", border=0, ln=0)
             pdf.set_font("Helvetica", "", 9)
-            pdf.cell(30, 6, txt=grade, border=0, ln=1)
+            pdf.cell(30, 6, txt=grade, border=0, ln=0)
             
-            pdf.set_xy(10, pdf.get_y() + 2)
             pdf.set_font("Helvetica", "B", 9)
             pdf.cell(40, 6, txt="CLASS TEACHER:", border=0, ln=0)
             pdf.set_font("Helvetica", "", 9)

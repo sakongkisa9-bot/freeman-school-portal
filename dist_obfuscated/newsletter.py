@@ -1268,7 +1268,7 @@ class NewsletterCreator(ctk.CTkToplevel):
             from reportlab.lib.pagesizes import A4
             from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
             from reportlab.lib.units import inch
-            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Image
             from reportlab.lib import colors
             from reportlab.pdfbase import pdfmetrics
             from reportlab.pdfbase.ttfonts import TTFont
@@ -1289,6 +1289,10 @@ class NewsletterCreator(ctk.CTkToplevel):
             school_name = school_config.get("school_name", "School Name")
             school_address = school_config.get("address", "School Address")
             school_phone = school_config.get("contacts", "")
+            school_logo = school_config.get("logo", "")
+            school_administrator = school_config.get("school_administrator", "")
+            system_password = school_config.get("system_password", "")
+            cloud_teacher_password = school_config.get("cloud_teacher_password", "")
             paybill = school_config.get("paybill", "")
             term_dates = school_config.get("term_dates", "")
             
@@ -1321,7 +1325,17 @@ class NewsletterCreator(ctk.CTkToplevel):
                 leading=14
             )
             
-            # School letterhead
+            # School letterhead with logo
+            if school_logo and os.path.exists(school_logo):
+                try:
+                    # Add logo image
+                    logo = Image(school_logo, width=1.5*inch, height=1.5*inch)
+                    logo.hAlign = 'CENTER'
+                    story.append(logo)
+                    story.append(Spacer(1, 0.1*inch))
+                except Exception as e:
+                    print(f"Error loading logo: {e}")
+            
             story.append(Paragraph(school_name.upper(), title_style))
             story.append(Paragraph(school_address, header_style))
             if school_phone:
@@ -1354,9 +1368,24 @@ class NewsletterCreator(ctk.CTkToplevel):
             
             story.append(Spacer(1, 0.5*inch))
             
-            # Signature block
+            # Signature block with school administrator info
             story.append(Paragraph("<b>_____________________</b>", body_style))
-            story.append(Paragraph("<i>Principal / Head Teacher</i>", body_style))
+            if school_administrator:
+                story.append(Paragraph(f"<b>{school_administrator.upper()}</b>", body_style))
+            else:
+                story.append(Paragraph("<b>Principal / Head Teacher</b>", body_style))
+            
+            # Add administrator credentials
+            if system_password or cloud_teacher_password:
+                story.append(Spacer(1, 0.1*inch))
+                credentials_text = ""
+                if system_password:
+                    credentials_text += f"<b>System Password:</b> {system_password}"
+                if cloud_teacher_password:
+                    if credentials_text:
+                        credentials_text += " | "
+                    credentials_text += f"<b>Portal Password:</b> {cloud_teacher_password}"
+                story.append(Paragraph(credentials_text, body_style))
             
             # Build PDF
             doc.build(story)

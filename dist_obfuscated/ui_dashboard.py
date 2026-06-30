@@ -1986,7 +1986,7 @@ class Dashboard(ctk.CTk):
 
         try:
             # 1. Save to Database
-            self.db.add_student(adm, name, grade, gender, phone, photo, stream)
+            self.db.add_student(adm, name, grade, gender, phone, photo, stream, check_footprint=True)
 
             # 2. Lock the Row visually
             for entry in [

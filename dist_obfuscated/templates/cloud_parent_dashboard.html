@@ -3,6 +3,140 @@
 {% block title %}Parent Dashboard - {{ student_name }}{% endblock %}
 
 {% block content %}
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js"></script>
+
+<!-- FCM Registration Functions -->
+<script>
+    // FCM Token Registration
+    async function registerFCMToken() {
+        console.log('Starting FCM token registration...');
+        updateFCMStatus('Starting registration...', 'pending');
+        
+        try {
+            // Check if Firebase is loaded
+            if (typeof firebase === 'undefined') {
+                console.error('Firebase is not loaded. Check if Firebase SDK scripts are included.');
+                updateFCMStatus('Firebase SDK not loaded', 'error');
+                alert('Error: Firebase SDK not loaded. Please refresh the page.');
+                return;
+            }
+            
+            console.log('Firebase is loaded, requesting notification permission...');
+            updateFCMStatus('Requesting permission...', 'pending');
+            
+            // Request notification permission
+            const permission = await Notification.requestPermission();
+            console.log('Notification permission:', permission);
+            
+            if (permission !== 'granted') {
+                console.log('Notification permission denied');
+                updateFCMStatus('Permission denied', 'error');
+                alert('Notification permission was denied. Please enable notifications in your browser settings.');
+                return;
+            }
+
+            console.log('Permission granted, initializing Firebase...');
+            updateFCMStatus('Initializing Firebase...', 'pending');
+            
+            // Initialize Firebase with your config
+            const firebaseConfig = {
+                apiKey: "AIzaSyDK78eyayqUeCZxl_RwsC1SZEpwIgxK5EE",
+                authDomain: "freeman-2202a.firebaseapp.com",
+                projectId: "freeman-2202a",
+                storageBucket: "freeman-2202a.appspot.com",
+                messagingSenderId: "435924108891",
+                appId: "1:435924108891:web:c074fb7c630cfaff3b617e"
+            };
+
+            // Initialize Firebase if not already initialized
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+                console.log('Firebase initialized');
+            } else {
+                console.log('Firebase already initialized');
+            }
+
+            console.log('Getting FCM token...');
+            updateFCMStatus('Getting token...', 'pending');
+            
+            // Get FCM token
+            const messaging = firebase.messaging();
+            const token = await messaging.getToken();
+            console.log('FCM Token:', token);
+
+            if (!token) {
+                updateFCMStatus('Failed to get token', 'error');
+                alert('Failed to get FCM token. Please try again.');
+                return;
+            }
+
+            // Send token to server
+            await sendTokenToServer(token);
+
+        } catch (error) {
+            console.error('Error registering FCM token:', error);
+            updateFCMStatus('Error: ' + error.message, 'error');
+            alert('Error registering FCM token: ' + error.message);
+        }
+    }
+
+    async function sendTokenToServer(token) {
+        try {
+            const studentId = "{{ session.get('parent_student_id') or '' }}";
+            if (!studentId) {
+                console.error('No student_id in session');
+                updateFCMStatus('No student ID in session', 'error');
+                return;
+            }
+
+            updateFCMStatus('Registering token...', 'pending');
+            
+            const response = await fetch('/api/register_fcm_token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    student_id: studentId,
+                    token: token,
+                    device_info: navigator.userAgent
+                })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                console.log('FCM token registered successfully');
+                updateFCMStatus('✓ Notifications enabled!', 'success');
+            } else {
+                console.error('Failed to register FCM token:', result.message);
+                updateFCMStatus('Registration failed: ' + result.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error sending token to server:', error);
+            updateFCMStatus('Network error', 'error');
+        }
+    }
+
+    function updateFCMStatus(message, status) {
+        console.log('FCM Status:', message, status);
+    }
+
+    // Register FCM token on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM loaded, checking Firebase...');
+        setTimeout(function() {
+            if (typeof firebase !== 'undefined') {
+                console.log('Firebase is defined, calling registerFCMToken');
+                registerFCMToken();
+            } else {
+                console.error('Firebase is not defined after 2 seconds');
+            }
+        }, 2000);
+    });
+</script>
+
 <style>
     * {
         margin: 0;
@@ -810,21 +944,12 @@
                     <td class="left-align">{% if grade in ["Grade 7", "Grade 8", "Grade 9"] %}TOTAL POINTS{% else %}TOTAL SCORES{% endif %}</td>
                     {% set latest_prev_total_list = [] %}
                     {% for prev_exam in previous_exams[:2]|reverse %}
-                        {% set prev_exam_title = prev_exam.exam_title %}
-                        {% set prev_marks = previous_exam_marks.get(prev_exam_title, {}) %}
-                        {# Calculate total POINTS from previous exam marks by converting scores to ratings then to points #}
-                        {% set points_list = [] %}
-                        {% for subject, subject_data in prev_marks.items() %}
-                            {% set score = subject_data.score if subject_data.score is defined else subject_data.get('score', 0) %}
-                            {% set rating = score|score_to_rating(grade) %}
-                            {% set points = rating|rating_to_points %}
-                            {% set _ = points_list.append(points) %}
-                        {% endfor %}
-                        {% set prev_total = points_list|sum %}
-                        {% if loop.last and prev_total > 0 %}
-                            {% set _ = latest_prev_total_list.append(prev_total) %}
+                        {# Use pre-calculated total_points from report data #}
+                        {% set prev_total = prev_exam.total_points if prev_exam.total_points is defined else '-' %}
+                        {% if loop.last and prev_total != '-' and prev_total is not none %}
+                            {% set _ = latest_prev_total_list.append(prev_total|int) %}
                         {% endif %}
-                        <td>{{ prev_total if prev_total > 0 else '-' }}</td>
+                        <td>{{ prev_total if prev_total != '-' and prev_total is not none else '-' }}</td>
                     {% endfor %}
                     {% set latest_prev_total = latest_prev_total_list[0] if latest_prev_total_list else '-' %}
                     {% if not previous_exams or previous_exams|length == 0 %}
@@ -856,24 +981,14 @@
                     <td class="left-align">AVERAGE</td>
                     {% set latest_prev_total_list = [] %}
                     {% for prev_exam in previous_exams[:2]|reverse %}
-                        {% set prev_exam_title = prev_exam.exam_title %}
-                        {% set prev_marks = previous_exam_marks.get(prev_exam_title, {}) %}
-                        {# Calculate average rating level from previous exam marks #}
-                        {% set points_list = [] %}
-                        {% for subject, subject_data in prev_marks.items() %}
-                            {% set score = subject_data.score if subject_data.score is defined else subject_data.get('score', 0) %}
-                            {% set rating = score|score_to_rating(grade) %}
-                            {% set points = rating|rating_to_points %}
-                            {% set _ = points_list.append(points) %}
-                        {% endfor %}
-                        {% set avg_points = points_list|sum / points_list|length if points_list|length > 0 else 0 %}
-                        {% set prev_avg = avg_points|points_to_rating if points_list|length > 0 else '-' %}
-                        {# Also calculate total points for improvement comparison #}
-                        {% set prev_total = points_list|sum %}
-                        {% if loop.last and prev_total > 0 %}
-                            {% set _ = latest_prev_total_list.append(prev_total) %}
+                        {# Use pre-calculated average_level from report data #}
+                        {% set prev_avg = prev_exam.average_level if prev_exam.average_level is defined else '-' %}
+                        {# Also use pre-calculated total_points for improvement comparison #}
+                        {% set prev_total = prev_exam.total_points if prev_exam.total_points is defined else '-' %}
+                        {% if loop.last and prev_total != '-' and prev_total is not none %}
+                            {% set _ = latest_prev_total_list.append(prev_total|int) %}
                         {% endif %}
-                        <td>{{ prev_avg }}</td>
+                        <td>{{ prev_avg if prev_avg != '-' and prev_avg is not none else '-' }}</td>
                     {% endfor %}
                     {% if not previous_exams or previous_exams|length == 0 %}
                         <td>-</td>
@@ -995,21 +1110,11 @@ const examData = [];
 const previousExamsData = [];
 {% if previous_exams %}
 {% for prev_exam in previous_exams %}
-{% set prev_exam_title = prev_exam.exam_title %}
-{% set prev_marks = previous_exam_marks.get(prev_exam_title, {}) %}
-{# Calculate average points from previous exam marks #}
-{% set points_list = [] %}
-{% for subject, subject_data in prev_marks.items() %}
-    {% set score = subject_data.score if subject_data.score is defined else subject_data.get('score', 0) %}
-    {% set rating = score|score_to_rating(grade) %}
-    {% set points = rating|rating_to_points %}
-    {% set _ = points_list.append(points) %}
-{% endfor %}
-{% set avg_points = points_list|sum / points_list|length if points_list|length > 0 else 0 %}
-{% set avg_rating = avg_points|points_to_rating if points_list|length > 0 else 'BE2' %}
+{# Use pre-calculated average_level from report data #}
+{% set prev_avg = prev_exam.average_level if prev_exam.average_level is defined else 'BE2' %}
 previousExamsData.push({
     title: '{{ prev_exam.exam_title[:15] }}',
-    avg: '{{ avg_rating }}'
+    avg: '{{ prev_avg }}'
 });
 {% endfor %}
 {% endif %}

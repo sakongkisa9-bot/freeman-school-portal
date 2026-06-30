@@ -191,6 +191,7 @@ class FreemanDB:
                         from datetime import datetime
                         ns = NotificationService()
                         results = ns.send_alert(message)
+                        print(f"Alert results: {results}")
                         sent_successfully = any(result[1] for result in results)
                         if sent_successfully:
                             # Mark the alert as sent
@@ -199,9 +200,11 @@ class FreemanDB:
                             self.conn.commit()
                             print("Alert sent successfully to Telegram")
                         else:
-                            print("Alert queued (will retry on startup) - Telegram timeout")
+                            print(f"Alert failed to send. Results: {results}")
                     except Exception as e:
                         print(f"Alert queued (will retry on startup) - Error: {e}")
+                        import traceback
+                        traceback.print_exc()
             
             # Use public cursor method for consistency
             self._cursor.execute('''

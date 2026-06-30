@@ -124,6 +124,17 @@ class OCRStudentDialog(ctk.CTkToplevel):
         button_frame = ctk.CTkFrame(main_frame)
         button_frame.pack(fill="x", pady=(0, 10))
         
+        self.add_student_btn = ctk.CTkButton(
+            button_frame,
+            text="➕ Add Student",
+            command=self.add_manual_student,
+            width=150,
+            height=40,
+            fg_color="#3498db",
+            hover_color="#2980b9"
+        )
+        self.add_student_btn.pack(side="right", padx=5)
+
         self.register_btn = ctk.CTkButton(
             button_frame,
             text="✅ Register All Students",
@@ -154,12 +165,14 @@ class OCRStudentDialog(ctk.CTkToplevel):
         1. Click 'Select Image' to choose an image containing a student list
         2. Click 'Extract Students' to process the image with OCR
         3. Review and edit the extracted student data
-        4. Click 'Register All Students' to add them to the system
+        4. Click 'Add Student' to manually add students if OCR missed any
+        5. Click 'Register All Students' to add them to the system
         
         For best results:
         - Use clear, high-resolution images
         - Ensure text is well-lit and readable
         - Use images with tabular or list format
+        - If OCR fails, use 'Add Student' to enter manually
         """
         
         instructions_label = ctk.CTkLabel(
@@ -343,6 +356,22 @@ class OCRStudentDialog(ctk.CTkToplevel):
                 self.register_btn.configure(state="disabled")
                 self.clear_btn.configure(state="disabled")
                 
+    def add_manual_student(self):
+        """Add a new empty student row for manual entry"""
+        new_student = {
+            'adm_no': '',
+            'name': '',
+            'grade': '',
+            'gender': '',
+            'phone': ''
+        }
+        self.extracted_students.append(new_student)
+        self.display_students(self.extracted_students)
+        
+        # Enable register and clear buttons
+        self.register_btn.configure(state="normal")
+        self.clear_btn.configure(state="normal")
+
     def clear_all(self):
         """Clear all extracted students"""
         self.extracted_students = []

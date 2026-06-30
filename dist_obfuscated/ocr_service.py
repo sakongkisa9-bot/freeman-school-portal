@@ -33,7 +33,7 @@ class OCRService:
                 print("Warning: Tesseract not found. Please install Tesseract OCR or include it in the application folder.")
     
     def preprocess_image(self, image_path: str) -> np.ndarray:
-        """Preprocess image for better OCR accuracy"""
+        """Preprocess image for better OCR accuracy - multiple methods"""
         # Read image
         img = cv2.imread(image_path)
         if img is None:
@@ -42,20 +42,28 @@ class OCRService:
         # Convert to grayscale
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         
-        # Apply thresholding to get binary image
-        _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        # Apply adaptive thresholding for better results on uneven lighting
+        binary = cv2.adaptiveThreshold(
+            gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+            cv2.THRESH_BINARY, 11, 2
+        )
         
         # Denoise
         denoised = cv2.fastNlMeansDenoising(binary, h=10)
         
-        # Apply dilation to make text more prominent
+        # Apply morphological operations to enhance text
         kernel = np.ones((2, 2), np.uint8)
         dilated = cv2.dilate(denoised, kernel, iterations=1)
+        eroded = cv2.erode(dilated, kernel, iterations=1)
         
-        return dilated
+        # Invert if needed (Tesseract works better with dark text on light background)
+        if np.mean(eroded) > 127:
+            eroded = cv2.bitwise_not(eroded)
+        
+        return eroded
     
     def extract_text(self, image_path: str) -> str:
-        """Extract text from image using OCR"""
+        """Extract text from image using OCR with multiple configurations"""
         try:
             # Preprocess image
             processed_img = self.preprocess_image(image_path)
@@ -63,19 +71,35 @@ class OCRService:
             # Convert to PIL Image for Tesseract
             pil_img = Image.fromarray(processed_img)
             
-            # Extract text with multiple configurations for better accuracy
-            text = pytesseract.image_to_string(
-                pil_img,
-                config='--psm 6 -c preserve_interword_spaces=1'
-            )
+            # Try multiple PSM modes for better accuracy
+            # PSM 6: Assume a single uniform block of text
+            # PSM 3: Fully automatic page segmentation, but no OSD
+            # PSM 4: Assume a single column of text of variable sizes
+            # PSM 11: Sparse text - find as much text as possible in no particular order
+            psm_modes = [6, 3, 4, 11]
             
-            return text.strip()
+            all_texts = []
+            for psm in psm_modes:
+                try:
+                    config = f'--psm {psm} -c preserve_interword_spaces=1 --oem 3'
+                    text = pytesseract.image_to_string(pil_img, config=config)
+                    if text.strip():
+                        all_texts.append(text.strip())
+                except:
+                    continue
+            
+            # Combine results, preferring longer extractions
+            if all_texts:
+                # Return the longest extraction (likely most complete)
+                return max(all_texts, key=len)
+            
+            return ""
         except Exception as e:
             print(f"OCR Error: {e}")
             return ""
     
     def parse_student_data(self, text: str) -> List[Dict[str, str]]:
-        """Parse extracted text to identify student information"""
+        """Parse extracted text to identify student information - more flexible parsing"""
         students = []
         lines = text.split('\n')
         
@@ -92,22 +116,28 @@ class OCRService:
             
             # Try to identify patterns for student data
             # Pattern: Admission Number (e.g., ADM: 12345 or just 12345)
-            adm_match = re.search(r'(?:ADM|Admission|Adm\s*[:#]?\s*)(\d+)', line, re.IGNORECASE)
+            adm_match = re.search(r'(?:ADM|Admission|Adm|No|Number|\#)\s*[:#]?\s*(\d+)', line, re.IGNORECASE)
             if adm_match:
                 current_student['adm_no'] = adm_match.group(1)
                 continue
             
-            # Pattern: Name (usually the first non-numeric field after ADM)
+            # Pattern: Name (more flexible - any line with mostly letters)
             # Look for lines that contain letters but not many numbers
-            if re.search(r'[A-Za-z]{3,}', line) and not re.search(r'\d{4,}', line):
-                # This might be a name
-                name = re.sub(r'[^A-Za-z\s\-]', '', line).strip()
-                if name and len(name) > 2:
-                    current_student['name'] = name
-                    continue
+            if re.search(r'[A-Za-z]{2,}', line):
+                # Count letters vs numbers
+                letters = len(re.findall(r'[A-Za-z]', line))
+                numbers = len(re.findall(r'\d', line))
+                
+                # If mostly letters, it's likely a name
+                if letters > numbers and letters >= 2:
+                    name = re.sub(r'[^A-Za-z\s\-\']', '', line).strip()
+                    name = ' '.join(name.split())  # Clean up extra spaces
+                    if name and len(name) > 1:
+                        current_student['name'] = name
+                        continue
             
             # Pattern: Grade/Class (e.g., Grade 1, Class 2A, PP1, PP2)
-            grade_match = re.search(r'(?:Grade|Class|Std)\s*(\d+[A-Za-z]?)|PP[12]|Playgroup', line, re.IGNORECASE)
+            grade_match = re.search(r'(?:Grade|Class|Std|Form)\s*(\d+[A-Za-z]?)|PP[12]|Playgroup|Nursery|Baby|KG[12]', line, re.IGNORECASE)
             if grade_match:
                 current_student['grade'] = grade_match.group(0).strip()
                 continue
@@ -123,27 +153,63 @@ class OCRService:
                 continue
             
             # Pattern: Phone number
-            phone_match = re.search(r'(?:Phone|Tel|Contact)\s*[:#]?\s*(\d{10,})', line, re.IGNORECASE)
+            phone_match = re.search(r'(?:Phone|Tel|Contact|Mobile)\s*[:#]?\s*(\d{7,})', line, re.IGNORECASE)
             if phone_match:
                 current_student['phone'] = phone_match.group(1)
                 continue
             
             # If line looks like a complete student record (has name and numbers)
             # Try to parse tab-separated or comma-separated values
-            if '\t' in line or ',' in line:
-                parts = re.split(r'[\t,]', line)
+            if '\t' in line or ',' in line or '|' in line:
+                parts = re.split(r'[\t,|]', line)
                 if len(parts) >= 2:
                     # Try to identify which part is which
                     for part in parts:
                         part = part.strip()
-                        if re.match(r'^\d+$', part) and len(part) >= 4:
+                        if re.match(r'^\d+$', part) and len(part) >= 3:
                             current_student['adm_no'] = part
-                        elif re.search(r'[A-Za-z]{3,}', part) and not re.search(r'\d{4,}', part):
-                            current_student['name'] = part
+                        elif re.search(r'[A-Za-z]{2,}', part):
+                            letters = len(re.findall(r'[A-Za-z]', part))
+                            numbers = len(re.findall(r'\d', part))
+                            if letters > numbers:
+                                name = re.sub(r'[^A-Za-z\s\-\']', '', part).strip()
+                                if name:
+                                    current_student['name'] = name
         
         # Don't forget the last student
         if current_student:
             students.append(current_student)
+        
+        # Fallback: If no students found with structured parsing, try line-by-line parsing
+        if not students:
+            students = self.fallback_parse(lines)
+        
+        return students
+    
+    def fallback_parse(self, lines: List[str]) -> List[Dict[str, str]]:
+        """Fallback parsing for unstructured text"""
+        students = []
+        
+        for line in lines:
+            line = line.strip()
+            if not line or len(line) < 3:
+                continue
+            
+            student = {}
+            
+            # Extract any numbers as potential ADM
+            numbers = re.findall(r'\d{3,}', line)
+            if numbers:
+                student['adm_no'] = numbers[0]
+            
+            # Extract text as potential name
+            text_part = re.sub(r'\d+', '', line)
+            text_part = re.sub(r'[^A-Za-z\s\-\']', '', text_part).strip()
+            if text_part and len(text_part) > 1:
+                student['name'] = text_part
+            
+            if student:
+                students.append(student)
         
         return students
     
