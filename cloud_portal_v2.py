@@ -111,6 +111,8 @@ def rating_to_comment(rating):
     rating_comments = {
         "BE1": "A starting point. Focus on understanding the basic concepts, and I am here to help you practice.",
         "BE2": "You are showing effort, but need more practice on the fundamentals to reach the expected level.",
+        "AE1": "You are approaching the expected level. With more practice, you will master this.",
+        "AE2": "Good effort shown. Keep working on the basics to build a stronger foundation.",
         "ME1": "Good progress. You are grasping the core ideas; continue practicing to gain more confidence.",
         "ME2": "Well done! You are very close to mastering this. Pay close attention to the finer details.",
         "EE1": "Great work! You have successfully demonstrated this competency. Keep up the consistent performance.",
