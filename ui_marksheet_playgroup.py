@@ -1430,6 +1430,8 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
         num_subs = len(subjects)
 
+        print(f"[DEBUG] Starting save for playgroup. Subjects: {subjects}, Count: {num_subs}")
+
         try:
 
             # Playgroup marksheet uses direct grid layout, not row frames
@@ -1438,8 +1440,11 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
             all_widgets = self.table_inner.grid_slaves()
 
+            print(f"[DEBUG] Total widgets found: {len(all_widgets)}")
+
             if not all_widgets:
 
+                print("[DEBUG] No widgets found, returning")
                 return
 
             # Group widgets by row
@@ -1455,6 +1460,9 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
                     rows[row] = []
 
                 rows[row].append(w)
+
+            print(f"[DEBUG] Total rows found: {len(rows)}")
+            print(f"[DEBUG] Row indices: {sorted(rows.keys())}")
 
             for row_idx in sorted(rows.keys()):
 
@@ -1474,12 +1482,16 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 if not hasattr(name_widget, "cget"):
 
+                    print(f"[DEBUG] Row {row_idx}: Name widget has no cget attribute")
                     continue
 
                 student_name = name_widget.cget("text")
 
+                print(f"[DEBUG] Row {row_idx}: Student name: {student_name}")
+
                 if student_name == "STUDENT NAME":
 
+                    print(f"[DEBUG] Row {row_idx}: Skipping header row")
                     continue
 
                 # Get Admission Number
@@ -1492,9 +1504,12 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 if not res:
 
+                    print(f"[DEBUG] Row {row_idx}: No admission number found for {student_name}")
                     continue
 
                 adm_no = res[0]
+
+                print(f"[DEBUG] Row {row_idx}: Admission number: {adm_no}")
 
                 # 1. Collect dynamic marks from Entry boxes using the grouped widgets list
 
@@ -1505,12 +1520,21 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
                     val = widget.get() if hasattr(widget, 'get') else None
                     marks_data.append(val if val != "" else None)
 
+                print(f"[DEBUG] Row {row_idx}: Marks data length: {len(marks_data)}, Expected: {num_subs * 2}")
+
                 # 2. Collect Totals and Level (The last 3 widgets are Total, Level, Pos)
 
                 # Position is not saved in the marks table, only Total and Level
 
                 total_val = widgets[-3].get()
                 lvl_val = widgets[-2].get()
+
+                print(f"[DEBUG] Row {row_idx}: Total: {total_val}, Level: {lvl_val}")
+
+                # Skip rows with empty/None data to prevent overwriting valid marks
+                if total_val is None or total_val == "" or lvl_val is None or lvl_val == "":
+                    print(f"[DEBUG] Row {row_idx}: Skipping row with empty total/level")
+                    continue
 
                 # 3. DYNAMIC SQL QUERY
 
@@ -1542,9 +1566,11 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 final_data = [adm_no] + marks_data + [total_val, lvl_val]
 
+                print(f"[DEBUG] Row {row_idx}: Executing SQL with {len(final_data)} values")
                 self.db.cursor().execute(query, final_data)
 
                 success_count += 1
+                print(f"[DEBUG] Row {row_idx}: Successfully saved. Success count: {success_count}")
 
             self.db.conn.commit()
 

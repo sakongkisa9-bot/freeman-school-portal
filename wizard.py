@@ -298,6 +298,15 @@ class SchoolSetupWizard(ctk.CTkToplevel):
             cloud_url = self.normalize_cloud_url(self.cloud_url_entry.get())
             grace_period_days = int(self.grace_period_entry.get())
             
+            # Load existing config to preserve exam titles and other settings
+            existing_config = {}
+            if os.path.exists(json_path):
+                try:
+                    with open(json_path, 'r') as f:
+                        existing_config = json.load(f)
+                except:
+                    pass
+            
             config_data = {
                 "school_name": name,
                 "address": address,
@@ -320,10 +329,15 @@ class SchoolSetupWizard(ctk.CTkToplevel):
                 "grace_period_days": grace_period_days,
                 "trial_days": int(self.trial_days_entry.get()),
                 "premium_days": int(self.premium_days_entry.get()),
-                # Added Exam Titles so the Playgroup view knows what to display
-                "playgroup_exam_title": "PLAYGROUP ASSESSMENT REPORT",
-                "primary_exam_title": "PRIMARY SCHOOL MERIT LIST",
-                "jss_exam_title": "JUNIOR SECONDARY ASSESSMENT",
+                # Preserve existing exam titles or set defaults if they don't exist
+                "playgroup_exam_title": existing_config.get("playgroup_exam_title", "PLAYGROUP ASSESSMENT REPORT"),
+                "pp1_exam_title": existing_config.get("pp1_exam_title", "PP1 ASSESSMENT REPORT"),
+                "pp2_exam_title": existing_config.get("pp2_exam_title", "PP2 ASSESSMENT REPORT"),
+                "lower_exam_title": existing_config.get("lower_exam_title", "LOWER PRIMARY ASSESSMENT"),
+                "primary_exam_title": existing_config.get("primary_exam_title", "PRIMARY SCHOOL MERIT LIST"),
+                "jss_exam_title": existing_config.get("jss_exam_title", "JUNIOR SECONDARY ASSESSMENT"),
+                "current_exam_title": existing_config.get("current_exam_title", "ASSESSMENT"),
+                "portal_open": existing_config.get("portal_open", False),
 
                 "subjects": {
                     "playgroup": [s.strip().upper() for s in self.playgroup_subs.get().split(',') if s.strip()],

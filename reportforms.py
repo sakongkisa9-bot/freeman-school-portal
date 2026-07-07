@@ -50,6 +50,17 @@ class ReportFormsView(ctk.CTkToplevel):
             if os.path.exists(json_path):
                 with open(json_path, 'r') as f:
                     return json.load(f)
+            else:
+                # If config doesn't exist in USER_DATA_DIR, copy from bundled location
+                if getattr(sys, 'frozen', False):
+                    bundled_config = os.path.join(sys._MEIPASS, "school_config.json")
+                else:
+                    bundled_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "school_config.json")
+                if os.path.exists(bundled_config):
+                    import shutil
+                    shutil.copy2(bundled_config, json_path)
+                    with open(json_path, 'r') as f:
+                        return json.load(f)
         except Exception:
             pass
         return {}
@@ -1438,17 +1449,8 @@ class ReportFormsView(ctk.CTkToplevel):
             return None
         print(f"DEBUG: Current marks found, proceeding with report generation")
         
-        # Determine exam title based on grade
-        grade = student['grade']
-        grade_lower = grade.lower()
-        if grade_lower in ["playgroup", "pp1", "pp2"]:
-            exam_title = self.school_config.get("playgroup_exam_title", "TERM ASSESSMENT")
-        elif grade_lower in ["grade 1", "grade 2", "grade 3", "grade 4", "grade 5", "grade 6"]:
-            exam_title = self.school_config.get("primary_exam_title", "PRIMARY EXAM")
-        elif grade_lower in ["grade 7", "grade 8", "grade 9"]:
-            exam_title = self.school_config.get("jss_exam_title", "JSS ASSESSMENT")
-        else:
-            exam_title = "TERM ASSESSMENT"
+        # Use current_exam_title for consistency with performance history graph
+        exam_title = self.school_config.get("current_exam_title", "PERFORMANCE REPORT")
         
         # Fetch previous exams for this student
         previous_exams_data = []

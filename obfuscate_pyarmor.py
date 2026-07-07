@@ -14,7 +14,7 @@ PROJECT_DIR = Path(__file__).parent
 OBFUSCATED_DIR = PROJECT_DIR / "dist_obfuscated"
 PYARMOR_PATH = Path("C:/Users/HomePC/AppData/Local/Python/pythoncore-3.14-64/Scripts/pyarmor.exe")
 
-# Files to obfuscate
+# Files to obfuscate - ALL Python files in the project
 FILES_TO_OBFUSCATE = [
     'main.py',
     'ui_dashboard.py',
@@ -44,6 +44,8 @@ FILES_TO_OBFUSCATE = [
     'splash.py',
     'ocr_student_dialog.py',
     'ocr_service.py',
+    # Additional utility files
+    'pyarmor_config.py',
 ]
 
 def clean_obfuscated_dir():
@@ -74,15 +76,20 @@ def copy_project_files():
         "assets",
         "templates", 
         "static",
+        "tesseract",
+        # Config files
         "school_config.json",
         "notification_config.json",
         "update_config.json",
         "version.json",
         "mpesa_config.json",
+        # Icon files
         "freeman_icon.ico",
-        "ocr_student_dialog.py",
-        "ocr_service.py",
-        "tesseract",
+        "freeman_icon.png",
+        "freeman_icon_round.ico",
+        "freeman_icon_round.png",
+        # Firebase config (if exists)
+        "firebase-service-account.json",
     ]
     
     for item in items_to_copy:
@@ -150,13 +157,14 @@ def simple_obfuscation():
     
     try:
         # Obfuscate files that don't have complex dependencies first
+        # NOTE: Exclude files with file path handling, complex imports, or used by UI modules
         simple_files = [
             'license_manager.py',
             'security.py', 
-            'database.py',
-            'grading_logic.py',
-            'cloud_service.py',
-            'notification_service.py',
+            # 'database.py',  # EXCLUDED - imports notification_service, PyArmor breaks import handling
+            # 'grading_logic.py',  # EXCLUDED - used by marksheet files, PyArmor breaks import handling
+            # 'cloud_service.py',  # EXCLUDED - used by marksheet files, PyArmor breaks import handling
+            # 'notification_service.py',  # EXCLUDED - PyArmor breaks path handling
             'fcm_service.py',
             'mpesa_service.py',
             'update_manager.py',
@@ -224,7 +232,7 @@ def create_obfuscated_executable():
         pyinstaller_cmd = [
             sys.executable, "-m", "PyInstaller",
             "--onefile",
-            "--windowed",
+            # "--windowed",  # COMMENTED OUT for debugging - enables console
             "--name", "FreemanSchoolPortal_Secure",
             "--icon", "freeman_icon.ico",
             "--clean",
@@ -248,7 +256,7 @@ def create_obfuscated_executable():
             if src_path.exists():
                 pyinstaller_cmd.extend(["--add-data", f"{src};{dst}"])
         
-        # Add hidden imports
+        # Add hidden imports - include ALL modules
         hidden_imports = [
             "customtkinter",
             "PIL",
@@ -265,6 +273,26 @@ def create_obfuscated_executable():
             "cv2",
             "ocr_student_dialog",
             "ocr_service",
+            "cloud_service",
+            "cloud_portal_v2",
+            "notification_service",
+            "fcm_service",
+            "mpesa_service",
+            "update_manager",
+            "newsletter",
+            "network_manager",
+            "hotspot_server",
+            "teachers_linked",
+            "reportforms",
+            "wizard",
+            "splash",
+            "ui_marksheet_playgroup",
+            "ui_marksheet_pp1",
+            "ui_marksheet_pp2",
+            "ui_marksheet_lower",
+            "ui_marksheet_primary",
+            "ui_marksheet_junior",
+            "ui_summary",
         ]
         
         for imp in hidden_imports:

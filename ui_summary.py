@@ -67,6 +67,14 @@ class ClassSummaryView(ctk.CTkFrame):
             if os.path.exists(json_path):
                 with open(json_path, 'r') as f:
                     return json.load(f)
+            else:
+                # If config doesn't exist in USER_DATA_DIR, copy from bundled location
+                bundled_config = os.path.join(self.BASE_DIR, "school_config.json")
+                if os.path.exists(bundled_config):
+                    import shutil
+                    shutil.copy2(bundled_config, json_path)
+                    with open(json_path, 'r') as f:
+                        return json.load(f)
         except Exception:
             pass
         return {}

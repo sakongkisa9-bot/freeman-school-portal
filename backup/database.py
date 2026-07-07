@@ -103,11 +103,15 @@ class FreemanDB:
                         results = ns.send_alert(message)
                         sent_successfully = any(result[1] for result in results)
                         if sent_successfully:
-                            # Mark the alert as sent
-                            self._cursor.execute('UPDATE alert_queue SET status = "sent", sent_at = ? WHERE status = "pending" ORDER BY id DESC LIMIT 1', 
-                                                (datetime.now().strftime("%Y-%m-%d %H:%M:%S"),))
-                            self.conn.commit()
-                            print("Alert sent successfully to Telegram")
+                            # Mark the alert as sent - get the ID first since SQLite doesn't support ORDER BY in UPDATE
+                            self._cursor.execute('SELECT id FROM alert_queue WHERE status = "pending" ORDER BY id DESC LIMIT 1')
+                            result = self._cursor.fetchone()
+                            if result:
+                                alert_id = result[0]
+                                self._cursor.execute('UPDATE alert_queue SET status = "sent", sent_at = ? WHERE id = ?',
+                                                    (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), alert_id))
+                                self.conn.commit()
+                                print("Alert sent successfully to Telegram")
                         else:
                             print("Alert queued (will retry on startup) - Telegram timeout")
                     except Exception as e:

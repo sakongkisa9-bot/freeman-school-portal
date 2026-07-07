@@ -4,6 +4,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import json
 import os
+import sys
 
 
 class NotificationService:
@@ -15,14 +16,30 @@ class NotificationService:
     def load_config(self):
         """Load notification configuration from file"""
         try:
-            config_path = os.path.join(
-                os.path.dirname(os.path.realpath(__file__)), "notification_config.json"
-            )
+            # Handle both development and executable environments
+            if getattr(sys, 'frozen', False):
+                # Running as executable - use user data directory for config
+                USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
+                os.makedirs(USER_DATA_DIR, exist_ok=True)
+                config_path = os.path.join(USER_DATA_DIR, "notification_config.json")
+                
+                # If config doesn't exist in user data, copy from the bundled config
+                if not os.path.exists(config_path):
+                    bundled_config_path = os.path.join(sys._MEIPASS, "notification_config.json")
+                    if os.path.exists(bundled_config_path):
+                        import shutil
+                        shutil.copy(bundled_config_path, config_path)
+            else:
+                # Running as script - use project directory
+                config_path = os.path.join(
+                    os.path.dirname(os.path.realpath(__file__)), "notification_config.json"
+                )
+            
             if os.path.exists(config_path):
                 with open(config_path, "r") as f:
                     return json.load(f)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Error loading notification config: {e}")
         return {}
     
     def send_telegram_alert(self, message):

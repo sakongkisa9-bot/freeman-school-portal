@@ -1301,17 +1301,32 @@ def api_get_marks():
         else:
             print(f"DEBUG API: Using database average_level={db_avg_level}")
         
-        marks_list.append(
-            {
-                "adm_no": r["adm_no"],
-                "student_name": r["student_name"],
-                "grade": r["grade"],
-                "exam_title": r["exam_title"],
-                "scores": scores,
-                "total_points": db_total_points,
-                "average_level": db_avg_level,
-            }
-        )
+        # Use appropriate field name based on grade level
+        # JSS uses total_points (sum of rating points), other grades use total_scores (sum of raw scores)
+        if is_jss:
+            marks_list.append(
+                {
+                    "adm_no": r["adm_no"],
+                    "student_name": r["student_name"],
+                    "grade": r["grade"],
+                    "exam_title": r["exam_title"],
+                    "scores": scores,
+                    "total_points": db_total_points,
+                    "average_level": db_avg_level,
+                }
+            )
+        else:
+            marks_list.append(
+                {
+                    "adm_no": r["adm_no"],
+                    "student_name": r["student_name"],
+                    "grade": r["grade"],
+                    "exam_title": r["exam_title"],
+                    "scores": scores,
+                    "total_scores": db_total_points,
+                    "average_level": db_avg_level,
+                }
+            )
 
     # Return with the key 'marks'
     return jsonify({"success": True, "marks": marks_list})
@@ -2316,6 +2331,11 @@ def parent_report():
                 current_exam_title = "JSS ASSESSMENT"
             
             logging.info(f"Using fallback exam_title for grade {grade}: {current_exam_title}")
+
+        # Override report_data exam_title with current_exam_title from school_config.json
+        if report_data:
+            report_data['exam_title'] = current_exam_title
+            logging.info(f"Overridden report_data exam_title with: {current_exam_title}")
 
         # Use previous exams from report data if available
         if report_data and 'previous_exams' in report_data:

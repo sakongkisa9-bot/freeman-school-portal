@@ -1160,16 +1160,11 @@ class NewsletterCreator(ctk.CTkToplevel):
     def _sync_to_cloud(self, subject, body):
         """Sync newsletter to cloud portal"""
         try:
-            # Get cloud credentials (only school code needed now)
-            from cloud_service import get_cloud_url
-            school_code = askstring(
-                "Cloud School Code", "Enter your school code:", parent=self
-            )
-            if not school_code:
-                print("Cloud sync cancelled - no school code provided")
+            # Get cloud credentials
+            credentials = ask_cloud_credentials(parent=self)
+            if not credentials:
+                print("Cloud sync cancelled - no credentials provided")
                 return
-            
-            credentials = {"school_code": school_code.strip()}
             
             # Prepare newsletter data
             newsletter_data = {
@@ -1253,11 +1248,27 @@ class NewsletterCreator(ctk.CTkToplevel):
     def _load_school_config(self):
         """Load school configuration for letterhead"""
         try:
-            current_dir = os.path.dirname(os.path.realpath(__file__))
-            json_path = os.path.join(current_dir, "school_config.json")
+            # Use USER_DATA_DIR for user-writable config file (works in both script and executable)
+            if getattr(sys, 'frozen', False):
+                user_data_dir = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
+            else:
+                user_data_dir = os.path.dirname(os.path.realpath(__file__))
+            
+            json_path = os.path.join(user_data_dir, "school_config.json")
             if os.path.exists(json_path):
                 with open(json_path, "r", encoding="utf-8") as f:
                     return json.load(f)
+            else:
+                # If config doesn't exist in USER_DATA_DIR, copy from bundled location
+                if getattr(sys, 'frozen', False):
+                    bundled_config = os.path.join(sys._MEIPASS, "school_config.json")
+                else:
+                    bundled_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "school_config.json")
+                if os.path.exists(bundled_config):
+                    import shutil
+                    shutil.copy2(bundled_config, json_path)
+                    with open(json_path, "r", encoding="utf-8") as f:
+                        return json.load(f)
         except Exception as e:
             print(f"Error loading school config: {e}")
         return {}

@@ -167,8 +167,11 @@ class FreemanDB:
             school_name = "Unknown School"
             try:
                 import json
-                # Use BASE_DIR from module level
-                config_path = os.path.join(BASE_DIR, "school_config.json")
+                # Use USER_DATA_DIR for user-writable config file (works in both script and executable)
+                if getattr(sys, 'frozen', False):
+                    config_path = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal", "school_config.json")
+                else:
+                    config_path = os.path.join(BASE_DIR, "school_config.json")
                 if os.path.exists(config_path):
                     with open(config_path, "r") as f:
                         config = json.load(f)
@@ -194,11 +197,15 @@ class FreemanDB:
                         print(f"Alert results: {results}")
                         sent_successfully = any(result[1] for result in results)
                         if sent_successfully:
-                            # Mark the alert as sent
-                            self._cursor.execute('UPDATE alert_queue SET status = "sent", sent_at = ? WHERE status = "pending" ORDER BY id DESC LIMIT 1', 
-                                                (datetime.now().strftime("%Y-%m-%d %H:%M:%S"),))
-                            self.conn.commit()
-                            print("Alert sent successfully to Telegram")
+                            # Mark the alert as sent - get the ID first since SQLite doesn't support ORDER BY in UPDATE
+                            self._cursor.execute('SELECT id FROM alert_queue WHERE status = "pending" ORDER BY id DESC LIMIT 1')
+                            result = self._cursor.fetchone()
+                            if result:
+                                alert_id = result[0]
+                                self._cursor.execute('UPDATE alert_queue SET status = "sent", sent_at = ? WHERE id = ?',
+                                                    (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), alert_id))
+                                self.conn.commit()
+                                print("Alert sent successfully to Telegram")
                         else:
                             print(f"Alert failed to send. Results: {results}")
                     except Exception as e:
