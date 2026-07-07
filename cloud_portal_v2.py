@@ -2332,10 +2332,14 @@ def parent_report():
             
             logging.info(f"Using fallback exam_title for grade {grade}: {current_exam_title}")
 
-        # Override report_data exam_title with current_exam_title from school_config.json
+        # Only override report_data exam_title if it's missing or empty
+        # Otherwise use the exam_title from the report data sent by desktop app
         if report_data:
-            report_data['exam_title'] = current_exam_title
-            logging.info(f"Overridden report_data exam_title with: {current_exam_title}")
+            if not report_data.get('exam_title') or report_data.get('exam_title') == '':
+                report_data['exam_title'] = current_exam_title
+                logging.info(f"Report_data exam_title was missing, using school_config value: {current_exam_title}")
+            else:
+                logging.info(f"Using report_data exam_title from desktop app: {report_data.get('exam_title')}")
 
         # Use previous exams from report data if available
         if report_data and 'previous_exams' in report_data:
