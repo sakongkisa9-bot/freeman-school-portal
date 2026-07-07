@@ -1258,14 +1258,14 @@ def api_get_marks():
         # Get database values first
         db_total_points = r["total_points"] if r["total_points"] is not None else None
         db_avg_level = r["average_level"] if r["average_level"] is not None else None
-        
+
         print(f"DEBUG API: DB values - total_points={db_total_points}, avg_level={db_avg_level}")
-        
-        # Calculate total_points only if database value is missing (None)
-        # For previous exams, use database total_points if it exists (even if "0")
-        if db_total_points is None:
-            # JSS uses points for total, all other grades use raw scores
-            if is_jss:
+
+        # Calculate total_points/total_scores
+        # For JSS: calculate from points if DB value is None or "0"
+        # For non-JSS: always calculate from scores (since DB stores total_points but we need total_scores)
+        if is_jss:
+            if db_total_points is None or db_total_points == "0":
                 total_points = 0
                 for subject, data in scores.items():
                     if isinstance(data, dict) and data.get("points"):
@@ -1274,18 +1274,21 @@ def api_get_marks():
                         except ValueError:
                             pass
                 print(f"DEBUG API: Calculated total_points (from points)={total_points} for JSS")
+                db_total_points = str(total_points)
             else:
-                total_points = 0
-                for subject, data in scores.items():
-                    if isinstance(data, dict) and data.get("score"):
-                        try:
-                            total_points += int(data["score"])
-                        except ValueError:
-                            pass
-                print(f"DEBUG API: Calculated total_points (from scores)={total_points} for non-JSS")
-            db_total_points = str(total_points)
+                print(f"DEBUG API: Using database total_points={db_total_points} for JSS")
         else:
-            print(f"DEBUG API: Using database total_points={db_total_points}")
+            # For non-JSS grades, always calculate from scores since we need total_scores
+            # The DB column is total_points but we're sending total_scores field
+            total_points = 0
+            for subject, data in scores.items():
+                if isinstance(data, dict) and data.get("score"):
+                    try:
+                        total_points += int(data["score"])
+                    except ValueError:
+                        pass
+            print(f"DEBUG API: Calculated total_scores (from scores)={total_points} for non-JSS")
+            db_total_points = str(total_points)
         
         # Calculate average level only if database value is missing (None)
         # For previous exams, use database average_level if it exists
