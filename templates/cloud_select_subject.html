@@ -66,6 +66,33 @@
             line-height: 1.6;
         }
 
+        .flash-message {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 12px;
+            background: #1e293b;
+            border: 2px solid;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .flash-danger {
+            border-color: #ef4444;
+            color: #ef4444;
+        }
+
+        .flash-success {
+            border-color: #10b981;
+            color: #10b981;
+        }
+
+        .flash-warning {
+            border-color: #f59e0b;
+            color: #f59e0b;
+        }
+
         .subjects-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -177,6 +204,16 @@
         <div class="header-section">
             <h1 class="page-title">Select Subject for <span class="highlight">{{ grade }}</span></h1>
             <p class="subtitle">Which subject's marks would you like to enter?</p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="flash-message flash-{{ category }}">
+                {{ message }}
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
         </div>
 
         <div class="subjects-grid">

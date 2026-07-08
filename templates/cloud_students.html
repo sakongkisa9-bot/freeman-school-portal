@@ -96,6 +96,33 @@
             color: #ffffff;
         }
 
+        .flash-message {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 12px;
+            background: #1e293b;
+            border: 2px solid;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .flash-danger {
+            border-color: #ef4444;
+            color: #ef4444;
+        }
+
+        .flash-success {
+            border-color: #10b981;
+            color: #10b981;
+        }
+
+        .flash-warning {
+            border-color: #f59e0b;
+            color: #f59e0b;
+        }
+
         .students-section {
             background: #0f172a;
             border: 1px solid #1e293b;
@@ -245,6 +272,16 @@
             <h1 class="page-title">Students: <span class="highlight">{{ grade }}</span></h1>
             <a href="{{ url_for('dashboard') }}" class="btn-back">← Back to Dashboard</a>
         </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash-message flash-{{ category }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
 
         <div class="info-box">
             <strong>ℹ️ Note:</strong> This list is synced directly from the local Management App.
