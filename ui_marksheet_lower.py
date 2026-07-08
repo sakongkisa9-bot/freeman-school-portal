@@ -263,10 +263,59 @@ class LowerMarkSheetView(ctk.CTkFrame):
             )
             self.update_idletasks()
 
-            # 5. Recalculate totals for all rows from individual scores
+            # 5. Recalculate totals and averages for all rows from individual scores
             # This ensures totals are correct even if cloud sends zero
-            for row_idx in range(len(self.row_frames)):
-                self.refresh_totals(self.row_frames[row_idx], row_idx)
+            import grading_logic as gl
+            all_widgets = self.table_inner.grid_slaves()
+            if all_widgets:
+                # Group widgets by row
+                rows = {}
+                for w in all_widgets:
+                    row = w.grid_info().get("row")
+                    if row is not None:
+                        if row not in rows:
+                            rows[row] = []
+                        rows[row].append(w)
+                
+                # Recalculate each row
+                for row_idx in sorted(rows.keys()):
+                    widgets = sorted(rows[row_idx], key=lambda w: w.grid_info().get("column", 0))
+                    
+                    # Calculate total score from individual score entries
+                    total_score = 0
+                    num_subs = len(subjects)
+                    
+                    for i in range(num_subs):
+                        score_idx = 1 + (i * 2)
+                        if score_idx < len(widgets):
+                            score_widget = widgets[score_idx]
+                            if hasattr(score_widget, "get"):
+                                score_val = score_widget.get().strip()
+                                if score_val.isdigit():
+                                    total_score += int(score_val)
+                    
+                    # Update total score box
+                    total_idx = 1 + (num_subs * 2)
+                    if total_idx < len(widgets):
+                        total_widget = widgets[total_idx]
+                        if hasattr(total_widget, "configure"):
+                            curr_state = total_widget.cget("state")
+                            total_widget.configure(state="normal")
+                            total_widget.delete(0, "end")
+                            total_widget.insert(0, str(total_score))
+                            total_widget.configure(state=curr_state)
+                    
+                    # Calculate and update average level
+                    avg_lvl = gl.calculate_final_level(total_score, is_primary=True, num_subjects=num_subs)
+                    avg_idx = total_idx + 1
+                    if avg_idx < len(widgets):
+                        avg_widget = widgets[avg_idx]
+                        if hasattr(avg_widget, "configure"):
+                            curr_state = avg_widget.cget("state")
+                            avg_widget.configure(state="normal")
+                            avg_widget.delete(0, "end")
+                            avg_widget.insert(0, avg_lvl)
+                            avg_widget.configure(state=curr_state)
 
             # 6. Save the fetched marks to database (skip reload to preserve cloud values)
             self.save_lower_marks(skip_reload=True)
