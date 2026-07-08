@@ -111,6 +111,8 @@ def rating_to_comment(rating):
     rating_comments = {
         "BE1": "A starting point. Focus on understanding the basic concepts, and I am here to help you practice.",
         "BE2": "You are showing effort, but need more practice on the fundamentals to reach the expected level.",
+        "AE1": "You are approaching the expected level. With more practice, you will master this.",
+        "AE2": "Good effort shown. Keep working on the basics to build a stronger foundation.",
         "ME1": "Good progress. You are grasping the core ideas; continue practicing to gain more confidence.",
         "ME2": "Well done! You are very close to mastering this. Pay close attention to the finer details.",
         "EE1": "Great work! You have successfully demonstrated this competency. Keep up the consistent performance.",
@@ -1256,14 +1258,14 @@ def api_get_marks():
         # Get database values first
         db_total_points = r["total_points"] if r["total_points"] is not None else None
         db_avg_level = r["average_level"] if r["average_level"] is not None else None
-        
+
         print(f"DEBUG API: DB values - total_points={db_total_points}, avg_level={db_avg_level}")
-        
-        # Calculate total_points only if database value is missing (None)
-        # For previous exams, use database total_points if it exists (even if "0")
-        if db_total_points is None:
-            # JSS uses points for total, all other grades use raw scores
-            if is_jss:
+
+        # Calculate total_points/total_scores
+        # For JSS: calculate from points if DB value is None or "0"
+        # For non-JSS: always calculate from scores (since DB stores total_points but we need total_scores)
+        if is_jss:
+            if db_total_points is None or db_total_points == "0":
                 total_points = 0
                 for subject, data in scores.items():
                     if isinstance(data, dict) and data.get("points"):
@@ -1272,18 +1274,21 @@ def api_get_marks():
                         except ValueError:
                             pass
                 print(f"DEBUG API: Calculated total_points (from points)={total_points} for JSS")
+                db_total_points = str(total_points)
             else:
-                total_points = 0
-                for subject, data in scores.items():
-                    if isinstance(data, dict) and data.get("score"):
-                        try:
-                            total_points += int(data["score"])
-                        except ValueError:
-                            pass
-                print(f"DEBUG API: Calculated total_points (from scores)={total_points} for non-JSS")
-            db_total_points = str(total_points)
+                print(f"DEBUG API: Using database total_points={db_total_points} for JSS")
         else:
-            print(f"DEBUG API: Using database total_points={db_total_points}")
+            # For non-JSS grades, always calculate from scores since we need total_scores
+            # The DB column is total_points but we're sending total_scores field
+            total_points = 0
+            for subject, data in scores.items():
+                if isinstance(data, dict) and data.get("score"):
+                    try:
+                        total_points += int(data["score"])
+                    except ValueError:
+                        pass
+            print(f"DEBUG API: Calculated total_scores (from scores)={total_points} for non-JSS")
+            db_total_points = str(total_points)
         
         # Calculate average level only if database value is missing (None)
         # For previous exams, use database average_level if it exists
@@ -1301,17 +1306,32 @@ def api_get_marks():
         else:
             print(f"DEBUG API: Using database average_level={db_avg_level}")
         
-        marks_list.append(
-            {
-                "adm_no": r["adm_no"],
-                "student_name": r["student_name"],
-                "grade": r["grade"],
-                "exam_title": r["exam_title"],
-                "scores": scores,
-                "total_points": db_total_points,
-                "average_level": db_avg_level,
-            }
-        )
+        # Use appropriate field name based on grade level
+        # JSS uses total_points (sum of rating points), other grades use total_scores (sum of raw scores)
+        if is_jss:
+            marks_list.append(
+                {
+                    "adm_no": r["adm_no"],
+                    "student_name": r["student_name"],
+                    "grade": r["grade"],
+                    "exam_title": r["exam_title"],
+                    "scores": scores,
+                    "total_points": db_total_points,
+                    "average_level": db_avg_level,
+                }
+            )
+        else:
+            marks_list.append(
+                {
+                    "adm_no": r["adm_no"],
+                    "student_name": r["student_name"],
+                    "grade": r["grade"],
+                    "exam_title": r["exam_title"],
+                    "scores": scores,
+                    "total_scores": db_total_points,
+                    "average_level": db_avg_level,
+                }
+            )
 
     # Return with the key 'marks'
     return jsonify({"success": True, "marks": marks_list})
@@ -2316,6 +2336,15 @@ def parent_report():
                 current_exam_title = "JSS ASSESSMENT"
             
             logging.info(f"Using fallback exam_title for grade {grade}: {current_exam_title}")
+
+        # Only override report_data exam_title if it's missing or empty
+        # Otherwise use the exam_title from the report data sent by desktop app
+        if report_data:
+            if not report_data.get('exam_title') or report_data.get('exam_title') == '':
+                report_data['exam_title'] = current_exam_title
+                logging.info(f"Report_data exam_title was missing, using school_config value: {current_exam_title}")
+            else:
+                logging.info(f"Using report_data exam_title from desktop app: {report_data.get('exam_title')}")
 
         # Use previous exams from report data if available
         if report_data and 'previous_exams' in report_data:

@@ -263,7 +263,12 @@ class LowerMarkSheetView(ctk.CTkFrame):
             )
             self.update_idletasks()
 
-            # 5. Save the fetched marks to database (skip reload to preserve cloud values)
+            # 5. Recalculate totals for all rows from individual scores
+            # This ensures totals are correct even if cloud sends zero
+            for row_idx in range(len(self.row_frames)):
+                self.refresh_totals(self.row_frames[row_idx], row_idx)
+
+            # 6. Save the fetched marks to database (skip reload to preserve cloud values)
             self.save_lower_marks(skip_reload=True)
 
             # 6. Consume marks from cloud (delete them after successful fetch)

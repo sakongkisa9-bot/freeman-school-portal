@@ -447,10 +447,11 @@ def apply_cloud_records_to_table(
                                 w.configure(state=curr_state)
                             break
 
-            # Fill in total_points and average_level in the summary columns
-            total_points = record.get("total_points", "0")
+            # Fill in total_points/total_scores and average_level in the summary columns
+            # JSS uses total_points, other grades use total_scores
+            total_points = record.get("total_points", record.get("total_scores", "0"))
             average_level = record.get("average_level", "")
-            
+
             # Summary columns start after all subject columns
             total_start_col = 1 + (len(subjects) * columns_per_subject)
             print(f"DEBUG: Filling totals for {raw_name}, total_start_col={total_start_col}, total_points={total_points}, avg_level={average_level}")
