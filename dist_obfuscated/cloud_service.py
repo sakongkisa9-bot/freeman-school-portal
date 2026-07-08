@@ -447,15 +447,15 @@ def apply_cloud_records_to_table(
                                 w.configure(state=curr_state)
                             break
 
-            # Fill in total_points/total_scores and average_level in the summary columns
+            # Fill in total_points/total_scores in the summary columns
+            # Note: average_level is NOT filled from cloud - it will be recalculated locally
             # JSS uses total_points, other grades use total_scores
             total_points = record.get("total_points", record.get("total_scores", "0"))
-            average_level = record.get("average_level", "")
 
             # Summary columns start after all subject columns
             total_start_col = 1 + (len(subjects) * columns_per_subject)
-            print(f"DEBUG: Filling totals for {raw_name}, total_start_col={total_start_col}, total_points={total_points}, avg_level={average_level}")
-            
+            print(f"DEBUG: Filling totals for {raw_name}, total_start_col={total_start_col}, total_points={total_points}")
+
             # Fill total_points column
             tot_found = False
             for w in widgets:
@@ -472,30 +472,6 @@ def apply_cloud_records_to_table(
                     break
             if not tot_found:
                 print(f"DEBUG: Could not find widget at column {total_start_col} for total_points")
-            
-            # Fill average_level column
-            avg_found = False
-            for w in widgets:
-                col = w.grid_info().get("column")
-                if col is not None and int(col) == total_start_col + 1:
-                    # Handle both Entry and Label widgets
-                    if hasattr(w, "delete"):
-                        # Entry widget
-                        curr_state = w.cget("state")
-                        w.configure(state="normal")
-                        w.delete(0, "end")
-                        w.insert(0, str(average_level))
-                        w.configure(state=curr_state)
-                        avg_found = True
-                        print(f"DEBUG: Filled average_level (Entry) at column {col}")
-                    elif hasattr(w, "configure"):
-                        # Label widget
-                        w.configure(text=str(average_level))
-                        avg_found = True
-                        print(f"DEBUG: Filled average_level (Label) at column {col}")
-                    break
-            if not avg_found:
-                print(f"DEBUG: Could not find widget at column {total_start_col + 1} for average_level")
 
             filled_count += 1
             print(f"✅ Sync Successful: {raw_name}")

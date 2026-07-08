@@ -1308,6 +1308,7 @@ def api_get_marks():
         
         # Use appropriate field name based on grade level
         # JSS uses total_points (sum of rating points), other grades use total_scores (sum of raw scores)
+        # Note: average_level is NOT sent - local system will calculate it dynamically
         if is_jss:
             marks_list.append(
                 {
@@ -1317,7 +1318,6 @@ def api_get_marks():
                     "exam_title": r["exam_title"],
                     "scores": scores,
                     "total_points": db_total_points,
-                    "average_level": db_avg_level,
                 }
             )
         else:
@@ -1329,7 +1329,6 @@ def api_get_marks():
                     "exam_title": r["exam_title"],
                     "scores": scores,
                     "total_scores": db_total_points,
-                    "average_level": db_avg_level,
                 }
             )
 

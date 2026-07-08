@@ -786,12 +786,24 @@ def dashboard():
 
     conn = get_db()
     school = conn.execute(
-        "SELECT portal_open FROM schools WHERE id = ?", (session["school_id"],)
+        "SELECT portal_open, school_name FROM schools WHERE id = ?", (session["school_id"],)
     ).fetchone()
+    
+    # Get teacher name if teacher_code is in session
+    teacher_name = None
+    if session.get("teacher_code"):
+        teacher = conn.execute(
+            "SELECT teacher_name FROM teacher_assignments WHERE school_id = ? AND teacher_code = ?",
+            (session["school_id"], session["teacher_code"])
+        ).fetchone()
+        if teacher:
+            teacher_name = teacher["teacher_name"]
+    
     conn.close()
 
     portal_open = school["portal_open"] if school else 1
-    return render_template("cloud_dashboard.html", grades=GRADE_OPTIONS, portal_open=portal_open)
+    school_name = school["school_name"] if school else session.get("school_name", "Your School")
+    return render_template("cloud_dashboard.html", grades=GRADE_OPTIONS, portal_open=portal_open, school_name=school_name, teacher_name=teacher_name)
 
 
 @app.route("/api/toggle_portal", methods=["POST"])

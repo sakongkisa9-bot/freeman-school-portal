@@ -232,7 +232,7 @@ def create_obfuscated_executable():
         pyinstaller_cmd = [
             sys.executable, "-m", "PyInstaller",
             "--onefile",
-            # "--windowed",  # COMMENTED OUT for debugging - enables console
+            "--windowed",
             "--name", "FreemanSchoolPortal_Secure",
             "--icon", "freeman_icon.ico",
             "--clean",
