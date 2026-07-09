@@ -198,6 +198,33 @@
                 font-size: 14px;
             }
         }
+
+        .flash-message {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 12px;
+            background: #1e293b;
+            border: 2px solid;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .flash-danger {
+            border-color: #ef4444;
+            color: #ef4444;
+        }
+
+        .flash-success {
+            border-color: #10b981;
+            color: #10b981;
+        }
+
+        .flash-warning {
+            border-color: #f59e0b;
+            color: #f59e0b;
+        }
     </style>
 </head>
 <body>
@@ -207,6 +234,16 @@
         <div class="header-section">
             <h1 class="header-title">Register <span class="highlight">School</span></h1>
             <p class="welcome-text">Register your school and create the first teacher account. This will also create the portal credentials for your teachers.</p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="flash-message flash-{{ category }}">
+                {{ message }}
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
         </div>
 
         <div class="form-card">

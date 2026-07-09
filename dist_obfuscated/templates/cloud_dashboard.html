@@ -46,11 +46,38 @@
         .highlight { color: #10b981; }
         
         .welcome-text {
-            color: #94a3b8; 
+            color: #94a3b8;
             font-size: clamp(14px, 2.5vw, 16px);
             max-width: 600px;
             margin: 0 auto;
             line-height: 1.6;
+        }
+
+        .flash-message {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 12px;
+            background: #1e293b;
+            border: 2px solid;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .flash-danger {
+            border-color: #ef4444;
+            color: #ef4444;
+        }
+
+        .flash-success {
+            border-color: #10b981;
+            color: #10b981;
+        }
+
+        .flash-warning {
+            border-color: #f59e0b;
+            color: #f59e0b;
         }
 
         .grades-grid {
@@ -266,7 +293,17 @@
     <div class="dashboard-container">
         <div class="header-section">
             <h1 class="header-title">Dashboard <span class="highlight">Portal</span></h1>
-            <p class="welcome-text">Welcome teacher {{ username }} to {{ school_name }} official portal. Select a class to manage students or enter marks.</p>
+            <p class="welcome-text">Welcome {% if teacher_name %}{{ teacher_name }}{% else %}teacher{% endif %} to {{ school_name }} official portal. Select a class to manage students or enter marks.</p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="flash-message flash-{{ category }}">
+                {{ message }}
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
         </div>
 
         <div class="portal-section">

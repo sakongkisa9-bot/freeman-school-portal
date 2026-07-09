@@ -545,7 +545,43 @@ def is_admin():
     return session.get("role") == "admin"
 
 
+def check_fcm_registration():
+    """Check FCM service registration status on startup"""
+    try:
+        from fcm_service import get_fcm_service
+        
+        logging.info("=== FCM REGISTRATION CHECK STARTUP ===")
+        fcm_service = get_fcm_service()
+        
+        if fcm_service.is_available():
+            logging.info("✓ FCM Service is available and initialized")
+            # Check database for FCM tokens table
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='fcm_tokens'")
+            table_exists = cursor.fetchone()
+            
+            if table_exists:
+                cursor.execute("SELECT COUNT(*) as count FROM fcm_tokens")
+                token_count = cursor.fetchone()['count']
+                logging.info(f"✓ FCM tokens table exists with {token_count} registered tokens")
+            else:
+                logging.warning("⚠ FCM tokens table does not exist in database")
+            
+            conn.close()
+        else:
+            logging.warning("⚠ FCM Service is not available - notifications will be disabled")
+            logging.warning("  To enable FCM, set FIREBASE_SERVICE_ACCOUNT environment variable")
+            logging.warning("  or place firebase-service-account.json in project root")
+        
+        logging.info("=== FCM REGISTRATION CHECK COMPLETE ===")
+        
+    except Exception as e:
+        logging.error(f"Error during FCM registration check: {e}")
+
+
 init_db()
+check_fcm_registration()
 
 
 @app.route("/")

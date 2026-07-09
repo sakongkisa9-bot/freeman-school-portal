@@ -1152,7 +1152,6 @@ class NewsletterCreator(ctk.CTkToplevel):
                 "Parents can now view it in their portal app.\n"
                 "SMS notifications have been queued."
             )
-            self.destroy()
             
         except Exception as e:
             messagebox.showerror("Publish Error", f"Could not publish to portal: {e}")
@@ -1248,29 +1247,41 @@ class NewsletterCreator(ctk.CTkToplevel):
     def _load_school_config(self):
         """Load school configuration for letterhead"""
         try:
-            # Use USER_DATA_DIR for user-writable config file (works in both script and executable)
+            import sys
+            
+            # Try multiple locations for the config file
+            config_locations = []
+            
+            # 1. User data directory (for executable)
             if getattr(sys, 'frozen', False):
                 user_data_dir = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
-            else:
-                user_data_dir = os.path.dirname(os.path.realpath(__file__))
+                config_locations.append(os.path.join(user_data_dir, "school_config.json"))
+                # Also try the bundled location
+                config_locations.append(os.path.join(sys._MEIPASS, "school_config.json"))
             
-            json_path = os.path.join(user_data_dir, "school_config.json")
-            if os.path.exists(json_path):
-                with open(json_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            else:
-                # If config doesn't exist in USER_DATA_DIR, copy from bundled location
-                if getattr(sys, 'frozen', False):
-                    bundled_config = os.path.join(sys._MEIPASS, "school_config.json")
-                else:
-                    bundled_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "school_config.json")
-                if os.path.exists(bundled_config):
-                    import shutil
-                    shutil.copy2(bundled_config, json_path)
-                    with open(json_path, "r", encoding="utf-8") as f:
-                        return json.load(f)
+            # 2. Script directory (for development)
+            script_dir = os.path.dirname(os.path.realpath(__file__))
+            config_locations.append(os.path.join(script_dir, "school_config.json"))
+            
+            # 3. Parent directory (in case script is in a subdirectory)
+            parent_dir = os.path.dirname(script_dir)
+            config_locations.append(os.path.join(parent_dir, "school_config.json"))
+            
+            # Try each location
+            for config_path in config_locations:
+                if os.path.exists(config_path):
+                    with open(config_path, "r", encoding="utf-8") as f:
+                        config = json.load(f)
+                        print(f"Loaded school config from: {config_path}")
+                        return config
+            
+            print("Warning: school_config.json not found in any location")
+            
         except Exception as e:
             print(f"Error loading school config: {e}")
+            import traceback
+            traceback.print_exc()
+        
         return {}
     
     def _generate_pdf(self, subject, body):
@@ -1306,6 +1317,9 @@ class NewsletterCreator(ctk.CTkToplevel):
             cloud_teacher_password = school_config.get("cloud_teacher_password", "")
             paybill = school_config.get("paybill", "")
             term_dates = school_config.get("term_dates", "")
+            # Get signature path from config
+            signatures = school_config.get("signatures", {})
+            signature_path = signatures.get("headteacher", "")
             
             # Custom styles
             title_style = ParagraphStyle(
@@ -1380,23 +1394,22 @@ class NewsletterCreator(ctk.CTkToplevel):
             story.append(Spacer(1, 0.5*inch))
             
             # Signature block with school administrator info
-            story.append(Paragraph("<b>_____________________</b>", body_style))
+            # Add signature image if available
+            if signature_path and os.path.exists(signature_path):
+                try:
+                    signature = Image(signature_path, width=2*inch, height=1*inch)
+                    signature.hAlign = 'LEFT'
+                    story.append(signature)
+                except Exception as e:
+                    print(f"Error loading signature: {e}")
+                    story.append(Paragraph("<b>_____________________</b>", body_style))
+            else:
+                story.append(Paragraph("<b>_____________________</b>", body_style))
+            
             if school_administrator:
                 story.append(Paragraph(f"<b>{school_administrator.upper()}</b>", body_style))
             else:
                 story.append(Paragraph("<b>Principal / Head Teacher</b>", body_style))
-            
-            # Add administrator credentials
-            if system_password or cloud_teacher_password:
-                story.append(Spacer(1, 0.1*inch))
-                credentials_text = ""
-                if system_password:
-                    credentials_text += f"<b>System Password:</b> {system_password}"
-                if cloud_teacher_password:
-                    if credentials_text:
-                        credentials_text += " | "
-                    credentials_text += f"<b>Portal Password:</b> {cloud_teacher_password}"
-                story.append(Paragraph(credentials_text, body_style))
             
             # Build PDF
             doc.build(story)
