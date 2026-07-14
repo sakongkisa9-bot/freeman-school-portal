@@ -4,15 +4,6 @@ from tkinter import messagebox
 
 from grading_logic import get_grade_4_6_rating, calculate_final_level
 
-# Import debug logging function
-try:
-    from debug_console import debug_log
-except Exception:
-
-    def debug_log(message):
-        print(message)
-
-
 from fpdf import FPDF
 
 from reportlab.lib.pagesizes import landscape, A4
@@ -1431,7 +1422,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
             all_widgets = self.table_inner.grid_slaves()
 
-            debug_log(f"DEBUG: Total widgets found: {len(all_widgets)}")
+            print(f"DEBUG: Total widgets found: {len(all_widgets)}")
 
             if not all_widgets:
 
@@ -1445,11 +1436,11 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
                     rows[row] = []
                 rows[row].append(w)
 
-            debug_log(f"DEBUG: Total rows found: {len(rows)}")
-            debug_log(f"DEBUG: Row indices: {sorted(rows.keys())}")
+            print(f"DEBUG: Total rows found: {len(rows)}")
+            print(f"DEBUG: Row indices: {sorted(rows.keys())}")
 
             for row_idx in sorted(rows.keys()):
-                debug_log(f"DEBUG: Processing row {row_idx}")
+                print(f"DEBUG: Processing row {row_idx}")
 
                 widgets = rows[row_idx]
 
@@ -1462,26 +1453,26 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
                 # Get Student Name (column 0)
                 name_widget = col_map.get(0)
                 if not name_widget or not hasattr(name_widget, "cget"):
-                    debug_log(f"DEBUG: Row {row_idx}: Name widget missing or invalid")
+                    print(f"DEBUG: Row {row_idx}: Name widget missing or invalid")
                     continue
                 student_name = name_widget.cget("text")
 
-                debug_log(f"DEBUG: Row {row_idx}: Student name: {student_name}")
+                print(f"DEBUG: Row {row_idx}: Student name: {student_name}")
 
                 if student_name == "STUDENT NAME":
 
-                    debug_log(f"DEBUG: Row {row_idx}: Skipping header row")
+                    print(f"DEBUG: Row {row_idx}: Skipping header row")
                     continue
 
                 # Get Admission Number (prefer the one attached to the row widget)
 
                 student_adm_no = getattr(name_widget, "_student_adm_no", None)
 
-                debug_log(f"DEBUG: Row {row_idx}: Widget admission number: {student_adm_no}")
+                print(f"DEBUG: Row {row_idx}: Widget admission number: {student_adm_no}")
 
                 if not student_adm_no:
 
-                    debug_log(f"DEBUG: Row {row_idx}: No widget admission number, falling back to name lookup")
+                    print(f"DEBUG: Row {row_idx}: No widget admission number, falling back to name lookup")
 
                     self.db.cursor().execute(
                         "SELECT adm_no FROM students WHERE name = ? AND UPPER(grade) = UPPER(?)",
@@ -1492,18 +1483,18 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
                     if not res:
 
-                        debug_log(
+                        print(
                             f"DEBUG: Row {row_idx}: No admission number found for {student_name} with grade {self.class_name}"
                         )
                         continue
 
                     student_adm_no = res[0]
 
-                    debug_log(f"DEBUG: Row {row_idx}: Found admission number via name+grade lookup: {student_adm_no}")
+                    print(f"DEBUG: Row {row_idx}: Found admission number via name+grade lookup: {student_adm_no}")
 
                 adm_no = student_adm_no
 
-                debug_log(f"DEBUG: Row {row_idx}: Using admission number: {adm_no}")
+                print(f"DEBUG: Row {row_idx}: Using admission number: {adm_no}")
 
                 # 1. Collect dynamic marks from Entry boxes by expected column indices
                 marks_data = []
@@ -1537,7 +1528,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
                         ]
                     )
 
-                debug_log(
+                print(
                     f"DEBUG: Row {row_idx}: Marks data length: {len(marks_data)}, Expected: {num_subs * 2}"
                 )
 
@@ -1567,7 +1558,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
                 except:
                     lvl_val = None
 
-                debug_log(f"DEBUG: Row {row_idx}: Total: {total_val}, Level: {lvl_val}")
+                print(f"DEBUG: Row {row_idx}: Total: {total_val}, Level: {lvl_val}")
 
                 # 3. DYNAMIC SQL QUERY
 
@@ -1600,13 +1591,13 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
                 final_data = [adm_no] + marks_data + [total_val, lvl_val]
 
                 self.db.cursor().execute(query, final_data)
-                debug_log(f"DEBUG: Row {row_idx}: SQL executed successfully for {student_name}")
+                print(f"DEBUG: Row {row_idx}: SQL executed successfully for {student_name}")
 
                 success_count += 1
 
-            debug_log(f"DEBUG: Committing to database. Total students saved: {success_count}")
+            print(f"DEBUG: Committing to database. Total students saved: {success_count}")
             self.db.conn.commit()
-            debug_log(f"DEBUG: Database commit successful")
+            print(f"DEBUG: Database commit successful")
 
             # Calculate and save rankings
 

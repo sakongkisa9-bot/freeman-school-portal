@@ -1,8 +1,3 @@
-from debug_console import (
-    debug_log as console_debug_log,
-    set_debug_log_file,
-    show_debug_console,
-)
 from ui_marksheet_junior import JuniorMarkSheetView  # Import the new workshop file
 from ui_marksheet_primary import PrimaryMarkSheetView  # For Grade 4-6
 from ui_marksheet_playgroup import PlaygroupMarkSheetView
@@ -28,15 +23,6 @@ from cloud_service import CloudService, ask_cloud_credentials
 import io
 import contextlib
 import subprocess
-
-# Global debug log file
-DEBUG_LOG_FILE = None
-
-
-def debug_log(message):
-    """Write debug message to both the console and the in-app debug window."""
-    return console_debug_log(message)
-
 
 # Handle both development and executable environments
 def get_app_dir():
@@ -65,15 +51,6 @@ class Dashboard(ctk.CTk):
         self.all_student_rows = []
         self.portal_open = self.load_portal_state()  # Track portal state from config
         # --------------------------------
-
-        # Debug console
-        self.debug_console = None
-        self.debug_log_file = os.path.join(self.USER_DATA_DIR, "debug_output.txt")
-
-        # Make debug log file accessible globally
-        global DEBUG_LOG_FILE
-        DEBUG_LOG_FILE = self.debug_log_file
-        set_debug_log_file(self.debug_log_file)
 
         self.overrideredirect(True)
 
@@ -394,18 +371,6 @@ class Dashboard(ctk.CTk):
             font=("Arial Bold", 12),
         )
         self.btn_system_settings.pack(pady=(0, 5))
-
-        # Debug Console button
-        self.btn_debug_console = ctk.CTkButton(
-            self.header_buttons_frame,
-            text="🐛 Debug Console",
-            command=self.toggle_debug_console,
-            fg_color="#9b59b6",
-            hover_color="#8e44ad",
-            height=35,
-            font=("Arial Bold", 12),
-        )
-        self.btn_debug_console.pack(pady=(0, 5))
 
         # Check for Updates button (hidden by default, shown when updates available)
         self.btn_check_updates = ctk.CTkButton(
@@ -944,20 +909,6 @@ class Dashboard(ctk.CTk):
     def open_archives(self):
         """Open the archive viewer"""
         self.show_archive_year_selection()
-
-    def show_debug_console(self):
-        """Open the in-app debug console window."""
-        try:
-            if os.path.exists(self.debug_log_file):
-                with open(self.debug_log_file, "a", encoding="utf-8"):
-                    pass
-            show_debug_console(self)
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to open debug console: {e}")
-
-    def toggle_debug_console(self):
-        """Open the in-app debug console window."""
-        self.show_debug_console()
 
     def open_system_settings(self):
         """Open the system settings dialog"""

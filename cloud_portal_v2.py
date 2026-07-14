@@ -1342,14 +1342,50 @@ def select_subject(grade):
     if "school_id" not in session:
         return redirect(url_for("teacher_login"))
 
-    # Get the subjects for this grade from your dictionary
-    subjects = GRADE_SUBJECTS.get(grade, [])
+    conn = get_db()
+    try:
+        # Get the school details including synced subjects from database
+        school = conn.execute(
+            "SELECT subjects FROM schools WHERE id = ?", (session["school_id"],)
+        ).fetchone()
+        conn.close()
 
-    if not subjects:
-        flash(f"No subjects configured for {grade}.", "warning")
-        return redirect(url_for("dashboard"))
+        subjects = []
 
-    return render_template("cloud_select_subject.html", grade=grade, subjects=subjects)
+        # First, try to get subjects from the database
+        if school and school["subjects"]:
+            try:
+                subjects_data = json.loads(school["subjects"])
+                # subjects_data is a dict like {grade: [subjects]}
+                subjects = subjects_data.get(grade, [])
+            except (json.JSONDecodeError, TypeError):
+                # If JSON parsing fails, fall back to hardcoded
+                subjects = []
+
+        # If no subjects found in database, fall back to hardcoded GRADE_SUBJECTS
+        if not subjects:
+            subjects = GRADE_SUBJECTS.get(grade, [])
+
+        if not subjects:
+            flash(f"No subjects configured for {grade}.", "warning")
+            return redirect(url_for("dashboard"))
+
+        return render_template(
+            "cloud_select_subject.html", grade=grade, subjects=subjects
+        )
+    except Exception as e:
+        logging.error(f"Error retrieving subjects for grade {grade}: {e}")
+        # Fall back to hardcoded subjects if there's an error
+        subjects = GRADE_SUBJECTS.get(grade, [])
+        if not subjects:
+            flash(f"No subjects configured for {grade}.", "warning")
+            return redirect(url_for("dashboard"))
+        return render_template(
+            "cloud_select_subject.html", grade=grade, subjects=subjects
+        )
+    finally:
+        if conn:
+            conn.close()
 
 
 @app.route("/api/get_marks", methods=["POST"])

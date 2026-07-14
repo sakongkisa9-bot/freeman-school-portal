@@ -2,15 +2,6 @@ import customtkinter as ctk
 from tkinter import messagebox
 from grading_logic import get_grade_4_6_rating, calculate_final_level
 
-# Import debug logging function
-try:
-    from debug_console import debug_log
-except Exception:
-
-    def debug_log(message):
-        print(message)
-
-
 from fpdf import FPDF
 from reportlab.lib.pagesizes import landscape, A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -1153,7 +1144,7 @@ class PP2MarkSheetView(ctk.CTkFrame):
             # PP2 marksheet uses direct grid layout, not row frames
             # Get all widgets and group them by row
             all_widgets = self.table_inner.grid_slaves()
-            debug_log(f"DEBUG: Total widgets found: {len(all_widgets)}")
+            print(f"DEBUG: Total widgets found: {len(all_widgets)}")
             if not all_widgets:
                 return
 
@@ -1165,11 +1156,11 @@ class PP2MarkSheetView(ctk.CTkFrame):
                     rows[row] = []
                 rows[row].append(w)
 
-            debug_log(f"DEBUG: Total rows found: {len(rows)}")
-            debug_log(f"DEBUG: Row indices: {sorted(rows.keys())}")
+            print(f"DEBUG: Total rows found: {len(rows)}")
+            print(f"DEBUG: Row indices: {sorted(rows.keys())}")
 
             for row_idx in sorted(rows.keys()):
-                debug_log(f"DEBUG: Processing row {row_idx}")
+                print(f"DEBUG: Processing row {row_idx}")
                 widgets = rows[row_idx]
                 # Sort widgets by column
                 widgets.sort(key=lambda w: int(w.grid_info()["column"]))
@@ -1180,30 +1171,30 @@ class PP2MarkSheetView(ctk.CTkFrame):
                 # Get Student Name (column 0)
                 name_widget = widgets[0]
                 if not hasattr(name_widget, "cget"):
-                    debug_log(
+                    print(
                         f"DEBUG: Row {row_idx}: Name widget has no cget attribute"
                     )
                     continue
                 student_name = name_widget.cget("text")
-                debug_log(f"DEBUG: Row {row_idx}: Student name: {student_name}")
+                print(f"DEBUG: Row {row_idx}: Student name: {student_name}")
                 if student_name == "STUDENT NAME":
-                    debug_log(f"DEBUG: Row {row_idx}: Skipping header row")
+                    print(f"DEBUG: Row {row_idx}: Skipping header row")
                     continue
 
                 # Get Admission Number
-                debug_log(f"DEBUG: Row {row_idx}: Looking up admission number for {student_name}")
+                print(f"DEBUG: Row {row_idx}: Looking up admission number for {student_name}")
                 self.db.cursor().execute(
                     "SELECT adm_no FROM students WHERE name = ? AND UPPER(grade) = UPPER(?)",
                     (student_name, self.class_name)
                 )
                 res = self.db.cursor().fetchone()
                 if not res:
-                    debug_log(
+                    print(
                         f"DEBUG: Row {row_idx}: No admission number found for {student_name} with grade {self.class_name}"
                     )
                     continue
                 adm_no = res[0]
-                debug_log(f"DEBUG: Row {row_idx}: Using admission number: {adm_no}")
+                print(f"DEBUG: Row {row_idx}: Using admission number: {adm_no}")
 
                 # 1. Collect dynamic marks from Entry boxes
                 # We skip index 0 (Name) and take the next (num_subs * 2) widgets
@@ -1220,7 +1211,7 @@ class PP2MarkSheetView(ctk.CTkFrame):
                         val = None
                     marks_data.append(val if val != "" else None)
 
-                debug_log(
+                print(
                     f"DEBUG: Row {row_idx}: Marks data length: {len(marks_data)}, Expected: {num_subs * 2}"
                 )
 
@@ -1237,7 +1228,7 @@ class PP2MarkSheetView(ctk.CTkFrame):
                 except:
                     lvl_val = None
 
-                debug_log(f"DEBUG: Row {row_idx}: Total: {total_val}, Level: {lvl_val}")
+                print(f"DEBUG: Row {row_idx}: Total: {total_val}, Level: {lvl_val}")
 
                 # 3. DYNAMIC SQL QUERY
                 # Total columns = adm_no (1) + subjects (num_subs * 2) + total (1) + level (1)
@@ -1261,17 +1252,17 @@ class PP2MarkSheetView(ctk.CTkFrame):
                 final_data = [adm_no] + marks_data + [total_val, lvl_val]
 
                 self.db.cursor().execute(query, final_data)
-                debug_log(f"DEBUG: Row {row_idx}: SQL executed successfully for {student_name}")
+                print(f"DEBUG: Row {row_idx}: SQL executed successfully for {student_name}")
                 success_count += 1
 
-            debug_log(f"DEBUG: Committing to database. Total students saved: {success_count}")
+            print(f"DEBUG: Committing to database. Total students saved: {success_count}")
             self.db.conn.commit()
-            debug_log(f"DEBUG: Database commit successful")
+            print(f"DEBUG: Database commit successful")
             messagebox.showinfo("Success", f"Saved marks for {success_count} students.")
             if not skip_reload:
-                debug_log(f"DEBUG: Starting reload of students from registry")
+                print(f"DEBUG: Starting reload of students from registry")
                 self.load_students_from_registry()  # Refresh to update rankings
-                debug_log(f"DEBUG: Reload completed")
+                print(f"DEBUG: Reload completed")
 
         except Exception as e:
             messagebox.showerror("Database Error", f"Could not save: {e}")
