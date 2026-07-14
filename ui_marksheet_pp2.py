@@ -1,6 +1,16 @@
 import customtkinter as ctk
 from tkinter import messagebox
 from grading_logic import get_grade_4_6_rating, calculate_final_level
+
+# Import debug logging function
+try:
+    from debug_console import debug_log
+except Exception:
+
+    def debug_log(message):
+        print(message)
+
+
 from fpdf import FPDF
 from reportlab.lib.pagesizes import landscape, A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -19,7 +29,7 @@ import sys
 
 def get_app_dir():
     """Get the application directory, handling both script and executable environments"""
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, "frozen", False):
         # Running as executable
         BASE_DIR = sys._MEIPASS
         USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
@@ -272,6 +282,7 @@ class PP2MarkSheetView(ctk.CTkFrame):
             # 5. Recalculate totals and averages for all rows from individual scores
             # This ensures totals are correct even if cloud sends zero
             import grading_logic as gl
+
             all_widgets = self.table_inner.grid_slaves()
             if all_widgets:
                 # Group widgets by row
@@ -282,15 +293,17 @@ class PP2MarkSheetView(ctk.CTkFrame):
                         if row not in rows:
                             rows[row] = []
                         rows[row].append(w)
-                
+
                 # Recalculate each row
                 for row_idx in sorted(rows.keys()):
-                    widgets = sorted(rows[row_idx], key=lambda w: w.grid_info().get("column", 0))
-                    
+                    widgets = sorted(
+                        rows[row_idx], key=lambda w: w.grid_info().get("column", 0)
+                    )
+
                     # Calculate total score from individual score entries
                     total_score = 0
                     num_subs = len(subjects)
-                    
+
                     for i in range(num_subs):
                         score_idx = 1 + (i * 2)
                         if score_idx < len(widgets):
@@ -299,7 +312,7 @@ class PP2MarkSheetView(ctk.CTkFrame):
                                 score_val = score_widget.get().strip()
                                 if score_val.isdigit():
                                     total_score += int(score_val)
-                    
+
                     # Update total score box
                     total_idx = 1 + (num_subs * 2)
                     if total_idx < len(widgets):
@@ -310,9 +323,11 @@ class PP2MarkSheetView(ctk.CTkFrame):
                             total_widget.delete(0, "end")
                             total_widget.insert(0, str(total_score))
                             total_widget.configure(state=curr_state)
-                    
+
                     # Calculate and update average level
-                    avg_lvl = gl.calculate_final_level(total_score, is_primary=True, num_subjects=num_subs)
+                    avg_lvl = gl.calculate_final_level(
+                        total_score, is_primary=True, num_subjects=num_subs
+                    )
                     avg_idx = total_idx + 1
                     if avg_idx < len(widgets):
                         avg_widget = widgets[avg_idx]
@@ -549,7 +564,9 @@ class PP2MarkSheetView(ctk.CTkFrame):
             self.scroll_container, bg="#242424", highlightthickness=0
         )
         self.h_scroll = ctk.CTkScrollbar(
-            self.scroll_container, orientation="horizontal", command=self._on_horizontal_scroll
+            self.scroll_container,
+            orientation="horizontal",
+            command=self._on_horizontal_scroll,
         )
         self.v_scroll = ctk.CTkScrollbar(
             self.scroll_container, orientation="vertical", command=self.canvas.yview
@@ -558,9 +575,7 @@ class PP2MarkSheetView(ctk.CTkFrame):
         self.canvas.configure(
             xscrollcommand=self._update_h_scroll, yscrollcommand=self.v_scroll.set
         )
-        self.header_canvas.configure(
-            xscrollcommand=self._update_h_scroll
-        )
+        self.header_canvas.configure(xscrollcommand=self._update_h_scroll)
         self.h_scroll.pack(side="bottom", fill="x")
         self.v_scroll.pack(side="right", fill="y")
         self.canvas.pack(side="left", fill="both", expand=True)
@@ -637,12 +652,13 @@ class PP2MarkSheetView(ctk.CTkFrame):
             # Update header canvas scrollregion (horizontal only)
             # Use the same width as content canvas to ensure synchronization
             if header_bbox:
-                self.header_canvas.configure(scrollregion=(0, 0, max_width, header_bbox[3]))
+                self.header_canvas.configure(
+                    scrollregion=(0, 0, max_width, header_bbox[3])
+                )
             else:
                 self.header_canvas.configure(scrollregion=(0, 0, max_width, 90))
         except Exception:
             pass
-
 
     def create_table_headers(self):
         # FIXED DIMENSIONS
@@ -734,7 +750,7 @@ class PP2MarkSheetView(ctk.CTkFrame):
                 row=0, column=total_start + j, rowspan=2, sticky="nsew", padx=1, pady=0
             )
 
-    def add_student_row_with_data(self, row_data, rank, read_only=False):
+    def add_student_row_with_data(self, row_data, rank, read_only=False, adm_no=None):
         subjects = self.get_subjects_from_json()
         num_subs = len(subjects)
 
@@ -881,7 +897,9 @@ class PP2MarkSheetView(ctk.CTkFrame):
         widgets[t_idx].configure(state="disabled")
 
         # 3. Calculate Final Level using your calculate_final_level (is_primary=True)
-        avg_lvl = gl.calculate_final_level(total_score, is_primary=True, num_subjects=num_subs)
+        avg_lvl = gl.calculate_final_level(
+            total_score, is_primary=True, num_subjects=num_subs
+        )
 
         l_box = widgets[t_idx + 1]
         l_box.configure(state="normal")
@@ -925,7 +943,9 @@ class PP2MarkSheetView(ctk.CTkFrame):
                         )
                     except Exception as e:
                         if "duplicate column" in str(e).lower():
-                            print(f"DEBUG: Column [{s_col}] already exists, skipping...")
+                            print(
+                                f"DEBUG: Column [{s_col}] already exists, skipping..."
+                            )
                         else:
                             raise
 
@@ -938,7 +958,9 @@ class PP2MarkSheetView(ctk.CTkFrame):
                         )
                     except Exception as e:
                         if "duplicate column" in str(e).lower():
-                            print(f"DEBUG: Column [{r_col}] already exists, skipping...")
+                            print(
+                                f"DEBUG: Column [{r_col}] already exists, skipping..."
+                            )
                         else:
                             raise
 
@@ -950,7 +972,9 @@ class PP2MarkSheetView(ctk.CTkFrame):
                     )
                 except Exception as e:
                     if "duplicate column" in str(e).lower():
-                        print("DEBUG: Column [total_points] already exists, skipping...")
+                        print(
+                            "DEBUG: Column [total_points] already exists, skipping..."
+                        )
                     else:
                         raise
             if "average_level" not in existing_cols:
@@ -960,7 +984,9 @@ class PP2MarkSheetView(ctk.CTkFrame):
                     )
                 except Exception as e:
                     if "duplicate column" in str(e).lower():
-                        print("DEBUG: Column [average_level] already exists, skipping...")
+                        print(
+                            "DEBUG: Column [average_level] already exists, skipping..."
+                        )
                     else:
                         raise
 
@@ -1090,20 +1116,35 @@ class PP2MarkSheetView(ctk.CTkFrame):
 
                 # 4. Draw rows in the sorted order
                 for row_data, pos in final_list:
-                    self.add_student_row_with_data(row_data, pos)
+                    student_name = row_data[0]
+                    adm_no = None
+                    if student_name:
+                        self.db.cursor().execute(
+                            "SELECT adm_no FROM students WHERE name = ? AND UPPER(grade) = UPPER(?)",
+                            (student_name, self.class_name),
+                        )
+                        row_match = self.db.cursor().fetchone()
+                        if row_match:
+                            adm_no = row_match[0]
+                    self.add_student_row_with_data(row_data, pos, adm_no=adm_no)
 
             # Update scrollregion after all rows are added
-            self.canvas.after(
-                100, lambda: self._update_scrollregion()
-            )
+            self.canvas.after(100, lambda: self._update_scrollregion())
 
         except Exception as e:
             print(f"Loading/Sorting Error: {e}")
 
     def save_pp2_marks(self, skip_reload=False):
         # Force focus away from any entry widget to commit values
-        self.table_inner.focus_set()
-        
+        # More robust approach for executable environment
+        try:
+            self.table_inner.focus_set()
+            # Also try to focus on the window to ensure all widgets commit
+            if hasattr(self, "focus"):
+                self.focus()
+        except:
+            pass
+
         success_count = 0
         subjects = self.get_subjects_from_json()
         num_subs = len(subjects)
@@ -1112,6 +1153,7 @@ class PP2MarkSheetView(ctk.CTkFrame):
             # PP2 marksheet uses direct grid layout, not row frames
             # Get all widgets and group them by row
             all_widgets = self.table_inner.grid_slaves()
+            debug_log(f"DEBUG: Total widgets found: {len(all_widgets)}")
             if not all_widgets:
                 return
 
@@ -1123,7 +1165,11 @@ class PP2MarkSheetView(ctk.CTkFrame):
                     rows[row] = []
                 rows[row].append(w)
 
+            debug_log(f"DEBUG: Total rows found: {len(rows)}")
+            debug_log(f"DEBUG: Row indices: {sorted(rows.keys())}")
+
             for row_idx in sorted(rows.keys()):
+                debug_log(f"DEBUG: Processing row {row_idx}")
                 widgets = rows[row_idx]
                 # Sort widgets by column
                 widgets.sort(key=lambda w: int(w.grid_info()["column"]))
@@ -1134,31 +1180,64 @@ class PP2MarkSheetView(ctk.CTkFrame):
                 # Get Student Name (column 0)
                 name_widget = widgets[0]
                 if not hasattr(name_widget, "cget"):
+                    debug_log(
+                        f"DEBUG: Row {row_idx}: Name widget has no cget attribute"
+                    )
                     continue
                 student_name = name_widget.cget("text")
+                debug_log(f"DEBUG: Row {row_idx}: Student name: {student_name}")
                 if student_name == "STUDENT NAME":
+                    debug_log(f"DEBUG: Row {row_idx}: Skipping header row")
                     continue
 
                 # Get Admission Number
+                debug_log(f"DEBUG: Row {row_idx}: Looking up admission number for {student_name}")
                 self.db.cursor().execute(
-                    "SELECT adm_no FROM students WHERE name = ?", (student_name,)
+                    "SELECT adm_no FROM students WHERE name = ? AND UPPER(grade) = UPPER(?)",
+                    (student_name, self.class_name)
                 )
                 res = self.db.cursor().fetchone()
                 if not res:
+                    debug_log(
+                        f"DEBUG: Row {row_idx}: No admission number found for {student_name} with grade {self.class_name}"
+                    )
                     continue
                 adm_no = res[0]
+                debug_log(f"DEBUG: Row {row_idx}: Using admission number: {adm_no}")
 
                 # 1. Collect dynamic marks from Entry boxes
                 # We skip index 0 (Name) and take the next (num_subs * 2) widgets
                 marks_data = []
                 for i in range(1, (num_subs * 2) + 1):
-                    val = widgets[i].get()
+                    # More robust value retrieval for executable environment
+                    try:
+                        widget = widgets[i]
+                        if hasattr(widget, "get"):
+                            val = widget.get()
+                        else:
+                            val = None
+                    except:
+                        val = None
                     marks_data.append(val if val != "" else None)
+
+                debug_log(
+                    f"DEBUG: Row {row_idx}: Marks data length: {len(marks_data)}, Expected: {num_subs * 2}"
+                )
 
                 # 2. Collect Totals and Level (The last 3 widgets are Total, Level, Pos)
                 # Position is not saved in the marks table, only Total and Level
-                total_val = widgets[-3].get()
-                lvl_val = widgets[-2].get()
+                try:
+                    total_val = (
+                        widgets[-3].get() if hasattr(widgets[-3], "get") else None
+                    )
+                except:
+                    total_val = None
+                try:
+                    lvl_val = widgets[-2].get() if hasattr(widgets[-2], "get") else None
+                except:
+                    lvl_val = None
+
+                debug_log(f"DEBUG: Row {row_idx}: Total: {total_val}, Level: {lvl_val}")
 
                 # 3. DYNAMIC SQL QUERY
                 # Total columns = adm_no (1) + subjects (num_subs * 2) + total (1) + level (1)
@@ -1182,12 +1261,17 @@ class PP2MarkSheetView(ctk.CTkFrame):
                 final_data = [adm_no] + marks_data + [total_val, lvl_val]
 
                 self.db.cursor().execute(query, final_data)
+                debug_log(f"DEBUG: Row {row_idx}: SQL executed successfully for {student_name}")
                 success_count += 1
 
+            debug_log(f"DEBUG: Committing to database. Total students saved: {success_count}")
             self.db.conn.commit()
+            debug_log(f"DEBUG: Database commit successful")
             messagebox.showinfo("Success", f"Saved marks for {success_count} students.")
             if not skip_reload:
+                debug_log(f"DEBUG: Starting reload of students from registry")
                 self.load_students_from_registry()  # Refresh to update rankings
+                debug_log(f"DEBUG: Reload completed")
 
         except Exception as e:
             messagebox.showerror("Database Error", f"Could not save: {e}")

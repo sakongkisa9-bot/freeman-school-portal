@@ -1,3 +1,8 @@
+from debug_console import (
+    debug_log as console_debug_log,
+    set_debug_log_file,
+    show_debug_console,
+)
 from ui_marksheet_junior import JuniorMarkSheetView  # Import the new workshop file
 from ui_marksheet_primary import PrimaryMarkSheetView  # For Grade 4-6
 from ui_marksheet_playgroup import PlaygroupMarkSheetView
@@ -14,18 +19,29 @@ import json
 import webbrowser
 from datetime import datetime, timedelta
 import customtkinter as ctk
-from tkinter import messagebox
+from tkinter import messagebox, scrolledtext
 from database import FreemanDB  # Ensure database.py is in the same folder
 from PIL import Image
 from wizard import SchoolSetupWizard
 import network_manager
 from cloud_service import CloudService, ask_cloud_credentials
+import io
+import contextlib
+import subprocess
+
+# Global debug log file
+DEBUG_LOG_FILE = None
+
+
+def debug_log(message):
+    """Write debug message to both the console and the in-app debug window."""
+    return console_debug_log(message)
 
 
 # Handle both development and executable environments
 def get_app_dir():
     """Get the application directory, handling both script and executable environments"""
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, "frozen", False):
         # Running as executable
         BASE_DIR = sys._MEIPASS
         USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
@@ -49,6 +65,15 @@ class Dashboard(ctk.CTk):
         self.all_student_rows = []
         self.portal_open = self.load_portal_state()  # Track portal state from config
         # --------------------------------
+
+        # Debug console
+        self.debug_console = None
+        self.debug_log_file = os.path.join(self.USER_DATA_DIR, "debug_output.txt")
+
+        # Make debug log file accessible globally
+        global DEBUG_LOG_FILE
+        DEBUG_LOG_FILE = self.debug_log_file
+        set_debug_log_file(self.debug_log_file)
 
         self.overrideredirect(True)
 
@@ -158,9 +183,9 @@ class Dashboard(ctk.CTk):
             text="Register Students",
             width=btn_width,
             height=btn_height,
-            command=lambda: self.require_auth(lambda: self.show_class_selection(
-                "Registration", self.btn_register
-            )),
+            command=lambda: self.require_auth(
+                lambda: self.show_class_selection("Registration", self.btn_register)
+            ),
         )
         self.btn_register.pack(pady=btn_pady)
 
@@ -169,9 +194,9 @@ class Dashboard(ctk.CTk):
             text="View Mark Sheets",
             width=btn_width,
             height=btn_height,
-            command=lambda: self.require_auth(lambda: self.show_class_selection(
-                "Mark Sheets", self.btn_mark_sheets
-            )),
+            command=lambda: self.require_auth(
+                lambda: self.show_class_selection("Mark Sheets", self.btn_mark_sheets)
+            ),
         )
         self.btn_mark_sheets.pack(pady=btn_pady)
 
@@ -180,9 +205,11 @@ class Dashboard(ctk.CTk):
             text="Previous Exams",
             width=btn_width,
             height=btn_height,
-            command=lambda: self.require_auth(lambda: self.show_class_selection(
-                "Previous Exams", self.btn_previous_exams
-            )),
+            command=lambda: self.require_auth(
+                lambda: self.show_class_selection(
+                    "Previous Exams", self.btn_previous_exams
+                )
+            ),
         )
         self.btn_previous_exams.pack(pady=btn_pady)
 
@@ -191,7 +218,9 @@ class Dashboard(ctk.CTk):
             text="Student Marks Summary",
             width=btn_width,
             height=btn_height,
-            command=lambda: self.require_auth(lambda: self.show_class_selection("Summary", self.btn_summary)),
+            command=lambda: self.require_auth(
+                lambda: self.show_class_selection("Summary", self.btn_summary)
+            ),
         )
         self.btn_summary.pack(pady=btn_pady)
 
@@ -200,7 +229,9 @@ class Dashboard(ctk.CTk):
             text="Teachers Linked",
             width=btn_width,
             height=btn_height,
-            command=lambda: self.require_auth(lambda: self.show_class_selection("Teachers", self.btn_teachers)),
+            command=lambda: self.require_auth(
+                lambda: self.show_class_selection("Teachers", self.btn_teachers)
+            ),
         )
         self.btn_teachers.pack(pady=btn_pady)
 
@@ -212,6 +243,15 @@ class Dashboard(ctk.CTk):
             command=lambda: self.require_auth(self.open_report_forms),
         )
         self.btn_report_forms.pack(pady=btn_pady)
+
+        self.btn_debug_console = ctk.CTkButton(
+            self.menu_panel,
+            text="Debug Console",
+            width=btn_width,
+            height=btn_height,
+            command=self.show_debug_console,
+        )
+        self.btn_debug_console.pack(pady=btn_pady)
 
         self.btn_newsletter = ctk.CTkButton(
             self.menu_panel,
@@ -228,14 +268,16 @@ class Dashboard(ctk.CTk):
 
         # For the Register button:
         self.btn_register.configure(
-            command=lambda: self.require_auth(lambda: self.show_class_selection("Registering", self.btn_register))
+            command=lambda: self.require_auth(
+                lambda: self.show_class_selection("Registering", self.btn_register)
+            )
         )
 
         # For the Mark Sheets button:
         self.btn_mark_sheets.configure(
-            command=lambda: self.require_auth(lambda: self.show_class_selection(
-                "Viewing Marks", self.btn_mark_sheets
-            ))
+            command=lambda: self.require_auth(
+                lambda: self.show_class_selection("Viewing Marks", self.btn_mark_sheets)
+            )
         )
 
         # Add this at the end of your __init__ section
@@ -306,7 +348,9 @@ class Dashboard(ctk.CTk):
         self.page_title_label.pack(side="left", padx=10)
 
         # Right side buttons frame (moved down for countdown)
-        self.header_buttons_frame = ctk.CTkFrame(self.header_frame, fg_color="transparent")
+        self.header_buttons_frame = ctk.CTkFrame(
+            self.header_frame, fg_color="transparent"
+        )
         self.header_buttons_frame.pack(side="right", padx=10)
 
         # Countdown Timer in top right corner
@@ -317,13 +361,13 @@ class Dashboard(ctk.CTk):
             text_color="#10b981",  # Green by default
         )
         self.countdown_label.pack(pady=(0, 5))
-        
+
         # Start countdown timer update
         self.update_countdown_timer()
-        
+
         # Check for pending alerts on startup
         self.check_pending_alerts_on_startup()
-        
+
         # Check for updates on startup (in background)
         self.check_for_updates_on_startup()
 
@@ -351,6 +395,18 @@ class Dashboard(ctk.CTk):
         )
         self.btn_system_settings.pack(pady=(0, 5))
 
+        # Debug Console button
+        self.btn_debug_console = ctk.CTkButton(
+            self.header_buttons_frame,
+            text="🐛 Debug Console",
+            command=self.toggle_debug_console,
+            fg_color="#9b59b6",
+            hover_color="#8e44ad",
+            height=35,
+            font=("Arial Bold", 12),
+        )
+        self.btn_debug_console.pack(pady=(0, 5))
+
         # Check for Updates button (hidden by default, shown when updates available)
         self.btn_check_updates = ctk.CTkButton(
             self.header_buttons_frame,
@@ -362,7 +418,7 @@ class Dashboard(ctk.CTk):
             font=("Arial Bold", 13),
             corner_radius=8,
             border_width=2,
-            border_color="#2980b9"
+            border_color="#2980b9",
         )
         # Don't pack initially - will show when update available
 
@@ -407,35 +463,41 @@ class Dashboard(ctk.CTk):
         """Prompt for admin password and verify against school_config.json"""
         try:
             config = self.load_school_config()
-            admin_password = config.get('system_password', '1234')
+            admin_password = config.get("system_password", "1234")
         except:
-            admin_password = '1234'
-        
+            admin_password = "1234"
+
         # Create password prompt dialog
         password_dialog = ctk.CTkToplevel(self)
         password_dialog.title("Admin Authentication Required")
         password_dialog.geometry("400x200")
         password_dialog.attributes("-topmost", True)
         password_dialog.grab_set()
-        
-        ctk.CTkLabel(password_dialog, text="Enter Administrator Password:", font=("Arial", 14, "bold")).pack(pady=20)
-        
+
+        ctk.CTkLabel(
+            password_dialog,
+            text="Enter Administrator Password:",
+            font=("Arial", 14, "bold"),
+        ).pack(pady=20)
+
         password_entry = ctk.CTkEntry(password_dialog, show="*", width=250)
         password_entry.pack(pady=10)
         password_entry.focus()
-        
+
         result = {"verified": False}
-        
+
         def verify():
             if password_entry.get() == admin_password:
                 result["verified"] = True
                 password_dialog.destroy()
             else:
                 messagebox.showerror("Authentication Failed", "Incorrect password!")
-                password_entry.delete(0, 'end')
-        
-        ctk.CTkButton(password_dialog, text="Verify", command=verify, width=100).pack(pady=20)
-        
+                password_entry.delete(0, "end")
+
+        ctk.CTkButton(password_dialog, text="Verify", command=verify, width=100).pack(
+            pady=20
+        )
+
         password_dialog.wait_window()
         return result["verified"]
 
@@ -447,32 +509,40 @@ class Dashboard(ctk.CTk):
     def verify_developer_password(self):
         """Prompt for developer password and verify against hardcoded credentials"""
         developer_password = "16592@FREE man"
-        
+
         # Create password prompt dialog
         password_dialog = ctk.CTkToplevel(self)
         password_dialog.title("Developer Authentication Required")
         password_dialog.geometry("400x200")
         password_dialog.attributes("-topmost", True)
         password_dialog.grab_set()
-        
-        ctk.CTkLabel(password_dialog, text="Enter Developer Password:", font=("Arial", 14, "bold")).pack(pady=20)
-        
+
+        ctk.CTkLabel(
+            password_dialog,
+            text="Enter Developer Password:",
+            font=("Arial", 14, "bold"),
+        ).pack(pady=20)
+
         password_entry = ctk.CTkEntry(password_dialog, show="*", width=250)
         password_entry.pack(pady=10)
         password_entry.focus()
-        
+
         result = {"verified": False}
-        
+
         def verify():
             if password_entry.get() == developer_password:
                 result["verified"] = True
                 password_dialog.destroy()
             else:
-                messagebox.showerror("Authentication Failed", "Incorrect developer password!")
-                password_entry.delete(0, 'end')
-        
-        ctk.CTkButton(password_dialog, text="Verify", command=verify, width=100).pack(pady=20)
-        
+                messagebox.showerror(
+                    "Authentication Failed", "Incorrect developer password!"
+                )
+                password_entry.delete(0, "end")
+
+        ctk.CTkButton(password_dialog, text="Verify", command=verify, width=100).pack(
+            pady=20
+        )
+
         password_dialog.wait_window()
         return result["verified"]
 
@@ -494,11 +564,28 @@ class Dashboard(ctk.CTk):
         scrollable_frame = ctk.CTkScrollableFrame(promote_dialog, corner_radius=0)
         scrollable_frame.pack(fill="both", expand=True)
 
-        ctk.CTkLabel(scrollable_frame, text="Promote Students to Next Class", font=("Arial Bold", 18)).pack(pady=20)
-        ctk.CTkLabel(scrollable_frame, text="This will move all students to their next class level.", font=("Arial", 12)).pack(pady=5)
-        ctk.CTkLabel(scrollable_frame, text="Grade 9 students will be removed from the system.", font=("Arial", 12), text_color="red").pack(pady=5)
+        ctk.CTkLabel(
+            scrollable_frame,
+            text="Promote Students to Next Class",
+            font=("Arial Bold", 18),
+        ).pack(pady=20)
+        ctk.CTkLabel(
+            scrollable_frame,
+            text="This will move all students to their next class level.",
+            font=("Arial", 12),
+        ).pack(pady=5)
+        ctk.CTkLabel(
+            scrollable_frame,
+            text="Grade 9 students will be removed from the system.",
+            font=("Arial", 12),
+            text_color="red",
+        ).pack(pady=5)
 
-        ctk.CTkLabel(scrollable_frame, text="Enter Academic Year (e.g., 2024):", font=("Arial Bold", 14)).pack(pady=(20, 10))
+        ctk.CTkLabel(
+            scrollable_frame,
+            text="Enter Academic Year (e.g., 2024):",
+            font=("Arial Bold", 14),
+        ).pack(pady=(20, 10))
         year_entry = ctk.CTkEntry(scrollable_frame, width=200)
         year_entry.pack(pady=10)
         year_entry.insert(0, str(2024))  # Default to current year
@@ -508,10 +595,13 @@ class Dashboard(ctk.CTk):
         def confirm_promotion():
             year = year_entry.get().strip()
             if not year or not year.isdigit():
-                messagebox.showerror("Invalid Year", "Please enter a valid year (e.g., 2024)")
+                messagebox.showerror(
+                    "Invalid Year", "Please enter a valid year (e.g., 2024)"
+                )
                 return
 
-            if messagebox.askyesno("Confirm Promotion", 
+            if messagebox.askyesno(
+                "Confirm Promotion",
                 f"Are you sure you want to promote all students to the next class?\n\n"
                 f"This action will:\n"
                 f"- Move Playgroup → PP1\n"
@@ -526,14 +616,28 @@ class Dashboard(ctk.CTk):
                 f"- Move Grade 7 → Grade 8\n"
                 f"- Move Grade 8 → Grade 9\n"
                 f"- Remove Grade 9 students from system\n\n"
-                f"All current exam data will be archived under year: {year}"):
+                f"All current exam data will be archived under year: {year}",
+            ):
                 result["confirmed"] = True
                 result["year"] = year
                 promote_dialog.destroy()
 
-        ctk.CTkButton(scrollable_frame, text="Promote Students", command=confirm_promotion, 
-                     fg_color="#e67e22", hover_color="#d35400", width=150, height=40).pack(pady=20)
-        ctk.CTkButton(scrollable_frame, text="Cancel", command=promote_dialog.destroy, width=150, height=40).pack(pady=5)
+        ctk.CTkButton(
+            scrollable_frame,
+            text="Promote Students",
+            command=confirm_promotion,
+            fg_color="#e67e22",
+            hover_color="#d35400",
+            width=150,
+            height=40,
+        ).pack(pady=20)
+        ctk.CTkButton(
+            scrollable_frame,
+            text="Cancel",
+            command=promote_dialog.destroy,
+            width=150,
+            height=40,
+        ).pack(pady=5)
 
         promote_dialog.wait_window()
 
@@ -544,7 +648,7 @@ class Dashboard(ctk.CTk):
         """Execute the actual student promotion and archiving"""
         try:
             print(f"[PROMOTION] Starting student promotion for year: {year}")
-            
+
             # Define promotion mapping
             promotion_map = {
                 "Playgroup": "PP1",
@@ -558,14 +662,16 @@ class Dashboard(ctk.CTk):
                 "Grade 6": "Grade 7",
                 "Grade 7": "Grade 8",
                 "Grade 8": "Grade 9",
-                "Grade 9": None  # Will be removed
+                "Grade 9": None,  # Will be removed
             }
 
             print(f"[PROMOTION] Promotion map: {promotion_map}")
 
             # Get all students
             print("[PROMOTION] Fetching all students from database...")
-            self.db.cursor().execute("SELECT adm_no, name, grade, gender, phone, photo, stream FROM students")
+            self.db.cursor().execute(
+                "SELECT adm_no, name, grade, gender, phone, photo, stream FROM students"
+            )
             students = self.db.cursor().fetchall()
             print(f"[PROMOTION] Found {len(students)} students")
 
@@ -579,46 +685,58 @@ class Dashboard(ctk.CTk):
 
             for student in students:
                 adm_no, name, current_grade, gender, phone, photo, stream = student
-                print(f"[PROMOTION] Processing student: {name} (ADM: {adm_no}, Grade: {current_grade})")
-                
+                print(
+                    f"[PROMOTION] Processing student: {name} (ADM: {adm_no}, Grade: {current_grade})"
+                )
+
                 # Handle case-insensitive grade matching
-                current_grade_normalized = current_grade.strip().title() if current_grade else ""
+                current_grade_normalized = (
+                    current_grade.strip().title() if current_grade else ""
+                )
                 if current_grade_normalized == "Playgroup":
                     current_grade_normalized = "Playgroup"
                 elif current_grade_normalized.lower() == "pp1":
                     current_grade_normalized = "PP1"
                 elif current_grade_normalized.lower() == "pp2":
                     current_grade_normalized = "PP2"
-                
+
                 if current_grade_normalized in promotion_map:
                     new_grade = promotion_map[current_grade_normalized]
-                    print(f"[PROMOTION] Student {name} will move from {current_grade} ({current_grade_normalized}) to {new_grade}")
-                    
+                    print(
+                        f"[PROMOTION] Student {name} will move from {current_grade} ({current_grade_normalized}) to {new_grade}"
+                    )
+
                     if new_grade is None:
                         # Remove Grade 9 students
                         print(f"[PROMOTION] Removing Grade 9 student: {name}")
-                        self.db.cursor().execute("DELETE FROM students WHERE adm_no = ?", (adm_no,))
+                        self.db.cursor().execute(
+                            "DELETE FROM students WHERE adm_no = ?", (adm_no,)
+                        )
                         removed_count += 1
                     else:
                         # Promote to next grade
                         print(f"[PROMOTION] Promoting student {name} to {new_grade}")
                         self.db.cursor().execute(
                             "UPDATE students SET grade = ? WHERE adm_no = ?",
-                            (new_grade, adm_no)
+                            (new_grade, adm_no),
                         )
                         promoted_count += 1
                 else:
-                    print(f"[PROMOTION] WARNING: Student {name} has unrecognized grade: {current_grade} (normalized: {current_grade_normalized})")
+                    print(
+                        f"[PROMOTION] WARNING: Student {name} has unrecognized grade: {current_grade} (normalized: {current_grade_normalized})"
+                    )
 
             print(f"[PROMOTION] Committing database changes...")
             self.db.conn.commit()
             print(f"[PROMOTION] Database commit successful")
 
-            messagebox.showinfo("Promotion Complete", 
+            messagebox.showinfo(
+                "Promotion Complete",
                 f"Student promotion completed successfully!\n\n"
                 f"Promoted: {promoted_count} students\n"
                 f"Removed: {removed_count} students (Grade 9)\n"
-                f"All exam data archived under year: {year}")
+                f"All exam data archived under year: {year}",
+            )
 
             # Sync students to cloud after promotion
             print("[PROMOTION] Starting cloud sync after promotion...")
@@ -642,23 +760,29 @@ class Dashboard(ctk.CTk):
                         print("[PROMOTION] Cloud sync completed successfully")
                     except Exception as sync_error:
                         print(f"[PROMOTION] Cloud sync error: {sync_error}")
-                        messagebox.showwarning("Cloud Sync", f"Promotion completed but cloud sync failed: {sync_error}")
+                        messagebox.showwarning(
+                            "Cloud Sync",
+                            f"Promotion completed but cloud sync failed: {sync_error}",
+                        )
 
         except Exception as e:
             print(f"[PROMOTION ERROR] An error occurred during promotion: {e}")
             import traceback
+
             traceback.print_exc()
-            messagebox.showerror("Promotion Failed", f"An error occurred during promotion: {e}")
+            messagebox.showerror(
+                "Promotion Failed", f"An error occurred during promotion: {e}"
+            )
 
     def archive_all_exams(self, year):
         """Archive all current exam data under the specified year"""
         try:
             print(f"[ARCHIVE] Starting archiving process for year: {year}")
-            
+
             # Create archives directory if it doesn't exist
             archives_dir = os.path.join(self.USER_DATA_DIR, "archives")
             print(f"[ARCHIVE] Archives directory: {archives_dir}")
-            
+
             if not os.path.exists(archives_dir):
                 print(f"[ARCHIVE] Creating archives directory...")
                 os.makedirs(archives_dir)
@@ -670,20 +794,33 @@ class Dashboard(ctk.CTk):
 
             # Archive based on previous_exams table (which contains exam titles)
             print(f"[ARCHIVE] Fetching previous_exams data...")
-            self.db.cursor().execute("SELECT exam_name, class_name, exam_date, summary_data, marks_data FROM previous_exams")
+            self.db.cursor().execute(
+                "SELECT exam_name, class_name, exam_date, summary_data, marks_data FROM previous_exams"
+            )
             previous_exams = self.db.cursor().fetchall()
             print(f"[ARCHIVE] Found {len(previous_exams)} previous exams")
 
-            for exam_name, class_name, exam_date, summary_data, marks_data in previous_exams:
+            for (
+                exam_name,
+                class_name,
+                exam_date,
+                summary_data,
+                marks_data,
+            ) in previous_exams:
                 print(f"[ARCHIVE] Archiving exam: {exam_name} for class: {class_name}")
-                
+
                 # Save to archive file - use exam name to differentiate
                 import json
+
                 # Sanitize exam name for filename
-                safe_exam_name = exam_name.replace(" ", "_").replace("/", "_").replace("\\", "_")
-                archive_file = os.path.join(archives_dir, f"{year}_{class_name}_{safe_exam_name}_archive.json")
+                safe_exam_name = (
+                    exam_name.replace(" ", "_").replace("/", "_").replace("\\", "_")
+                )
+                archive_file = os.path.join(
+                    archives_dir, f"{year}_{class_name}_{safe_exam_name}_archive.json"
+                )
                 print(f"[ARCHIVE] Creating archive file: {archive_file}")
-                
+
                 archive_data = {
                     "year": year,
                     "class": class_name,
@@ -691,24 +828,26 @@ class Dashboard(ctk.CTk):
                     "exam_date": exam_date,
                     "summary_data": summary_data,
                     "marks_data": marks_data,
-                    "archived_date": str(datetime.now())
+                    "archived_date": str(datetime.now()),
                 }
 
-                with open(archive_file, 'w') as f:
+                with open(archive_file, "w") as f:
                     json.dump(archive_data, f, indent=4, default=str)
-                
+
                 print(f"[ARCHIVE] Archive file created successfully")
                 archived_count += 1
 
             # Also archive current marks from marksheet tables
             print(f"[ARCHIVE] Archiving current marks from marksheet tables...")
-            self.db.cursor().execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%_marks'")
+            self.db.cursor().execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%_marks'"
+            )
             exam_tables = self.db.cursor().fetchall()
             print(f"[ARCHIVE] Found {len(exam_tables)} marksheet tables")
 
             for (table_name,) in exam_tables:
                 print(f"[ARCHIVE] Processing table: {table_name}")
-                
+
                 # Extract class from table name (e.g., "playgroup_marks" -> "playgroup")
                 class_name = table_name.replace("_marks", "")
                 print(f"[ARCHIVE] Class name extracted: {class_name}")
@@ -731,7 +870,9 @@ class Dashboard(ctk.CTk):
                     for row in marks_data:
                         adm_no = row[0]  # First column is adm_no
                         # Get student's grade from students table
-                        self.db.cursor().execute("SELECT grade FROM students WHERE adm_no = ?", (adm_no,))
+                        self.db.cursor().execute(
+                            "SELECT grade FROM students WHERE adm_no = ?", (adm_no,)
+                        )
                         student_grade = self.db.cursor().fetchone()
                         if student_grade:
                             grade = student_grade[0]
@@ -741,14 +882,22 @@ class Dashboard(ctk.CTk):
 
                     # Archive each grade separately
                     for grade, grade_marks in grade_groups.items():
-                        print(f"[ARCHIVE] Archiving {len(grade_marks)} records for grade: {grade}")
-                        
+                        print(
+                            f"[ARCHIVE] Archiving {len(grade_marks)} records for grade: {grade}"
+                        )
+
                         # Save to archive file
                         import json
+
                         safe_grade = grade.replace(" ", "_")
-                        archive_file = os.path.join(archives_dir, f"{year}_{safe_grade}_current_marks_archive.json")
-                        print(f"[ARCHIVE] Creating current marks archive file: {archive_file}")
-                        
+                        archive_file = os.path.join(
+                            archives_dir,
+                            f"{year}_{safe_grade}_current_marks_archive.json",
+                        )
+                        print(
+                            f"[ARCHIVE] Creating current marks archive file: {archive_file}"
+                        )
+
                         archive_data = {
                             "year": year,
                             "class": grade,  # Use specific grade instead of table class
@@ -757,13 +906,15 @@ class Dashboard(ctk.CTk):
                             "exam_date": str(datetime.now()),
                             "columns": columns,
                             "data": grade_marks,
-                            "archived_date": str(datetime.now())
+                            "archived_date": str(datetime.now()),
                         }
 
-                        with open(archive_file, 'w') as f:
+                        with open(archive_file, "w") as f:
                             json.dump(archive_data, f, indent=4, default=str)
-                        
-                        print(f"[ARCHIVE] Current marks archive file created successfully")
+
+                        print(
+                            f"[ARCHIVE] Current marks archive file created successfully"
+                        )
                         archived_count += 1
 
             # Clear the previous_exams table after archiving
@@ -780,16 +931,33 @@ class Dashboard(ctk.CTk):
             print(f"[ARCHIVE] Committing database changes...")
             self.db.conn.commit()
             print(f"[ARCHIVE] Database commit successful")
-            print(f"[ARCHIVE] Archiving completed. Total archives created: {archived_count}")
+            print(
+                f"[ARCHIVE] Archiving completed. Total archives created: {archived_count}"
+            )
 
         except Exception as e:
             print(f"[ARCHIVE ERROR] Error archiving exams: {e}")
             import traceback
+
             traceback.print_exc()
 
     def open_archives(self):
         """Open the archive viewer"""
         self.show_archive_year_selection()
+
+    def show_debug_console(self):
+        """Open the in-app debug console window."""
+        try:
+            if os.path.exists(self.debug_log_file):
+                with open(self.debug_log_file, "a", encoding="utf-8"):
+                    pass
+            show_debug_console(self)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to open debug console: {e}")
+
+    def toggle_debug_console(self):
+        """Open the in-app debug console window."""
+        self.show_debug_console()
 
     def open_system_settings(self):
         """Open the system settings dialog"""
@@ -801,14 +969,23 @@ class Dashboard(ctk.CTk):
         header_frame = ctk.CTkFrame(self.content_panel, fg_color="transparent")
         header_frame.pack(fill="x", pady=(10, 20))
 
-        ctk.CTkLabel(header_frame, text=self.dynamic_school_name, font=("Arial Bold", 26)).pack(side="left", padx=10)
-        ctk.CTkLabel(header_frame, text="/ SYSTEM SETTINGS", font=("Arial Italic", 14), text_color="gray").pack(side="left", anchor="sw")
+        ctk.CTkLabel(
+            header_frame, text=self.dynamic_school_name, font=("Arial Bold", 26)
+        ).pack(side="left", padx=10)
+        ctk.CTkLabel(
+            header_frame,
+            text="/ SYSTEM SETTINGS",
+            font=("Arial Italic", 14),
+            text_color="gray",
+        ).pack(side="left", anchor="sw")
 
         # Create settings frame
         settings_frame = ctk.CTkFrame(self.content_panel)
         settings_frame.pack(expand=True, fill="both", padx=20, pady=20)
 
-        ctk.CTkLabel(settings_frame, text="System Settings", font=("Arial Bold", 24)).pack(pady=20)
+        ctk.CTkLabel(
+            settings_frame, text="System Settings", font=("Arial Bold", 24)
+        ).pack(pady=20)
 
         # Archives option
         archives_btn = ctk.CTkButton(
@@ -819,7 +996,7 @@ class Dashboard(ctk.CTk):
             font=("Arial Bold", 14),
             fg_color="#9b59b6",
             hover_color="#8e44ad",
-            command=self.open_archives
+            command=self.open_archives,
         )
         archives_btn.pack(pady=10)
 
@@ -832,7 +1009,7 @@ class Dashboard(ctk.CTk):
             font=("Arial Bold", 14),
             fg_color="#34495e",
             hover_color="#2c3e50",
-            command=lambda: self.require_developer_auth(self.open_wizard)
+            command=lambda: self.require_developer_auth(self.open_wizard),
         )
         setup_branding_btn.pack(pady=10)
 
@@ -845,7 +1022,7 @@ class Dashboard(ctk.CTk):
             font=("Arial Bold", 14),
             fg_color="#3498db",
             hover_color="#2980b9",
-            command=self.open_change_credentials
+            command=self.open_change_credentials,
         )
         change_creds_btn.pack(pady=10)
 
@@ -855,7 +1032,7 @@ class Dashboard(ctk.CTk):
             text="Back to Dashboard",
             width=300,
             height=40,
-            command=self.restore_dashboard
+            command=self.restore_dashboard,
         )
         back_btn.pack(pady=20)
 
@@ -869,37 +1046,56 @@ class Dashboard(ctk.CTk):
         header_frame = ctk.CTkFrame(self.content_panel, fg_color="transparent")
         header_frame.pack(fill="x", pady=(10, 20))
 
-        ctk.CTkLabel(header_frame, text=self.dynamic_school_name, font=("Arial Bold", 26)).pack(side="left", padx=10)
-        ctk.CTkLabel(header_frame, text="/ SYSTEM SETTINGS / CHANGE CREDENTIALS", font=("Arial Italic", 14), text_color="gray").pack(side="left", anchor="sw")
+        ctk.CTkLabel(
+            header_frame, text=self.dynamic_school_name, font=("Arial Bold", 26)
+        ).pack(side="left", padx=10)
+        ctk.CTkLabel(
+            header_frame,
+            text="/ SYSTEM SETTINGS / CHANGE CREDENTIALS",
+            font=("Arial Italic", 14),
+            text_color="gray",
+        ).pack(side="left", anchor="sw")
 
         # Create credentials frame
         creds_frame = ctk.CTkFrame(self.content_panel)
         creds_frame.pack(expand=True, fill="both", padx=20, pady=20)
 
-        ctk.CTkLabel(creds_frame, text="Change Password/Username", font=("Arial Bold", 24)).pack(pady=20)
+        ctk.CTkLabel(
+            creds_frame, text="Change Password/Username", font=("Arial Bold", 24)
+        ).pack(pady=20)
 
         # Load current credentials
         config = self.load_school_config()
-        current_username = config.get('system_username', 'admin')
-        
+        current_username = config.get("system_username", "admin")
+
         # Old password field
-        ctk.CTkLabel(creds_frame, text="Old Password:", font=("Arial", 14)).pack(pady=(10, 5))
+        ctk.CTkLabel(creds_frame, text="Old Password:", font=("Arial", 14)).pack(
+            pady=(10, 5)
+        )
         old_password_entry = ctk.CTkEntry(creds_frame, width=300, show="*")
         old_password_entry.pack(pady=5)
 
         # New username field
-        ctk.CTkLabel(creds_frame, text="New Username (leave blank to keep current):", font=("Arial", 14)).pack(pady=(10, 5))
+        ctk.CTkLabel(
+            creds_frame,
+            text="New Username (leave blank to keep current):",
+            font=("Arial", 14),
+        ).pack(pady=(10, 5))
         new_username_entry = ctk.CTkEntry(creds_frame, width=300)
         new_username_entry.pack(pady=5)
         new_username_entry.insert(0, current_username)
 
         # New password field
-        ctk.CTkLabel(creds_frame, text="New Password:", font=("Arial", 14)).pack(pady=(10, 5))
+        ctk.CTkLabel(creds_frame, text="New Password:", font=("Arial", 14)).pack(
+            pady=(10, 5)
+        )
         new_password_entry = ctk.CTkEntry(creds_frame, width=300, show="*")
         new_password_entry.pack(pady=5)
 
         # Confirm new password field
-        ctk.CTkLabel(creds_frame, text="Confirm New Password:", font=("Arial", 14)).pack(pady=(10, 5))
+        ctk.CTkLabel(
+            creds_frame, text="Confirm New Password:", font=("Arial", 14)
+        ).pack(pady=(10, 5))
         confirm_password_entry = ctk.CTkEntry(creds_frame, width=300, show="*")
         confirm_password_entry.pack(pady=5)
 
@@ -916,8 +1112,8 @@ class Dashboard(ctk.CTk):
                 old_password_entry.get(),
                 new_username_entry.get(),
                 new_password_entry.get(),
-                confirm_password_entry.get()
-            )
+                confirm_password_entry.get(),
+            ),
         )
         save_btn.pack(pady=20)
 
@@ -927,48 +1123,50 @@ class Dashboard(ctk.CTk):
             text="Back to System Settings",
             width=300,
             height=40,
-            command=self.open_system_settings
+            command=self.open_system_settings,
         )
         back_btn.pack(pady=10)
 
-    def save_credentials(self, old_password, new_username, new_password, confirm_password):
+    def save_credentials(
+        self, old_password, new_username, new_password, confirm_password
+    ):
         """Save the new credentials to school_config.json"""
         import os
         import json
-        
+
         # Load current config
         config = self.load_school_config()
-        current_password = config.get('system_password', '1234')
-        current_username = config.get('system_username', 'admin')
-        
+        current_password = config.get("system_password", "1234")
+        current_username = config.get("system_username", "admin")
+
         # Validate old password
         if old_password != current_password:
             messagebox.showerror("Error", "Old password is incorrect.")
             return
-        
+
         # Validate new password match
         if new_password != confirm_password:
             messagebox.showerror("Error", "New passwords do not match.")
             return
-        
+
         # If username is blank, keep current
         if not new_username.strip():
             new_username = current_username
-        
+
         # If password is blank, keep current
         if not new_password.strip():
             new_password = current_password
-        
+
         # Update config
-        config['system_username'] = new_username
-        config['system_password'] = new_password
-        
+        config["system_username"] = new_username
+        config["system_password"] = new_password
+
         # Save to school_config.json
         try:
             json_path = os.path.join(self.USER_DATA_DIR, "school_config.json")
             with open(json_path, "w") as f:
                 json.dump(config, f, indent=4)
-            
+
             messagebox.showinfo("Success", "Credentials updated successfully!")
             self.open_system_settings()
         except Exception as e:
@@ -984,8 +1182,15 @@ class Dashboard(ctk.CTk):
         header_frame = ctk.CTkFrame(self.content_panel, fg_color="transparent")
         header_frame.pack(fill="x", pady=(10, 20))
 
-        ctk.CTkLabel(header_frame, text=self.dynamic_school_name, font=("Arial Bold", 26)).pack(side="left", padx=10)
-        ctk.CTkLabel(header_frame, text="/ ARCHIVES", font=("Arial Italic", 14), text_color="gray").pack(side="left", anchor="sw")
+        ctk.CTkLabel(
+            header_frame, text=self.dynamic_school_name, font=("Arial Bold", 26)
+        ).pack(side="left", padx=10)
+        ctk.CTkLabel(
+            header_frame,
+            text="/ ARCHIVES",
+            font=("Arial Italic", 14),
+            text_color="gray",
+        ).pack(side="left", anchor="sw")
 
         # Get available years from archives directory
         archives_dir = os.path.join(self.USER_DATA_DIR, "archives")
@@ -1003,11 +1208,20 @@ class Dashboard(ctk.CTk):
         year_frame = ctk.CTkFrame(self.content_panel)
         year_frame.pack(expand=True, fill="both", padx=20, pady=20)
 
-        ctk.CTkLabel(year_frame, text="Select Academic Year", font=("Arial Bold", 20)).pack(pady=20)
+        ctk.CTkLabel(
+            year_frame, text="Select Academic Year", font=("Arial Bold", 20)
+        ).pack(pady=20)
 
         if not years:
-            ctk.CTkLabel(year_frame, text="No archives found.", font=("Arial", 14), text_color="gray").pack(pady=20)
-            ctk.CTkButton(year_frame, text="Back to Dashboard", command=self.restore_dashboard).pack(pady=20)
+            ctk.CTkLabel(
+                year_frame,
+                text="No archives found.",
+                font=("Arial", 14),
+                text_color="gray",
+            ).pack(pady=20)
+            ctk.CTkButton(
+                year_frame, text="Back to Dashboard", command=self.restore_dashboard
+            ).pack(pady=20)
             return
 
         # Create year buttons with delete option
@@ -1021,7 +1235,7 @@ class Dashboard(ctk.CTk):
                 width=300,
                 height=50,
                 font=("Arial Bold", 14),
-                command=lambda y=year: self.show_archive_class_selection(y)
+                command=lambda y=year: self.show_archive_class_selection(y),
             )
             year_btn.pack(side="left", padx=10, pady=10)
 
@@ -1033,11 +1247,13 @@ class Dashboard(ctk.CTk):
                 width=50,
                 height=50,
                 font=("Arial Bold", 16),
-                command=lambda y=year: self.delete_archive_year(y)
+                command=lambda y=year: self.delete_archive_year(y),
             )
             delete_btn.pack(side="right", padx=10, pady=10)
 
-        ctk.CTkButton(year_frame, text="Back to Dashboard", command=self.restore_dashboard).pack(pady=20)
+        ctk.CTkButton(
+            year_frame, text="Back to Dashboard", command=self.restore_dashboard
+        ).pack(pady=20)
 
     def show_archive_class_selection(self, year):
         """Show class selection for selected year"""
@@ -1049,11 +1265,19 @@ class Dashboard(ctk.CTk):
         header_frame = ctk.CTkFrame(self.content_panel, fg_color="transparent")
         header_frame.pack(fill="x", pady=(10, 20))
 
-        ctk.CTkLabel(header_frame, text=self.dynamic_school_name, font=("Arial Bold", 26)).pack(side="left", padx=10)
-        ctk.CTkLabel(header_frame, text=f"/ ARCHIVES / {year}", font=("Arial Italic", 14), text_color="gray").pack(side="left", anchor="sw")
+        ctk.CTkLabel(
+            header_frame, text=self.dynamic_school_name, font=("Arial Bold", 26)
+        ).pack(side="left", padx=10)
+        ctk.CTkLabel(
+            header_frame,
+            text=f"/ ARCHIVES / {year}",
+            font=("Arial Italic", 14),
+            text_color="gray",
+        ).pack(side="left", anchor="sw")
 
         # Get ALL available classes from ALL years (not filtered by year)
         import json
+
         archives_dir = os.path.join(self.USER_DATA_DIR, "archives")
         classes = set()
 
@@ -1062,9 +1286,9 @@ class Dashboard(ctk.CTk):
                 if filename.endswith("_archive.json"):
                     filepath = os.path.join(archives_dir, filename)
                     try:
-                        with open(filepath, 'r') as f:
+                        with open(filepath, "r") as f:
                             archive_data = json.load(f)
-                            class_name = archive_data.get('class', '')
+                            class_name = archive_data.get("class", "")
                             # Filter out "previous" (from old previous_exams_archive.json files)
                             if class_name.lower() != "previous":
                                 classes.add(class_name)
@@ -1077,19 +1301,27 @@ class Dashboard(ctk.CTk):
         class_frame = ctk.CTkFrame(self.content_panel)
         class_frame.pack(expand=True, fill="both", padx=20, pady=20)
 
-        ctk.CTkLabel(class_frame, text=f"Select Class - {year}", font=("Arial Bold", 20)).pack(pady=20)
+        ctk.CTkLabel(
+            class_frame, text=f"Select Class - {year}", font=("Arial Bold", 20)
+        ).pack(pady=20)
 
         if not classes:
-            ctk.CTkLabel(class_frame, text="No classes found in archives.", font=("Arial", 14), text_color="gray").pack(pady=20)
-            ctk.CTkButton(class_frame, text="Back to Years", command=self.show_archive_year_selection).pack(pady=20)
+            ctk.CTkLabel(
+                class_frame,
+                text="No classes found in archives.",
+                font=("Arial", 14),
+                text_color="gray",
+            ).pack(pady=20)
+            ctk.CTkButton(
+                class_frame,
+                text="Back to Years",
+                command=self.show_archive_year_selection,
+            ).pack(pady=20)
             return
 
         # Create scrollable frame for class buttons
         scrollable_frame = ctk.CTkScrollableFrame(
-            class_frame,
-            label_text="",
-            width=400,
-            height=400
+            class_frame, label_text="", width=400, height=400
         )
         scrollable_frame.pack(expand=True, fill="both", padx=10, pady=10)
 
@@ -1101,11 +1333,13 @@ class Dashboard(ctk.CTk):
                 width=300,
                 height=50,
                 font=("Arial Bold", 14),
-                command=lambda c=class_name: self.show_archive_exams(year, c)
+                command=lambda c=class_name: self.show_archive_exams(year, c),
             )
             btn.pack(pady=10)
 
-        ctk.CTkButton(class_frame, text="Back to Years", command=self.show_archive_year_selection).pack(pady=20)
+        ctk.CTkButton(
+            class_frame, text="Back to Years", command=self.show_archive_year_selection
+        ).pack(pady=20)
 
     def show_archive_exams(self, year, class_name):
         """Show archived exams for selected year and class"""
@@ -1117,20 +1351,30 @@ class Dashboard(ctk.CTk):
         header_frame = ctk.CTkFrame(self.content_panel, fg_color="transparent")
         header_frame.pack(fill="x", pady=(10, 20))
 
-        ctk.CTkLabel(header_frame, text=self.dynamic_school_name, font=("Arial Bold", 26)).pack(side="left", padx=10)
-        ctk.CTkLabel(header_frame, text=f"/ ARCHIVES / {year} / {class_name}", font=("Arial Italic", 14), text_color="gray").pack(side="left", anchor="sw")
+        ctk.CTkLabel(
+            header_frame, text=self.dynamic_school_name, font=("Arial Bold", 26)
+        ).pack(side="left", padx=10)
+        ctk.CTkLabel(
+            header_frame,
+            text=f"/ ARCHIVES / {year} / {class_name}",
+            font=("Arial Italic", 14),
+            text_color="gray",
+        ).pack(side="left", anchor="sw")
 
         # Get archived exams for this year and class
         import json
+
         archives_dir = os.path.join(self.USER_DATA_DIR, "archives")
         archives = []
 
         if os.path.exists(archives_dir):
             for filename in os.listdir(archives_dir):
                 # Match pattern: {year}_{class_name}_{exam_name}_archive.json
-                if filename.startswith(f"{year}_{class_name}_") and filename.endswith("_archive.json"):
+                if filename.startswith(f"{year}_{class_name}_") and filename.endswith(
+                    "_archive.json"
+                ):
                     filepath = os.path.join(archives_dir, filename)
-                    with open(filepath, 'r') as f:
+                    with open(filepath, "r") as f:
                         archive_data = json.load(f)
                         archives.append(archive_data)
 
@@ -1138,11 +1382,24 @@ class Dashboard(ctk.CTk):
         exams_frame = ctk.CTkFrame(self.content_panel)
         exams_frame.pack(expand=True, fill="both", padx=20, pady=20)
 
-        ctk.CTkLabel(exams_frame, text=f"Archived Exams - {class_name} ({year})", font=("Arial Bold", 20)).pack(pady=20)
+        ctk.CTkLabel(
+            exams_frame,
+            text=f"Archived Exams - {class_name} ({year})",
+            font=("Arial Bold", 20),
+        ).pack(pady=20)
 
         if not archives:
-            ctk.CTkLabel(exams_frame, text="No archived exams found.", font=("Arial", 14), text_color="gray").pack(pady=20)
-            ctk.CTkButton(exams_frame, text="Back to Classes", command=lambda: self.show_archive_class_selection(year)).pack(pady=20)
+            ctk.CTkLabel(
+                exams_frame,
+                text="No archived exams found.",
+                font=("Arial", 14),
+                text_color="gray",
+            ).pack(pady=20)
+            ctk.CTkButton(
+                exams_frame,
+                text="Back to Classes",
+                command=lambda: self.show_archive_class_selection(year),
+            ).pack(pady=20)
             return
 
         # Create archive cards with exam titles
@@ -1153,12 +1410,24 @@ class Dashboard(ctk.CTk):
             info_frame = ctk.CTkFrame(card, fg_color="transparent")
             info_frame.pack(side="left", fill="both", expand=True, padx=10, pady=10)
 
-            exam_name = archive.get('exam_name', 'Unknown Exam')
-            exam_date = archive.get('exam_date', 'Unknown Date')
-            
-            ctk.CTkLabel(info_frame, text=f"📄 {exam_name}", font=("Arial Bold", 14)).pack(anchor="w")
-            ctk.CTkLabel(info_frame, text=f"Date: {exam_date}", font=("Arial", 12), text_color="gray").pack(anchor="w")
-            ctk.CTkLabel(info_frame, text=f"Archived: {archive['archived_date']}", font=("Arial", 12), text_color="gray").pack(anchor="w")
+            exam_name = archive.get("exam_name", "Unknown Exam")
+            exam_date = archive.get("exam_date", "Unknown Date")
+
+            ctk.CTkLabel(
+                info_frame, text=f"📄 {exam_name}", font=("Arial Bold", 14)
+            ).pack(anchor="w")
+            ctk.CTkLabel(
+                info_frame,
+                text=f"Date: {exam_date}",
+                font=("Arial", 12),
+                text_color="gray",
+            ).pack(anchor="w")
+            ctk.CTkLabel(
+                info_frame,
+                text=f"Archived: {archive['archived_date']}",
+                font=("Arial", 12),
+                text_color="gray",
+            ).pack(anchor="w")
 
             action_frame = ctk.CTkFrame(card, fg_color="transparent")
             action_frame.pack(side="right", padx=10, pady=10)
@@ -1169,7 +1438,7 @@ class Dashboard(ctk.CTk):
                 fg_color="#3498db",
                 hover_color="#2980b9",
                 width=80,
-                command=lambda a=archive: self.view_archived_exam(a, year, class_name)
+                command=lambda a=archive: self.view_archived_exam(a, year, class_name),
             ).pack(pady=2)
 
             ctk.CTkButton(
@@ -1178,22 +1447,30 @@ class Dashboard(ctk.CTk):
                 fg_color="#e74c3c",
                 hover_color="#c0392b",
                 width=80,
-                command=lambda a=archive: self.delete_archive(a, year, class_name)
+                command=lambda a=archive: self.delete_archive(a, year, class_name),
             ).pack(pady=2)
 
-        ctk.CTkButton(exams_frame, text="Back to Classes", command=lambda: self.show_archive_class_selection(year)).pack(pady=20)
+        ctk.CTkButton(
+            exams_frame,
+            text="Back to Classes",
+            command=lambda: self.show_archive_class_selection(year),
+        ).pack(pady=20)
 
     def delete_archive(self, archive, year, class_name):
         """Delete an archived exam"""
-        if messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this archived exam?"):
+        if messagebox.askyesno(
+            "Confirm Delete", "Are you sure you want to delete this archived exam?"
+        ):
             try:
                 archives_dir = os.path.join(self.USER_DATA_DIR, "archives")
                 # Use exam name from archive data to construct correct filename
-                exam_name = archive.get('exam_name', '')
-                safe_exam_name = exam_name.replace(" ", "_").replace("/", "_").replace("\\", "_")
+                exam_name = archive.get("exam_name", "")
+                safe_exam_name = (
+                    exam_name.replace(" ", "_").replace("/", "_").replace("\\", "_")
+                )
                 filename = f"{year}_{class_name}_{safe_exam_name}_archive.json"
                 filepath = os.path.join(archives_dir, filename)
-                
+
                 if os.path.exists(filepath):
                     os.remove(filepath)
                     messagebox.showinfo("Deleted", "Archive deleted successfully.")
@@ -1205,9 +1482,11 @@ class Dashboard(ctk.CTk):
 
     def view_archived_exam(self, archive, year, class_name):
         """View an archived exam with full marksheet display"""
-        print(f"[ARCHIVE VIEW] Starting view_archived_exam for class: {class_name}, year: {year}")
+        print(
+            f"[ARCHIVE VIEW] Starting view_archived_exam for class: {class_name}, year: {year}"
+        )
         print(f"[ARCHIVE VIEW] Archive data keys: {archive.keys()}")
-        
+
         # Clear the old view completely
         for widget in self.content_panel.winfo_children():
             if widget != self.header_frame and widget != self.theme_frame:
@@ -1219,26 +1498,32 @@ class Dashboard(ctk.CTk):
         self.content_panel.grid(row=0, column=0, columnspan=2, sticky="nsew")
 
         # Get the exam data
-        exam_name = archive.get('exam_name', 'Unknown Exam')
+        exam_name = archive.get("exam_name", "Unknown Exam")
         print(f"[ARCHIVE VIEW] Exam name: {exam_name}")
-        
+
         # Determine if this is a previous_exams archive or current marks archive
-        if 'marks_data' in archive and 'summary_data' in archive:
+        if "marks_data" in archive and "summary_data" in archive:
             # This is a previous_exams archive
-            marks_data = archive.get('marks_data')
-            summary_data = archive.get('summary_data')
-            print(f"[ARCHIVE VIEW] Previous exams archive - marks_data type: {type(marks_data)}, summary_data type: {type(summary_data)}")
-            print(f"[ARCHIVE VIEW] marks_data length: {len(marks_data) if marks_data else 0}")
-            
+            marks_data = archive.get("marks_data")
+            summary_data = archive.get("summary_data")
+            print(
+                f"[ARCHIVE VIEW] Previous exams archive - marks_data type: {type(marks_data)}, summary_data type: {type(summary_data)}"
+            )
+            print(
+                f"[ARCHIVE VIEW] marks_data length: {len(marks_data) if marks_data else 0}"
+            )
+
             # Keep as JSON strings - marksheet views will deserialize them
             # Don't deserialize here as the marksheet views expect JSON strings
-        elif 'data' in archive and 'columns' in archive:
+        elif "data" in archive and "columns" in archive:
             # This is a current marks archive
-            marks_data = archive.get('data')
+            marks_data = archive.get("data")
             summary_data = None
-            print(f"[ARCHIVE VIEW] Current marks archive - data type: {type(marks_data)}")
+            print(
+                f"[ARCHIVE VIEW] Current marks archive - data type: {type(marks_data)}"
+            )
             print(f"[ARCHIVE VIEW] data length: {len(marks_data) if marks_data else 0}")
-            
+
             # Keep as JSON string - marksheet views will deserialize it
             # Don't deserialize here as the marksheet views expect JSON strings
         else:
@@ -1299,7 +1584,15 @@ class Dashboard(ctk.CTk):
                 marks_data=marks_data,
                 summary_data=summary_data,
             )
-        elif "PRIMARY" in name_upper or "GRADE 1" in name_upper or "GRADE 2" in name_upper or "GRADE 3" in name_upper or "GRADE 4" in name_upper or "GRADE 5" in name_upper or "GRADE 6" in name_upper:
+        elif (
+            "PRIMARY" in name_upper
+            or "GRADE 1" in name_upper
+            or "GRADE 2" in name_upper
+            or "GRADE 3" in name_upper
+            or "GRADE 4" in name_upper
+            or "GRADE 5" in name_upper
+            or "GRADE 6" in name_upper
+        ):
             from ui_marksheet_primary import PrimaryMarkSheetView
 
             self.current_view = PrimaryMarkSheetView(
@@ -1311,7 +1604,13 @@ class Dashboard(ctk.CTk):
                 marks_data=marks_data,
                 summary_data=summary_data,
             )
-        elif "JSS" in name_upper or "JUNIOR" in name_upper or "GRADE 7" in name_upper or "GRADE 8" in name_upper or "GRADE 9" in name_upper:
+        elif (
+            "JSS" in name_upper
+            or "JUNIOR" in name_upper
+            or "GRADE 7" in name_upper
+            or "GRADE 8" in name_upper
+            or "GRADE 9" in name_upper
+        ):
             from ui_marksheet_junior import JuniorMarkSheetView
 
             self.current_view = JuniorMarkSheetView(
@@ -1334,45 +1633,58 @@ class Dashboard(ctk.CTk):
 
     def show_archived_exam_summary(self, archive):
         """Show the summary of an archived exam"""
-        summary_data = archive.get('summary_data', '')
-        
+        summary_data = archive.get("summary_data", "")
+
         if summary_data:
             # Create summary dialog
             summary_dialog = ctk.CTkToplevel(self)
             summary_dialog.title("Exam Summary")
             summary_dialog.geometry("800x600")
             summary_dialog.attributes("-topmost", True)
-            
+
             # Create scrollable text area
             text_frame = ctk.CTkFrame(summary_dialog)
             text_frame.pack(expand=True, fill="both", padx=20, pady=20)
-            
+
             text_area = ctk.CTkTextbox(text_frame, font=("Arial", 12))
             text_area.pack(expand=True, fill="both")
             text_area.insert("1.0", summary_data)
             text_area.configure(state="disabled")
         else:
-            messagebox.showinfo("No Summary", "No summary data available for this exam.")
+            messagebox.showinfo(
+                "No Summary", "No summary data available for this exam."
+            )
 
     def print_archived_exam_pdf(self, archive):
         """Print an archived exam as PDF"""
-        messagebox.showinfo("Print PDF", "PDF printing functionality would be implemented here.\nThis would use the marks_data from the archive to generate a PDF report.")
+        messagebox.showinfo(
+            "Print PDF",
+            "PDF printing functionality would be implemented here.\nThis would use the marks_data from the archive to generate a PDF report.",
+        )
 
     def delete_archive_year(self, year):
         """Delete all archives for a specific year"""
-        if messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete ALL archives for year {year}? This action cannot be undone."):
+        if messagebox.askyesno(
+            "Confirm Delete",
+            f"Are you sure you want to delete ALL archives for year {year}? This action cannot be undone.",
+        ):
             try:
                 archives_dir = os.path.join(self.USER_DATA_DIR, "archives")
                 deleted_count = 0
-                
+
                 if os.path.exists(archives_dir):
                     for filename in os.listdir(archives_dir):
-                        if filename.startswith(f"{year}_") and filename.endswith("_archive.json"):
+                        if filename.startswith(f"{year}_") and filename.endswith(
+                            "_archive.json"
+                        ):
                             filepath = os.path.join(archives_dir, filename)
                             os.remove(filepath)
                             deleted_count += 1
-                
-                messagebox.showinfo("Deleted", f"Successfully deleted {deleted_count} archive(s) for year {year}.")
+
+                messagebox.showinfo(
+                    "Deleted",
+                    f"Successfully deleted {deleted_count} archive(s) for year {year}.",
+                )
                 self.show_archive_year_selection()  # Refresh the year list
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to delete archives: {e}")
@@ -1400,7 +1712,9 @@ class Dashboard(ctk.CTk):
         )
         self.page_title_label.pack(side="left", anchor="sw", padx=(0, 20), pady=(0, 5))
 
-        self.header_buttons_frame = ctk.CTkFrame(self.header_frame, fg_color="transparent")
+        self.header_buttons_frame = ctk.CTkFrame(
+            self.header_frame, fg_color="transparent"
+        )
         self.header_buttons_frame.pack(side="right", padx=10)
 
         # Countdown Timer in top right corner
@@ -1451,6 +1765,7 @@ class Dashboard(ctk.CTk):
 
     def open_newsletter(self):
         from newsletter import NewsletterCreator
+
         NewsletterCreator(self, self.db)
 
     def load_school_name(self):
@@ -1480,6 +1795,7 @@ class Dashboard(ctk.CTk):
                 bundled_config = os.path.join(self.BASE_DIR, "school_config.json")
                 if os.path.exists(bundled_config):
                     import shutil
+
                     shutil.copy2(bundled_config, json_path)
                     with open(json_path, "r") as f:
                         return json.load(f)
@@ -1573,6 +1889,7 @@ class Dashboard(ctk.CTk):
                         "school_address": config.get("address", ""),
                         "school_telephone": config.get("contacts", ""),
                         "school_logo": school_logo,
+                        "subjects": config.get("subjects", {}),
                     }
         except Exception as e:
             print(f"Error loading school config: {e}")
@@ -1994,7 +2311,9 @@ class Dashboard(ctk.CTk):
 
         try:
             # 1. Save to Database
-            self.db.add_student(adm, name, grade, gender, phone, photo, stream, check_footprint=True)
+            self.db.add_student(
+                adm, name, grade, gender, phone, photo, stream, check_footprint=True
+            )
 
             # 2. Lock the Row visually
             for entry in [
@@ -2383,10 +2702,11 @@ class Dashboard(ctk.CTk):
 
     def open_ocr_dialog(self, class_name):
         """Open the OCR student registration dialog"""
+
         def refresh_registry():
             # Refresh the student registry after OCR registration
             self.show_student_registry(class_name)
-        
+
         show_ocr_dialog(self, refresh_registry, self.db)
 
     def load_students_from_db(self, class_name):
@@ -2395,25 +2715,32 @@ class Dashboard(ctk.CTk):
             print(f"DEBUG: Loading students for class_name='{class_name}'")
             print(f"DEBUG: Database connection: {self.db.conn}")
             print(f"DEBUG: Database connection ID: {id(self.db.conn)}")
-            print(f"DEBUG: Database path: {self.db.conn.execute('PRAGMA database_list').fetchall()}")
-            
+            print(
+                f"DEBUG: Database path: {self.db.conn.execute('PRAGMA database_list').fetchall()}"
+            )
+
             # Check if we're using the same connection as the dashboard
             print(f"DEBUG: Dashboard DB connection ID: {id(self.db.conn)}")
-            
+
             # First, let's check what grades exist in the database
             print(f"DEBUG: Executing SELECT DISTINCT grade FROM students...")
             self.db.cursor().execute("SELECT DISTINCT grade FROM students")
             all_grades = self.db.cursor().fetchall()
             print(f"DEBUG: All grades in database: {all_grades}")
-            
+
             # Check total student count
             self.db.cursor().execute("SELECT COUNT(*) FROM students")
             total_count = self.db.cursor().fetchone()[0]
             print(f"DEBUG: Total students in database: {total_count}")
-            
-            self.db.cursor().execute("SELECT adm_no, name, grade, gender, phone, photo, stream FROM students WHERE UPPER(grade) = UPPER(?)", (class_name,))
+
+            self.db.cursor().execute(
+                "SELECT adm_no, name, grade, gender, phone, photo, stream FROM students WHERE UPPER(grade) = UPPER(?)",
+                (class_name,),
+            )
             records = self.db.cursor().fetchall()
-            print(f"DEBUG: Loaded {len(records)} students for grade '{class_name}' from database")
+            print(
+                f"DEBUG: Loaded {len(records)} students for grade '{class_name}' from database"
+            )
             print(f"DEBUG: Student records: {records}")
 
             # Clear current list tracker before adding new ones
@@ -2425,6 +2752,7 @@ class Dashboard(ctk.CTk):
         except Exception as e:
             print(f"CRITICAL ERROR: {e}")
             import traceback
+
             traceback.print_exc()
 
     def add_locked_row(self, data):
@@ -2559,7 +2887,100 @@ class Dashboard(ctk.CTk):
             if widget != self.header_frame and widget != self.theme_frame:
                 widget.destroy()
 
-        # 4. Show the Welcome Message
+        # 4. Ensure header frame exists and recreate header buttons if needed
+        if not hasattr(self, "header_frame") or not self.header_frame.winfo_exists():
+            # Recreate header frame if it was destroyed
+            self.header_frame = ctk.CTkFrame(self.content_panel, fg_color="transparent")
+            self.header_frame.pack(fill="x", pady=(10, 20))
+
+            # Recreate school name label
+            self.school_title_label = ctk.CTkLabel(
+                self.header_frame,
+                text=self.dynamic_school_name,
+                font=("Arial Bold", 26),
+            )
+            self.school_title_label.pack(side="left", padx=10)
+
+            # Recreate page title label
+            self.page_title_label = ctk.CTkLabel(
+                self.header_frame,
+                text="/ HOMEPAGE",
+                font=("Arial Italic", 14),
+                text_color="gray",
+            )
+            self.page_title_label.pack(side="left", padx=10)
+
+        # Recreate header buttons frame
+        if hasattr(self, "header_buttons_frame"):
+            try:
+                self.header_buttons_frame.destroy()
+            except:
+                pass
+
+        self.header_buttons_frame = ctk.CTkFrame(
+            self.header_frame, fg_color="transparent"
+        )
+        self.header_buttons_frame.pack(side="right", padx=10)
+
+        # Recreate countdown label
+        self.countdown_label = ctk.CTkLabel(
+            self.header_buttons_frame,
+            text="⏳ -- days",
+            font=("Arial Bold", 16),
+            text_color="#10b981",
+        )
+        self.countdown_label.pack(pady=(0, 5))
+
+        # Update countdown timer to show actual value
+        self.update_countdown_timer()
+
+        # Recreate Promote Students button
+        self.btn_promote = ctk.CTkButton(
+            self.header_buttons_frame,
+            text="📈 Promote Students to Next Class",
+            command=lambda: self.require_auth(self.promote_students),
+            fg_color="#e67e22",
+            hover_color="#d35400",
+            height=35,
+            font=("Arial Bold", 12),
+        )
+        self.btn_promote.pack(pady=(0, 5))
+
+        # Recreate System Settings button
+        self.btn_system_settings = ctk.CTkButton(
+            self.header_buttons_frame,
+            text="⚙️ System Settings",
+            command=lambda: self.require_auth(self.open_system_settings),
+            fg_color="#34495e",
+            hover_color="#2c3e50",
+            height=35,
+            font=("Arial Bold", 12),
+        )
+        self.btn_system_settings.pack(pady=(0, 5))
+
+        # 5. Ensure theme frame exists and recreate if needed
+        if not hasattr(self, "theme_frame") or not self.theme_frame.winfo_exists():
+            # Recreate theme frame if it was destroyed
+            self.theme_frame = ctk.CTkFrame(self.content_panel, fg_color="transparent")
+            self.theme_frame.pack(side="bottom", anchor="se", pady=(20, 0))
+
+            # Recreate theme toggle
+            self.theme_toggle = ctk.CTkSegmentedButton(
+                self.theme_frame,
+                values=["Light Mode", "Dark Mode"],
+                command=self.change_theme_event,
+            )
+
+            # Match current system setting
+            current_mode = ctk.get_appearance_mode()
+            if current_mode == "Light":
+                self.theme_toggle.set("Light Mode")
+            else:
+                self.theme_toggle.set("Dark Mode")
+
+            self.theme_toggle.pack()
+
+        # 5. Show the Welcome Message
         self.work_area_label = ctk.CTkLabel(
             self.content_panel,
             text="Welcome to Freeman Tech Solutions\nSelect a task from the sidebar to begin.",
@@ -2568,7 +2989,7 @@ class Dashboard(ctk.CTk):
         )
         self.work_area_label.pack(expand=True)
 
-        # 5. Reset button highlights
+        # 6. Reset button highlights
         for btn in self.sidebar_buttons:
             btn.configure(
                 fg_color="transparent",
@@ -3705,6 +4126,7 @@ class Dashboard(ctk.CTk):
                 bundled_config = os.path.join(self.BASE_DIR, "school_config.json")
                 if os.path.exists(bundled_config):
                     import shutil
+
                     shutil.copy2(bundled_config, json_path)
                     with open(json_path, "r") as f:
                         return json.load(f)
@@ -3716,17 +4138,18 @@ class Dashboard(ctk.CTk):
         """Load M-Pesa configuration from separate config file"""
         try:
             json_path = os.path.join(self.USER_DATA_DIR, "mpesa_config.json")
-            
+
             # First check if config exists in user data directory
             if os.path.exists(json_path):
                 with open(json_path, "r") as f:
                     return json.load(f)
-            
+
             # If not in user data directory, check bundled location (for executable)
             bundled_config = os.path.join(self.BASE_DIR, "mpesa_config.json")
             if os.path.exists(bundled_config):
                 # Copy bundled config to user data directory
                 import shutil
+
                 shutil.copy2(bundled_config, json_path)
                 with open(json_path, "r") as f:
                     return json.load(f)
@@ -3739,14 +4162,16 @@ class Dashboard(ctk.CTk):
         try:
             # First, try to send all pending alerts
             self.send_pending_alerts()
-            
+
             # Then check if there are still pending alerts older than 3 days
-            pending_alerts = self.db.get_pending_alerts(max_age_hours=72)  # 3 days = 72 hours
-            
+            pending_alerts = self.db.get_pending_alerts(
+                max_age_hours=72
+            )  # 3 days = 72 hours
+
             if pending_alerts:
                 # Alerts are older than 3 days and still pending - block system
                 self.show_alert_blocking_message(pending_alerts)
-                
+
         except Exception as e:
             print(f"Error checking pending alerts: {e}")
 
@@ -3754,29 +4179,29 @@ class Dashboard(ctk.CTk):
         """Send all pending alerts that haven't been sent yet"""
         try:
             from notification_service import NotificationService
-            
+
             notification_service = NotificationService()
-            
+
             # Get all pending alerts (not just old ones)
             pending_alerts = self.db.get_all_pending_alerts()
-            
+
             for alert in pending_alerts:
                 alert_id = alert[0]
                 alert_type = alert[1]
                 message = alert[2]
-                
+
                 # Try to send the alert
                 results = notification_service.send_alert(message)
-                
+
                 # Check if any alert was sent successfully
                 sent_successfully = any(result[1] for result in results)
-                
+
                 if sent_successfully:
                     self.db.mark_alert_sent(alert_id)
                     print(f"Alert {alert_id} sent successfully")
                 else:
                     print(f"Failed to send alert {alert_id}: {results}")
-                    
+
         except Exception as e:
             print(f"Error sending pending alerts: {e}")
 
@@ -3784,30 +4209,34 @@ class Dashboard(ctk.CTk):
         """Show blocking message when alerts are older than 3 days"""
         # Disable all buttons
         self.disable_system_buttons()
-        
+
         # Create blocking message frame
-        if hasattr(self, 'alert_blocking_frame') and self.alert_blocking_frame:
+        if hasattr(self, "alert_blocking_frame") and self.alert_blocking_frame:
             return
-        
-        self.alert_blocking_frame = ctk.CTkFrame(self, fg_color="#8b0000", corner_radius=10)
-        self.alert_blocking_frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.6, relheight=0.4)
+
+        self.alert_blocking_frame = ctk.CTkFrame(
+            self, fg_color="#8b0000", corner_radius=10
+        )
+        self.alert_blocking_frame.place(
+            relx=0.5, rely=0.5, anchor="center", relwidth=0.6, relheight=0.4
+        )
         self.alert_blocking_frame.lift()
-        
+
         ctk.CTkLabel(
             self.alert_blocking_frame,
             text="⚠️ SYSTEM BLOCKED - ALERTS NOT SENT",
             font=("Arial Bold", 20),
-            text_color="white"
+            text_color="white",
         ).pack(pady=20)
-        
+
         ctk.CTkLabel(
             self.alert_blocking_frame,
             text=f"{len(pending_alerts)} alert(s) have been pending for more than 3 days.\n\nPlease connect to the internet and restart the system.\nIf the problem persists, contact the developer.",
             font=("Arial", 14),
             text_color="white",
-            wraplength=400
+            wraplength=400,
         ).pack(pady=10)
-        
+
         ctk.CTkButton(
             self.alert_blocking_frame,
             text="🔄 Retry Connection",
@@ -3815,7 +4244,7 @@ class Dashboard(ctk.CTk):
             text_color="black",
             font=("Arial Bold", 14),
             height=40,
-            command=self.retry_alert_connection
+            command=self.retry_alert_connection,
         ).pack(pady=20)
 
     def retry_alert_connection(self):
@@ -3823,34 +4252,42 @@ class Dashboard(ctk.CTk):
         try:
             # Try to send pending alerts
             self.send_pending_alerts()
-            
+
             # Check if there are still old alerts
             pending_alerts = self.db.get_pending_alerts(max_age_hours=72)  # 3 days
-            
+
             if not pending_alerts:
                 # All alerts sent - unblock system
-                if hasattr(self, 'alert_blocking_frame') and self.alert_blocking_frame:
+                if hasattr(self, "alert_blocking_frame") and self.alert_blocking_frame:
                     self.alert_blocking_frame.destroy()
                     self.alert_blocking_frame = None
                 self.enable_system_buttons()
-                messagebox.showinfo("Success", "All alerts have been sent successfully!")
+                messagebox.showinfo(
+                    "Success", "All alerts have been sent successfully!"
+                )
             else:
-                messagebox.showerror("Still Blocked", "Some alerts still cannot be sent. Please check your internet connection.")
-                
+                messagebox.showerror(
+                    "Still Blocked",
+                    "Some alerts still cannot be sent. Please check your internet connection.",
+                )
+
         except Exception as e:
             messagebox.showerror("Error", f"Failed to send alerts: {e}")
 
     def check_for_updates_on_startup(self):
         """Check for updates in background on startup"""
+
         def check_updates():
             try:
                 from update_manager import UpdateManager
-                
+
                 update_manager = UpdateManager()
                 has_update, update_info = update_manager.check_for_updates()
-                
-                print(f"Update check result: has_update={has_update}, info={update_info}")
-                
+
+                print(
+                    f"Update check result: has_update={has_update}, info={update_info}"
+                )
+
                 if has_update:
                     # Show update button
                     self.after(0, self.show_update_button)
@@ -3859,42 +4296,51 @@ class Dashboard(ctk.CTk):
                     # Hide update button
                     self.after(0, self.hide_update_button)
                     print("No update available")
-                    
+
             except Exception as e:
                 print(f"Error checking for updates on startup: {e}")
-        
+
         # Run in background thread to not block startup
         import threading
+
         thread = threading.Thread(target=check_updates)
         thread.daemon = True
         thread.start()
 
     def show_update_button(self):
         """Show the update button when updates are available"""
-        if hasattr(self, 'btn_check_updates') and not self.btn_check_updates.winfo_ismapped():
+        if (
+            hasattr(self, "btn_check_updates")
+            and not self.btn_check_updates.winfo_ismapped()
+        ):
             self.btn_check_updates.pack(pady=(0, 5))
 
     def hide_update_button(self):
         """Hide the update button when no updates are available"""
-        if hasattr(self, 'btn_check_updates') and self.btn_check_updates.winfo_ismapped():
+        if (
+            hasattr(self, "btn_check_updates")
+            and self.btn_check_updates.winfo_ismapped()
+        ):
             self.btn_check_updates.pack_forget()
 
     def check_for_updates(self):
         """Check for system updates (manual check)"""
         try:
             from update_manager import UpdateManager
-            
+
             update_manager = UpdateManager()
             has_update, update_info = update_manager.check_for_updates()
-            
+
             if has_update:
                 # Show update available dialog
                 self.show_update_dialog(update_info)
             else:
                 messagebox.showinfo("Update Check", update_info)
-                
+
         except Exception as e:
-            messagebox.showerror("Update Error", f"Error checking for updates: {str(e)}")
+            messagebox.showerror(
+                "Update Error", f"Error checking for updates: {str(e)}"
+            )
 
     def show_update_dialog(self, update_info):
         """Show update available dialog"""
@@ -3902,94 +4348,102 @@ class Dashboard(ctk.CTk):
         update_dialog = ctk.CTkToplevel(self)
         update_dialog.title("Update Available")
         update_dialog.geometry("500x450")
-        
+
         ctk.CTkLabel(
             update_dialog,
             text="🔄 Update Available",
             font=("Arial Bold", 18),
-            text_color="#10b981"
+            text_color="#10b981",
         ).pack(pady=20)
-        
+
         ctk.CTkLabel(
             update_dialog,
             text=f"Current Version: {update_info['current_version']}",
-            font=("Arial", 12)
+            font=("Arial", 12),
         ).pack(pady=5)
-        
+
         ctk.CTkLabel(
             update_dialog,
             text=f"New Version: {update_info['new_version']}",
             font=("Arial Bold", 14),
-            text_color="#10b981"
+            text_color="#10b981",
         ).pack(pady=5)
-        
+
+        ctk.CTkLabel(update_dialog, text="Changelog:", font=("Arial Bold", 12)).pack(
+            pady=(10, 5)
+        )
+
         ctk.CTkLabel(
             update_dialog,
-            text="Changelog:",
-            font=("Arial Bold", 12)
-        ).pack(pady=(10, 5))
-        
-        ctk.CTkLabel(
-            update_dialog,
-            text=update_info.get('changelog', 'No changelog available'),
+            text=update_info.get("changelog", "No changelog available"),
             font=("Arial", 10),
-            wraplength=450
+            wraplength=450,
         ).pack(pady=5)
-        
+
         # Check if download URL is available
-        has_download_url = update_info.get('download_url') and not update_info['download_url'].endswith('.zip')
-        
+        has_download_url = update_info.get("download_url") and not update_info[
+            "download_url"
+        ].endswith(".zip")
+
         if not has_download_url:
             ctk.CTkLabel(
                 update_dialog,
                 text="⚠️ Update package not yet available.\nContact developer for manual update.",
                 font=("Arial", 11),
                 text_color="#f39c12",
-                wraplength=450
+                wraplength=450,
             ).pack(pady=10)
-        
+
         def download_and_install():
             try:
                 from update_manager import UpdateManager
-                
+
                 update_manager = UpdateManager()
-                
+
                 # Show progress
-                progress_label = ctk.CTkLabel(update_dialog, text="Downloading update...")
+                progress_label = ctk.CTkLabel(
+                    update_dialog, text="Downloading update..."
+                )
                 progress_label.pack(pady=10)
-                
+
                 progress_bar = ctk.CTkProgressBar(update_dialog, width=400)
                 progress_bar.pack(pady=5)
                 progress_bar.set(0)
-                
+
                 def progress_callback(percent):
                     progress_bar.set(percent / 100)
                     update_dialog.update()
-                
+
                 success, result = update_manager.download_update(
-                    update_info['download_url'],
-                    progress_callback
+                    update_info["download_url"], progress_callback
                 )
-                
+
                 if success:
                     progress_label.configure(text="Installing update...")
                     update_dialog.update()
-                    
+
                     success, result = update_manager.install_update(result)
-                    
+
                     if success:
-                        messagebox.showinfo("Success", "Update installed successfully! Please restart the application.")
+                        messagebox.showinfo(
+                            "Success",
+                            "Update installed successfully! Please restart the application.",
+                        )
                         update_dialog.destroy()
                     else:
-                        messagebox.showerror("Error", f"Failed to install update: {result}")
+                        messagebox.showerror(
+                            "Error", f"Failed to install update: {result}"
+                        )
                         progress_label.configure(text="Installation failed")
                 else:
-                    messagebox.showerror("Error", f"Failed to download update: {result}")
+                    messagebox.showerror(
+                        "Error", f"Failed to download update: {result}"
+                    )
                     progress_label.configure(text="Download failed")
-                    
+
             except Exception as e:
                 messagebox.showerror("Error", f"Error during update: {str(e)}")
-        
+
         if has_download_url:
             ctk.CTkButton(
                 update_dialog,
@@ -3998,7 +4452,7 @@ class Dashboard(ctk.CTk):
                 hover_color="#059669",
                 height=40,
                 font=("Arial Bold", 12),
-                command=download_and_install
+                command=download_and_install,
             ).pack(pady=20)
         else:
             ctk.CTkButton(
@@ -4008,9 +4462,9 @@ class Dashboard(ctk.CTk):
                 hover_color="#2980b9",
                 height=40,
                 font=("Arial Bold", 12),
-                command=update_dialog.destroy
+                command=update_dialog.destroy,
             ).pack(pady=20)
-        
+
         ctk.CTkButton(
             update_dialog,
             text="Cancel",
@@ -4018,37 +4472,44 @@ class Dashboard(ctk.CTk):
             hover_color="#c0392b",
             height=35,
             font=("Arial Bold", 12),
-            command=update_dialog.destroy
+            command=update_dialog.destroy,
         ).pack(pady=5)
 
     def update_countdown_timer(self):
         """Update countdown timer with color coding"""
         try:
             # Check if countdown_label still exists
-            if not hasattr(self, 'countdown_label') or not self.countdown_label.winfo_exists():
+            if (
+                not hasattr(self, "countdown_label")
+                or not self.countdown_label.winfo_exists()
+            ):
                 return
-                
+
             license_status = self.db.get_license_status()
             config = self.load_school_config()
-            
+
             if not license_status:
                 # No license status yet - show grace period countdown
                 # Calculate days from installation
-                self.countdown_label.configure(text="⏳ Setup Required", text_color="#f39c12")
+                self.countdown_label.configure(
+                    text="⏳ Setup Required", text_color="#f39c12"
+                )
                 return
-            
+
             end_date_str = license_status[3]  # end_date is at index 3
             end_date = datetime.strptime(end_date_str, "%Y-%m-%d %H:%M:%S")
             current_date = datetime.now()
-            
+
             # Calculate remaining time
             time_remaining = end_date - current_date
             remaining_days = time_remaining.days
-            
+
             # Check if license has expired (end_date is in the past)
             if time_remaining.total_seconds() <= 0:
                 # System closed
-                self.countdown_label.configure(text="⚠️ SYSTEM CLOSED", text_color="#e74c3c")
+                self.countdown_label.configure(
+                    text="⚠️ SYSTEM CLOSED", text_color="#e74c3c"
+                )
                 self.disable_system_buttons()
                 self.show_payment_message()
             else:
@@ -4059,35 +4520,37 @@ class Dashboard(ctk.CTk):
                     color = "#f39c12"  # Orange
                 else:
                     color = "#e74c3c"  # Red
-                
-                self.countdown_label.configure(text=f"⏳ {remaining_days} days", text_color=color)
+
+                self.countdown_label.configure(
+                    text=f"⏳ {remaining_days} days", text_color=color
+                )
                 self.enable_system_buttons()
                 self.hide_payment_message()
-        
+
         except Exception as e:
             print(f"Error updating countdown timer: {e}")
             # Only try to configure if label exists
-            if hasattr(self, 'countdown_label') and self.countdown_label.winfo_exists():
+            if hasattr(self, "countdown_label") and self.countdown_label.winfo_exists():
                 self.countdown_label.configure(text="⏳ -- days", text_color="#10b981")
-        
+
         # Update every minute
         self.after(60000, self.update_countdown_timer)
 
     def disable_system_buttons(self):
         """Disable all buttons except exit"""
         buttons_to_disable = [
-            'btn_register',
-            'btn_mark_sheets',
-            'btn_summary',
-            'btn_teachers',
-            'btn_report_forms',
-            'btn_newsletter',
-            'btn_portal',
-            'btn_cloud_sync',
-            'btn_promote',
-            'btn_previous_exams',
-            'btn_system_settings',
-            'btn_check_updates',
+            "btn_register",
+            "btn_mark_sheets",
+            "btn_summary",
+            "btn_teachers",
+            "btn_report_forms",
+            "btn_newsletter",
+            "btn_portal",
+            "btn_cloud_sync",
+            "btn_promote",
+            "btn_previous_exams",
+            "btn_system_settings",
+            "btn_check_updates",
         ]
         for btn_name in buttons_to_disable:
             try:
@@ -4100,18 +4563,18 @@ class Dashboard(ctk.CTk):
     def enable_system_buttons(self):
         """Enable all system buttons"""
         buttons_to_enable = [
-            'btn_register',
-            'btn_mark_sheets',
-            'btn_summary',
-            'btn_teachers',
-            'btn_report_forms',
-            'btn_newsletter',
-            'btn_portal',
-            'btn_cloud_sync',
-            'btn_promote',
-            'btn_previous_exams',
-            'btn_system_settings',
-            'btn_check_updates',
+            "btn_register",
+            "btn_mark_sheets",
+            "btn_summary",
+            "btn_teachers",
+            "btn_report_forms",
+            "btn_newsletter",
+            "btn_portal",
+            "btn_cloud_sync",
+            "btn_promote",
+            "btn_previous_exams",
+            "btn_system_settings",
+            "btn_check_updates",
         ]
         for btn_name in buttons_to_enable:
             try:
@@ -4124,28 +4587,32 @@ class Dashboard(ctk.CTk):
     def show_payment_message(self):
         """Show payment message and button when system is closed"""
         # Check if payment message already exists
-        if hasattr(self, 'payment_message_frame') and self.payment_message_frame:
+        if hasattr(self, "payment_message_frame") and self.payment_message_frame:
             return
-        
+
         # Create payment message frame with higher z-index
-        self.payment_message_frame = ctk.CTkFrame(self, fg_color="#2c3e50", corner_radius=10)
-        self.payment_message_frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.5, relheight=0.4)
+        self.payment_message_frame = ctk.CTkFrame(
+            self, fg_color="#2c3e50", corner_radius=10
+        )
+        self.payment_message_frame.place(
+            relx=0.5, rely=0.5, anchor="center", relwidth=0.5, relheight=0.4
+        )
         self.payment_message_frame.lift()  # Bring to front
-        
+
         ctk.CTkLabel(
             self.payment_message_frame,
             text="⚠️ SYSTEM CLOSED - PAYMENT REQUIRED",
             font=("Arial Bold", 20),
-            text_color="#e74c3c"
+            text_color="#e74c3c",
         ).pack(pady=20)
-        
+
         ctk.CTkLabel(
             self.payment_message_frame,
             text="Your license has expired. Please make a payment to continue using the system.",
             font=("Arial", 14),
-            text_color="white"
+            text_color="white",
         ).pack(pady=10)
-        
+
         self.btn_pay_now = ctk.CTkButton(
             self.payment_message_frame,
             text="💳 PAY NOW",
@@ -4153,13 +4620,13 @@ class Dashboard(ctk.CTk):
             text_color="black",
             font=("Arial Bold", 16),
             height=50,
-            command=self.initiate_payment
+            command=self.initiate_payment,
         )
         self.btn_pay_now.pack(pady=20)
 
     def hide_payment_message(self):
         """Hide payment message when system is open"""
-        if hasattr(self, 'payment_message_frame') and self.payment_message_frame:
+        if hasattr(self, "payment_message_frame") and self.payment_message_frame:
             self.payment_message_frame.destroy()
             self.payment_message_frame = None
 
@@ -4169,13 +4636,15 @@ class Dashboard(ctk.CTk):
             config = self.load_school_config()
             mpesa_config = self.load_mpesa_config()
             license_status = self.db.get_license_status()
-            
+
             # Calculate payment amount based on license type and student count
             total_students = self.db.get_total_students()
             amount_per_student = config.get("amount_per_student", 100)
             payment_amount = total_students * amount_per_student
-            
-            if license_status and license_status[5] == 0:  # installation_fee_paid = 0 (index 5)
+
+            if (
+                license_status and license_status[5] == 0
+            ):  # installation_fee_paid = 0 (index 5)
                 # Installation fee payment
                 payment_type = "installation_fee"
                 amount = config.get("installation_fee", 5000)
@@ -4185,34 +4654,35 @@ class Dashboard(ctk.CTk):
                 payment_type = "termly"
                 amount = payment_amount
                 message = f"Termly Payment for {total_students} students: KES {amount}"
-            
+
             # Show payment dialog
             from tkinter import simpledialog
+
             phone_number = simpledialog.askstring(
                 "M-Pesa Payment",
                 f"{message}\n\nEnter your M-Pesa phone number (format: 254XXXXXXXXX):",
-                parent=self
+                parent=self,
             )
-            
+
             if phone_number:
                 # Import M-Pesa service
                 try:
                     from mpesa_service import MpesaService, format_phone_number
-                    
+
                     # Get M-Pesa credentials from separate config
                     consumer_key = mpesa_config.get("consumer_key", "")
                     consumer_secret = mpesa_config.get("consumer_secret", "")
                     passkey = mpesa_config.get("passkey", "")
                     shortcode = mpesa_config.get("shortcode", "")
                     environment = mpesa_config.get("environment", "sandbox")
-                    
+
                     if not all([consumer_key, consumer_secret, passkey, shortcode]):
                         messagebox.showerror(
                             "M-Pesa Configuration Error",
-                            "M-Pesa credentials not configured. Please configure them in mpesa_config.json"
+                            "M-Pesa credentials not configured. Please configure them in mpesa_config.json",
                         )
                         return
-                    
+
                     # For testing, simulate payment without actual M-Pesa call
                     # In production, you would use ngrok or a public server for callbacks
                     if environment == "sandbox":
@@ -4221,12 +4691,15 @@ class Dashboard(ctk.CTk):
                             payment_type=payment_type,
                             amount=amount,
                             status="completed",
-                            mpesa_receipt="TEST_" + str(int(datetime.now().timestamp())),
-                            transaction_date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            mpesa_receipt="TEST_"
+                            + str(int(datetime.now().timestamp())),
+                            transaction_date=datetime.now().strftime(
+                                "%Y-%m-%d %H:%M:%S"
+                            ),
                             result_code=0,
-                            result_desc="Success"
+                            result_desc="Success",
                         )
-                        
+
                         # Update license status
                         if payment_type == "installation_fee":
                             license_status = self.db.get_license_status()
@@ -4240,7 +4713,7 @@ class Dashboard(ctk.CTk):
                                     end_date=new_end.strftime("%Y-%m-%d %H:%M:%S"),
                                     installation_fee_paid=1,
                                     trial_started=1,
-                                    premium_started=license_status[7]
+                                    premium_started=license_status[7],
                                 )
                         else:
                             # Extend license by premium period from NOW
@@ -4254,70 +4727,70 @@ class Dashboard(ctk.CTk):
                                     end_date=new_end.strftime("%Y-%m-%d %H:%M:%S"),
                                     installation_fee_paid=license_status[5],
                                     trial_started=license_status[6],
-                                    premium_started=1
+                                    premium_started=1,
                                 )
-                        
+
                         messagebox.showinfo(
                             "Payment Successful",
-                            f"Payment of KES {amount} completed successfully!\n\nSystem will now reopen."
+                            f"Payment of KES {amount} completed successfully!\n\nSystem will now reopen.",
                         )
                         self.hide_payment_message()
                         self.enable_system_buttons()
                         self.update_countdown_timer()
                         return
-                    
+
                     # Initialize M-Pesa service
                     mpesa = MpesaService(
                         consumer_key=consumer_key,
                         consumer_secret=consumer_secret,
                         passkey=passkey,
                         shortcode=shortcode,
-                        environment=environment
+                        environment=environment,
                     )
-                    
+
                     # Format phone number
                     formatted_phone = format_phone_number(phone_number)
-                    
+
                     # For desktop app, we'll use a local callback handler
                     # In production, you'd need a public URL for callbacks
                     callback_url = "http://localhost:5000/mpesa/callback"
-                    
+
                     # Initiate STK Push
                     success, result = mpesa.initiate_stk_push(
                         phone_number=formatted_phone,
                         amount=amount,
                         callback_url=callback_url,
                         account_reference=f"License-{payment_type}",
-                        transaction_desc=f"Freeman School Portal - {payment_type}"
+                        transaction_desc=f"Freeman School Portal - {payment_type}",
                     )
-                    
+
                     if success:
                         # Save payment record with M-Pesa details
                         merchant_request_id = result.get("MerchantRequestID")
                         checkout_request_id = result.get("CheckoutRequestID")
                         response_desc = result.get("ResponseDescription")
-                        
+
                         self.db.save_payment(
                             payment_type=payment_type,
                             amount=amount,
                             merchant_request_id=merchant_request_id,
                             checkout_request_id=checkout_request_id,
                             result_desc=response_desc,
-                            status="pending"
+                            status="pending",
                         )
-                        
+
                         messagebox.showinfo(
                             "Payment Initiated",
                             f"STK Push request sent to {formatted_phone}\n\n"
                             f"Merchant Request ID: {merchant_request_id}\n"
-                            f"Please check your phone for the M-Pesa prompt."
+                            f"Please check your phone for the M-Pesa prompt.",
                         )
                     else:
                         messagebox.showerror(
                             "Payment Failed",
-                            f"Failed to initiate STK Push: {result.get('error', 'Unknown error')}"
+                            f"Failed to initiate STK Push: {result.get('error', 'Unknown error')}",
                         )
-                
+
                 except ImportError:
                     # M-Pesa service not available - show manual payment option
                     messagebox.showinfo(
@@ -4325,16 +4798,16 @@ class Dashboard(ctk.CTk):
                         f"Payment request for KES {amount}\n\n"
                         f"Please make a manual M-Pesa payment to shortcode:\n"
                         f"Account Reference: License-{payment_type}\n\n"
-                        f"After payment, contact support to activate your license."
+                        f"After payment, contact support to activate your license.",
                     )
-                    
+
                     # Save payment record as manual
                     self.db.save_payment(
                         payment_type=payment_type,
                         amount=amount,
-                        status="manual_pending"
+                        status="manual_pending",
                     )
-        
+
         except Exception as e:
             messagebox.showerror("Payment Error", f"Error initiating payment: {e}")
 

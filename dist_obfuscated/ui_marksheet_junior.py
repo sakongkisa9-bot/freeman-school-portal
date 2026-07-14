@@ -21,11 +21,12 @@ from cloud_service import (
     ask_cloud_credentials,
     apply_cloud_records_to_table,
 )
+from debug_console import debug_log
 
 
 def get_app_dir():
     """Get the application directory, handling both script and executable environments"""
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, "frozen", False):
         # Running as executable
         BASE_DIR = sys._MEIPASS
         USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
@@ -140,7 +141,9 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             self.scroll_container, bg="#242424", highlightthickness=0
         )
         self.h_scroll = ctk.CTkScrollbar(
-            self.scroll_container, orientation="horizontal", command=self._on_horizontal_scroll
+            self.scroll_container,
+            orientation="horizontal",
+            command=self._on_horizontal_scroll,
         )
         self.v_scroll = ctk.CTkScrollbar(
             self.scroll_container, orientation="vertical", command=self.canvas.yview
@@ -149,9 +152,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         self.canvas.configure(
             xscrollcommand=self._update_h_scroll, yscrollcommand=self.v_scroll.set
         )
-        self.header_canvas.configure(
-            xscrollcommand=self._update_h_scroll
-        )
+        self.header_canvas.configure(xscrollcommand=self._update_h_scroll)
         self.h_scroll.pack(side="bottom", fill="x")
         self.v_scroll.pack(side="right", fill="y")
         self.canvas.pack(side="left", fill="both", expand=True)
@@ -228,12 +229,13 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             # Update header canvas scrollregion (horizontal only)
             # Use the same width as content canvas to ensure synchronization
             if header_bbox:
-                self.header_canvas.configure(scrollregion=(0, 0, max_width, header_bbox[3]))
+                self.header_canvas.configure(
+                    scrollregion=(0, 0, max_width, header_bbox[3])
+                )
             else:
                 self.header_canvas.configure(scrollregion=(0, 0, max_width, 90))
         except Exception:
             pass
-
 
     def create_header_section(self):
         self.header_label = ctk.CTkLabel(
@@ -340,9 +342,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
 
     def add_student_row(self, student_data, row_index, read_only=False):
         # Create a frame for this row to hold all widgets
-        row_frame = ctk.CTkFrame(
-            self.table_inner_frame, fg_color="transparent"
-        )
+        row_frame = ctk.CTkFrame(self.table_inner_frame, fg_color="transparent")
         # Calculate total columns: name (1) + subjects*3 + totals*3
         total_columns = 1 + (len(self.subjects) * 3) + 3
         # Use sticky="ew" to expand horizontally only; height is determined by content
@@ -545,7 +545,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             # Scale thresholds: EE1=90% of max points, EE2=75%, ME1=58%, ME2=41%, AE1=31%, AE2=21%, BE1=11%
             max_points_per_subject = 8  # Maximum points per subject (EE1)
             max_total_points = num_subjects * max_points_per_subject
-            
+
             if max_total_points > 0:
                 # Calculate thresholds dynamically based on percentage of maximum possible points
                 thresholds = [
@@ -557,7 +557,9 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                     (int(max_total_points * 0.21), "AE2"),  # 21% or higher
                     (int(max_total_points * 0.11), "BE1"),  # 11% or higher
                 ]
-                avg_grade = next((g for t, g in thresholds if total_points_sum >= t), "BE2")
+                avg_grade = next(
+                    (g for t, g in thresholds if total_points_sum >= t), "BE2"
+                )
             else:
                 avg_grade = "BE2"
 
@@ -604,7 +606,9 @@ class JuniorMarkSheetView(ctk.CTkFrame):
 
                 self.db.cursor().execute(query, (self.class_name,))
                 records = self.db.cursor().fetchall()
-                print(f"DEBUG: Loaded {len(records)} students for grade '{self.class_name}' from database")
+                print(
+                    f"DEBUG: Loaded {len(records)} students for grade '{self.class_name}' from database"
+                )
 
             # 1. Clear the UI
             for child in self.table_inner_frame.winfo_children():
@@ -619,9 +623,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                 self.add_student_row(student, idx, read_only=self.read_only)
 
             # Update scrollregion after all rows are added
-            self.canvas.after(
-                100, lambda: self._update_scrollregion()
-            )
+            self.canvas.after(100, lambda: self._update_scrollregion())
 
         except Exception as e:
             print(f"Dynamic Load Error: {e}")
@@ -925,33 +927,33 @@ class JuniorMarkSheetView(ctk.CTkFrame):
     def save_all_marks(self, skip_reload=False):
         # Force focus away from any entry widget to commit values
         self.table_inner_frame.focus_set()
-        
-        print("DEBUG: save_all_marks called")
+
+        debug_log("DEBUG: save_all_marks called")
         success_count = 0
         subjects = self.get_subjects_from_json()
         num_subs = len(subjects)
-        print(f"DEBUG: Found {num_subs} subjects: {subjects}")
+        debug_log(f"DEBUG: Found {num_subs} subjects: {subjects}")
 
         # 1. Get all row indices currently in the grid
         # Junior marksheet has headers in separate header_frame, student rows start from row 0
         all_widgets = self.table_inner_frame.grid_slaves()
-        print(f"DEBUG: Found {len(all_widgets)} total widgets in table_inner_frame")
+        debug_log(f"DEBUG: Found {len(all_widgets)} total widgets in table_inner_frame")
         if not all_widgets:
-            print("DEBUG: No widgets found, returning")
+            debug_log("DEBUG: No widgets found, returning")
             return
 
         # Find the highest row index to know how many students we have
         max_row = max(w.grid_info()["row"] for w in all_widgets)
-        print(f"DEBUG: Max row index: {max_row}")
+        debug_log(f"DEBUG: Max row index: {max_row}")
 
         for r in range(0, max_row + 1):
             try:
-                print(f"DEBUG: Processing row {r}")
+                debug_log(f"DEBUG: Processing row {r}")
                 # 2. Find the Student Name Label in this row
                 row_frames = self.table_inner_frame.grid_slaves(row=r, column=0)
-                print(f"DEBUG: Row {r} column 0 has {len(row_frames)} frames")
+                debug_log(f"DEBUG: Row {r} column 0 has {len(row_frames)} frames")
                 if not row_frames:
-                    print(f"DEBUG: No row frames found for row {r}")
+                    debug_log(f"DEBUG: No row frames found for row {r}")
                     continue
 
                 # Junior marksheet uses row_frame structure - get name label from inside the frame
@@ -961,10 +963,10 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                     name_widgets = row_frame.grid_slaves(row=0, column=0)
                     print(f"DEBUG: Row {r} has {len(name_widgets)} name widgets")
                     if not name_widgets:
-                        print(f"DEBUG: No name widgets found for row {r}")
+                        debug_log(f"DEBUG: No name widgets found for row {r}")
                         continue
                     student_name = name_widgets[0].cget("text")
-                    print(f"DEBUG: Student name: {student_name}")
+                    debug_log(f"DEBUG: Student name: {student_name}")
                 else:
                     print(f"DEBUG: Row frame has no winfo_children")
                     continue
@@ -975,10 +977,10 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                 )
                 result = self.db.cursor().fetchone()
                 if not result:
-                    print(f"DEBUG: No adm_no found for student {student_name}")
+                    debug_log(f"DEBUG: No adm_no found for student {student_name}")
                     continue
                 adm_no = result[0]
-                print(f"DEBUG: adm_no: {adm_no}")
+                debug_log(f"DEBUG: adm_no: {adm_no}")
 
                 # 4. Collect Marks for each subject
                 update_parts = []
@@ -988,18 +990,22 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                     col_start = 1 + (i * 3)
                     # CLEANER & SAFER: Use the existing helper function
                     base = get_clean_col_name(sub)
-                    print(f"DEBUG: Subject {i}: {sub}, base: {base}, col_start: {col_start}")
+                    debug_log(
+                        f"DEBUG: Subject {i}: {sub}, base: {base}, col_start: {col_start}"
+                    )
 
                     # Get values from grid (inside the row_frame)
                     s_widgets = row_frame.grid_slaves(row=0, column=col_start)
                     r_widgets = row_frame.grid_slaves(row=0, column=col_start + 1)
                     p_widgets = row_frame.grid_slaves(row=0, column=col_start + 2)
 
-                    print(f"DEBUG: s_widgets: {len(s_widgets)}, r_widgets: {len(r_widgets)}, p_widgets: {len(p_widgets)}")
+                    debug_log(
+                        f"DEBUG: s_widgets: {len(s_widgets)}, r_widgets: {len(r_widgets)}, p_widgets: {len(p_widgets)}"
+                    )
 
                     s_val = s_widgets[0].get() if s_widgets else "0"
-                    print(f"DEBUG: s_val: {s_val}")
-                    
+                    debug_log(f"DEBUG: s_val: {s_val}")
+
                     # Temporarily enable disabled widgets to read their values
                     r_val = "BE2"
                     if r_widgets:
@@ -1007,26 +1013,28 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                         r_widgets[0].configure(state="normal")
                         r_val = r_widgets[0].get()
                         r_widgets[0].configure(state=orig_state)
-                    print(f"DEBUG: r_val: {r_val}")
-                    
+                    debug_log(f"DEBUG: r_val: {r_val}")
+
                     p_val = "0"
                     if p_widgets:
                         orig_state = p_widgets[0].cget("state")
                         p_widgets[0].configure(state="normal")
                         p_val = p_widgets[0].get()
                         p_widgets[0].configure(state=orig_state)
-                    print(f"DEBUG: p_val: {p_val}")
+                    debug_log(f"DEBUG: p_val: {p_val}")
 
                     update_parts.extend([f"{base}_s=?", f"{base}_r=?", f"{base}_p=?"])
                     values.extend([s_val, r_val, p_val])
 
                 # 5. Get total_points and average_points from UI
                 total_start = 1 + (num_subs * 3)
-                print(f"DEBUG: total_start: {total_start}")
+                debug_log(f"DEBUG: total_start: {total_start}")
                 total_widgets = row_frame.grid_slaves(row=0, column=total_start)
                 avg_widgets = row_frame.grid_slaves(row=0, column=total_start + 1)
 
-                print(f"DEBUG: total_widgets: {len(total_widgets)}, avg_widgets: {len(avg_widgets)}")
+                debug_log(
+                    f"DEBUG: total_widgets: {len(total_widgets)}, avg_widgets: {len(avg_widgets)}"
+                )
 
                 total_val = "0"
                 if total_widgets:
@@ -1034,15 +1042,15 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                     total_widgets[0].configure(state="normal")
                     total_val = total_widgets[0].get()
                     total_widgets[0].configure(state=orig_state)
-                print(f"DEBUG: total_val: {total_val}")
-                
+                debug_log(f"DEBUG: total_val: {total_val}")
+
                 avg_val = ""
                 if avg_widgets:
                     orig_state = avg_widgets[0].cget("state")
                     avg_widgets[0].configure(state="normal")
                     avg_val = avg_widgets[0].get()
                     avg_widgets[0].configure(state=orig_state)
-                print(f"DEBUG: avg_val: {avg_val}")
+                debug_log(f"DEBUG: avg_val: {avg_val}")
 
                 update_parts.extend(["total_points=?", "average_points=?"])
                 values.extend([total_val, avg_val])
@@ -1050,37 +1058,42 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                 # 6. Execute Update
                 values.append(adm_no)
                 sql = f"UPDATE marksheet SET {', '.join(update_parts)} WHERE adm_no=?"
-                print(f"DEBUG: SQL: {sql}")
-                print(f"DEBUG: Values: {values}")
+                debug_log(f"DEBUG: SQL: {sql}")
+                debug_log(f"DEBUG: Values: {values}")
 
                 # Ensure record exists
                 self.db.cursor().execute(
                     "SELECT 1 FROM marksheet WHERE adm_no=?", (adm_no,)
                 )
                 if not self.db.cursor().fetchone():
-                    print(f"DEBUG: No existing record for adm_no {adm_no}, inserting")
+                    debug_log(
+                        f"DEBUG: No existing record for adm_no {adm_no}, inserting"
+                    )
                     self.db.cursor().execute(
                         "INSERT INTO marksheet (adm_no) VALUES (?)", (adm_no,)
                     )
                 else:
-                    print(f"DEBUG: Existing record found for adm_no {adm_no}")
+                    debug_log(f"DEBUG: Existing record found for adm_no {adm_no}")
 
                 self.db.cursor().execute(sql, values)
                 success_count += 1
-                print(f"DEBUG: Successfully saved row {r}, success_count: {success_count}")
+                debug_log(
+                    f"DEBUG: Successfully saved row {r}, success_count: {success_count}"
+                )
 
             except Exception as e:
-                print(f"Error saving row {r}: {e}")
+                debug_log(f"Error saving row {r}: {e}")
                 import traceback
+
                 traceback.print_exc()
                 continue
 
         self.db.conn.commit()
-        print(f"DEBUG: Committed to database, success_count: {success_count}")
+        debug_log(f"DEBUG: Committed to database, success_count: {success_count}")
         self.calculate_rankings()
         messagebox.showinfo("Success", f"Saved {success_count} students.")
         if not skip_reload:
-            print(f"DEBUG: Reloading students from registry")
+            debug_log("DEBUG: Reloading students from registry")
             self.load_students_from_registry()
 
     def calculate_rankings(self):

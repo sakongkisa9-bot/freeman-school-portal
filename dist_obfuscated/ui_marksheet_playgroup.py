@@ -3,6 +3,7 @@ import customtkinter as ctk
 from tkinter import messagebox
 
 from grading_logic import get_grade_4_6_rating, calculate_final_level
+from debug_console import debug_log
 
 from fpdf import FPDF
 
@@ -30,7 +31,7 @@ import sys
 
 def get_app_dir():
     """Get the application directory, handling both script and executable environments"""
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, "frozen", False):
         # Running as executable
         BASE_DIR = sys._MEIPASS
         USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
@@ -367,6 +368,7 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
             # 5. Recalculate totals and averages for all rows from individual scores
             # This ensures totals are correct even if cloud sends zero
             import grading_logic as gl
+
             all_widgets = self.table_inner.grid_slaves()
             if all_widgets:
                 # Group widgets by row
@@ -377,15 +379,17 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
                         if row not in rows:
                             rows[row] = []
                         rows[row].append(w)
-                
+
                 # Recalculate each row
                 for row_idx in sorted(rows.keys()):
-                    widgets = sorted(rows[row_idx], key=lambda w: w.grid_info().get("column", 0))
-                    
+                    widgets = sorted(
+                        rows[row_idx], key=lambda w: w.grid_info().get("column", 0)
+                    )
+
                     # Calculate total score from individual score entries
                     total_score = 0
                     num_subs = len(subjects)
-                    
+
                     for i in range(num_subs):
                         score_idx = 1 + (i * 2)
                         if score_idx < len(widgets):
@@ -394,7 +398,7 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
                                 score_val = score_widget.get().strip()
                                 if score_val.isdigit():
                                     total_score += int(score_val)
-                    
+
                     # Update total score box
                     total_idx = 1 + (num_subs * 2)
                     if total_idx < len(widgets):
@@ -405,9 +409,11 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
                             total_widget.delete(0, "end")
                             total_widget.insert(0, str(total_score))
                             total_widget.configure(state=curr_state)
-                    
+
                     # Calculate and update average level
-                    avg_lvl = gl.calculate_final_level(total_score, is_primary=True, num_subjects=num_subs)
+                    avg_lvl = gl.calculate_final_level(
+                        total_score, is_primary=True, num_subjects=num_subs
+                    )
                     avg_idx = total_idx + 1
                     if avg_idx < len(widgets):
                         avg_widget = widgets[avg_idx]
@@ -712,7 +718,9 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
         )
 
         self.h_scroll = ctk.CTkScrollbar(
-            self.scroll_container, orientation="horizontal", command=self._on_horizontal_scroll
+            self.scroll_container,
+            orientation="horizontal",
+            command=self._on_horizontal_scroll,
         )
 
         self.v_scroll = ctk.CTkScrollbar(
@@ -722,9 +730,7 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
         self.canvas.configure(
             xscrollcommand=self._update_h_scroll, yscrollcommand=self.v_scroll.set
         )
-        self.header_canvas.configure(
-            xscrollcommand=self._update_h_scroll
-        )
+        self.header_canvas.configure(xscrollcommand=self._update_h_scroll)
 
         self.h_scroll.pack(side="bottom", fill="x")
 
@@ -815,12 +821,13 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
             # Update header canvas scrollregion (horizontal only)
             # Use the same width as content canvas to ensure synchronization
             if header_bbox:
-                self.header_canvas.configure(scrollregion=(0, 0, max_width, header_bbox[3]))
+                self.header_canvas.configure(
+                    scrollregion=(0, 0, max_width, header_bbox[3])
+                )
             else:
                 self.header_canvas.configure(scrollregion=(0, 0, max_width, 90))
         except Exception:
             pass
-
 
     def create_table_headers(self):
 
@@ -1148,7 +1155,9 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
         # 3. Calculate Final Level using your calculate_final_level (is_primary=True)
 
-        avg_lvl = gl.calculate_final_level(total_score, is_primary=True, num_subjects=num_subs)
+        avg_lvl = gl.calculate_final_level(
+            total_score, is_primary=True, num_subjects=num_subs
+        )
 
         l_box = widgets[t_idx + 1]
 
@@ -1211,7 +1220,9 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
                         )
                     except Exception as e:
                         if "duplicate column" in str(e).lower():
-                            print(f"DEBUG: Column [{s_col}] already exists, skipping...")
+                            print(
+                                f"DEBUG: Column [{s_col}] already exists, skipping..."
+                            )
                         else:
                             raise
 
@@ -1229,7 +1240,9 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
                         )
                     except Exception as e:
                         if "duplicate column" in str(e).lower():
-                            print(f"DEBUG: Column [{r_col}] already exists, skipping...")
+                            print(
+                                f"DEBUG: Column [{r_col}] already exists, skipping..."
+                            )
                         else:
                             raise
 
@@ -1243,7 +1256,9 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
                     )
                 except Exception as e:
                     if "duplicate column" in str(e).lower():
-                        print("DEBUG: Column [total_points] already exists, skipping...")
+                        print(
+                            "DEBUG: Column [total_points] already exists, skipping..."
+                        )
                     else:
                         raise
 
@@ -1255,7 +1270,9 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
                     )
                 except Exception as e:
                     if "duplicate column" in str(e).lower():
-                        print("DEBUG: Column [average_level] already exists, skipping...")
+                        print(
+                            "DEBUG: Column [average_level] already exists, skipping..."
+                        )
                     else:
                         raise
 
@@ -1353,7 +1370,9 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 for row_data, pos in final_list:
 
-                    self.add_student_row_with_data(row_data, pos, read_only=self.read_only)
+                    self.add_student_row_with_data(
+                        row_data, pos, read_only=self.read_only
+                    )
 
             else:
 
@@ -1399,7 +1418,9 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 records = self.db.cursor().fetchall()
 
-                print(f"DEBUG: Loaded {len(records)} students for grade '{self.class_name}' from database")
+                print(
+                    f"DEBUG: Loaded {len(records)} students for grade '{self.class_name}' from database"
+                )
 
                 # 2. Rank calculation
 
@@ -1465,10 +1486,7 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
             # Update scrollregion after all rows are added
 
-            self.canvas.after(
-                100, lambda: self._update_scrollregion()
-            )
-
+            self.canvas.after(100, lambda: self._update_scrollregion())
 
         except Exception as e:
 
@@ -1477,14 +1495,16 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
     def save_playgroup_marks(self, skip_reload=False):
         # Force focus away from any entry widget to commit values
         self.table_inner.focus_set()
-        
+
         success_count = 0
 
         subjects = self.get_subjects_from_json()
 
         num_subs = len(subjects)
 
-        print(f"[DEBUG] Starting save for playgroup. Subjects: {subjects}, Count: {num_subs}")
+        debug_log(
+            f"[DEBUG] Starting save for playgroup. Subjects: {subjects}, Count: {num_subs}"
+        )
 
         try:
 
@@ -1494,11 +1514,11 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
             all_widgets = self.table_inner.grid_slaves()
 
-            print(f"[DEBUG] Total widgets found: {len(all_widgets)}")
+            debug_log(f"[DEBUG] Total widgets found: {len(all_widgets)}")
 
             if not all_widgets:
 
-                print("[DEBUG] No widgets found, returning")
+                debug_log("[DEBUG] No widgets found, returning")
                 return
 
             # Group widgets by row
@@ -1515,8 +1535,8 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 rows[row].append(w)
 
-            print(f"[DEBUG] Total rows found: {len(rows)}")
-            print(f"[DEBUG] Row indices: {sorted(rows.keys())}")
+            debug_log(f"[DEBUG] Total rows found: {len(rows)}")
+            debug_log(f"[DEBUG] Row indices: {sorted(rows.keys())}")
 
             for row_idx in sorted(rows.keys()):
 
@@ -1536,7 +1556,9 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 if not hasattr(name_widget, "cget"):
 
-                    print(f"[DEBUG] Row {row_idx}: Name widget has no cget attribute")
+                    debug_log(
+                        f"[DEBUG] Row {row_idx}: Name widget has no cget attribute"
+                    )
                     continue
 
                 student_name = name_widget.cget("text")
@@ -1558,7 +1580,9 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 if not res:
 
-                    print(f"[DEBUG] Row {row_idx}: No admission number found for {student_name}")
+                    print(
+                        f"[DEBUG] Row {row_idx}: No admission number found for {student_name}"
+                    )
                     continue
 
                 adm_no = res[0]
@@ -1571,10 +1595,12 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 for i in range(1, (num_subs * 2) + 1):
                     widget = widgets[i]
-                    val = widget.get() if hasattr(widget, 'get') else None
+                    val = widget.get() if hasattr(widget, "get") else None
                     marks_data.append(val if val != "" else None)
 
-                print(f"[DEBUG] Row {row_idx}: Marks data length: {len(marks_data)}, Expected: {num_subs * 2}")
+                print(
+                    f"[DEBUG] Row {row_idx}: Marks data length: {len(marks_data)}, Expected: {num_subs * 2}"
+                )
 
                 # 2. Collect Totals and Level (The last 3 widgets are Total, Level, Pos)
 
@@ -1586,7 +1612,12 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
                 print(f"[DEBUG] Row {row_idx}: Total: {total_val}, Level: {lvl_val}")
 
                 # Skip rows with empty/None data to prevent overwriting valid marks
-                if total_val is None or total_val == "" or lvl_val is None or lvl_val == "":
+                if (
+                    total_val is None
+                    or total_val == ""
+                    or lvl_val is None
+                    or lvl_val == ""
+                ):
                     print(f"[DEBUG] Row {row_idx}: Skipping row with empty total/level")
                     continue
 
@@ -1620,11 +1651,15 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 final_data = [adm_no] + marks_data + [total_val, lvl_val]
 
-                print(f"[DEBUG] Row {row_idx}: Executing SQL with {len(final_data)} values")
+                print(
+                    f"[DEBUG] Row {row_idx}: Executing SQL with {len(final_data)} values"
+                )
                 self.db.cursor().execute(query, final_data)
 
                 success_count += 1
-                print(f"[DEBUG] Row {row_idx}: Successfully saved. Success count: {success_count}")
+                print(
+                    f"[DEBUG] Row {row_idx}: Successfully saved. Success count: {success_count}"
+                )
 
             self.db.conn.commit()
 
