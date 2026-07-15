@@ -222,6 +222,15 @@ class Dashboard(ctk.CTk):
         )
         self.btn_report_forms.pack(pady=btn_pady)
 
+        self.btn_debug_console = ctk.CTkButton(
+            self.menu_panel,
+            text="Debug Console",
+            width=btn_width,
+            height=btn_height,
+            command=self.show_debug_console,
+        )
+        self.btn_debug_console.pack(pady=btn_pady)
+
         self.btn_newsletter = ctk.CTkButton(
             self.menu_panel,
             text="Newsletter & Circular",
