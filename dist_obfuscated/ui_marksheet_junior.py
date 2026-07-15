@@ -21,7 +21,11 @@ from cloud_service import (
     ask_cloud_credentials,
     apply_cloud_records_to_table,
 )
-from debug_console import debug_log
+
+
+def debug_log(*_args, **_kwargs):
+    """Compatibility stub for debug logging without a visible console."""
+    return None
 
 
 def get_app_dir():

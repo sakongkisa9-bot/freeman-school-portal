@@ -9,7 +9,6 @@ from pyarmor.cli import main as pyarmor_main
 # Core application files to obfuscate
 CORE_FILES = [
     "main.py",
-    "debug_console.py",
     "ui_dashboard.py",
     "security.py",
     "license_manager.py",

@@ -3,7 +3,6 @@ import customtkinter as ctk
 from tkinter import messagebox
 
 from grading_logic import get_grade_4_6_rating, calculate_final_level
-from debug_console import debug_log
 
 from fpdf import FPDF
 
@@ -27,6 +26,11 @@ from cloud_service import (
 
 import os
 import sys
+
+
+def debug_log(*_args, **_kwargs):
+    """Compatibility stub for debug logging without a visible console."""
+    return None
 
 
 def get_app_dir():

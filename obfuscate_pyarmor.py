@@ -19,7 +19,6 @@ PYARMOR_PATH = Path(
 # Files to obfuscate - ALL Python files in the project
 FILES_TO_OBFUSCATE = [
     "main.py",
-    "debug_console.py",
     "ui_dashboard.py",
     "security.py",
     "license_manager.py",
