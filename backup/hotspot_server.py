@@ -217,12 +217,15 @@ def submit():
                     data = dict(zip(cols, row))
                     total_s = sum(safe_int(data[c]) for c in cols if c.endswith('_s'))
                     total_p = sum(safe_int(data[c]) for c in cols if c.endswith('_p'))
+                    
+                    # Count number of subjects (columns ending with _s)
+                    num_subjects = len([c for c in cols if c.endswith('_s')])
 
                     if is_junior:
-                        final_lvl = calculate_final_level(total_p, is_primary=False)
+                        final_lvl = calculate_final_level(total_p, is_primary=False, num_subjects=num_subjects)
                         cursor.execute(f"UPDATE {table_name} SET total_points=?, average_points=? WHERE adm_no=?", (total_p, final_lvl, adm))
                     else:
-                        final_lvl = calculate_final_level(total_s, is_primary=True)
+                        final_lvl = calculate_final_level(total_s, is_primary=True, num_subjects=num_subjects)
                         cursor.execute(f"UPDATE {table_name} SET total_points=?, average_level=? WHERE adm_no=?", (total_s, final_lvl, adm))
 
         conn.commit()

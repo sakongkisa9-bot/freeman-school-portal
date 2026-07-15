@@ -5,6 +5,7 @@ import security
 import os
 import random
 import sys
+import json
 from license_manager import check_and_activate_license
 
 # LICENSE CHECK - Must pass before application can start
@@ -47,6 +48,143 @@ def check_license_before_start():
         sys.exit(1)
     
     return True
+
+
+def check_terms_agreement():
+    """Check if user has agreed to Terms of Use"""
+    try:
+        # Handle both development and executable environments
+        if getattr(sys, 'frozen', False):
+            USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
+        else:
+            USER_DATA_DIR = os.path.dirname(os.path.realpath(__file__))
+        
+        config_path = os.path.join(USER_DATA_DIR, "school_config.json")
+        
+        if os.path.exists(config_path):
+            with open(config_path, "r") as f:
+                config = json.load(f)
+                # Check if terms have been accepted and version matches
+                current_terms_version = "1.0"
+                accepted_version = config.get("terms_accepted_version", "")
+                if accepted_version == current_terms_version:
+                    return True
+    except:
+        pass
+    
+    return False
+
+
+def show_terms_dialog():
+    """Show Terms of Use agreement dialog"""
+    dialog = ctk.CTk()
+    dialog.title("Terms of Use Agreement")
+    dialog.geometry("800x600")
+    
+    # Center the window
+    screen_width = dialog.winfo_screenwidth()
+    screen_height = dialog.winfo_screenheight()
+    x = (screen_width // 2) - (800 // 2)
+    y = (screen_height // 2) - (600 // 2)
+    dialog.geometry(f"800x600+{x}+{y}")
+    dialog.resizable(False, False)
+    
+    # Main frame
+    main_frame = ctk.CTkFrame(dialog)
+    main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+    
+    # Title
+    ctk.CTkLabel(main_frame, text="TERMS OF USE", font=("Arial Bold", 24), 
+                text_color="#2c3e50").pack(pady=(10, 20))
+    
+    # Scrollable text area for terms
+    from customtkinter import CTkScrollableFrame
+    scroll_frame = CTkScrollableFrame(main_frame, width=700, height=350)
+    scroll_frame.pack(fill="both", expand=True, pady=(0, 20))
+    
+    terms_text = """
+1. OWNERSHIP AND INTELLECTUAL PROPERTY
+This software (the "School management system") is the sole and exclusive property of Freeman-Tech Solutions. The School acknowledges that it is being granted a limited, non-exclusive, non-transferable, and revocable license to use the System for its internal academic management purposes. The School does not acquire any ownership interest, title, or rights in the System.
+
+2. RESTRICTIONS AND PROHIBITED USE
+The School shall not, and shall not permit any third party to:
+• Decompile, disassemble, reverse-engineer, or attempt to derive the source code or underlying logic of the System.
+• Modify, adapt, or create derivative works based on the System.
+• Rent, lease, sublicense, or distribute the System to any other school or entity. Any attempt to bypass security features, license keys, or update mechanisms will result in the immediate termination of this license.
+
+3. TRIAL PERIOD AND LICENSING
+• Trial Period: A School may be granted a Free Trial period. If the System is installed during an academic term, the Free Trial shall remain active until the conclusion of that current academic term.
+• Transition to Premium: Upon the conclusion of the Trial Period, the School must pay the agreed-upon Premium License Fee to maintain access to the System.
+• Renewal: Failure to remit payment within 14 days of the start of the following term will result in the suspension of all system features, including cloud synchronization, report generation, and data export capabilities.
+
+4. UPDATES, MAINTENANCE, AND SUPPORT
+• Automatic Updates: The System may periodically connect to Freeman-Tech Solutions' servers to check for and apply updates, security patches, or feature enhancements. The School consents to these automatic updates to ensure continued functionality.
+• Support Services: Basic support for system errors is included during the active license period. Major feature requests or personalized customizations outside the standard scope of the System are subject to separate negotiation and additional fees.
+• Disclaimer: Freeman-Tech Solutions provides the System on an "as-is" basis and does not guarantee that access will be 100% uninterrupted.
+
+5. LIMITATION OF LIABILITY
+Freeman-Tech Solutions shall not be held liable for any data loss, administrative errors, or hardware issues resulting from the use of the System. The School is responsible for maintaining its own periodic backups of all academic data.
+
+6. TERMINATION
+This license remains in effect until terminated. Freeman-Tech Solutions reserves the right to terminate this license if the School fails to comply with any terms herein, specifically regarding payment or unauthorized redistribution. Upon termination, the School must cease all use of the System immediately.
+"""
+    
+    terms_label = ctk.CTkLabel(scroll_frame, text=terms_text, font=("Arial", 11), 
+                               justify="left", wraplength=650)
+    terms_label.pack(pady=10, padx=10, anchor="w")
+    
+    # Checkbox for agreement
+    agree_var = ctk.BooleanVar(value=False)
+    checkbox = ctk.CTkCheckBox(main_frame, text="I have read and agree to the Terms of Use", 
+                             variable=agree_var, font=("Arial", 12))
+    checkbox.pack(pady=(0, 20))
+    
+    # Buttons
+    button_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+    button_frame.pack(fill="x")
+    
+    def on_agree():
+        if agree_var.get():
+            # Save agreement to config
+            try:
+                if getattr(sys, 'frozen', False):
+                    USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
+                else:
+                    USER_DATA_DIR = os.path.dirname(os.path.realpath(__file__))
+                
+                config_path = os.path.join(USER_DATA_DIR, "school_config.json")
+                
+                config = {}
+                if os.path.exists(config_path):
+                    with open(config_path, "r") as f:
+                        config = json.load(f)
+                
+                config["terms_accepted_version"] = "1.0"
+                config["terms_accepted_date"] = "2026-06-17"
+                
+                with open(config_path, "w") as f:
+                    json.dump(config, f, indent=4)
+            except:
+                pass
+            
+            dialog.destroy()
+        else:
+            ctk.CTkMessageBox.show_warning("Agreement Required", 
+                                         "You must agree to the Terms of Use to continue.")
+    
+    def on_decline():
+        ctk.CTkMessageBox.showinfo("Exit", "You must agree to the Terms of Use to use this software.")
+        sys.exit(1)
+    
+    agree_btn = ctk.CTkButton(button_frame, text="I Agree", command=on_agree, 
+                              width=150, height=40, fg_color="#27ae60", hover_color="#219150")
+    agree_btn.pack(side="right", padx=5)
+    
+    decline_btn = ctk.CTkButton(button_frame, text="Decline", command=on_decline, 
+                                width=150, height=40, fg_color="#e74c3c", hover_color="#c0392b")
+    decline_btn.pack(side="right", padx=5)
+    
+    dialog.mainloop()
 
 class SplashScreen(ctk.CTk):
     def __init__(self):
@@ -134,16 +272,8 @@ class SplashScreen(ctk.CTk):
 
     def finish_splash(self):
         self.destroy()
-        security.show_login()
+        # Note: security.show_login() doesn't exist, this splash screen is not used in the main flow
 
-if __name__ == "__main__":
-    # Check license before starting application
-    check_license_before_start()
-    
-    app = SplashScreen()
-    app.mainloop()
-
-    
 import customtkinter as ctk
 from security import LoginPage   # Assuming you saved the login class here
 from splash import SplashScreen2 # Assuming you saved the splash class here
@@ -152,6 +282,10 @@ from ui_dashboard import Dashboard     # Your beautiful registry GUI
 def run_freeman_os():
     # Check license before starting application
     check_license_before_start()
+    
+    # Check Terms of Use agreement
+    if not check_terms_agreement():
+        show_terms_dialog()
 
     # STEP 1: OPEN LOGIN
     login = LoginPage()
@@ -173,6 +307,11 @@ def run_freeman_os():
         print("Login cancelled or failed. System shutting down.")
 
 if __name__ == "__main__":
+    # Show initial splash screen
+    app = SplashScreen()
+    app.mainloop()
+    
+    # Then run the main application (login → splashscreen2 → dashboard)
     run_freeman_os()
 
 

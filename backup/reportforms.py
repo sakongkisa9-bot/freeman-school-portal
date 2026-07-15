@@ -2,6 +2,7 @@ import customtkinter as ctk
 from tkinter import messagebox, filedialog
 from PIL import Image, ImageDraw, ImageFont
 import os
+import sys
 import json
 from database import FreemanDB
 from cloud_service import CloudService, ask_cloud_credentials
@@ -16,6 +17,16 @@ class ReportFormsView(ctk.CTkToplevel):
         self.db = db
         self.current_class = None
         self.current_student = None
+        
+        # Initialize proper paths for executable environment
+        if getattr(sys, 'frozen', False):
+            # Running as executable
+            self.USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
+            os.makedirs(self.USER_DATA_DIR, exist_ok=True)
+        else:
+            # Running as script
+            self.USER_DATA_DIR = os.path.dirname(os.path.realpath(__file__))
+        
         self.school_config = self.load_school_config()
         
         # Window configuration
@@ -35,11 +46,21 @@ class ReportFormsView(ctk.CTkToplevel):
         
     def load_school_config(self):
         try:
-            current_dir = os.path.dirname(os.path.realpath(__file__))
-            json_path = os.path.join(current_dir, 'school_config.json')
+            json_path = os.path.join(self.USER_DATA_DIR, 'school_config.json')
             if os.path.exists(json_path):
                 with open(json_path, 'r') as f:
                     return json.load(f)
+            else:
+                # If config doesn't exist in USER_DATA_DIR, copy from bundled location
+                if getattr(sys, 'frozen', False):
+                    bundled_config = os.path.join(sys._MEIPASS, "school_config.json")
+                else:
+                    bundled_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "school_config.json")
+                if os.path.exists(bundled_config):
+                    import shutil
+                    shutil.copy2(bundled_config, json_path)
+                    with open(json_path, 'r') as f:
+                        return json.load(f)
         except Exception:
             pass
         return {}
@@ -97,8 +118,8 @@ class ReportFormsView(ctk.CTkToplevel):
     
     def get_available_classes(self):
         try:
-            self.db._cursor.execute('SELECT DISTINCT grade FROM students ORDER BY grade')
-            classes = [row[0] for row in self.db._cursor.fetchall()]
+            self.db.cursor().execute('SELECT DISTINCT grade FROM students ORDER BY grade')
+            classes = [row[0] for row in self.db.cursor().fetchall()]
             return classes if classes else []
         except Exception as e:
             print(f"Error getting classes: {e}")
@@ -176,10 +197,10 @@ class ReportFormsView(ctk.CTkToplevel):
     
     def get_students_in_class(self, class_name):
         try:
-            self.db._cursor.execute('SELECT adm_no, name, grade, stream FROM students WHERE grade = ? ORDER BY name',
+            self.db.cursor().execute('SELECT adm_no, name, grade, stream FROM students WHERE grade = ? ORDER BY name',
                                    (class_name,))
             students = [{'adm_no': row[0], 'name': row[1], 'grade': row[2], 'stream': row[3] if row[3] else 'none'} 
-                       for row in self.db._cursor.fetchall()]
+                       for row in self.db.cursor().fetchall()]
             return students
         except Exception as e:
             print(f"Error getting students: {e}")
@@ -296,9 +317,34 @@ class ReportFormsView(ctk.CTkToplevel):
                                    font=("Arial Bold", 16), text_color="#2c3e50")
         title_label.pack(pady=10)
 
-        # Student details in a grid layout
-        details_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
-        details_frame.pack(fill="x", padx=20, pady=10)
+        # Main content frame with photo and details
+        content_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
+        content_frame.pack(fill="x", padx=20, pady=10)
+
+        # Student photo frame (left side)
+        photo_frame = ctk.CTkFrame(content_frame, width=150, height=150)
+        photo_frame.pack(side="left", padx=(0, 20), pady=5)
+
+        # Try to load student photo
+        student_photo = student.get('photo', '')
+        if student_photo and os.path.exists(student_photo):
+            try:
+                photo_img = ctk.CTkImage(Image.open(student_photo), size=(140, 140))
+                photo_label = ctk.CTkLabel(photo_frame, image=photo_img, text="")
+                photo_label.pack(pady=5)
+            except Exception as e:
+                print(f"Error loading student photo: {e}")
+                photo_label = ctk.CTkLabel(photo_frame, text="NO\nPHOTO",
+                                         font=("Arial Bold", 12), text_color="gray")
+                photo_label.pack(pady=40)
+        else:
+            photo_label = ctk.CTkLabel(photo_frame, text="NO\nPHOTO",
+                                     font=("Arial Bold", 12), text_color="gray")
+            photo_label.pack(pady=40)
+
+        # Student details frame (right side)
+        details_frame = ctk.CTkFrame(content_frame, fg_color="transparent")
+        details_frame.pack(side="left", fill="both", expand=True, padx=10)
 
         details = [
             ("Student Name:", student['name']),
@@ -328,9 +374,9 @@ class ReportFormsView(ctk.CTkToplevel):
     def get_class_teacher(self, class_name):
         try:
             # Get the first teacher from the teachers linked list for this class
-            self.db._cursor.execute('SELECT teacher_name FROM teachers WHERE class_name = ? ORDER BY id ASC LIMIT 1',
+            self.db.cursor().execute('SELECT teacher_name FROM teachers WHERE class_name = ? ORDER BY id ASC LIMIT 1',
                                    (class_name,))
-            result = self.db._cursor.fetchone()
+            result = self.db.cursor().fetchone()
             return result[0] if result else ""
         except Exception as e:
             print(f"Error getting class teacher: {e}")
@@ -582,9 +628,9 @@ class ReportFormsView(ctk.CTkToplevel):
                 print(f"DEBUG: No table found for grade {grade}")
                 return None
             
-            self.db._cursor.execute(f'SELECT * FROM {table} WHERE adm_no = ?', (adm_no,))
-            columns = [desc[0] for desc in self.db._cursor.description]
-            row = self.db._cursor.fetchone()
+            self.db.cursor().execute(f'SELECT * FROM {table} WHERE adm_no = ?', (adm_no,))
+            columns = [desc[0] for desc in self.db.cursor().description]
+            row = self.db.cursor().fetchone()
             
             if row:
                 result = dict(zip(columns, row))
@@ -615,8 +661,8 @@ class ReportFormsView(ctk.CTkToplevel):
         """Fallback: Get current marks from student_reports table when marksheet is empty"""
         try:
             print(f"DEBUG: get_student_current_marks_from_reports - adm_no: {adm_no}, grade: {grade}")
-            self.db._cursor.execute('SELECT marks_data FROM student_reports WHERE adm_no = ? AND grade = ?', (adm_no, grade))
-            row = self.db._cursor.fetchone()
+            self.db.cursor().execute('SELECT marks_data FROM student_reports WHERE adm_no = ? AND grade = ?', (adm_no, grade))
+            row = self.db.cursor().fetchone()
             
             if row:
                 import json
@@ -959,10 +1005,20 @@ class ReportFormsView(ctk.CTkToplevel):
             pdf.cell(0, 5, txt=school_telephone, border=0, ln=1, align="C")
             pdf.ln(5)
 
-            # Student Information Frame
+            # Student Information Frame with photo
             pdf.set_fill_color(240, 240, 240)
-            pdf.rect(10, pdf.get_y(), 277, 25, 'DF')  # Draw frame with fill
+            pdf.rect(10, pdf.get_y(), 277, 35, 'DF')  # Draw frame with fill (increased height for photo)
             
+            # Student photo
+            student_photo = student.get('photo', '')
+            if student_photo and os.path.exists(student_photo):
+                try:
+                    pdf.image(student_photo, 12, pdf.get_y() + 2, 25)
+                except Exception as e:
+                    print(f"Error loading student photo in PDF: {e}")
+            
+            # Student details (offset to the right of photo)
+            pdf.set_xy(40, pdf.get_y() + 2)
             pdf.set_font("Helvetica", "B", 9)
             pdf.cell(30, 6, txt="NAME:", border=0, ln=0)
             pdf.set_font("Helvetica", "", 9)
@@ -976,14 +1032,14 @@ class ReportFormsView(ctk.CTkToplevel):
             pdf.set_font("Helvetica", "B", 9)
             pdf.cell(20, 6, txt="STREAM:", border=0, ln=0)
             pdf.set_font("Helvetica", "", 9)
-            pdf.cell(30, 6, txt=stream, border=0, ln=0)
+            pdf.cell(30, 6, txt=stream, border=0, ln=1)
             
+            pdf.set_xy(40, pdf.get_y() + 2)
             pdf.set_font("Helvetica", "B", 9)
             pdf.cell(20, 6, txt="GRADE:", border=0, ln=0)
             pdf.set_font("Helvetica", "", 9)
-            pdf.cell(30, 6, txt=grade, border=0, ln=1)
+            pdf.cell(30, 6, txt=grade, border=0, ln=0)
             
-            pdf.set_xy(10, pdf.get_y() + 2)
             pdf.set_font("Helvetica", "B", 9)
             pdf.cell(40, 6, txt="CLASS TEACHER:", border=0, ln=0)
             pdf.set_font("Helvetica", "", 9)
@@ -1393,17 +1449,8 @@ class ReportFormsView(ctk.CTkToplevel):
             return None
         print(f"DEBUG: Current marks found, proceeding with report generation")
         
-        # Determine exam title based on grade
-        grade = student['grade']
-        grade_lower = grade.lower()
-        if grade_lower in ["playgroup", "pp1", "pp2"]:
-            exam_title = self.school_config.get("playgroup_exam_title", "TERM ASSESSMENT")
-        elif grade_lower in ["grade 1", "grade 2", "grade 3", "grade 4", "grade 5", "grade 6"]:
-            exam_title = self.school_config.get("primary_exam_title", "PRIMARY EXAM")
-        elif grade_lower in ["grade 7", "grade 8", "grade 9"]:
-            exam_title = self.school_config.get("jss_exam_title", "JSS ASSESSMENT")
-        else:
-            exam_title = "TERM ASSESSMENT"
+        # Use current_exam_title for consistency with performance history graph
+        exam_title = self.school_config.get("current_exam_title", "PERFORMANCE REPORT")
         
         # Fetch previous exams for this student
         previous_exams_data = []

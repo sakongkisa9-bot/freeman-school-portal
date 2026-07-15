@@ -1,0 +1,8 @@
+[14:05:09] DEBUG: Loaded 1 students for grade 'pp1' from database
+[14:05:09] DEBUG: Record 0: man
+[14:05:09] DEBUG: Drawing 1 rows to UI
+[14:05:09] DEBUG: Drawing row 0: man (pos: 1)
+[14:05:09] DEBUG: add_student_row_with_data called for man
+[14:05:09] DEBUG: row_data length: 13, expected: 13
+[14:05:09] DEBUG: row_data: ('man', 56, 'ME2', 78, 'EE2', 90, 'EE1', 56, 'ME2', 45, 'ME2', 325, 'ME2')
+[14:05:09] DEBUG: All rows drawn successfully

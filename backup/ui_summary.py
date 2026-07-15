@@ -1,9 +1,24 @@
 import os
+import sys
 import json
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 from fpdf import FPDF
 from grading_logic import get_grade_4_6_rating, get_grade_7_8_rating
+
+
+def get_app_dir():
+    """Get the application directory, handling both script and executable environments"""
+    if getattr(sys, 'frozen', False):
+        # Running as executable
+        BASE_DIR = sys._MEIPASS
+        USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
+        os.makedirs(USER_DATA_DIR, exist_ok=True)
+    else:
+        # Running as script
+        BASE_DIR = os.path.dirname(os.path.realpath(__file__))
+        USER_DATA_DIR = BASE_DIR
+    return BASE_DIR, USER_DATA_DIR
 
 LEVEL_ORDER = ["EE1", "EE2", "ME1", "ME2", "AE1", "AE2", "BE1", "BE2"]
 LEVEL_POINTS = {"EE1": 8, "EE2": 7, "ME1": 6, "ME2": 5, "AE1": 4, "AE2": 3, "BE1": 2, "BE2": 1}
@@ -22,6 +37,8 @@ class ClassSummaryView(ctk.CTkFrame):
         super().__init__(parent, fg_color="transparent")
         self.db = db_connection
         self.class_name = class_name
+        # Initialize proper paths for executable environment
+        self.BASE_DIR, self.USER_DATA_DIR = get_app_dir()
         self.grade_type, self.table_name = self.resolve_class_metadata(class_name)
         self.school_config = self.load_school_config()
         self.subjects = self.get_subjects_from_json(self.grade_type)
@@ -41,7 +58,8 @@ class ClassSummaryView(ctk.CTkFrame):
         self.create_bottom_controls()
 
     def get_json_path(self):
-        return os.path.join(os.path.dirname(os.path.realpath(__file__)), 'school_config.json')
+        # Use USER_DATA_DIR for config file (works in both script and executable)
+        return os.path.join(self.USER_DATA_DIR, 'school_config.json')
 
     def load_school_config(self):
         try:
@@ -49,6 +67,14 @@ class ClassSummaryView(ctk.CTkFrame):
             if os.path.exists(json_path):
                 with open(json_path, 'r') as f:
                     return json.load(f)
+            else:
+                # If config doesn't exist in USER_DATA_DIR, copy from bundled location
+                bundled_config = os.path.join(self.BASE_DIR, "school_config.json")
+                if os.path.exists(bundled_config):
+                    import shutil
+                    shutil.copy2(bundled_config, json_path)
+                    with open(json_path, 'r') as f:
+                        return json.load(f)
         except Exception:
             pass
         return {}
@@ -82,25 +108,25 @@ class ClassSummaryView(ctk.CTkFrame):
     def ensure_marks_table(self):
         try:
             if self.table_name == "marksheet":
-                self.db._cursor.execute("CREATE TABLE IF NOT EXISTS marksheet (adm_no TEXT PRIMARY KEY, total_points INTEGER, average_points TEXT, rank INTEGER)")
+                self.db.cursor().execute("CREATE TABLE IF NOT EXISTS marksheet (adm_no TEXT PRIMARY KEY, total_points INTEGER, average_points TEXT, rank INTEGER)")
             else:
-                self.db._cursor.execute(f"CREATE TABLE IF NOT EXISTS {self.table_name} (adm_no TEXT PRIMARY KEY, total_points INTEGER, average_level TEXT)")
+                self.db.cursor().execute(f"CREATE TABLE IF NOT EXISTS {self.table_name} (adm_no TEXT PRIMARY KEY, total_points INTEGER, average_level TEXT)")
 
-            self.db._cursor.execute(f"PRAGMA table_info({self.table_name})")
-            existing_cols = [row[1].lower() for row in self.db._cursor.fetchall()]
+            self.db.cursor().execute(f"PRAGMA table_info({self.table_name})")
+            existing_cols = [row[1].lower() for row in self.db.cursor().fetchall()]
 
             for subject in self.subjects:
                 base = self.clean_column_name(subject)
                 score_col = f"{base}_s"
                 remark_col = f"{base}_r"
                 if score_col not in existing_cols:
-                    self.db._cursor.execute(f"ALTER TABLE {self.table_name} ADD COLUMN {score_col} INTEGER")
+                    self.db.cursor().execute(f"ALTER TABLE {self.table_name} ADD COLUMN {score_col} INTEGER")
                 if remark_col not in existing_cols:
-                    self.db._cursor.execute(f"ALTER TABLE {self.table_name} ADD COLUMN {remark_col} TEXT")
+                    self.db.cursor().execute(f"ALTER TABLE {self.table_name} ADD COLUMN {remark_col} TEXT")
                 if self.table_name == "marksheet":
                     point_col = f"{base}_p"
                     if point_col not in existing_cols:
-                        self.db._cursor.execute(f"ALTER TABLE marksheet ADD COLUMN {point_col} INTEGER")
+                        self.db.cursor().execute(f"ALTER TABLE marksheet ADD COLUMN {point_col} INTEGER")
 
             self.db.conn.commit()
         except Exception:
@@ -123,11 +149,11 @@ class ClassSummaryView(ctk.CTkFrame):
         average_field = "m.average_points" if self.table_name == "marksheet" else "m.average_level"
         select_columns = ["s.adm_no", "s.name", "s.gender"] + subject_select + ["m.total_points", average_field]
         column_clause = ", ".join(select_columns)
-        query = f"SELECT {column_clause} FROM students s LEFT JOIN {self.table_name} m ON s.adm_no = m.adm_no WHERE s.grade = ?"
+        query = f"SELECT {column_clause} FROM students s LEFT JOIN {self.table_name} m ON s.adm_no = m.adm_no WHERE UPPER(s.grade) = UPPER(?)"
 
         try:
-            self.db._cursor.execute(query, (self.class_name,))
-            rows = self.db._cursor.fetchall()
+            self.db.cursor().execute(query, (self.class_name,))
+            rows = self.db.cursor().fetchall()
         except Exception:
             rows = []
 
@@ -201,11 +227,11 @@ class ClassSummaryView(ctk.CTkFrame):
         has_history = False
         trend_text = "No previous exam"
         try:
-            self.db._cursor.execute(
+            self.db.cursor().execute(
                 "SELECT exam_name FROM previous_exams WHERE class_name = ? ORDER BY exam_date DESC LIMIT 1",
                 (self.class_name,)
             )
-            previous_exam = self.db._cursor.fetchone()
+            previous_exam = self.db.cursor().fetchone()
             if previous_exam:
                 has_history = True
                 trend_text = f"Previous: {previous_exam[0]}"

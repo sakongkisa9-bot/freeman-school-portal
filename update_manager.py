@@ -17,6 +17,9 @@ class UpdateManager:
             BASE_DIR = sys._MEIPASS
             USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
             os.makedirs(USER_DATA_DIR, exist_ok=True)
+            
+            # Copy config files from bundled location to user data directory if they don't exist
+            self._initialize_config_files(BASE_DIR, USER_DATA_DIR)
         else:
             # Running as script
             BASE_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -27,6 +30,21 @@ class UpdateManager:
         self.temp_dir = os.path.join(USER_DATA_DIR, "temp_updates")
         self.backup_dir = os.path.join(USER_DATA_DIR, "backup")
         self.current_version = self.get_current_version()
+    
+    def _initialize_config_files(self, bundled_dir, user_data_dir):
+        """Copy config files from bundled location to user data directory if they don't exist"""
+        config_files = ['update_config.json', 'version.json']
+        
+        for config_file in config_files:
+            bundled_path = os.path.join(bundled_dir, config_file)
+            user_path = os.path.join(user_data_dir, config_file)
+ 
+            if not os.path.exists(user_path) and os.path.exists(bundled_path):
+                try:
+                    shutil.copy2(bundled_path, user_path)
+                    print(f"[UpdateManager] Copied {config_file} from bundled to user data directory")
+                except Exception as e:
+                    print(f"[UpdateManager] Failed to copy {config_file}: {e}")
     
     def get_current_version(self):
         """Get current version from version.json"""

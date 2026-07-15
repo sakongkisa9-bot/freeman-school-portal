@@ -28,11 +28,6 @@ import os
 import sys
 
 
-def debug_log(*_args, **_kwargs):
-    """Compatibility stub for debug logging without a visible console."""
-    return None
-
-
 def get_app_dir():
     """Get the application directory, handling both script and executable environments"""
     if getattr(sys, "frozen", False):

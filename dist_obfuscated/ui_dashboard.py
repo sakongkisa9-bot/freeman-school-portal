@@ -14,7 +14,7 @@ import json
 import webbrowser
 from datetime import datetime, timedelta
 import customtkinter as ctk
-from tkinter import messagebox, scrolledtext
+from tkinter import messagebox
 from database import FreemanDB  # Ensure database.py is in the same folder
 from PIL import Image
 from wizard import SchoolSetupWizard
@@ -4324,7 +4324,7 @@ class Dashboard(ctk.CTk):
         ).pack(pady=5)
 
         # Check if download URL is available
-        has_download_url = update_info.get("download_url") and not update_info[
+        has_download_url = bool(update_info.get("download_url")) and update_info[
             "download_url"
         ].endswith(".zip")
 

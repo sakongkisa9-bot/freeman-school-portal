@@ -1,11 +1,30 @@
 import sqlite3
 import os
-# Save it inside the project folder to avoid Windows Permission errors
-DB_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "freeman_data.db")
+import sys
 
-                # Double check if it exists, if not, print where the script THINKs it is
+# Handle both development and executable environments
+if getattr(sys, 'frozen', False):
+    # Running as executable
+    BASE_DIR = sys._MEIPASS
+else:
+    # Running as script
+    BASE_DIR = os.path.dirname(os.path.realpath(__file__))
+
+# For executable, use user data directory for database
+if getattr(sys, 'frozen', False):
+    import tempfile
+    USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
+    os.makedirs(USER_DATA_DIR, exist_ok=True)
+    DB_PATH = os.path.join(USER_DATA_DIR, "freeman_data.db")
+    print(f"[EXECUTABLE MODE] Database path: {DB_PATH}")
+else:
+    # Save it inside the project folder for development
+    DB_PATH = os.path.join(BASE_DIR, "freeman_data.db")
+    print(f"[DEV MODE] Database path: {DB_PATH}")
+
+# Double check if it exists, if not, print where the script THINKs it is
 if not os.path.exists(DB_PATH):
- print(f"WARNING: Database not found at {DB_PATH}. Check your username.")
+    print(f"WARNING: Database not found at {DB_PATH}. A new one will be created.")
 
 class FreemanDB:
     def __init__(self):
@@ -14,10 +33,16 @@ class FreemanDB:
             # Use a different internal name so it doesn't conflict with the function call
             self._cursor = self.conn.cursor()
             print(f"DATABASE ACTIVE AT: {DB_PATH}")
+            print(f"DATABASE CONNECTION ID: {id(self.conn)}")
+            # Check if database has data
+            self._cursor.execute("SELECT COUNT(*) FROM students")
+            count = self._cursor.fetchone()[0]
+            print(f"DATABASE STUDENT COUNT ON INIT: {count}")
         except Exception as e:
             print(f"Desktop Access Denied: {e}. Saving in project folder instead.")
             self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
             self._cursor = self.conn.cursor()
+            print(f"DATABASE CONNECTION ID: {id(self.conn)}")
         
         # Create all tables (run regardless of connection success)
         self.create_table()
@@ -34,12 +59,79 @@ class FreemanDB:
         self.create_license_status_table()
         self.create_deleted_students_footprint_table()
         self.create_alert_queue_table()
-        # Temporary fix in database.py
-        self.create_marksheet_table() # Ensure this runs at start too
+        
+        # Run database migrations
+        self.run_migrations()
+
+    def run_migrations(self):
+        """Run database migrations to handle schema changes"""
+        try:
+            # Create migrations table if it doesn't exist
+            self._cursor.execute('''
+                CREATE TABLE IF NOT EXISTS schema_migrations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    version TEXT UNIQUE NOT NULL,
+                    applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            self.conn.commit()
+            
+            # Get all applied migration versions
+            self._cursor.execute('SELECT version FROM schema_migrations ORDER BY applied_at DESC')
+            applied_versions = set(row[0] for row in self._cursor.fetchall())
+            
+            # Define migrations
+            migrations = [
+                ("1.0.0", self.migration_1_0_0),
+                ("1.0.1", self.migration_1_0_1),
+            ]
+            
+            # Run pending migrations
+            for version, migration_func in migrations:
+                if version not in applied_versions:
+                    print(f"Running migration to version {version}")
+                    migration_func()
+                    self._cursor.execute('INSERT INTO schema_migrations (version) VALUES (?)', (version,))
+                    self.conn.commit()
+                    print(f"Migration to version {version} completed")
+                    
+        except Exception as e:
+            print(f"Error running migrations: {e}")
+    
+    def _compare_versions(self, v1, v2):
+        """Compare two version strings"""
+        v1_parts = [int(x) for x in v1.split('.')]
+        v2_parts = [int(x) for x in v2.split('.')]
+        
+        for i in range(max(len(v1_parts), len(v2_parts))):
+            v1_val = v1_parts[i] if i < len(v1_parts) else 0
+            v2_val = v2_parts[i] if i < len(v2_parts) else 0
+            
+            if v1_val > v2_val:
+                return 1
+            elif v1_val < v2_val:
+                return -1
+        
+        return 0
+    
+    def migration_1_0_0(self):
+        """Initial migration - baseline schema"""
+        # This is the baseline, no changes needed
+        pass
+    
+    def migration_1_0_1(self):
+        """Migration for version 1.0.1 - add any new columns or tables"""
+        # Example: Add new column if it doesn't exist
+        try:
+            self._cursor.execute("ALTER TABLE students ADD COLUMN stream TEXT")
+            self.conn.commit()
+        except:
+            pass  # Column might already exist
 
     def cursor(self):
         """This allows self.db.cursor() to work in your other files!"""
-        return self.conn.cursor()
+        # Return the internal cursor to avoid creating new cursors that might not see committed data
+        return self._cursor
 
     def create_table(self):
         self._cursor.execute('''
@@ -75,10 +167,11 @@ class FreemanDB:
             school_name = "Unknown School"
             try:
                 import json
-                import os
-                config_path = os.path.join(
-                    os.path.dirname(os.path.realpath(__file__)), "school_config.json"
-                )
+                # Use USER_DATA_DIR for user-writable config file (works in both script and executable)
+                if getattr(sys, 'frozen', False):
+                    config_path = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal", "school_config.json")
+                else:
+                    config_path = os.path.join(BASE_DIR, "school_config.json")
                 if os.path.exists(config_path):
                     with open(config_path, "r") as f:
                         config = json.load(f)
@@ -101,6 +194,7 @@ class FreemanDB:
                         from datetime import datetime
                         ns = NotificationService()
                         results = ns.send_alert(message)
+                        print(f"Alert results: {results}")
                         sent_successfully = any(result[1] for result in results)
                         if sent_successfully:
                             # Mark the alert as sent - get the ID first since SQLite doesn't support ORDER BY in UPDATE
@@ -113,18 +207,20 @@ class FreemanDB:
                                 self.conn.commit()
                                 print("Alert sent successfully to Telegram")
                         else:
-                            print("Alert queued (will retry on startup) - Telegram timeout")
+                            print(f"Alert failed to send. Results: {results}")
                     except Exception as e:
                         print(f"Alert queued (will retry on startup) - Error: {e}")
+                        import traceback
+                        traceback.print_exc()
             
-            # We use the internal _cursor here
+            # Use public cursor method for consistency
             self._cursor.execute('''
                 INSERT OR REPLACE INTO students (adm_no, name, grade, gender, phone, photo, stream)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (adm, name, grade, gender, phone, photo, stream or "None"))
 
             self.conn.commit()
-            print(f"Successfully committed {name} to {grade}")
+            print(f"Successfully committed {name} to {grade} (Database: {DB_PATH})")
             return True
         except Exception as e:
             print(f"Database Error: {e}")

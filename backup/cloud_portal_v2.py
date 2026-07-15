@@ -15,12 +15,22 @@ import os
 import json
 from datetime import datetime
 import logging
-from grading_logic import get_grade_7_8_rating, get_grade_4_6_rating, calculate_final_level
+from grading_logic import (
+    get_grade_7_8_rating,
+    get_grade_4_6_rating,
+    calculate_final_level,
+)
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(PROJECT_DIR, "templates")
 app = Flask(__name__, template_folder=TEMPLATES_DIR)
+
+# Configure session for Railway (multi-container environment)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-2026")
+app.config["SESSION_COOKIE_SECURE"] = os.environ.get("RAILWAY_ENVIRONMENT") is not None
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
 
 # Custom Jinja2 filter to convert numerical score to rating
 def score_to_rating(score, grade):
@@ -29,61 +39,102 @@ def score_to_rating(score, grade):
         s = float(score)
         if not s or s == 0:
             return "BE2"
-        
+
         # For playgroup, pp1, pp2, use the rating system
         grade_lower = grade.lower() if grade else ""
         if grade_lower in ["playgroup", "pp1", "pp2"]:
             # Use the same rating logic as Grade 4-6
-            if s >= 90: return "EE1"
-            elif s >= 75: return "EE2"
-            elif s >= 58: return "ME1"
-            elif s >= 41: return "ME2"
-            elif s >= 31: return "AE1"
-            elif s >= 21: return "AE2"
-            elif s >= 11: return "BE1"
-            else: return "BE2"
+            if s >= 90:
+                return "EE1"
+            elif s >= 75:
+                return "EE2"
+            elif s >= 58:
+                return "ME1"
+            elif s >= 41:
+                return "ME2"
+            elif s >= 31:
+                return "AE1"
+            elif s >= 21:
+                return "AE2"
+            elif s >= 11:
+                return "BE1"
+            else:
+                return "BE2"
         elif grade_lower in ["grade 1", "grade 2", "grade 3"]:
             # Primary grades
-            if s >= 90: return "EE1"
-            elif s >= 75: return "EE2"
-            elif s >= 58: return "ME1"
-            elif s >= 41: return "ME2"
-            elif s >= 31: return "AE1"
-            elif s >= 21: return "AE2"
-            elif s >= 11: return "BE1"
-            else: return "BE2"
+            if s >= 90:
+                return "EE1"
+            elif s >= 75:
+                return "EE2"
+            elif s >= 58:
+                return "ME1"
+            elif s >= 41:
+                return "ME2"
+            elif s >= 31:
+                return "AE1"
+            elif s >= 21:
+                return "AE2"
+            elif s >= 11:
+                return "BE1"
+            else:
+                return "BE2"
         elif grade_lower in ["grade 4", "grade 5", "grade 6"]:
             # Primary grades with different scale
-            if s >= 90: return "EE1"
-            elif s >= 75: return "EE2"
-            elif s >= 58: return "ME1"
-            elif s >= 41: return "ME2"
-            elif s >= 31: return "AE1"
-            elif s >= 21: return "AE2"
-            elif s >= 11: return "BE1"
-            else: return "BE2"
+            if s >= 90:
+                return "EE1"
+            elif s >= 75:
+                return "EE2"
+            elif s >= 58:
+                return "ME1"
+            elif s >= 41:
+                return "ME2"
+            elif s >= 31:
+                return "AE1"
+            elif s >= 21:
+                return "AE2"
+            elif s >= 11:
+                return "BE1"
+            else:
+                return "BE2"
         elif grade_lower in ["grade 7", "grade 8", "grade 9"]:
             # Junior Secondary
-            if s >= 90: return "EE1"
-            elif s >= 75: return "EE2"
-            elif s >= 58: return "ME1"
-            elif s >= 41: return "ME2"
-            elif s >= 31: return "AE1"
-            elif s >= 21: return "AE2"
-            elif s >= 11: return "BE1"
-            else: return "BE2"
+            if s >= 90:
+                return "EE1"
+            elif s >= 75:
+                return "EE2"
+            elif s >= 58:
+                return "ME1"
+            elif s >= 41:
+                return "ME2"
+            elif s >= 31:
+                return "AE1"
+            elif s >= 21:
+                return "AE2"
+            elif s >= 11:
+                return "BE1"
+            else:
+                return "BE2"
         else:
             # Default
-            if s >= 90: return "EE1"
-            elif s >= 75: return "EE2"
-            elif s >= 58: return "ME1"
-            elif s >= 41: return "ME2"
-            elif s >= 31: return "AE1"
-            elif s >= 21: return "AE2"
-            elif s >= 11: return "BE1"
-            else: return "BE2"
+            if s >= 90:
+                return "EE1"
+            elif s >= 75:
+                return "EE2"
+            elif s >= 58:
+                return "ME1"
+            elif s >= 41:
+                return "ME2"
+            elif s >= 31:
+                return "AE1"
+            elif s >= 21:
+                return "AE2"
+            elif s >= 11:
+                return "BE1"
+            else:
+                return "BE2"
     except:
         return "BE2"
+
 
 # Custom Jinja2 filter to convert rating to points for comparison
 def rating_to_points(rating):
@@ -96,9 +147,10 @@ def rating_to_points(rating):
         "AE1": 4,
         "AE2": 3,
         "BE1": 2,
-        "BE2": 1
+        "BE2": 1,
     }
     return rating_points.get(rating, 0)
+
 
 # Custom Jinja2 filter to convert rating to teacher comment
 def rating_to_comment(rating):
@@ -106,12 +158,15 @@ def rating_to_comment(rating):
     rating_comments = {
         "BE1": "A starting point. Focus on understanding the basic concepts, and I am here to help you practice.",
         "BE2": "You are showing effort, but need more practice on the fundamentals to reach the expected level.",
+        "AE1": "You are approaching the expected level. With more practice, you will master this.",
+        "AE2": "Good effort shown. Keep working on the basics to build a stronger foundation.",
         "ME1": "Good progress. You are grasping the core ideas; continue practicing to gain more confidence.",
         "ME2": "Well done! You are very close to mastering this. Pay close attention to the finer details.",
         "EE1": "Great work! You have successfully demonstrated this competency. Keep up the consistent performance.",
-        "EE2": "Outstanding! You have mastered the task and shown deep understanding. Keep challenging yourself."
+        "EE2": "Outstanding! You have mastered the task and shown deep understanding. Keep challenging yourself.",
     }
     return rating_comments.get(rating, "No comment available.")
+
 
 # Custom Jinja2 filter to get class teacher comment based on average level
 def get_class_teacher_comment(average_level):
@@ -124,9 +179,10 @@ def get_class_teacher_comment(average_level):
         "AE1": "You are making progress. Focus on the finer details to reach full mastery.",
         "AE2": "A promising performance. Keep practicing to strengthen your understanding of these topics.",
         "BE1": "You are starting to grasp the basics. Let's keep working together to build your confidence.",
-        "BE2": "A beginning step in your learning journey. Stay dedicated, and we will work on the fundamentals."
+        "BE2": "A beginning step in your learning journey. Stay dedicated, and we will work on the fundamentals.",
     }
     return comments.get(average_level, "No comment available.")
+
 
 # Custom Jinja2 filter to get head teacher comment based on average level
 def get_head_teacher_comment(average_level):
@@ -139,9 +195,10 @@ def get_head_teacher_comment(average_level):
         "AE1": "Good effort shown. With more focus, I am confident you will meet expectations soon.",
         "AE2": "You are close to the target level. Keep working hard and stay focused.",
         "BE1": "I see potential in your work. Let's strive to meet the expected goals next term.",
-        "BE2": "There is potential for growth. We will provide the support needed to improve next term."
+        "BE2": "There is potential for growth. We will provide the support needed to improve next term.",
     }
     return comments.get(average_level, "No comment available.")
+
 
 # Custom Jinja2 filter to convert image file to base64
 def image_to_base64(image_path):
@@ -150,10 +207,11 @@ def image_to_base64(image_path):
         return ""
     import base64
     import os
+
     try:
         if os.path.exists(image_path):
             with open(image_path, "rb") as image_file:
-                encoded = base64.b64encode(image_file.read()).decode('utf-8')
+                encoded = base64.b64encode(image_file.read()).decode("utf-8")
                 # Determine file extension
                 ext = os.path.splitext(image_path)[1].lower()
                 mime_type = "image/png" if ext == ".png" else "image/jpeg"
@@ -164,17 +222,27 @@ def image_to_base64(image_path):
         logging.error(f"Error converting image to base64: {e}")
         return ""
 
+
 # Custom Jinja2 filter to convert points to rating
 def points_to_rating(points):
     """Convert points back to rating"""
-    if points >= 7.5: return "EE1"
-    elif points >= 6.5: return "EE2"
-    elif points >= 5.5: return "ME1"
-    elif points >= 4.5: return "ME2"
-    elif points >= 3.5: return "AE1"
-    elif points >= 2.5: return "AE2"
-    elif points >= 1.5: return "BE1"
-    else: return "BE2"
+    if points >= 7.5:
+        return "EE1"
+    elif points >= 6.5:
+        return "EE2"
+    elif points >= 5.5:
+        return "ME1"
+    elif points >= 4.5:
+        return "ME2"
+    elif points >= 3.5:
+        return "AE1"
+    elif points >= 2.5:
+        return "AE2"
+    elif points >= 1.5:
+        return "BE1"
+    else:
+        return "BE2"
+
 
 # Custom Jinja2 filter to check if string is digit
 def isdigit(s):
@@ -187,23 +255,26 @@ def isdigit(s):
     except (ValueError, TypeError):
         return False
 
-app.jinja_env.filters['score_to_rating'] = score_to_rating
-app.jinja_env.filters['rating_to_points'] = rating_to_points
-app.jinja_env.filters['points_to_rating'] = points_to_rating
-app.jinja_env.filters['rating_to_comment'] = rating_to_comment
-app.jinja_env.filters['get_class_teacher_comment'] = get_class_teacher_comment
-app.jinja_env.filters['get_head_teacher_comment'] = get_head_teacher_comment
-app.jinja_env.filters['image_to_base64'] = image_to_base64
-app.jinja_env.filters['isdigit'] = isdigit
+
+app.jinja_env.filters["score_to_rating"] = score_to_rating
+app.jinja_env.filters["rating_to_points"] = rating_to_points
+app.jinja_env.filters["points_to_rating"] = points_to_rating
+app.jinja_env.filters["rating_to_comment"] = rating_to_comment
+app.jinja_env.filters["get_class_teacher_comment"] = get_class_teacher_comment
+app.jinja_env.filters["get_head_teacher_comment"] = get_head_teacher_comment
+app.jinja_env.filters["image_to_base64"] = image_to_base64
+app.jinja_env.filters["isdigit"] = isdigit
+
 
 # Custom filter to remove trailing '_s' suffix only
-def rstrip_suffix(s, suffix='_s'):
+def rstrip_suffix(s, suffix="_s"):
     """Remove trailing suffix from string"""
     if s.endswith(suffix):
-        return s[:-len(suffix)]
+        return s[: -len(suffix)]
     return s
 
-app.jinja_env.filters['rstrip_suffix'] = rstrip_suffix
+
+app.jinja_env.filters["rstrip_suffix"] = rstrip_suffix
 
 
 @app.before_request
@@ -292,7 +363,7 @@ def get_db():
     if db_dir and not os.path.exists(db_dir):
         os.makedirs(db_dir, exist_ok=True)
         logging.info(f"Created database directory: {db_dir}")
-    
+
     conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
     logging.info(f"Database connected at: {DB_PATH}")
@@ -319,30 +390,33 @@ def init_db():
     # Add portal_open column if it doesn't exist (for existing databases)
     cursor.execute("PRAGMA table_info(schools)")
     columns = [column[1] for column in cursor.fetchall()]
-    if 'portal_open' not in columns:
+    if "portal_open" not in columns:
         cursor.execute("ALTER TABLE schools ADD COLUMN portal_open INTEGER DEFAULT 0")
         conn.commit()
     else:
         # Update existing schools to have portal_open = 0 (closed) by default
         cursor.execute("UPDATE schools SET portal_open = 0 WHERE portal_open IS NULL")
         conn.commit()
-    
+
     # Add school details columns if they don't exist
     cursor.execute("PRAGMA table_info(schools)")
     columns = [column[1] for column in cursor.fetchall()]
-    if 'school_address' not in columns:
+    if "school_address" not in columns:
         cursor.execute("ALTER TABLE schools ADD COLUMN school_address TEXT")
         conn.commit()
-    if 'school_telephone' not in columns:
+    if "school_telephone" not in columns:
         cursor.execute("ALTER TABLE schools ADD COLUMN school_telephone TEXT")
         conn.commit()
-    if 'school_logo' not in columns:
+    if "school_logo" not in columns:
         cursor.execute("ALTER TABLE schools ADD COLUMN school_logo TEXT")
         conn.commit()
-    if 'school_administrator' not in columns:
+    if "subjects" not in columns:
+        cursor.execute("ALTER TABLE schools ADD COLUMN subjects TEXT")
+        conn.commit()
+    if "school_administrator" not in columns:
         cursor.execute("ALTER TABLE schools ADD COLUMN school_administrator TEXT")
         conn.commit()
-    if 'school_signature' not in columns:
+    if "school_signature" not in columns:
         cursor.execute("ALTER TABLE schools ADD COLUMN school_signature TEXT")
         conn.commit()
     cursor.execute("""
@@ -376,11 +450,11 @@ def init_db():
     # Add photo column if it doesn't exist
     cursor.execute("PRAGMA table_info(students)")
     columns = [column[1] for column in cursor.fetchall()]
-    if 'photo' not in columns:
+    if "photo" not in columns:
         cursor.execute("ALTER TABLE students ADD COLUMN photo TEXT")
         conn.commit()
     # Add stream column if it doesn't exist
-    if 'stream' not in columns:
+    if "stream" not in columns:
         cursor.execute("ALTER TABLE students ADD COLUMN stream TEXT")
         conn.commit()
     cursor.execute("""
@@ -447,7 +521,7 @@ def init_db():
             FOREIGN KEY(student_id) REFERENCES students(id)
         )
     """)
-    
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS fcm_tokens (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -490,40 +564,101 @@ def init_db():
             FOREIGN KEY(newsletter_id) REFERENCES newsletters(id)
         )
     """)
-    
+
     conn.commit()
     conn.close()
 
 
-def authenticate_user(school_code, username, password):
+def authenticate_user(school_code, username, password, teacher_code=None):
     conn = get_db()
     # Normalize school_code to lowercase to match your register logic
     sc = school_code.strip().lower()
+    print(
+        f"[DEBUG] authenticate_user: school_code={sc}, username={username}, teacher_code={teacher_code}"
+    )
+
     school = conn.execute(
         "SELECT * FROM schools WHERE school_code = ?", (sc,)
     ).fetchone()
+    print(f"[DEBUG] school query result: {school}")
 
     if not school:
         conn.close()
         return None, "School code not found."
 
-    teacher = conn.execute(
-        "SELECT * FROM teachers WHERE school_id = ? AND username = ?",
-        (school["id"], username.strip().lower()),  # Use [] instead of .get()
-    ).fetchone()
-    conn.close()
-
-    if not teacher or not check_password_hash(teacher["password_hash"], password):
+    # Verify password against school password (all teachers use school credentials)
+    if not check_password_hash(school["password_hash"], password):
+        print(f"[DEBUG] Password hash mismatch")
+        conn.close()
         return None, "Invalid username or password."
 
-    return {"school": school, "teacher": teacher}, None
+    # If teacher_code is provided, verify teacher exists in teacher_assignments
+    if teacher_code:
+        teacher = conn.execute(
+            "SELECT * FROM teacher_assignments WHERE school_id = ? AND teacher_code = ?",
+            (school["id"], teacher_code.strip()),
+        ).fetchone()
+        print(f"[DEBUG] teacher query result: {teacher}")
+        if not teacher:
+            conn.close()
+            return None, "Invalid teacher code."
+
+        print(f"[DEBUG] Authentication successful")
+        return {"school": school, "teacher": teacher}, None
+
+    print(f"[DEBUG] Authentication successful (school admin)")
+    return {"school": school, "teacher": None}, None
 
 
 def is_admin():
     return session.get("role") == "admin"
 
 
+def check_fcm_registration():
+    """Check FCM service registration status on startup"""
+    try:
+        from fcm_service import get_fcm_service
+
+        logging.info("=== FCM REGISTRATION CHECK STARTUP ===")
+        fcm_service = get_fcm_service()
+
+        if fcm_service.is_available():
+            logging.info("✓ FCM Service is available and initialized")
+            # Check database for FCM tokens table
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='fcm_tokens'"
+            )
+            table_exists = cursor.fetchone()
+
+            if table_exists:
+                cursor.execute("SELECT COUNT(*) as count FROM fcm_tokens")
+                token_count = cursor.fetchone()["count"]
+                logging.info(
+                    f"✓ FCM tokens table exists with {token_count} registered tokens"
+                )
+            else:
+                logging.warning("⚠ FCM tokens table does not exist in database")
+
+            conn.close()
+        else:
+            logging.warning(
+                "⚠ FCM Service is not available - notifications will be disabled"
+            )
+            logging.warning(
+                "  To enable FCM, set FIREBASE_SERVICE_ACCOUNT environment variable"
+            )
+            logging.warning("  or place firebase-service-account.json in project root")
+
+        logging.info("=== FCM REGISTRATION CHECK COMPLETE ===")
+
+    except Exception as e:
+        logging.error(f"Error during FCM registration check: {e}")
+
+
 init_db()
+check_fcm_registration()
 
 
 @app.route("/")
@@ -532,10 +667,34 @@ def home():
     return render_template("cloud_home.html")
 
 
+@app.route("/about")
+def about():
+    # About Us page
+    return render_template("cloud_about.html")
+
+
+@app.route("/privacy")
+def privacy():
+    # Privacy Policy page
+    return render_template("cloud_privacy.html")
+
+
+@app.route("/terms")
+def terms():
+    # Terms of Use page
+    return render_template("cloud_terms.html")
+
+
+@app.route("/contact")
+def contact():
+    # Contact page
+    return render_template("cloud_contact.html")
+
+
 @app.route("/firebase-messaging-sw.js")
 def serve_firebase_sw():
     """Serve the Firebase Cloud Messaging service worker"""
-    return send_from_directory('static', 'firebase-messaging-sw.js')
+    return send_from_directory("static", "firebase-messaging-sw.js")
 
 
 @app.route("/register", methods=["GET", "POST"])
@@ -607,11 +766,20 @@ def admin_delete_school(school_code):
     conn = get_db()
     try:
         # Delete marks first
-        conn.execute("DELETE FROM marks WHERE school_id = (SELECT id FROM schools WHERE school_code = ?)", (school_code,))
+        conn.execute(
+            "DELETE FROM marks WHERE school_id = (SELECT id FROM schools WHERE school_code = ?)",
+            (school_code,),
+        )
         # Delete students
-        conn.execute("DELETE FROM students WHERE school_id = (SELECT id FROM schools WHERE school_code = ?)", (school_code,))
+        conn.execute(
+            "DELETE FROM students WHERE school_id = (SELECT id FROM schools WHERE school_code = ?)",
+            (school_code,),
+        )
         # Delete teachers
-        conn.execute("DELETE FROM teachers WHERE school_id = (SELECT id FROM schools WHERE school_code = ?)", (school_code,))
+        conn.execute(
+            "DELETE FROM teachers WHERE school_id = (SELECT id FROM schools WHERE school_code = ?)",
+            (school_code,),
+        )
         # Delete school
         conn.execute("DELETE FROM schools WHERE school_code = ?", (school_code,))
         conn.commit()
@@ -644,10 +812,11 @@ def admin_edit_school(school_code):
             signature_base64 = None
             if signature_file and signature_file.filename:
                 import base64
+
                 signature_data = signature_file.read()
-                signature_base64 = base64.b64encode(signature_data).decode('utf-8')
+                signature_base64 = base64.b64encode(signature_data).decode("utf-8")
                 # Determine mime type
-                ext = signature_file.filename.lower().split('.')[-1]
+                ext = signature_file.filename.lower().split(".")[-1]
                 mime_type = "image/png" if ext == "png" else "image/jpeg"
                 signature_base64 = f"data:{mime_type};base64,{signature_base64}"
 
@@ -656,20 +825,26 @@ def admin_edit_school(school_code):
                 password_hash = generate_password_hash(password)
                 conn.execute(
                     "UPDATE schools SET school_name = ?, email = ?, password_hash = ?, school_administrator = ? WHERE school_code = ?",
-                    (school_name, email, password_hash, school_administrator, school_code)
+                    (
+                        school_name,
+                        email,
+                        password_hash,
+                        school_administrator,
+                        school_code,
+                    ),
                 )
             else:
                 # Update only name and email
                 conn.execute(
                     "UPDATE schools SET school_name = ?, email = ?, school_administrator = ? WHERE school_code = ?",
-                    (school_name, email, school_administrator, school_code)
+                    (school_name, email, school_administrator, school_code),
                 )
 
             # Update signature if uploaded
             if signature_base64:
                 conn.execute(
                     "UPDATE schools SET school_signature = ? WHERE school_code = ?",
-                    (signature_base64, school_code)
+                    (signature_base64, school_code),
                 )
 
             conn.commit()
@@ -681,7 +856,9 @@ def admin_edit_school(school_code):
         finally:
             conn.close()
     else:
-        school = conn.execute("SELECT * FROM schools WHERE school_code = ?", (school_code,)).fetchone()
+        school = conn.execute(
+            "SELECT * FROM schools WHERE school_code = ?", (school_code,)
+        ).fetchone()
         conn.close()
         if not school:
             flash("School not found.", "danger")
@@ -698,38 +875,36 @@ def teacher_login():
             pw = request.form.get("password", "")
             teacher_code = request.form.get("teacher_code", "").strip()
 
-            auth, err = authenticate_user(sc, un, pw)
+            print(
+                f"[DEBUG] Teacher login attempt: school_code={sc}, username={un}, teacher_code={teacher_code}"
+            )
+
+            auth, err = authenticate_user(sc, un, pw, teacher_code)
             if err:
+                print(f"[DEBUG] Authentication failed: {err}")
                 flash(err, "danger")
                 return redirect(url_for("teacher_login"))
 
-            # --- THE FIX IS HERE ---
+            print(f"[DEBUG] Authentication successful: {auth}")
+
             # Convert the Row objects to real dictionaries so .get() works elsewhere
             school_data = dict(auth["school"])
-            teacher_data = dict(auth["teacher"])
+            teacher_data = dict(auth["teacher"]) if auth["teacher"] else None
 
-            # Verify teacher code exists in teacher_assignments
-            conn = get_db()
-            teacher_assignment = conn.execute(
-                "SELECT * FROM teacher_assignments WHERE school_id = ? AND teacher_code = ?",
-                (school_data["id"], teacher_code)
-            ).fetchone()
-            conn.close()
-
-            if not teacher_assignment:
-                flash("Teacher code does not exist. Please contact your administrator.", "danger")
-                return redirect(url_for("teacher_login"))
+            print(f"[DEBUG] school_data: {school_data}, teacher_data: {teacher_data}")
 
             session["school_id"] = school_data["id"]
             session["school_name"] = school_data["school_name"]
-            session["username"] = teacher_data["username"]
-            session["role"] = teacher_data.get("role", "teacher")  # .get() works now!
-            session["teacher_code"] = teacher_code  # Store teacher code for later verification
+            session["username"] = un  # Use the username from login form (school email)
+            session["role"] = "teacher"
+            session["teacher_code"] = teacher_code
 
+            print(f"[DEBUG] Login successful, redirecting to dashboard")
             return redirect(url_for("dashboard"))
 
     except Exception as e:
         # This will tell us exactly which key is missing if it happens again
+        print(f"[DEBUG] Exception in teacher_login: {e}")
         return f"Database Error: {str(e)}"
 
     return render_template("cloud_login.html")
@@ -737,17 +912,40 @@ def teacher_login():
 
 @app.route("/dashboard")
 def dashboard():
+    print(f"[DEBUG] Dashboard accessed, session keys: {list(session.keys())}")
     if "school_id" not in session:
+        print(f"[DEBUG] school_id not in session, redirecting to login")
         return redirect(url_for("teacher_login"))
 
     conn = get_db()
     school = conn.execute(
-        "SELECT portal_open FROM schools WHERE id = ?", (session["school_id"],)
+        "SELECT portal_open, school_name FROM schools WHERE id = ?",
+        (session["school_id"],),
     ).fetchone()
+
+    # Get teacher name if teacher_code is in session
+    teacher_name = None
+    if session.get("teacher_code"):
+        teacher = conn.execute(
+            "SELECT teacher_name FROM teacher_assignments WHERE school_id = ? AND teacher_code = ?",
+            (session["school_id"], session["teacher_code"]),
+        ).fetchone()
+        if teacher:
+            teacher_name = teacher["teacher_name"]
+
     conn.close()
 
     portal_open = school["portal_open"] if school else 1
-    return render_template("cloud_dashboard.html", grades=GRADE_OPTIONS, portal_open=portal_open)
+    school_name = (
+        school["school_name"] if school else session.get("school_name", "Your School")
+    )
+    return render_template(
+        "cloud_dashboard.html",
+        grades=GRADE_OPTIONS,
+        portal_open=portal_open,
+        school_name=school_name,
+        teacher_name=teacher_name,
+    )
 
 
 @app.route("/api/toggle_portal", methods=["POST"])
@@ -758,33 +956,26 @@ def api_toggle_portal():
     username = data.get("username", "").strip().lower()
     password = data.get("password", "")
 
+    print(f"[DEBUG] toggle_portal: school_code={school_code}, username={username}")
+
     if not school_code or not username or not password:
         return jsonify({"success": False, "message": "Missing credentials"}), 400
 
     conn = get_db()
     try:
-        # Authenticate school and user
+        # Authenticate school
         school = conn.execute(
             "SELECT * FROM schools WHERE school_code = ?", (school_code,)
         ).fetchone()
 
+        print(f"[DEBUG] school query result: {school}")
+
         if not school:
             return jsonify({"success": False, "message": "School not found"}), 404
 
-        # Verify password
+        # Verify password against school password
         if not check_password_hash(school["password_hash"], password):
             return jsonify({"success": False, "message": "Invalid password"}), 401
-
-        # Allow either school admin (from registration) or teachers to toggle portal
-        # Check if username matches school email (admin) or exists in teachers table
-        is_admin = (username == school["email"].strip().lower())
-        teacher = conn.execute(
-            "SELECT * FROM teachers WHERE school_id = ? AND username = ?",
-            (school["id"], username)
-        ).fetchone()
-
-        if not is_admin and not teacher:
-            return jsonify({"success": False, "message": "User not found"}), 404
 
         # Get current portal state
         current_state = school["portal_open"]
@@ -792,16 +983,17 @@ def api_toggle_portal():
         # Toggle portal state
         new_state = 0 if current_state == 1 else 1
         conn.execute(
-            "UPDATE schools SET portal_open = ? WHERE id = ?",
-            (new_state, school["id"])
+            "UPDATE schools SET portal_open = ? WHERE id = ?", (new_state, school["id"])
         )
         conn.commit()
 
-        return jsonify({
-            "success": True,
-            "portal_open": new_state,
-            "message": "Portal opened" if new_state == 1 else "Portal closed"
-        })
+        return jsonify(
+            {
+                "success": True,
+                "portal_open": new_state,
+                "message": "Portal opened" if new_state == 1 else "Portal closed",
+            }
+        )
     except Exception as e:
         logging.error(f"Toggle portal error: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
@@ -837,23 +1029,24 @@ def api_sync_students():
                 404,
             )
         school_id = school["id"]
-        
+
         # 2. Update school details if provided
         if school_details:
             conn.execute(
                 """
                 UPDATE schools 
-                SET school_address = ?, school_telephone = ?, school_logo = ?
+                SET school_address = ?, school_telephone = ?, school_logo = ?, subjects = ?
                 WHERE id = ?
             """,
                 (
                     school_details.get("school_address"),
                     school_details.get("school_telephone"),
                     school_details.get("school_logo"),
+                    json.dumps(school_details.get("subjects", {})),
                     school_id,
                 ),
             )
-        
+
         # 3. Delete all existing students for this school
         conn.execute("DELETE FROM students WHERE school_id = ?", (school_id,))
 
@@ -918,11 +1111,16 @@ def api_sync_teachers():
                 404,
             )
         school_id = school["id"]
+
         # 2. Delete all existing teacher assignments for this school
-        conn.execute("DELETE FROM teacher_assignments WHERE school_id = ?", (school_id,))
+        conn.execute(
+            "DELETE FROM teacher_assignments WHERE school_id = ?", (school_id,)
+        )
 
         # 3. Insert new teacher assignments
         for t in teachers_list:
+            print(f"[DEBUG] Processing teacher: {t}")
+            # Insert into teacher_assignments
             conn.execute(
                 """
                 INSERT INTO teacher_assignments (school_id, class_name, subject, teacher_name, teacher_code)
@@ -966,7 +1164,10 @@ def enter_marks(grade):
 
     if not school or school["portal_open"] == 0:
         conn.close()
-        flash("The teachers portal is currently closed. Please contact your administrator.", "danger")
+        flash(
+            "The teachers portal is currently closed. Please contact your administrator.",
+            "danger",
+        )
         return redirect(url_for("dashboard"))
 
     # Verify teacher code for this specific subject
@@ -979,12 +1180,15 @@ def enter_marks(grade):
     # Check if the teacher's code is assigned to this subject for this grade
     teacher_assignment = conn.execute(
         "SELECT * FROM teacher_assignments WHERE school_id = ? AND class_name = ? AND subject = ? AND teacher_code = ?",
-        (session["school_id"], grade, subject, teacher_code)
+        (session["school_id"], grade, subject, teacher_code),
     ).fetchone()
 
     if not teacher_assignment:
         conn.close()
-        flash(f"You are not authorized to enter marks for {subject} in {grade}. Your teacher code does not match.", "danger")
+        flash(
+            f"You are not authorized to enter marks for {subject} in {grade}. Your teacher code does not match.",
+            "danger",
+        )
         return redirect(url_for("select_subject", grade=grade))
 
     # Fetch students for this grade
@@ -997,13 +1201,13 @@ def enter_marks(grade):
 
     if request.method == "POST":
         now = datetime.utcnow().isoformat()
-        
+
         # Determine grading logic based on grade level
         grade_lower = grade.lower()
         is_jss = any(g in grade_lower for g in ["grade 7", "grade 8", "grade 9"])
         is_primary = any(g in grade_lower for g in ["grade 4", "grade 5", "grade 6"])
         is_lower = any(g in grade_lower for g in ["grade 1", "grade 2", "grade 3"])
-        
+
         for s in students:
             adm = s["adm_no"]
             score = request.form.get(f"score_{adm}")
@@ -1027,12 +1231,30 @@ def enter_marks(grade):
                     elif is_primary or is_lower:
                         rating = get_grade_4_6_rating(score_int)
                         # For primary, map rating to points using the same scale
-                        level_points = {"EE1": 8, "EE2": 7, "ME1": 6, "ME2": 5, "AE1": 4, "AE2": 3, "BE1": 2, "BE2": 1}
+                        level_points = {
+                            "EE1": 8,
+                            "EE2": 7,
+                            "ME1": 6,
+                            "ME2": 5,
+                            "AE1": 4,
+                            "AE2": 3,
+                            "BE1": 2,
+                            "BE2": 1,
+                        }
                         points = level_points.get(rating, 0)
                     else:
                         # For early years (playgroup, pp1, pp2), use primary logic as fallback
                         rating = get_grade_4_6_rating(score_int)
-                        level_points = {"EE1": 8, "EE2": 7, "ME1": 6, "ME2": 5, "AE1": 4, "AE2": 3, "BE1": 2, "BE2": 1}
+                        level_points = {
+                            "EE1": 8,
+                            "EE2": 7,
+                            "ME1": 6,
+                            "ME2": 5,
+                            "AE1": 4,
+                            "AE2": 3,
+                            "BE1": 2,
+                            "BE2": 1,
+                        }
                         points = level_points.get(rating, 0)
                 except ValueError:
                     rating = ""
@@ -1042,27 +1264,28 @@ def enter_marks(grade):
             scores[subject] = {"score": score, "rating": rating, "points": points}
 
             # 4. Calculate total points and average level across all subjects
-            total_points = 0
-            subject_count = 0
-            for subj, data in scores.items():
-                if data.get("points"):
-                    total_points += int(data["points"])
-                    subject_count += 1
-
-            # Calculate average level
+            num_subjects = len(scores)
             if is_jss:
-                # JSS uses points sum for final level
-                avg_level = calculate_final_level(total_points, is_primary=False)
+                # JSS uses points sum for total
+                total_points = 0
+                for subj, data in scores.items():
+                    if data.get("points"):
+                        total_points += int(data["points"])
+                avg_level = calculate_final_level(
+                    total_points, is_primary=False, num_subjects=num_subjects
+                )
             else:
-                # Primary uses raw score sum for final level
-                total_score = 0
+                # Other grades use raw score sum for total
+                total_points = 0
                 for subj, data in scores.items():
                     if data.get("score"):
                         try:
-                            total_score += int(data["score"])
+                            total_points += int(data["score"])
                         except ValueError:
                             pass
-                avg_level = calculate_final_level(total_score, is_primary=True)
+                avg_level = calculate_final_level(
+                    total_points, is_primary=True, num_subjects=num_subjects
+                )
 
             conn.execute(
                 """
@@ -1119,14 +1342,50 @@ def select_subject(grade):
     if "school_id" not in session:
         return redirect(url_for("teacher_login"))
 
-    # Get the subjects for this grade from your dictionary
-    subjects = GRADE_SUBJECTS.get(grade, [])
+    conn = get_db()
+    try:
+        # Get the school details including synced subjects from database
+        school = conn.execute(
+            "SELECT subjects FROM schools WHERE id = ?", (session["school_id"],)
+        ).fetchone()
+        conn.close()
 
-    if not subjects:
-        flash(f"No subjects configured for {grade}.", "warning")
-        return redirect(url_for("dashboard"))
+        subjects = []
 
-    return render_template("cloud_select_subject.html", grade=grade, subjects=subjects)
+        # First, try to get subjects from the database
+        if school and school["subjects"]:
+            try:
+                subjects_data = json.loads(school["subjects"])
+                # subjects_data is a dict like {grade: [subjects]}
+                subjects = subjects_data.get(grade, [])
+            except (json.JSONDecodeError, TypeError):
+                # If JSON parsing fails, fall back to hardcoded
+                subjects = []
+
+        # If no subjects found in database, fall back to hardcoded GRADE_SUBJECTS
+        if not subjects:
+            subjects = GRADE_SUBJECTS.get(grade, [])
+
+        if not subjects:
+            flash(f"No subjects configured for {grade}.", "warning")
+            return redirect(url_for("dashboard"))
+
+        return render_template(
+            "cloud_select_subject.html", grade=grade, subjects=subjects
+        )
+    except Exception as e:
+        logging.error(f"Error retrieving subjects for grade {grade}: {e}")
+        # Fall back to hardcoded subjects if there's an error
+        subjects = GRADE_SUBJECTS.get(grade, [])
+        if not subjects:
+            flash(f"No subjects configured for {grade}.", "warning")
+            return redirect(url_for("dashboard"))
+        return render_template(
+            "cloud_select_subject.html", grade=grade, subjects=subjects
+        )
+    finally:
+        if conn:
+            conn.close()
 
 
 @app.route("/api/get_marks", methods=["POST"])
@@ -1149,19 +1408,21 @@ def api_get_marks():
         "SELECT * FROM marks WHERE school_id = ? AND grade = ?", (school["id"], gr)
     ).fetchall()
     print(f"DEBUG: Found {len(rows)} marks in DB for school {sc} grade {gr}")
-    
+
     # Determine grading logic based on grade level
     grade_lower = gr.lower() if gr else ""
     is_jss = any(g in grade_lower for g in ["grade 7", "grade 8", "grade 9"])
     is_primary = any(g in grade_lower for g in ["grade 4", "grade 5", "grade 6"])
     is_lower = any(g in grade_lower for g in ["grade 1", "grade 2", "grade 3"])
-    
+
     # 3. Package them up with calculated rating/points if missing
     marks_list = []
     for r in rows:
         scores = json.loads(r["subject_scores_json"])
-        print(f"DEBUG API: Processing record for {r['student_name']}, original scores: {scores}")
-        
+        print(
+            f"DEBUG API: Processing record for {r['student_name']}, original scores: {scores}"
+        )
+
         # Calculate missing rating and points for each subject
         for subject, data in scores.items():
             # Handle old format where data might be just a string score
@@ -1176,22 +1437,46 @@ def api_get_marks():
                             rating, points = get_grade_7_8_rating(score_int)
                         elif is_primary or is_lower:
                             rating = get_grade_4_6_rating(score_int)
-                            level_points = {"EE1": 8, "EE2": 7, "ME1": 6, "ME2": 5, "AE1": 4, "AE2": 3, "BE1": 2, "BE2": 1}
+                            level_points = {
+                                "EE1": 8,
+                                "EE2": 7,
+                                "ME1": 6,
+                                "ME2": 5,
+                                "AE1": 4,
+                                "AE2": 3,
+                                "BE1": 2,
+                                "BE2": 1,
+                            }
                             points = level_points.get(rating, 0)
                         else:
                             rating = get_grade_4_6_rating(score_int)
-                            level_points = {"EE1": 8, "EE2": 7, "ME1": 6, "ME2": 5, "AE1": 4, "AE2": 3, "BE1": 2, "BE2": 1}
+                            level_points = {
+                                "EE1": 8,
+                                "EE2": 7,
+                                "ME1": 6,
+                                "ME2": 5,
+                                "AE1": 4,
+                                "AE2": 3,
+                                "BE1": 2,
+                                "BE2": 1,
+                            }
                             points = level_points.get(rating, 0)
-                        print(f"DEBUG API: Converted old format {subject}: score={score_int} -> rating={rating}, points={points}")
+                        print(
+                            f"DEBUG API: Converted old format {subject}: score={score_int} -> rating={rating}, points={points}"
+                        )
                     except ValueError:
                         rating = ""
                         points = 0
-                
+
                 # Convert to new dict format
                 scores[subject] = {"score": score, "rating": rating, "points": points}
             elif isinstance(data, dict):
                 # If rating or points are missing, calculate them
-                if "rating" not in data or "points" not in data or not data.get("rating"):
+                if (
+                    "rating" not in data
+                    or "points" not in data
+                    or not data.get("rating")
+                ):
                     score = data.get("score", "")
                     rating = ""
                     points = 0
@@ -1202,33 +1487,55 @@ def api_get_marks():
                                 rating, points = get_grade_7_8_rating(score_int)
                             elif is_primary or is_lower:
                                 rating = get_grade_4_6_rating(score_int)
-                                level_points = {"EE1": 8, "EE2": 7, "ME1": 6, "ME2": 5, "AE1": 4, "AE2": 3, "BE1": 2, "BE2": 1}
+                                level_points = {
+                                    "EE1": 8,
+                                    "EE2": 7,
+                                    "ME1": 6,
+                                    "ME2": 5,
+                                    "AE1": 4,
+                                    "AE2": 3,
+                                    "BE1": 2,
+                                    "BE2": 1,
+                                }
                                 points = level_points.get(rating, 0)
                             else:
                                 rating = get_grade_4_6_rating(score_int)
-                                level_points = {"EE1": 8, "EE2": 7, "ME1": 6, "ME2": 5, "AE1": 4, "AE2": 3, "BE1": 2, "BE2": 1}
+                                level_points = {
+                                    "EE1": 8,
+                                    "EE2": 7,
+                                    "ME1": 6,
+                                    "ME2": 5,
+                                    "AE1": 4,
+                                    "AE2": 3,
+                                    "BE1": 2,
+                                    "BE2": 1,
+                                }
                                 points = level_points.get(rating, 0)
-                            print(f"DEBUG API: Calculated missing {subject}: score={score_int} -> rating={rating}, points={points}")
+                            print(
+                                f"DEBUG API: Calculated missing {subject}: score={score_int} -> rating={rating}, points={points}"
+                            )
                         except ValueError:
                             rating = ""
                             points = 0
-                    
+
                     # Update the data with calculated values
                     data["rating"] = rating
                     data["points"] = points
                     scores[subject] = data
-        
+
         # Get database values first
         db_total_points = r["total_points"] if r["total_points"] is not None else None
         db_avg_level = r["average_level"] if r["average_level"] is not None else None
-        
-        print(f"DEBUG API: DB values - total_points={db_total_points}, avg_level={db_avg_level}")
-        
-        # Calculate total_points only if database value is missing (None)
-        # For previous exams, use database total_points if it exists (even if "0")
-        if db_total_points is None:
-            # Junior (JSS) uses points for total, all other grades use scores
-            if is_jss:
+
+        print(
+            f"DEBUG API: DB values - total_points={db_total_points}, avg_level={db_avg_level}"
+        )
+
+        # Calculate total_points/total_scores
+        # For JSS: calculate from points if DB value is None or "0"
+        # For non-JSS: always calculate from scores (since DB stores total_points but we need total_scores)
+        if is_jss:
+            if db_total_points is None or db_total_points == "0":
                 total_points = 0
                 for subject, data in scores.items():
                     if isinstance(data, dict) and data.get("points"):
@@ -1236,45 +1543,80 @@ def api_get_marks():
                             total_points += int(data["points"])
                         except ValueError:
                             pass
-                print(f"DEBUG API: Calculated total_points (from points)={total_points} for JSS")
+                print(
+                    f"DEBUG API: Calculated total_points (from points)={total_points} for JSS"
+                )
+                db_total_points = str(total_points)
             else:
-                total_points = 0
-                for subject, data in scores.items():
-                    if isinstance(data, dict) and data.get("score"):
-                        try:
-                            total_points += int(data["score"])
-                        except ValueError:
-                            pass
-                print(f"DEBUG API: Calculated total_points (from scores)={total_points} for non-JSS")
-            db_total_points = str(total_points)
+                print(
+                    f"DEBUG API: Using database total_points={db_total_points} for JSS"
+                )
         else:
-            print(f"DEBUG API: Using database total_points={db_total_points}")
-        
+            # For non-JSS grades, always calculate from scores since we need total_scores
+            # The DB column is total_points but we're sending total_scores field
+            total_points = 0
+            for subject, data in scores.items():
+                if isinstance(data, dict) and data.get("score"):
+                    try:
+                        total_points += int(data["score"])
+                    except ValueError:
+                        pass
+            print(
+                f"DEBUG API: Calculated total_scores (from scores)={total_points} for non-JSS"
+            )
+            db_total_points = str(total_points)
+
         # Calculate average level only if database value is missing (None)
         # For previous exams, use database average_level if it exists
         if db_avg_level is None:
             # Calculate average level from total_points
             total_points_int = int(db_total_points) if db_total_points else 0
+            # Get number of subjects from the scores JSON
+            num_subjects = (
+                len(json.loads(row["subject_scores_json"]))
+                if row and row.get("subject_scores_json")
+                else 9
+            )
             if is_jss:
-                avg_level = calculate_final_level(total_points_int, is_primary=False)
+                avg_level = calculate_final_level(
+                    total_points_int, is_primary=False, num_subjects=num_subjects
+                )
             else:
-                avg_level = calculate_final_level(total_points_int, is_primary=True)
+                avg_level = calculate_final_level(
+                    total_points_int, is_primary=True, num_subjects=num_subjects
+                )
             db_avg_level = avg_level
-            print(f"DEBUG API: Calculated avg_level={avg_level} from total_points={total_points_int}")
+            print(
+                f"DEBUG API: Calculated avg_level={avg_level} from total_points={total_points_int}"
+            )
         else:
             print(f"DEBUG API: Using database average_level={db_avg_level}")
-        
-        marks_list.append(
-            {
-                "adm_no": r["adm_no"],
-                "student_name": r["student_name"],
-                "grade": r["grade"],
-                "exam_title": r["exam_title"],
-                "scores": scores,
-                "total_points": db_total_points,
-                "average_level": db_avg_level,
-            }
-        )
+
+        # Use appropriate field name based on grade level
+        # JSS uses total_points (sum of rating points), other grades use total_scores (sum of raw scores)
+        # Note: average_level is NOT sent - local system will calculate it dynamically
+        if is_jss:
+            marks_list.append(
+                {
+                    "adm_no": r["adm_no"],
+                    "student_name": r["student_name"],
+                    "grade": r["grade"],
+                    "exam_title": r["exam_title"],
+                    "scores": scores,
+                    "total_points": db_total_points,
+                }
+            )
+        else:
+            marks_list.append(
+                {
+                    "adm_no": r["adm_no"],
+                    "student_name": r["student_name"],
+                    "grade": r["grade"],
+                    "exam_title": r["exam_title"],
+                    "scores": scores,
+                    "total_scores": db_total_points,
+                }
+            )
 
     # Return with the key 'marks'
     return jsonify({"success": True, "marks": marks_list})
@@ -1304,11 +1646,12 @@ def api_consume_marks():
         deleted_count = cursor.rowcount
         conn.commit()
 
-        print(f"DEBUG: Consumed {deleted_count} marks from cloud for school {sc} grade {gr}")
-        return jsonify({
-            "success": True,
-            "message": f"Consumed {deleted_count} marks from cloud"
-        })
+        print(
+            f"DEBUG: Consumed {deleted_count} marks from cloud for school {sc} grade {gr}"
+        )
+        return jsonify(
+            {"success": True, "message": f"Consumed {deleted_count} marks from cloud"}
+        )
 
     except Exception as e:
         logging.error(f"Consume marks error: {e}")
@@ -1346,8 +1689,10 @@ def api_save_student_report():
     school_code = data.get("school_code", "").strip().lower()
     report = data.get("report", {})
 
-    logging.info(f"Received student report for: {report.get('student_name')}, keys: {list(report.keys())}")
-    if 'exam_title' in report:
+    logging.info(
+        f"Received student report for: {report.get('student_name')}, keys: {list(report.keys())}"
+    )
+    if "exam_title" in report:
         logging.info(f"Report contains exam_title: {report['exam_title']}")
     else:
         logging.warning("Report does NOT contain exam_title!")
@@ -1366,10 +1711,15 @@ def api_save_student_report():
 
         # Save or update the student report
         import json
-        report_json = json.dumps(report)
-        generated_date = report.get("generated_date", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
-        logging.info(f"Saving report - student_name: {report.get('student_name')}, adm_no: {report.get('adm_no')} (type: {type(report.get('adm_no'))}), grade: {report.get('grade')}, school: {school['school_name']}")
+        report_json = json.dumps(report)
+        generated_date = report.get(
+            "generated_date", datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        )
+
+        logging.info(
+            f"Saving report - student_name: {report.get('student_name')}, adm_no: {report.get('adm_no')} (type: {type(report.get('adm_no'))}), grade: {report.get('grade')}, school: {school['school_name']}"
+        )
 
         conn.execute(
             """
@@ -1383,33 +1733,38 @@ def api_save_student_report():
                 report.get("grade", ""),
                 school["school_name"],
                 report_json,
-                generated_date
-            )
+                generated_date,
+            ),
         )
         conn.commit()
-        
+
         # Send FCM notification for report
         try:
             from fcm_service import get_fcm_service
+
             fcm_service = get_fcm_service()
-            
+
             if fcm_service.is_available():
                 # Get student ID for FCM token lookup
                 student_cursor = conn.execute(
                     "SELECT id FROM students WHERE student_name = ? AND adm_no = ? AND grade = ?",
-                    (report.get("student_name"), report.get("adm_no"), report.get("grade"))
+                    (
+                        report.get("student_name"),
+                        report.get("adm_no"),
+                        report.get("grade"),
+                    ),
                 )
                 student_row = student_cursor.fetchone()
-                
+
                 if student_row:
                     student_id = student_row[0]
                     # Get FCM token for this student
                     token_cursor = conn.execute(
                         "SELECT token FROM fcm_tokens WHERE student_id = ?",
-                        (student_id,)
+                        (student_id,),
                     )
                     token_row = token_cursor.fetchone()
-                    
+
                     if token_row:
                         token = token_row[0]
                         exam_title = report.get("exam_title", "New Report")
@@ -1420,8 +1775,8 @@ def api_save_student_report():
                             data={
                                 "type": "report",
                                 "student_name": report.get("student_name"),
-                                "adm_no": report.get("adm_no")
-                            }
+                                "adm_no": report.get("adm_no"),
+                            },
                         )
                         logging.info(f"FCM notification sent for report: {result}")
                     else:
@@ -1450,33 +1805,49 @@ def api_register_fcm_token():
         student_id = data.get("student_id")
         token = data.get("token")
         device_info = data.get("device_info", "")
-        
-        logging.info(f"Received FCM token registration - student_id: {student_id}, token: {token[:20] if token else None}..., device: {device_info[:50] if device_info else None}...")
+
+        logging.info(
+            f"Received FCM token registration - student_id: {student_id}, token: {token[:20] if token else None}..., device: {device_info[:50] if device_info else None}..."
+        )
         logging.info(f"Request IP: {request.remote_addr}")
-        logging.info(f"User-Agent: {request.headers.get('User-Agent', 'Unknown')[:100]}")
-        
+        logging.info(
+            f"User-Agent: {request.headers.get('User-Agent', 'Unknown')[:100]}"
+        )
+
         if not student_id or not token:
-            logging.warning("FCM token registration failed: Missing student_id or token")
-            return jsonify({"success": False, "message": "Missing student_id or token"}), 400
-        
+            logging.warning(
+                "FCM token registration failed: Missing student_id or token"
+            )
+            return (
+                jsonify({"success": False, "message": "Missing student_id or token"}),
+                400,
+            )
+
         conn = get_db()
         try:
             # Insert or update the token
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO fcm_tokens (student_id, token, device_info, updated_at)
                 VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-            """, (student_id, token, device_info))
-            
+            """,
+                (student_id, token, device_info),
+            )
+
             conn.commit()
-            logging.info(f"✓ FCM token registered successfully for student_id={student_id}")
-            return jsonify({"success": True, "message": "Token registered successfully"})
-            
+            logging.info(
+                f"✓ FCM token registered successfully for student_id={student_id}"
+            )
+            return jsonify(
+                {"success": True, "message": "Token registered successfully"}
+            )
+
         except Exception as e:
             logging.error(f"Error registering FCM token in database: {e}")
             return jsonify({"success": False, "message": str(e)}), 500
         finally:
             conn.close()
-            
+
     except Exception as e:
         logging.error(f"FCM token registration error: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
@@ -1497,28 +1868,30 @@ def api_log_fcm_click():
 def parent_enable_notifications():
     """Server-side FCM registration page (works without JavaScript)"""
     logging.info("=== Server-side FCM Registration Page Accessed ===")
-    
+
     # If already logged in, show registration page
-    if 'parent_student_id' in session:
-        student_id = session.get('parent_student_id')
-        return render_template('fcm_registration.html', student_id=student_id)
-    
+    if "parent_student_id" in session:
+        student_id = session.get("parent_student_id")
+        return render_template("fcm_registration.html", student_id=student_id)
+
     # If POST with login credentials, authenticate first
     if request.method == "POST":
         student_name = request.form.get("student_name", "").strip()
         school_name = request.form.get("school_name", "").strip()
         adm_no = request.form.get("adm_no", "").strip()
-        
+
         if not student_name or not school_name or not adm_no:
-            return render_template('fcm_registration_login.html', error="Please fill in all fields")
-        
+            return render_template(
+                "fcm_registration_login.html", error="Please fill in all fields"
+            )
+
         # Authenticate
         conn = get_db()
         try:
             student_name_normalized = student_name.lower().strip()
             school_name_normalized = school_name.lower().strip()
             adm_no_normalized = adm_no.strip()
-            
+
             student = conn.execute(
                 """
                 SELECT s.id, s.school_id, s.grade, sc.school_name
@@ -1526,26 +1899,34 @@ def parent_enable_notifications():
                 JOIN schools sc ON s.school_id = sc.id
                 WHERE LOWER(s.student_name) = ? AND LOWER(sc.school_name) = ? AND s.adm_no = ?
                 """,
-                (student_name_normalized, school_name_normalized, adm_no_normalized)
+                (student_name_normalized, school_name_normalized, adm_no_normalized),
             ).fetchone()
-            
+
             if student:
                 session["parent_student_id"] = student["id"]
                 session["parent_student_name"] = student_name
                 session["parent_school_name"] = school_name
                 session["parent_adm_no"] = adm_no
                 session["parent_grade"] = student["grade"]
-                return render_template('fcm_registration.html', student_id=student["id"])
+                return render_template(
+                    "fcm_registration.html", student_id=student["id"]
+                )
             else:
-                return render_template('fcm_registration_login.html', error="Student not found. Please check your details.")
+                return render_template(
+                    "fcm_registration_login.html",
+                    error="Student not found. Please check your details.",
+                )
         except Exception as e:
             logging.error(f"Parent login error: {e}")
-            return render_template('fcm_registration_login.html', error="An error occurred. Please try again.")
+            return render_template(
+                "fcm_registration_login.html",
+                error="An error occurred. Please try again.",
+            )
         finally:
             conn.close()
-    
+
     # Show login form
-    return render_template('fcm_registration_login.html')
+    return render_template("fcm_registration_login.html")
 
 
 @app.route("/api/save_newsletter", methods=["POST"])
@@ -1557,29 +1938,29 @@ def api_save_newsletter():
     password = data.get("password", "")
     newsletter_data = data.get("newsletter", {})
 
-    logging.info(f"Received newsletter: {newsletter_data.get('subject')}, target: {newsletter_data.get('target_type')}")
+    logging.info(
+        f"Received newsletter: {newsletter_data.get('subject')}, target: {newsletter_data.get('target_type')}"
+    )
 
     if not school_code or not newsletter_data:
         return jsonify({"success": False, "message": "Missing required data"}), 400
 
     conn = get_db()
     try:
-        # Verify school and authenticate user
+        # Verify school
         school = conn.execute(
             "SELECT id, school_name FROM schools WHERE school_code = ?", (school_code,)
         ).fetchone()
         if not school:
-            return jsonify({"success": False, "message": "School not found. Please check your school code."}), 404
-
-        # Authenticate user credentials
-        teacher = conn.execute(
-            "SELECT * FROM teachers WHERE school_id = ? AND username = ?",
-            (school["id"], username.strip().lower())
-        ).fetchone()
-        
-        if not teacher or not check_password_hash(teacher["password_hash"], password):
-            logging.warning(f"Failed authentication attempt for school_code={school_code}, username={username}")
-            return jsonify({"success": False, "message": "Invalid username or password. Please check your cloud credentials."}), 401
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "School not found. Please check your school code.",
+                    }
+                ),
+                404,
+            )
 
         # Create tables if they don't exist
         conn.execute("""
@@ -1598,35 +1979,45 @@ def api_save_newsletter():
                 sent_at TIMESTAMP
             )
         """)
-        
+
         # Migrate old schema if needed (add new columns if they don't exist)
         try:
             # Check if table has old columns (title, content) and migrate to new columns (subject, body)
             cursor = conn.execute("PRAGMA table_info(newsletters)")
             columns = {row[1] for row in cursor.fetchall()}
-            
-            if 'title' in columns and 'subject' not in columns:
-                logging.info("Migrating newsletters table from old schema to new schema")
+
+            if "title" in columns and "subject" not in columns:
+                logging.info(
+                    "Migrating newsletters table from old schema to new schema"
+                )
                 conn.execute("ALTER TABLE newsletters ADD COLUMN subject TEXT")
                 conn.execute("ALTER TABLE newsletters ADD COLUMN body TEXT")
                 conn.execute("ALTER TABLE newsletters ADD COLUMN target_type TEXT")
                 conn.execute("ALTER TABLE newsletters ADD COLUMN class_context TEXT")
                 conn.execute("ALTER TABLE newsletters ADD COLUMN recipient_role TEXT")
-                conn.execute("ALTER TABLE newsletters ADD COLUMN send_email INTEGER DEFAULT 0")
-                conn.execute("ALTER TABLE newsletters ADD COLUMN send_sms INTEGER DEFAULT 0")
-                conn.execute("ALTER TABLE newsletters ADD COLUMN is_draft INTEGER DEFAULT 1")
+                conn.execute(
+                    "ALTER TABLE newsletters ADD COLUMN send_email INTEGER DEFAULT 0"
+                )
+                conn.execute(
+                    "ALTER TABLE newsletters ADD COLUMN send_sms INTEGER DEFAULT 0"
+                )
+                conn.execute(
+                    "ALTER TABLE newsletters ADD COLUMN is_draft INTEGER DEFAULT 1"
+                )
                 conn.execute("ALTER TABLE newsletters ADD COLUMN sent_at TIMESTAMP")
-                
+
                 # Copy data from old columns to new columns
-                conn.execute("UPDATE newsletters SET subject = title WHERE subject IS NULL")
+                conn.execute(
+                    "UPDATE newsletters SET subject = title WHERE subject IS NULL"
+                )
                 conn.execute("UPDATE newsletters SET body = content WHERE body IS NULL")
-                
+
                 conn.commit()
                 logging.info("Newsletter table migration completed")
         except Exception as e:
             logging.error(f"Error migrating newsletters table: {e}")
             # Continue anyway - table might already have correct schema
-        
+
         conn.execute("""
             CREATE TABLE IF NOT EXISTS portal_announcements (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1641,34 +2032,50 @@ def api_save_newsletter():
                 FOREIGN KEY(newsletter_id) REFERENCES newsletters(id)
             )
         """)
-        
+
         # Migrate portal_announcements table if needed
         try:
             cursor = conn.execute("PRAGMA table_info(portal_announcements)")
             columns = {row[1] for row in cursor.fetchall()}
-            
-            if 'title' in columns and 'subject' not in columns:
-                logging.info("Migrating portal_announcements table from old schema to new schema")
+
+            if "title" in columns and "subject" not in columns:
+                logging.info(
+                    "Migrating portal_announcements table from old schema to new schema"
+                )
                 conn.execute("ALTER TABLE portal_announcements ADD COLUMN subject TEXT")
                 conn.execute("ALTER TABLE portal_announcements ADD COLUMN body TEXT")
-                conn.execute("ALTER TABLE portal_announcements ADD COLUMN target_type TEXT")
-                conn.execute("ALTER TABLE portal_announcements ADD COLUMN recipient_role TEXT")
-                conn.execute("ALTER TABLE portal_announcements ADD COLUMN attachment_path TEXT")
-                
+                conn.execute(
+                    "ALTER TABLE portal_announcements ADD COLUMN target_type TEXT"
+                )
+                conn.execute(
+                    "ALTER TABLE portal_announcements ADD COLUMN recipient_role TEXT"
+                )
+                conn.execute(
+                    "ALTER TABLE portal_announcements ADD COLUMN attachment_path TEXT"
+                )
+
                 # Copy data from old columns to new columns
-                conn.execute("UPDATE portal_announcements SET subject = title WHERE subject IS NULL")
-                conn.execute("UPDATE portal_announcements SET body = content WHERE body IS NULL")
-                
+                conn.execute(
+                    "UPDATE portal_announcements SET subject = title WHERE subject IS NULL"
+                )
+                conn.execute(
+                    "UPDATE portal_announcements SET body = content WHERE body IS NULL"
+                )
+
                 conn.commit()
                 logging.info("Portal_announcements table migration completed")
-            elif 'attachment_path' not in columns:
+            elif "attachment_path" not in columns:
                 # Add attachment_path if missing but other columns exist
-                logging.info("Adding attachment_path column to portal_announcements table")
-                conn.execute("ALTER TABLE portal_announcements ADD COLUMN attachment_path TEXT")
+                logging.info(
+                    "Adding attachment_path column to portal_announcements table"
+                )
+                conn.execute(
+                    "ALTER TABLE portal_announcements ADD COLUMN attachment_path TEXT"
+                )
                 conn.commit()
         except Exception as e:
             logging.error(f"Error migrating portal_announcements table: {e}")
-        
+
         conn.execute("""
             CREATE TABLE IF NOT EXISTS parent_view_status (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1686,155 +2093,180 @@ def api_save_newsletter():
         # Insert into newsletters table (handle both old and new schemas)
         cursor = conn.execute("PRAGMA table_info(newsletters)")
         columns = {row[1] for row in cursor.fetchall()}
-        
-        if 'title' in columns:
+
+        if "title" in columns:
             # Old schema - use title and content columns
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 INSERT INTO newsletters (
                     title, content, target_type, class_context, recipient_role,
                     attachment_path, send_email, send_sms, is_draft, sent_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                newsletter_data.get("subject"),
-                newsletter_data.get("body"),
-                newsletter_data.get("target_type"),
-                newsletter_data.get("class_context"),
-                newsletter_data.get("recipient_role"),
-                newsletter_data.get("attachment_path"),
-                newsletter_data.get("send_email", 0),
-                newsletter_data.get("send_sms", 0),
-                0,  # is_draft = 0 (published)
-                "CURRENT_TIMESTAMP"
-            ))
+            """,
+                (
+                    newsletter_data.get("subject"),
+                    newsletter_data.get("body"),
+                    newsletter_data.get("target_type"),
+                    newsletter_data.get("class_context"),
+                    newsletter_data.get("recipient_role"),
+                    newsletter_data.get("attachment_path"),
+                    newsletter_data.get("send_email", 0),
+                    newsletter_data.get("send_sms", 0),
+                    0,  # is_draft = 0 (published)
+                    "CURRENT_TIMESTAMP",
+                ),
+            )
         else:
             # New schema - use subject and body columns
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 INSERT INTO newsletters (
                     subject, body, target_type, class_context, recipient_role,
                     attachment_path, send_email, send_sms, is_draft, sent_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                newsletter_data.get("subject"),
-                newsletter_data.get("body"),
-                newsletter_data.get("target_type"),
-                newsletter_data.get("class_context"),
-                newsletter_data.get("recipient_role"),
-                newsletter_data.get("attachment_path"),
-                newsletter_data.get("send_email", 0),
-                newsletter_data.get("send_sms", 0),
-                0,  # is_draft = 0 (published)
-                "CURRENT_TIMESTAMP"
-            ))
-        
+            """,
+                (
+                    newsletter_data.get("subject"),
+                    newsletter_data.get("body"),
+                    newsletter_data.get("target_type"),
+                    newsletter_data.get("class_context"),
+                    newsletter_data.get("recipient_role"),
+                    newsletter_data.get("attachment_path"),
+                    newsletter_data.get("send_email", 0),
+                    newsletter_data.get("send_sms", 0),
+                    0,  # is_draft = 0 (published)
+                    "CURRENT_TIMESTAMP",
+                ),
+            )
+
         newsletter_id = cursor.lastrowid
-        
+
         # Insert into portal_announcements table (handle both old and new schemas)
         cursor = conn.execute("PRAGMA table_info(portal_announcements)")
         columns_info = cursor.fetchall()
         columns = {row[1]: row[2] for row in columns_info}  # column name: type
-        
+
         # Log column order for debugging
-        logging.info(f"Portal announcements columns: {[row[1] for row in columns_info]}")
-        
-        if 'title' in columns:
+        logging.info(
+            f"Portal announcements columns: {[row[1] for row in columns_info]}"
+        )
+
+        if "title" in columns:
             # Old schema - use title and content columns
             # Check if it's the really old schema with published_at in position 4
             if len(columns_info) <= 5:
                 # Very old schema: id, newsletter_id, title, content, published_at
                 # class_context might not exist or be in wrong position
                 logging.info("Using very old schema INSERT")
-                cursor = conn.execute("""
+                cursor = conn.execute(
+                    """
                     INSERT INTO portal_announcements (
                         newsletter_id, title, content, published_at
                     ) VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-                """, (
-                    newsletter_id,
-                    newsletter_data.get("subject"),
-                    newsletter_data.get("body")
-                ))
+                """,
+                    (
+                        newsletter_id,
+                        newsletter_data.get("subject"),
+                        newsletter_data.get("body"),
+                    ),
+                )
                 # Try to add class_context if column exists
-                if 'class_context' in columns:
+                if "class_context" in columns:
                     announcement_id = cursor.lastrowid
-                    conn.execute("UPDATE portal_announcements SET class_context = ? WHERE id = ?",
-                               (newsletter_data.get("class_context"), announcement_id))
-            elif 'attachment_path' in columns and 'target_type' in columns:
+                    conn.execute(
+                        "UPDATE portal_announcements SET class_context = ? WHERE id = ?",
+                        (newsletter_data.get("class_context"), announcement_id),
+                    )
+            elif "attachment_path" in columns and "target_type" in columns:
                 # Migrated old schema with new columns - use positional INSERT to avoid column name issues
                 logging.info("Using migrated old schema INSERT with positional values")
                 # Column order: id, newsletter_id, title, content, class_context, published_at, subject, body, target_type, recipient_role, attachment_path
-                cursor = conn.execute("""
+                cursor = conn.execute(
+                    """
                     INSERT INTO portal_announcements 
                     (newsletter_id, title, content, class_context, published_at, subject, body, target_type, recipient_role, attachment_path)
                     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?)
-                """, (
-                    newsletter_id,
-                    newsletter_data.get("subject"),
-                    newsletter_data.get("body"),
-                    newsletter_data.get("class_context"),
-                    newsletter_data.get("subject"),  # subject (new column)
-                    newsletter_data.get("body"),     # body (new column)
-                    newsletter_data.get("target_type"),
-                    newsletter_data.get("recipient_role"),
-                    newsletter_data.get("attachment_path")
-                ))
+                """,
+                    (
+                        newsletter_id,
+                        newsletter_data.get("subject"),
+                        newsletter_data.get("body"),
+                        newsletter_data.get("class_context"),
+                        newsletter_data.get("subject"),  # subject (new column)
+                        newsletter_data.get("body"),  # body (new column)
+                        newsletter_data.get("target_type"),
+                        newsletter_data.get("recipient_role"),
+                        newsletter_data.get("attachment_path"),
+                    ),
+                )
             else:
                 # Pure old schema without new columns
                 logging.info("Using pure old schema INSERT")
-                cursor = conn.execute("""
+                cursor = conn.execute(
+                    """
                     INSERT INTO portal_announcements (
                         newsletter_id, title, content, class_context, published_at
                     ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-                """, (
-                    newsletter_id,
-                    newsletter_data.get("subject"),
-                    newsletter_data.get("body"),
-                    newsletter_data.get("class_context")
-                ))
+                """,
+                    (
+                        newsletter_id,
+                        newsletter_data.get("subject"),
+                        newsletter_data.get("body"),
+                        newsletter_data.get("class_context"),
+                    ),
+                )
         else:
             # New schema - use subject and body columns
             logging.info("Using new schema INSERT")
-            if 'attachment_path' in columns:
-                cursor = conn.execute("""
+            if "attachment_path" in columns:
+                cursor = conn.execute(
+                    """
                     INSERT INTO portal_announcements (
                         newsletter_id, subject, body, target_type, 
                         class_context, recipient_role, attachment_path, published_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                """, (
-                    newsletter_id,
-                    newsletter_data.get("subject"),
-                    newsletter_data.get("body"),
-                    newsletter_data.get("target_type"),
-                    newsletter_data.get("class_context"),
-                    newsletter_data.get("recipient_role"),
-                    newsletter_data.get("attachment_path")
-                ))
+                """,
+                    (
+                        newsletter_id,
+                        newsletter_data.get("subject"),
+                        newsletter_data.get("body"),
+                        newsletter_data.get("target_type"),
+                        newsletter_data.get("class_context"),
+                        newsletter_data.get("recipient_role"),
+                        newsletter_data.get("attachment_path"),
+                    ),
+                )
             else:
-                cursor = conn.execute("""
+                cursor = conn.execute(
+                    """
                     INSERT INTO portal_announcements (
                         newsletter_id, subject, body, target_type, 
                         class_context, recipient_role, published_at
                     ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                """, (
-                    newsletter_id,
-                    newsletter_data.get("subject"),
-                    newsletter_data.get("body"),
-                    newsletter_data.get("target_type"),
-                    newsletter_data.get("class_context"),
-                    newsletter_data.get("recipient_role")
-                ))
-        
+                """,
+                    (
+                        newsletter_id,
+                        newsletter_data.get("subject"),
+                        newsletter_data.get("body"),
+                        newsletter_data.get("target_type"),
+                        newsletter_data.get("class_context"),
+                        newsletter_data.get("recipient_role"),
+                    ),
+                )
+
         announcement_id = cursor.lastrowid
-        
+
         # Create notification entries based on target type
         target_type = newsletter_data.get("target_type")
         class_context = newsletter_data.get("class_context")
         recipient_role = newsletter_data.get("recipient_role")
-        
+
         student_ids = []
         if target_type == "Individual Student":
             # Get specific student - use student_name for cloud database
             cursor = conn.execute(
                 "SELECT id FROM students WHERE student_name = ? AND grade = ?",
-                (recipient_role, class_context)
+                (recipient_role, class_context),
             )
             student_row = cursor.fetchone()
             if student_row:
@@ -1843,7 +2275,7 @@ def api_save_newsletter():
             # Get students in specific stream
             cursor = conn.execute(
                 "SELECT id FROM students WHERE grade = ? AND stream = ?",
-                (class_context, recipient_role)
+                (class_context, recipient_role),
             )
             student_ids = [row[0] for row in cursor.fetchall()]
         elif class_context == "All Classes" or target_type == "All School":
@@ -1852,18 +2284,23 @@ def api_save_newsletter():
             student_ids = [row[0] for row in cursor.fetchall()]
         else:
             # Get students in specific class
-            cursor = conn.execute("SELECT id FROM students WHERE grade = ?", (class_context,))
+            cursor = conn.execute(
+                "SELECT id FROM students WHERE grade = ?", (class_context,)
+            )
             student_ids = [row[0] for row in cursor.fetchall()]
-        
+
         # Create notification entries
         for student_id in student_ids:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR IGNORE INTO parent_view_status (student_id, content_type, content_id, has_viewed)
                 VALUES (?, ?, ?, 0)
-            """, (student_id, 'newsletter', announcement_id))
-        
+            """,
+                (student_id, "newsletter", announcement_id),
+            )
+
         conn.commit()
-        
+
         # Keep only the 3 latest newsletters (delete old ones)
         try:
             cursor = conn.execute("""
@@ -1876,27 +2313,30 @@ def api_save_newsletter():
             """)
             deleted_count = cursor.rowcount
             if deleted_count > 0:
-                logging.info(f"Deleted {deleted_count} old newsletters, keeping only 3 latest")
+                logging.info(
+                    f"Deleted {deleted_count} old newsletters, keeping only 3 latest"
+                )
             conn.commit()
         except Exception as e:
             logging.error(f"Error deleting old newsletters: {e}")
-        
+
         # Send FCM notifications
         try:
             from fcm_service import get_fcm_service
+
             fcm_service = get_fcm_service()
-            
+
             logging.info(f"=== FCM Service Check ===")
             logging.info(f"FCM service available: {fcm_service.is_available()}")
             logging.info(f"Target student_ids: {student_ids}")
-            
+
             if fcm_service.is_available():
                 # Get FCM tokens for target students
                 tokens = []
                 for student_id in student_ids:
                     cursor = conn.execute(
                         "SELECT token FROM fcm_tokens WHERE student_id = ?",
-                        (student_id,)
+                        (student_id,),
                     )
                     token_row = cursor.fetchone()
                     if token_row:
@@ -1904,9 +2344,9 @@ def api_save_newsletter():
                         logging.info(f"Found FCM token for student_id={student_id}")
                     else:
                         logging.info(f"No FCM token found for student_id={student_id}")
-                
+
                 logging.info(f"Total FCM tokens found: {len(tokens)}")
-                
+
                 if tokens:
                     # Send multicast notification
                     result = fcm_service.send_multicast_notification(
@@ -1916,21 +2356,28 @@ def api_save_newsletter():
                         data={
                             "type": "newsletter",
                             "announcement_id": str(announcement_id),
-                            "subject": newsletter_data.get('subject')
-                        }
+                            "subject": newsletter_data.get("subject"),
+                        },
                     )
                     logging.info(f"FCM notifications sent: {result}")
                 else:
                     logging.info("No FCM tokens found for target students")
             else:
                 logging.info("FCM service not available, skipping push notifications")
-                
+
         except Exception as e:
             logging.error(f"Error sending FCM notifications: {e}")
-        
-        logging.info(f"Newsletter synced to cloud: {newsletter_data.get('subject')}, {len(student_ids)} notifications created")
-        return jsonify({"success": True, "message": f"Newsletter saved successfully, {len(student_ids)} notifications created"})
-        
+
+        logging.info(
+            f"Newsletter synced to cloud: {newsletter_data.get('subject')}, {len(student_ids)} notifications created"
+        )
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Newsletter saved successfully, {len(student_ids)} notifications created",
+            }
+        )
+
     except Exception as e:
         logging.error(f"Save newsletter error: {e}", exc_info=True)
         return jsonify({"success": False, "message": str(e)}), 500
@@ -1960,10 +2407,13 @@ def api_save_class_reports():
 
         # Save all reports
         import json
+
         saved_count = 0
         for report in reports:
             report_json = json.dumps(report)
-            generated_date = report.get("generated_date", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            generated_date = report.get(
+                "generated_date", datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            )
 
             conn.execute(
                 """
@@ -1977,13 +2427,15 @@ def api_save_class_reports():
                     report.get("grade", ""),
                     school["school_name"],
                     report_json,
-                    generated_date
-                )
+                    generated_date,
+                ),
             )
             saved_count += 1
         conn.commit()
 
-        return jsonify({"success": True, "message": f"Saved {saved_count} reports successfully"})
+        return jsonify(
+            {"success": True, "message": f"Saved {saved_count} reports successfully"}
+        )
     except Exception as e:
         logging.error(f"Save class reports error: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
@@ -1996,10 +2448,10 @@ def api_clear_student_reports():
     """Clear all student reports from the database to force fallback usage"""
     data = request.json
     school_code = data.get("school_code", "").strip()
-    
+
     if not school_code:
         return jsonify({"success": False, "message": "Missing school_code"}), 400
-    
+
     conn = get_db()
     try:
         # Verify school
@@ -2008,11 +2460,11 @@ def api_clear_student_reports():
         ).fetchone()
         if not school:
             return jsonify({"success": False, "message": "School not found"}), 404
-        
+
         # Delete all student reports
         conn.execute("DELETE FROM student_reports")
         conn.commit()
-        
+
         logging.info("Cleared all student reports from database")
         return jsonify({"success": True, "message": "All student reports cleared"})
     except Exception as e:
@@ -2042,20 +2494,23 @@ def api_fetch_parent_report():
             WHERE student_name = ? AND school_name = ? AND adm_no = ?
             ORDER BY generated_date DESC LIMIT 1
             """,
-            (student_name, school_name, adm_no)
+            (student_name, school_name, adm_no),
         ).fetchone()
 
         if not report:
             return jsonify({"success": False, "message": "Report not found"}), 404
 
         import json
+
         report_data = json.loads(report["report_data"])
 
-        return jsonify({
-            "success": True,
-            "report": report_data,
-            "generated_date": report["generated_date"]
-        })
+        return jsonify(
+            {
+                "success": True,
+                "report": report_data,
+                "generated_date": report["generated_date"],
+            }
+        )
     except Exception as e:
         logging.error(f"Fetch parent report error: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
@@ -2081,7 +2536,7 @@ def parent_login():
             student_name_normalized = student_name.lower().strip()
             school_name_normalized = school_name.lower().strip()
             adm_no_normalized = adm_no.strip()
-            
+
             student = conn.execute(
                 """
                 SELECT s.id, s.school_id, s.grade, sc.school_name
@@ -2089,7 +2544,7 @@ def parent_login():
                 JOIN schools sc ON s.school_id = sc.id
                 WHERE LOWER(s.student_name) = ? AND LOWER(sc.school_name) = ? AND s.adm_no = ?
                 """,
-                (student_name_normalized, school_name_normalized, adm_no_normalized)
+                (student_name_normalized, school_name_normalized, adm_no_normalized),
             ).fetchone()
 
             if student:
@@ -2121,19 +2576,25 @@ def parent_dashboard():
     conn = get_db()
     try:
         student_id = session.get("parent_student_id")
-        
+
         # Check unread newsletters
-        unread_newsletters = conn.execute("""
+        unread_newsletters = conn.execute(
+            """
             SELECT COUNT(*) as count FROM parent_view_status
             WHERE student_id = ? AND content_type = 'newsletter' AND has_viewed = 0
-        """, (student_id,)).fetchone()["count"]
-        
+        """,
+            (student_id,),
+        ).fetchone()["count"]
+
         # Check unread reports (assuming reports have content_type 'report')
-        unread_reports = conn.execute("""
+        unread_reports = conn.execute(
+            """
             SELECT COUNT(*) as count FROM parent_view_status
             WHERE student_id = ? AND content_type = 'report' AND has_viewed = 0
-        """, (student_id,)).fetchone()["count"]
-        
+        """,
+            (student_id,),
+        ).fetchone()["count"]
+
         return render_template(
             "cloud_parent_landing.html",
             school_name=session.get("parent_school_name"),
@@ -2141,7 +2602,7 @@ def parent_dashboard():
             student_grade=session.get("parent_grade"),
             student_adm_no=session.get("parent_adm_no"),
             unread_newsletters=unread_newsletters,
-            unread_reports=unread_reports
+            unread_reports=unread_reports,
         )
     finally:
         conn.close()
@@ -2157,109 +2618,182 @@ def parent_report():
     conn = get_db()
     try:
         # Fetch the student's report
-        logging.info(f"Fetching report for student: {session.get('parent_student_name')}, school: {session.get('parent_school_name')}, adm_no: {session.get('parent_adm_no')} (type: {type(session.get('parent_adm_no'))})")
-        
+        logging.info(
+            f"Fetching report for student: {session.get('parent_student_name')}, school: {session.get('parent_school_name')}, adm_no: {session.get('parent_adm_no')} (type: {type(session.get('parent_adm_no'))})"
+        )
+
         report = conn.execute(
             """
             SELECT report_data, generated_date FROM student_reports
-            WHERE student_name = ? AND school_name = ? AND adm_no = ?
+            WHERE LOWER(student_name) = ? AND LOWER(school_name) = ? AND adm_no = ?
             ORDER BY generated_date DESC LIMIT 1
             """,
-            (session["parent_student_name"], session["parent_school_name"], session["parent_adm_no"])
+            (
+                session["parent_student_name"].lower(),
+                session["parent_school_name"].lower(),
+                session["parent_adm_no"],
+            ),
         ).fetchone()
         logging.info(f"Report fetch result: {report is not None}")
         if report:
-            logging.info(f"Report found for {session['parent_student_name']}, generated_date: {report['generated_date']}")
+            logging.info(
+                f"Report found for {session['parent_student_name']}, generated_date: {report['generated_date']}"
+            )
         else:
-            logging.warning(f"Report NOT found for {session['parent_student_name']} with adm_no: {session['parent_adm_no']}")
+            logging.warning(
+                f"Report NOT found for {session['parent_student_name']} with adm_no: {session['parent_adm_no']}"
+            )
 
         import json
+
         if report:
             logging.info("Report found, parsing JSON")
             report_data = json.loads(report["report_data"])
             # Log current_marks keys for debugging
-            if 'current_marks' in report_data:
-                logging.info(f"Current marks keys: {list(report_data['current_marks'].keys())[:20]}")
+            if "current_marks" in report_data:
+                logging.info(
+                    f"Current marks keys: {list(report_data['current_marks'].keys())[:20]}"
+                )
                 # Check for int_scie columns
-                for key in ['int_scie_s', 'int_scie_r', 'int_scie_p', 'intcie_s', 'intcie_r', 'intcie_p']:
-                    if key in report_data['current_marks']:
-                        logging.info(f"Found {key} = {report_data['current_marks'][key]}")
+                for key in [
+                    "int_scie_s",
+                    "int_scie_r",
+                    "int_scie_p",
+                    "intcie_s",
+                    "intcie_r",
+                    "intcie_p",
+                ]:
+                    if key in report_data["current_marks"]:
+                        logging.info(
+                            f"Found {key} = {report_data['current_marks'][key]}"
+                        )
             # Generate analytics data
             logging.info("Generating analytics")
             report_data = generate_analytics(report_data, conn, session["parent_grade"])
         else:
-            logging.info("No report found for student, checking available tables for fallback")
+            logging.info(
+                "No report found for student, checking available tables for fallback"
+            )
             # Fallback: fetch data directly from marksheet table
             grade = session["parent_grade"]
             table_mapping = {
-                'playgroup': 'playgroup_marks',
-                'pp1': 'pp1_marks',
-                'pp2': 'pp2_marks',
-                'Grade 1': 'lower_marks',
-                'Grade 2': 'lower_marks',
-                'Grade 3': 'lower_marks',
-                'Grade 4': 'primary_marks',
-                'Grade 7': 'marks',
-                'Grade 8': 'marks',
-                'Grade 9': 'marks',
+                "playgroup": "playgroup_marks",
+                "pp1": "pp1_marks",
+                "pp2": "pp2_marks",
+                "Grade 1": "lower_marks",
+                "Grade 2": "lower_marks",
+                "Grade 3": "lower_marks",
+                "Grade 4": "primary_marks",
+                "Grade 7": "marks",
+                "Grade 8": "marks",
+                "Grade 9": "marks",
             }
             table = table_mapping.get(grade)
             if table:
                 # Check if table exists before querying
-                cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,))
+                cursor = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                    (table,),
+                )
                 table_exists = cursor.fetchone()
                 # Log available tables for debugging
-                cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                cursor = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
                 all_tables = [row[0] for row in cursor.fetchall()]
                 logging.info(f"Fallback: Available tables in database: {all_tables}")
-                logging.info(f"Fallback: Looking for table '{table}' for grade '{grade}'")
+                logging.info(
+                    f"Fallback: Looking for table '{table}' for grade '{grade}'"
+                )
                 if table_exists:
-                    conn.execute(f'SELECT * FROM {table} WHERE adm_no = ?', (session["parent_adm_no"],))
+                    conn.execute(
+                        f"SELECT * FROM {table} WHERE adm_no = ?",
+                        (session["parent_adm_no"],),
+                    )
                     columns = [desc[0] for desc in conn.description]
                     row = conn.fetchone()
                     if row:
                         current_marks = dict(zip(columns, row))
                         # Use average_points for junior, average_level for others
-                        if grade in ['Grade 7', 'Grade 8', 'Grade 9']:
-                            if 'average_points' in current_marks:
-                                if current_marks['average_points']:
+                        if grade in ["Grade 7", "Grade 8", "Grade 9"]:
+                            if "average_points" in current_marks:
+                                if current_marks["average_points"]:
                                     # Check if average_points is already a rating string or needs conversion
-                                    avg_points = current_marks['average_points']
-                                    if isinstance(avg_points, str) and avg_points in ['EE1', 'EE2', 'ME1', 'ME2', 'AE1', 'AE2', 'BE1', 'BE2']:
+                                    avg_points = current_marks["average_points"]
+                                    if isinstance(avg_points, str) and avg_points in [
+                                        "EE1",
+                                        "EE2",
+                                        "ME1",
+                                        "ME2",
+                                        "AE1",
+                                        "AE2",
+                                        "BE1",
+                                        "BE2",
+                                    ]:
                                         # Already a rating string, use it directly
-                                        current_marks['average_level'] = avg_points
+                                        current_marks["average_level"] = avg_points
                                     else:
                                         # Convert numeric average_points to rating string
                                         try:
                                             avg_points_float = float(avg_points)
-                                            current_marks['average_level'] = points_to_rating(avg_points_float)
+                                            current_marks["average_level"] = (
+                                                points_to_rating(avg_points_float)
+                                            )
                                         except (ValueError, TypeError):
                                             # If conversion fails, use as-is or default
-                                            current_marks['average_level'] = avg_points if isinstance(avg_points, str) else ''
+                                            current_marks["average_level"] = (
+                                                avg_points
+                                                if isinstance(avg_points, str)
+                                                else ""
+                                            )
                                 else:
-                                    current_marks['average_level'] = ''
+                                    current_marks["average_level"] = ""
                         report_data = {
-                            'current_marks': current_marks,
-                        'exam_title': current_exam_title if 'current_exam_title' in locals() else 'Current Exam',
-                        'previous_exams': []
-                    }
+                            "current_marks": current_marks,
+                            "exam_title": (
+                                current_exam_title
+                                if "current_exam_title" in locals()
+                                else "Current Exam"
+                            ),
+                            "previous_exams": [],
+                        }
                     # Log subject-related keys for debugging
-                    subject_keys = [k for k in current_marks.keys() if 'scie' in k.lower() or 'int' in k.lower()]
-                    logging.info(f"Fallback: Retrieved data from {table} with subject keys: {subject_keys}")
-                    logging.info(f"Fallback: All keys: {list(current_marks.keys())[:15]}")
+                    subject_keys = [
+                        k
+                        for k in current_marks.keys()
+                        if "scie" in k.lower() or "int" in k.lower()
+                    ]
+                    logging.info(
+                        f"Fallback: Retrieved data from {table} with subject keys: {subject_keys}"
+                    )
+                    logging.info(
+                        f"Fallback: All keys: {list(current_marks.keys())[:15]}"
+                    )
                     # Log actual values for int_scie columns
-                    if 'int_scie_s' in current_marks:
-                        logging.info(f"Fallback: int_scie_s = {current_marks['int_scie_s']}")
-                    if 'int_scie_r' in current_marks:
-                        logging.info(f"Fallback: int_scie_r = {current_marks['int_scie_r']}")
-                    if 'int_scie_p' in current_marks:
-                        logging.info(f"Fallback: int_scie_p = {current_marks['int_scie_p']}")
-                    if 'average_points' in current_marks:
-                        logging.info(f"Fallback: average_points = {current_marks['average_points']}")
-                    if 'average_level' in current_marks:
-                        logging.info(f"Fallback: average_level = {current_marks['average_level']}")
+                    if "int_scie_s" in current_marks:
+                        logging.info(
+                            f"Fallback: int_scie_s = {current_marks['int_scie_s']}"
+                        )
+                    if "int_scie_r" in current_marks:
+                        logging.info(
+                            f"Fallback: int_scie_r = {current_marks['int_scie_r']}"
+                        )
+                    if "int_scie_p" in current_marks:
+                        logging.info(
+                            f"Fallback: int_scie_p = {current_marks['int_scie_p']}"
+                        )
+                    if "average_points" in current_marks:
+                        logging.info(
+                            f"Fallback: average_points = {current_marks['average_points']}"
+                        )
+                    if "average_level" in current_marks:
+                        logging.info(
+                            f"Fallback: average_level = {current_marks['average_level']}"
+                        )
                 else:
-                    logging.warning(f"Fallback: Table '{table}' does not exist in cloud database")
+                    logging.warning(
+                        f"Fallback: Table '{table}' does not exist in cloud database"
+                    )
                     report_data = None
             else:
                 logging.warning(f"Fallback: No table mapping found for grade '{grade}'")
@@ -2269,31 +2803,58 @@ def parent_report():
         # Load school_config.json to get current_exam_title
         import json
         import os
-        config_path = os.path.join(os.path.dirname(__file__), 'school_config.json')
+
+        config_path = os.path.join(os.path.dirname(__file__), "school_config.json")
         if os.path.exists(config_path):
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 config = json.load(f)
-                current_exam_title = config.get('current_exam_title', 'Current Exam')
-                logging.info(f"Using current_exam_title from school_config.json: {current_exam_title}")
+                current_exam_title = config.get("current_exam_title", "Current Exam")
+                logging.info(
+                    f"Using current_exam_title from school_config.json: {current_exam_title}"
+                )
         else:
             # Fallback to grade-specific titles if config not found
             grade = session["parent_grade"]
             grade_lower = grade.lower() if grade else ""
             current_exam_title = "Current Exam"
-            
+
             if grade_lower in ["playgroup", "pp1", "pp2"]:
                 current_exam_title = "TERM ASSESSMENT"
-            elif grade_lower in ["grade 1", "grade 2", "grade 3", "grade 4", "grade 5", "grade 6"]:
+            elif grade_lower in [
+                "grade 1",
+                "grade 2",
+                "grade 3",
+                "grade 4",
+                "grade 5",
+                "grade 6",
+            ]:
                 current_exam_title = "PRIMARY EXAM"
             elif grade_lower in ["grade 7", "grade 8", "grade 9"]:
                 current_exam_title = "JSS ASSESSMENT"
-            
-            logging.info(f"Using fallback exam_title for grade {grade}: {current_exam_title}")
+
+            logging.info(
+                f"Using fallback exam_title for grade {grade}: {current_exam_title}"
+            )
+
+        # Only override report_data exam_title if it's missing or empty
+        # Otherwise use the exam_title from the report data sent by desktop app
+        if report_data:
+            if not report_data.get("exam_title") or report_data.get("exam_title") == "":
+                report_data["exam_title"] = current_exam_title
+                logging.info(
+                    f"Report_data exam_title was missing, using school_config value: {current_exam_title}"
+                )
+            else:
+                logging.info(
+                    f"Using report_data exam_title from desktop app: {report_data.get('exam_title')}"
+                )
 
         # Use previous exams from report data if available
-        if report_data and 'previous_exams' in report_data:
-            previous_exams_list = report_data['previous_exams']
-            logging.info(f"Using {len(previous_exams_list)} previous exams from report data")
+        if report_data and "previous_exams" in report_data:
+            previous_exams_list = report_data["previous_exams"]
+            logging.info(
+                f"Using {len(previous_exams_list)} previous exams from report data"
+            )
 
             # Database already returns exams in DESC order (newest first), so no reversal needed
             # previous_exams_list = list(reversed(previous_exams_list))
@@ -2302,32 +2863,43 @@ def parent_report():
             previous_exams = []
             previous_exam_marks = {}
             for prev_exam in previous_exams_list:
-                previous_exams.append({
-                    'exam_title': prev_exam['exam_name'],
-                    'exam_date': prev_exam['exam_date'],
-                    'average_level': prev_exam.get('average_level')
-                })
-                marks = prev_exam['marks']
+                previous_exams.append(
+                    {
+                        "exam_title": prev_exam["exam_name"],
+                        "exam_date": prev_exam["exam_date"],
+                        "average_level": prev_exam.get("average_level"),
+                        "total_points": prev_exam.get("total_points"),
+                    }
+                )
+                marks = prev_exam["marks"]
                 # Parse marks if it's a JSON string
                 if isinstance(marks, str):
                     try:
                         marks = json.loads(marks)
-                        logging.info(f"Parsed marks from JSON string for exam {prev_exam['exam_name']}")
+                        logging.info(
+                            f"Parsed marks from JSON string for exam {prev_exam['exam_name']}"
+                        )
                     except:
-                        logging.error(f"Failed to parse marks as JSON for exam {prev_exam['exam_name']}")
+                        logging.error(
+                            f"Failed to parse marks as JSON for exam {prev_exam['exam_name']}"
+                        )
                         marks = {}
-                previous_exam_marks[prev_exam['exam_name']] = marks
-                logging.info(f"Previous exam: {prev_exam['exam_name']}, marks type: {type(marks)}, is dict: {isinstance(marks, dict)}, is list: {isinstance(marks, list)}")
+                previous_exam_marks[prev_exam["exam_name"]] = marks
+                logging.info(
+                    f"Previous exam: {prev_exam['exam_name']}, marks type: {type(marks)}, is dict: {isinstance(marks, dict)}, is list: {isinstance(marks, list)}"
+                )
                 if isinstance(marks, dict):
                     logging.info(f"  marks keys: {list(marks.keys())[:5]}")
                     logging.info(f"  marks sample: {list(marks.items())[:2]}")
                     # Log complete structure for MOCK exam to debug score/rating/points issue
-                    if prev_exam['exam_name'] == 'MOCK':
+                    if prev_exam["exam_name"] == "MOCK":
                         logging.info(f"  MOCK exam complete marks structure: {marks}")
                 elif isinstance(marks, list):
                     logging.info(f"  marks length: {len(marks)}")
                     logging.info(f"  marks sample: {marks[:5]}")
-            logging.info(f"previous_exam_marks keys: {list(previous_exam_marks.keys())}")
+            logging.info(
+                f"previous_exam_marks keys: {list(previous_exam_marks.keys())}"
+            )
         else:
             # Fallback to querying marks table
             logging.info("No previous exams in report data, querying marks table")
@@ -2341,36 +2913,52 @@ def parent_report():
             FROM schools
             WHERE school_name = ?
             """,
-            (session["parent_school_name"],)
+            (session["parent_school_name"],),
         ).fetchone()
 
         school_address = school["school_address"] if school else None
         school_telephone = school["school_telephone"] if school else None
         school_logo = school["school_logo"] if school else None
-        school_administrator = school["school_administrator"] if school else "School Administrator"
+        school_administrator = (
+            school["school_administrator"] if school else "School Administrator"
+        )
         school_signature = school["school_signature"] if school else ""
 
-        logging.info(f"School details - administrator: {school_administrator}, signature: {'present' if school_signature else 'missing'}")
-        
+        logging.info(
+            f"School details - administrator: {school_administrator}, signature: {'present' if school_signature else 'missing'}"
+        )
+
         # Log current marks keys for debugging
-        current_marks_keys = list(report_data.get('current_marks', {}).keys())
-        logging.info(f"Current marks keys (first 10): {current_marks_keys[:10]}")
+        if report_data:
+            current_marks_keys = list(report_data.get("current_marks", {}).keys())
+            logging.info(f"Current marks keys (first 10): {current_marks_keys[:10]}")
+        else:
+            current_marks_keys = []
+            logging.info("No report data available, current_marks_keys set to empty")
         # Extract subject names from current marks keys
         subject_names = []
         for key in current_marks_keys:
-            if key.endswith('_s') and key not in ['total_points_s', 'average_level_s', 'rank_s']:
+            if key.endswith("_s") and key not in [
+                "total_points_s",
+                "average_level_s",
+                "rank_s",
+            ]:
                 # Use rstrip to only remove the '_s' suffix, not all occurrences
-                subject_name = key.rstrip('_s').replace('_', ' ').title()
+                subject_name = key.rstrip("_s").replace("_", " ").title()
                 subject_names.append(subject_name)
         logging.info(f"Subject names from current marks: {subject_names}")
-        
+
         # Log the complete previous_exam_marks structure for debugging
         logging.info(f"Complete previous_exam_marks structure: {previous_exam_marks}")
         for exam_title, marks in previous_exam_marks.items():
-            logging.info(f"  {exam_title}: type={type(marks)}, is_dict={isinstance(marks, dict)}, keys={list(marks.keys()) if isinstance(marks, dict) else 'N/A'}")
+            logging.info(
+                f"  {exam_title}: type={type(marks)}, is_dict={isinstance(marks, dict)}, keys={list(marks.keys()) if isinstance(marks, dict) else 'N/A'}"
+            )
         logging.info(f"previous_exams list for template: {previous_exams}")
         for prev_exam in previous_exams:
-            logging.info(f"  exam_title: '{prev_exam.get('exam_title')}', will lookup in previous_exam_marks")
+            logging.info(
+                f"  exam_title: '{prev_exam.get('exam_title')}', will lookup in previous_exam_marks"
+            )
 
         # Fetch student photo and stream from database
         student = conn.execute(
@@ -2378,7 +2966,7 @@ def parent_report():
             SELECT photo, stream FROM students
             WHERE student_name = ? AND adm_no = ?
             """,
-            (session["parent_student_name"], session["parent_adm_no"])
+            (session["parent_student_name"], session["parent_adm_no"]),
         ).fetchone()
 
         student_photo = student["photo"] if student and student["photo"] else None
@@ -2387,9 +2975,9 @@ def parent_report():
         # Fetch school_id from database using school_name
         school = conn.execute(
             "SELECT id FROM schools WHERE school_name = ?",
-            (session["parent_school_name"],)
+            (session["parent_school_name"],),
         ).fetchone()
-        
+
         school_id = school["id"] if school else None
 
         # Fetch teacher assignments for this grade
@@ -2398,11 +2986,13 @@ def parent_report():
             SELECT subject, teacher_name FROM teacher_assignments
             WHERE school_id = ? AND class_name = ?
             """,
-            (school_id, session["parent_grade"])
+            (school_id, session["parent_grade"]),
         ).fetchall()
 
         # Create a dictionary mapping subject to teacher name
-        teacher_map = {row["subject"]: row["teacher_name"] for row in teacher_assignments}
+        teacher_map = {
+            row["subject"]: row["teacher_name"] for row in teacher_assignments
+        }
 
         logging.info("Rendering dashboard template")
         return render_template(
@@ -2422,7 +3012,7 @@ def parent_report():
             previous_exams=previous_exams,
             previous_exam_marks=previous_exam_marks,
             current_exam_title=current_exam_title,
-            teacher_map=teacher_map
+            teacher_map=teacher_map,
         )
     except Exception as e:
         logging.error(f"Parent dashboard error: {e}", exc_info=True)
@@ -2436,32 +3026,41 @@ def parent_report():
 def parent_newsletters():
     if "parent_student_id" not in session:
         return redirect(url_for("parent_login"))
-    
+
     # Get newsletters for this parent's student class
     conn = get_db()
     try:
         student_grade = session.get("parent_grade")
         student_id = session.get("parent_student_id")
-        
-        logging.info(f"Fetching newsletters for student_id={student_id}, grade={student_grade}")
-        
+
+        logging.info(
+            f"Fetching newsletters for student_id={student_id}, grade={student_grade}"
+        )
+
         # Check if portal_announcements table exists
-        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='portal_announcements'")
+        cursor = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='portal_announcements'"
+        )
         table_exists = cursor.fetchone()
-        
+
         if not table_exists:
             # Table doesn't exist, return empty list
             logging.warning("portal_announcements table does not exist")
             newsletters = []
         else:
             # Get all newsletters for debugging
-            all_newsletters = conn.execute("SELECT * FROM portal_announcements").fetchall()
+            all_newsletters = conn.execute(
+                "SELECT * FROM portal_announcements"
+            ).fetchall()
             logging.info(f"All newsletters in database: {len(all_newsletters)}")
             for nl in all_newsletters:
-                logging.info(f"  - ID: {nl[0]}, class_context: {nl[5]}, subject: {nl[2]}")
-            
+                logging.info(
+                    f"  - ID: {nl[0]}, class_context: {nl[5]}, subject: {nl[2]}"
+                )
+
             # Get newsletters from portal_announcements table with view status
-            newsletters = conn.execute("""
+            newsletters = conn.execute(
+                """
                 SELECT pa.*, n.attachment_path,
                        COALESCE(pvs.has_viewed, 0) as has_viewed
                 FROM portal_announcements pa
@@ -2471,15 +3070,19 @@ def parent_newsletters():
                     AND pvs.student_id = ?
                 WHERE pa.class_context = ? OR pa.class_context = 'All Classes'
                 ORDER BY pa.published_at DESC
-            """, (student_id, student_grade)).fetchall()
-            
-            logging.info(f"Filtered newsletters for grade {student_grade}: {len(newsletters)}")
-        
+            """,
+                (student_id, student_grade),
+            ).fetchall()
+
+            logging.info(
+                f"Filtered newsletters for grade {student_grade}: {len(newsletters)}"
+            )
+
         return render_template(
             "cloud_parent_newsletters.html",
             newsletters=newsletters,
             school_name=session.get("parent_school_name"),
-            student_name=session.get("parent_student_name")
+            student_name=session.get("parent_student_name"),
         )
     except Exception as e:
         logging.error(f"Error fetching newsletters: {e}", exc_info=True)
@@ -2488,7 +3091,7 @@ def parent_newsletters():
             "cloud_parent_newsletters.html",
             newsletters=[],
             school_name=session.get("parent_school_name"),
-            student_name=session.get("parent_student_name")
+            student_name=session.get("parent_student_name"),
         )
     finally:
         conn.close()
@@ -2498,18 +3101,21 @@ def parent_newsletters():
 def mark_newsletter_viewed(newsletter_id):
     if "parent_student_id" not in session:
         return jsonify({"success": False}), 401
-    
+
     conn = get_db()
     try:
         student_id = session.get("parent_student_id")
-        
+
         # Mark as viewed
-        conn.execute("""
+        conn.execute(
+            """
             INSERT OR REPLACE INTO parent_view_status 
             (student_id, content_type, content_id, has_viewed, viewed_at)
             VALUES (?, 'newsletter', ?, 1, CURRENT_TIMESTAMP)
-        """, (student_id, newsletter_id))
-        
+        """,
+            (student_id, newsletter_id),
+        )
+
         conn.commit()
         return jsonify({"success": True})
     except Exception as e:
@@ -2521,30 +3127,43 @@ def mark_newsletter_viewed(newsletter_id):
 
 def generate_analytics(report_data, conn, grade):
     """Generate analytics data for parent dashboard including trends, comparisons, and comments"""
-    if not report_data or 'current_marks' not in report_data:
+    if not report_data or "current_marks" not in report_data:
         return report_data
 
-    current_marks = report_data['current_marks']
-    
+    current_marks = report_data["current_marks"]
+
     # Convert average_points to average_level for junior grades
-    if grade in ['Grade 7', 'Grade 8', 'Grade 9']:
-        if 'average_points' in current_marks:
-            if current_marks['average_points']:
+    if grade in ["Grade 7", "Grade 8", "Grade 9"]:
+        if "average_points" in current_marks:
+            if current_marks["average_points"]:
                 # Check if average_points is already a rating string or needs conversion
-                avg_points = current_marks['average_points']
-                if isinstance(avg_points, str) and avg_points in ['EE1', 'EE2', 'ME1', 'ME2', 'AE1', 'AE2', 'BE1', 'BE2']:
+                avg_points = current_marks["average_points"]
+                if isinstance(avg_points, str) and avg_points in [
+                    "EE1",
+                    "EE2",
+                    "ME1",
+                    "ME2",
+                    "AE1",
+                    "AE2",
+                    "BE1",
+                    "BE2",
+                ]:
                     # Already a rating string, use it directly
-                    current_marks['average_level'] = avg_points
+                    current_marks["average_level"] = avg_points
                 else:
                     # Convert numeric average_points to rating string
                     try:
                         avg_points_float = float(avg_points)
-                        current_marks['average_level'] = points_to_rating(avg_points_float)
+                        current_marks["average_level"] = points_to_rating(
+                            avg_points_float
+                        )
                     except (ValueError, TypeError):
                         # If conversion fails, use as-is or default
-                        current_marks['average_level'] = avg_points if isinstance(avg_points, str) else ''
+                        current_marks["average_level"] = (
+                            avg_points if isinstance(avg_points, str) else ""
+                        )
             else:
-                current_marks['average_level'] = ''
+                current_marks["average_level"] = ""
 
     # Get subjects for this grade
     subjects_config = get_subjects_for_grade(grade)
@@ -2587,24 +3206,26 @@ def generate_analytics(report_data, conn, grade):
         else:
             performance = "average"
 
-        subject_analysis.append({
-            "name": subject,
-            "current_score": current_score,
-            "previous_1": current_score - 5,  # Mock previous score
-            "previous_2": current_score - 10,  # Mock previous score
-            "trend": trend,
-            "improvement": improvement,
-            "decline": decline,
-            "class_average": class_average,
-            "performance": performance
-        })
+        subject_analysis.append(
+            {
+                "name": subject,
+                "current_score": current_score,
+                "previous_1": current_score - 5,  # Mock previous score
+                "previous_2": current_score - 10,  # Mock previous score
+                "trend": trend,
+                "improvement": improvement,
+                "decline": decline,
+                "class_average": class_average,
+                "performance": performance,
+            }
+        )
 
         subject_names.append(subject)
         student_scores.append(current_score)
         class_averages.append(class_average)
 
     # Generate overall trend
-    total_points = current_marks.get('total_points', 0)
+    total_points = current_marks.get("total_points", 0)
     # Convert to int if it's a string
     try:
         total_points = int(total_points) if total_points else 0
@@ -2628,16 +3249,16 @@ def generate_analytics(report_data, conn, grade):
     exam_scores = [total_points - 10, total_points - 5, total_points]
 
     # Add analytics to report data
-    report_data['subject_analysis'] = subject_analysis
-    report_data['trend'] = overall_trend
-    report_data['overall_comment'] = overall_comment
-    report_data['subject_comments'] = subject_comments
-    report_data['recommendations'] = recommendations
-    report_data['exam_labels'] = exam_labels
-    report_data['exam_scores'] = exam_scores
-    report_data['subject_names'] = subject_names
-    report_data['student_scores'] = student_scores
-    report_data['class_averages'] = class_averages
+    report_data["subject_analysis"] = subject_analysis
+    report_data["trend"] = overall_trend
+    report_data["overall_comment"] = overall_comment
+    report_data["subject_comments"] = subject_comments
+    report_data["recommendations"] = recommendations
+    report_data["exam_labels"] = exam_labels
+    report_data["exam_scores"] = exam_scores
+    report_data["subject_names"] = subject_names
+    report_data["student_scores"] = student_scores
+    report_data["class_averages"] = class_averages
 
     return report_data
 
@@ -2645,15 +3266,15 @@ def generate_analytics(report_data, conn, grade):
 def get_subjects_for_grade(grade):
     """Get subjects for a specific grade"""
     grade_mapping = {
-        'playgroup': ['LANG', 'MATH', 'ENV', 'CREAT'],
-        'pp1': ['LANG', 'MATH', 'ENV', 'PSYCH', 'REL'],
-        'pp2': ['LANG', 'MATH', 'ENV', 'PSYCH', 'REL'],
-        'Grade 1': ['ENG', 'KISW', 'MAT', 'ENV', 'LIT', 'CRE', 'ART', 'MOV'],
-        'Grade 2': ['ENG', 'KISW', 'MAT', 'ENV', 'LIT', 'CRE', 'ART', 'MOV'],
-        'Grade 3': ['ENG', 'KISW', 'MAT', 'ENV', 'LIT', 'CRE', 'ART', 'MOV'],
-        'Grade 4': ['ENG', 'KISW', 'MATH', 'SCIE', 'AGRI', 'SST', 'CRE', 'C/A', 'PHE'],
-        'Grade 5': ['ENG', 'KISW', 'MATH', 'SCIE', 'AGRI', 'SST', 'CRE', 'C/A', 'PHE'],
-        'Grade 6': ['ENG', 'KISW', 'MATH', 'SCIE', 'AGRI', 'SST', 'CRE', 'C/A', 'PHE'],
+        "playgroup": ["LANG", "MATH", "ENV", "CREAT"],
+        "pp1": ["LANG", "MATH", "ENV", "PSYCH", "REL"],
+        "pp2": ["LANG", "MATH", "ENV", "PSYCH", "REL"],
+        "Grade 1": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
+        "Grade 2": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
+        "Grade 3": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
+        "Grade 4": ["ENG", "KISW", "MATH", "SCIE", "AGRI", "SST", "CRE", "C/A", "PHE"],
+        "Grade 5": ["ENG", "KISW", "MATH", "SCIE", "AGRI", "SST", "CRE", "C/A", "PHE"],
+        "Grade 6": ["ENG", "KISW", "MATH", "SCIE", "AGRI", "SST", "CRE", "C/A", "PHE"],
     }
     return grade_mapping.get(grade, [])
 
@@ -2695,8 +3316,8 @@ def generate_subject_comments(subject_analysis):
     """Generate comments for each subject"""
     comments = []
     for subject in subject_analysis:
-        score = subject['current_score']
-        performance = subject['performance']
+        score = subject["current_score"]
+        performance = subject["performance"]
 
         # Convert to int if it's a string
         try:
@@ -2717,11 +3338,9 @@ def generate_subject_comments(subject_analysis):
             comment_type = "negative"
             comment = f"Performance in {subject['name']} needs improvement. Additional support and practice are recommended."
 
-        comments.append({
-            "subject": subject['name'],
-            "comment": comment,
-            "type": comment_type
-        })
+        comments.append(
+            {"subject": subject["name"], "comment": comment, "type": comment_type}
+        )
 
     return comments
 
@@ -2729,28 +3348,42 @@ def generate_subject_comments(subject_analysis):
 def generate_recommendations(subject_analysis, total_points):
     """Generate recommendations for improvement"""
     recommendations = []
-    
+
     # Analyze weak subjects
-    weak_subjects = [s for s in subject_analysis if s['current_score'] < 40]
+    weak_subjects = [s for s in subject_analysis if s["current_score"] < 40]
     if weak_subjects:
-        recommendations.append(f"Focus additional practice time on: {', '.join([s['name'] for s in weak_subjects])}")
-    
+        recommendations.append(
+            f"Focus additional practice time on: {', '.join([s['name'] for s in weak_subjects])}"
+        )
+
     # Analyze strong subjects
-    strong_subjects = [s for s in subject_analysis if s['current_score'] >= 70]
+    strong_subjects = [s for s in subject_analysis if s["current_score"] >= 70]
     if strong_subjects:
-        recommendations.append(f"Continue to excel in: {', '.join([s['name'] for s in strong_subjects])}")
-    
+        recommendations.append(
+            f"Continue to excel in: {', '.join([s['name'] for s in strong_subjects])}"
+        )
+
     # General recommendations
     if total_points < 30:
-        recommendations.append("Consider seeking extra help from teachers or tutors in challenging subjects.")
-        recommendations.append("Establish a consistent study routine with dedicated time for each subject.")
+        recommendations.append(
+            "Consider seeking extra help from teachers or tutors in challenging subjects."
+        )
+        recommendations.append(
+            "Establish a consistent study routine with dedicated time for each subject."
+        )
     elif total_points < 40:
         recommendations.append("Set specific goals for improvement in each subject.")
-        recommendations.append("Review class notes regularly and complete all assignments on time.")
+        recommendations.append(
+            "Review class notes regularly and complete all assignments on time."
+        )
     else:
-        recommendations.append("Maintain current study habits and continue to challenge yourself.")
-        recommendations.append("Consider helping peers who may be struggling in subjects you excel in.")
-    
+        recommendations.append(
+            "Maintain current study habits and continue to challenge yourself."
+        )
+        recommendations.append(
+            "Consider helping peers who may be struggling in subjects you excel in."
+        )
+
     return recommendations
 
 
@@ -2764,11 +3397,14 @@ if __name__ == "__main__":
     # Initialize FCM service at startup
     try:
         from fcm_service import get_fcm_service
+
         fcm_service = get_fcm_service()
-        logging.info(f"FCM Service initialized at startup: Available={fcm_service.is_available()}")
+        logging.info(
+            f"FCM Service initialized at startup: Available={fcm_service.is_available()}"
+        )
     except Exception as e:
         logging.error(f"Failed to initialize FCM service at startup: {e}")
-    
+
     # Crucial for Railway: Listen on 0.0.0.0 and use the dynamic PORT variable
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)

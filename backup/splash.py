@@ -22,7 +22,7 @@ class SplashScreen2(ctk.CTk):
         watermark_rotated = watermark_img.rotate(-45, expand=False)
         self.watermark_photo = ctk.CTkImage(watermark_rotated, size=(600, 400))
         self.watermark_label = ctk.CTkLabel(self, image=self.watermark_photo, text="")
-        self.watermark_label.place(x=0, y=0, width=600, height=400)
+        self.watermark_label.place(x=0, y=0)
 
         # 1. THE LOGO / BRANDING
         self.brand_label = ctk.CTkLabel(self, text="FREEMAN TECH SOLUTIONS", 

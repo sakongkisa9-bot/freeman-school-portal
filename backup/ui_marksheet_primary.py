@@ -25,19 +25,28 @@ from cloud_service import (
 )
 
 import os
+import sys
+
+
+def get_app_dir():
+    """Get the application directory, handling both script and executable environments"""
+    if getattr(sys, "frozen", False):
+        # Running as executable
+        BASE_DIR = sys._MEIPASS
+        USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
+        os.makedirs(USER_DATA_DIR, exist_ok=True)
+    else:
+        # Running as script
+        BASE_DIR = os.path.dirname(os.path.realpath(__file__))
+        USER_DATA_DIR = BASE_DIR
+    return BASE_DIR, USER_DATA_DIR
 
 
 class PrimaryMarkSheetView(ctk.CTkFrame):
 
     def get_json_path(self):
-
-        import os
-
-        # This automatically finds the folder where the script is running
-
-        return os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "school_config.json"
-        )
+        # Use USER_DATA_DIR for config file (works in both script and executable)
+        return os.path.join(self.USER_DATA_DIR, "school_config.json")
 
     def __init__(
         self,
@@ -53,6 +62,8 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
         super().__init__(parent, fg_color="transparent")
 
         self.db = db_connection
+        # Initialize proper paths for executable environment
+        self.BASE_DIR, self.USER_DATA_DIR = get_app_dir()
 
         self.class_name = class_name
 
@@ -345,13 +356,77 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
             self.update_idletasks()
 
-            # 5. Save the fetched marks to database (skip reload to preserve cloud values)
+            # 5. Recalculate totals and averages for all rows from individual scores
+            # This ensures totals are correct even if cloud sends zero
+            # Primary marksheet uses grid layout, so we need to iterate through rows differently
+            import grading_logic as gl
+
+            all_widgets = self.table_inner.grid_slaves()
+            if all_widgets:
+                # Group widgets by row
+                rows = {}
+                for w in all_widgets:
+                    row = w.grid_info().get("row")
+                    if row is not None:
+                        if row not in rows:
+                            rows[row] = []
+                        rows[row].append(w)
+
+                # Recalculate each row
+                for row_idx in sorted(rows.keys()):
+                    widgets = sorted(
+                        rows[row_idx], key=lambda w: w.grid_info().get("column", 0)
+                    )
+
+                    # Calculate total score from individual score entries
+                    total_score = 0
+                    num_subs = len(subjects)
+
+                    for i in range(num_subs):
+                        score_idx = 1 + (i * 2)
+                        if score_idx < len(widgets):
+                            score_widget = widgets[score_idx]
+                            if hasattr(score_widget, "get"):
+                                score_val = score_widget.get().strip()
+                                if score_val.isdigit():
+                                    total_score += int(score_val)
+
+                    # Update total score box
+                    total_idx = 1 + (num_subs * 2)
+                    if total_idx < len(widgets):
+                        total_widget = widgets[total_idx]
+                        if hasattr(total_widget, "configure"):
+                            curr_state = total_widget.cget("state")
+                            total_widget.configure(state="normal")
+                            total_widget.delete(0, "end")
+                            total_widget.insert(0, str(total_score))
+                            total_widget.configure(state=curr_state)
+
+                    # Calculate and update average level
+                    avg_lvl = gl.calculate_final_level(
+                        total_score, is_primary=True, num_subjects=num_subs
+                    )
+                    avg_idx = total_idx + 1
+                    if avg_idx < len(widgets):
+                        avg_widget = widgets[avg_idx]
+                        if hasattr(avg_widget, "configure"):
+                            curr_state = avg_widget.cget("state")
+                            avg_widget.configure(state="normal")
+                            avg_widget.delete(0, "end")
+                            avg_widget.insert(0, avg_lvl)
+                            avg_widget.configure(state=curr_state)
+
+            # 6. Save the fetched marks to database (skip reload to preserve cloud values)
 
             self.save_primary_marks(skip_reload=True)
 
             # 6. Consume marks from cloud (delete them after successful fetch)
 
-            service.consume_marks(self.class_name, credentials)
+            consume_result = service.consume_marks(self.class_name, credentials)
+            if not consume_result.get("success"):
+                print(
+                    f"WARNING: Failed to consume marks from cloud: {consume_result.get('message')}"
+                )
 
             # 7. Success Message
 
@@ -639,7 +714,9 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
         )
 
         self.h_scroll = ctk.CTkScrollbar(
-            self.scroll_container, orientation="horizontal", command=self._on_horizontal_scroll
+            self.scroll_container,
+            orientation="horizontal",
+            command=self._on_horizontal_scroll,
         )
 
         self.v_scroll = ctk.CTkScrollbar(
@@ -649,9 +726,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
         self.canvas.configure(
             xscrollcommand=self._update_h_scroll, yscrollcommand=self.v_scroll.set
         )
-        self.header_canvas.configure(
-            xscrollcommand=self._update_h_scroll
-        )
+        self.header_canvas.configure(xscrollcommand=self._update_h_scroll)
 
         self.h_scroll.pack(side="bottom", fill="x")
 
@@ -746,12 +821,13 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
             # Update header canvas scrollregion (horizontal only)
             # Use the same width as content canvas to ensure synchronization
             if header_bbox:
-                self.header_canvas.configure(scrollregion=(0, 0, max_width, header_bbox[3]))
+                self.header_canvas.configure(
+                    scrollregion=(0, 0, max_width, header_bbox[3])
+                )
             else:
                 self.header_canvas.configure(scrollregion=(0, 0, max_width, 90))
         except Exception:
             pass
-
 
     def create_table_headers(self):
 
@@ -862,7 +938,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
                 row=0, column=total_start + j, rowspan=2, sticky="nsew", padx=1, pady=0
             )
 
-    def add_student_row_with_data(self, row_data, rank, read_only=False):
+    def add_student_row_with_data(self, row_data, rank, read_only=False, adm_no=None):
 
         subjects = self.get_subjects_from_json()
 
@@ -887,7 +963,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
         # Name label (column 0)
 
-        ctk.CTkLabel(
+        name_label = ctk.CTkLabel(
             self.table_inner,
             text=row_data[0],
             anchor="w",
@@ -895,7 +971,9 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
             font=("Arial", 12),
             width=NAME_W,
             fg_color="transparent",
-        ).grid(row=row_index, column=0, sticky="w", padx=1, pady=0)
+        )
+        name_label.grid(row=row_index, column=0, sticky="w", padx=1, pady=0)
+        name_label._student_adm_no = adm_no
 
         for i in range(num_subs * 2):
 
@@ -1079,7 +1157,9 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
         # 3. Calculate Final Level using your calculate_final_level (is_primary=True)
 
-        avg_lvl = gl.calculate_final_level(total_score, is_primary=True)
+        avg_lvl = gl.calculate_final_level(
+            total_score, is_primary=True, num_subjects=num_subs
+        )
 
         l_box = widgets[t_idx + 1]
 
@@ -1100,15 +1180,16 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
             # 1. Ensure base table exists
 
-            self.db._cursor.execute(
+            cursor = self.db.cursor()
+            cursor.execute(
                 "CREATE TABLE IF NOT EXISTS primary_marks (adm_no TEXT PRIMARY KEY)"
             )
 
             # 2. Get currently existing columns
 
-            self.db._cursor.execute("PRAGMA table_info(primary_marks)")
+            cursor.execute("PRAGMA table_info(primary_marks)")
 
-            existing_cols = [row[1].lower() for row in self.db._cursor.fetchall()]
+            existing_cols = [row[1].lower() for row in cursor.fetchall()]
 
             # 3. Check every subject from JSON
 
@@ -1134,9 +1215,17 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
                     print(f"DEBUG: Adding missing column [{s_col}] to primary_marks...")
 
-                    self.db._cursor.execute(
-                        f"ALTER TABLE primary_marks ADD COLUMN {s_col} INTEGER"
-                    )
+                    try:
+                        cursor.execute(
+                            f"ALTER TABLE primary_marks ADD COLUMN {s_col} INTEGER"
+                        )
+                    except Exception as e:
+                        if "duplicate column" in str(e).lower():
+                            print(
+                                f"DEBUG: Column [{s_col}] already exists, skipping..."
+                            )
+                        else:
+                            raise
 
                 # Check Rate Column
 
@@ -1144,23 +1233,47 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
                     print(f"DEBUG: Adding missing column [{r_col}] to primary_marks...")
 
-                    self.db._cursor.execute(
-                        f"ALTER TABLE primary_marks ADD COLUMN {r_col} TEXT"
-                    )
+                    try:
+                        cursor.execute(
+                            f"ALTER TABLE primary_marks ADD COLUMN {r_col} TEXT"
+                        )
+                    except Exception as e:
+                        if "duplicate column" in str(e).lower():
+                            print(
+                                f"DEBUG: Column [{r_col}] already exists, skipping..."
+                            )
+                        else:
+                            raise
 
             # 4. Final check for Totals/Level
 
             if "total_points" not in existing_cols:
 
-                self.db._cursor.execute(
-                    "ALTER TABLE primary_marks ADD COLUMN total_points INTEGER"
-                )
+                try:
+                    cursor.execute(
+                        "ALTER TABLE primary_marks ADD COLUMN total_points INTEGER"
+                    )
+                except Exception as e:
+                    if "duplicate column" in str(e).lower():
+                        print(
+                            "DEBUG: Column [total_points] already exists, skipping..."
+                        )
+                    else:
+                        raise
 
             if "average_level" not in existing_cols:
 
-                self.db._cursor.execute(
-                    "ALTER TABLE primary_marks ADD COLUMN average_level TEXT"
-                )
+                try:
+                    cursor.execute(
+                        "ALTER TABLE primary_marks ADD COLUMN average_level TEXT"
+                    )
+                except Exception as e:
+                    if "duplicate column" in str(e).lower():
+                        print(
+                            "DEBUG: Column [average_level] already exists, skipping..."
+                        )
+                    else:
+                        raise
 
             self.db.conn.commit()
 
@@ -1238,7 +1351,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
                     LEFT JOIN primary_marks m ON s.adm_no = m.adm_no
 
-                    WHERE s.grade = ?
+                    WHERE UPPER(s.grade) = UPPER(?)
 
                     ORDER BY CASE WHEN m.rank IS NULL THEN 1 ELSE 0 END, m.rank ASC
 
@@ -1246,9 +1359,13 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
                 # 1. Fetch data
 
-                self.db._cursor.execute(query, (self.class_name,))
+                self.db.cursor().execute(query, (self.class_name,))
 
-                records = self.db._cursor.fetchall()
+                records = self.db.cursor().fetchall()
+
+                print(
+                    f"DEBUG: Loaded {len(records)} students for grade '{self.class_name}' from database"
+                )
 
                 # 2. Use rank from database instead of calculating in memory
 
@@ -1261,26 +1378,40 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
                 for row_data in records:
 
                     rank = row_data[rank_idx] if rank_idx < len(row_data) else "-"
+                    student_name = row_data[0]
+                    adm_no = None
+                    if student_name:
+                        self.db.cursor().execute(
+                            "SELECT adm_no FROM students WHERE name = ? AND UPPER(grade) = UPPER(?)",
+                            (student_name, self.class_name),
+                        )
+                        row_match = self.db.cursor().fetchone()
+                        if row_match:
+                            adm_no = row_match[0]
 
-                    self.add_student_row_with_data(row_data, rank)
+                    self.add_student_row_with_data(row_data, rank, adm_no=adm_no)
 
             # Update scrollregion after all rows are added
 
-            self.canvas.after(
-                100, lambda: self._update_scrollregion()
-            )
-
+            self.canvas.after(100, lambda: self._update_scrollregion())
 
         except Exception as e:
 
             print(f"Loading/Sorting Error: {e}")
 
     def save_primary_marks(self, skip_reload=False):
+        # Force focus away from any entry widget to commit values
+        # More robust approach for executable environment
+        try:
+            self.table_inner.focus_set()
+            # Also try to focus on the window to ensure all widgets commit
+            if hasattr(self, "focus"):
+                self.focus()
+        except:
+            pass
 
         success_count = 0
-
         subjects = self.get_subjects_from_json()
-
         num_subs = len(subjects)
 
         try:
@@ -1291,87 +1422,143 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
             all_widgets = self.table_inner.grid_slaves()
 
+            print(f"DEBUG: Total widgets found: {len(all_widgets)}")
+
             if not all_widgets:
 
                 return
 
-            # Group widgets by row
-
+            # Group widgets by row (store as list of widgets)
             rows = {}
-
             for w in all_widgets:
-
-                row = w.grid_info()["row"]
-
-                if row < 2:  # Skip header rows (0 and 1)
-
-                    continue
-
+                row = int(w.grid_info()["row"])
                 if row not in rows:
-
                     rows[row] = []
-
                 rows[row].append(w)
 
+            print(f"DEBUG: Total rows found: {len(rows)}")
+            print(f"DEBUG: Row indices: {sorted(rows.keys())}")
+
             for row_idx in sorted(rows.keys()):
+                print(f"DEBUG: Processing row {row_idx}")
 
                 widgets = rows[row_idx]
 
-                # Sort widgets by column
+                # Build a mapping column->widget for robust access
+                col_map = {int(w.grid_info()["column"]): w for w in widgets}
 
-                widgets.sort(key=lambda w: int(w.grid_info()["column"]))
-
-                if not widgets:
-
+                if not col_map:
                     continue
 
                 # Get Student Name (column 0)
-
-                name_widget = widgets[0]
-
-                if not hasattr(name_widget, "cget"):
-
+                name_widget = col_map.get(0)
+                if not name_widget or not hasattr(name_widget, "cget"):
+                    print(f"DEBUG: Row {row_idx}: Name widget missing or invalid")
                     continue
-
                 student_name = name_widget.cget("text")
+
+                print(f"DEBUG: Row {row_idx}: Student name: {student_name}")
 
                 if student_name == "STUDENT NAME":
 
+                    print(f"DEBUG: Row {row_idx}: Skipping header row")
                     continue
 
-                # Get Admission Number
+                # Get Admission Number (prefer the one attached to the row widget)
 
-                self.db._cursor.execute(
-                    "SELECT adm_no FROM students WHERE name = ?", (student_name,)
-                )
+                student_adm_no = getattr(name_widget, "_student_adm_no", None)
 
-                res = self.db._cursor.fetchone()
+                print(f"DEBUG: Row {row_idx}: Widget admission number: {student_adm_no}")
 
-                if not res:
+                if not student_adm_no:
 
-                    continue
+                    print(f"DEBUG: Row {row_idx}: No widget admission number, falling back to name lookup")
 
-                adm_no = res[0]
+                    self.db.cursor().execute(
+                        "SELECT adm_no FROM students WHERE name = ? AND UPPER(grade) = UPPER(?)",
+                        (student_name, self.class_name)
+                    )
 
-                # 1. Collect dynamic marks from Entry boxes
+                    res = self.db.cursor().fetchone()
 
-                # We skip index 0 (Name) and take the next (num_subs * 2) widgets
+                    if not res:
 
+                        print(
+                            f"DEBUG: Row {row_idx}: No admission number found for {student_name} with grade {self.class_name}"
+                        )
+                        continue
+
+                    student_adm_no = res[0]
+
+                    print(f"DEBUG: Row {row_idx}: Found admission number via name+grade lookup: {student_adm_no}")
+
+                adm_no = student_adm_no
+
+                print(f"DEBUG: Row {row_idx}: Using admission number: {adm_no}")
+
+                # 1. Collect dynamic marks from Entry boxes by expected column indices
                 marks_data = []
+                for i in range(num_subs):
+                    score_col = 1 + (i * 2)
+                    rate_col = score_col + 1
+                    # Score
+                    w_score = col_map.get(score_col)
+                    try:
+                        val_score = (
+                            w_score.get().strip()
+                            if (w_score and hasattr(w_score, "get"))
+                            else None
+                        )
+                    except:
+                        val_score = None
+                    # Rate
+                    w_rate = col_map.get(rate_col)
+                    try:
+                        val_rate = (
+                            w_rate.get().strip()
+                            if (w_rate and hasattr(w_rate, "get"))
+                            else None
+                        )
+                    except:
+                        val_rate = None
+                    marks_data.extend(
+                        [
+                            val_score if val_score != "" else None,
+                            val_rate if val_rate != "" else None,
+                        ]
+                    )
 
-                for i in range(1, (num_subs * 2) + 1):
-
-                    val = widgets[i].get()
-
-                    marks_data.append(val if val != "" else None)
+                print(
+                    f"DEBUG: Row {row_idx}: Marks data length: {len(marks_data)}, Expected: {num_subs * 2}"
+                )
 
                 # 2. Collect Totals and Level (The last 3 widgets are Total, Level, Pos)
 
                 # Position is not saved in the marks table, only Total and Level
 
-                total_val = widgets[-3].get()
+                # Totals and level columns
+                total_col = 1 + (num_subs * 2)
+                lvl_col = total_col + 1
+                w_total = col_map.get(total_col)
+                w_lvl = col_map.get(lvl_col)
+                try:
+                    total_val = (
+                        w_total.get().strip()
+                        if (w_total and hasattr(w_total, "get"))
+                        else None
+                    )
+                except:
+                    total_val = None
+                try:
+                    lvl_val = (
+                        w_lvl.get().strip()
+                        if (w_lvl and hasattr(w_lvl, "get"))
+                        else None
+                    )
+                except:
+                    lvl_val = None
 
-                lvl_val = widgets[-2].get()
+                print(f"DEBUG: Row {row_idx}: Total: {total_val}, Level: {lvl_val}")
 
                 # 3. DYNAMIC SQL QUERY
 
@@ -1403,11 +1590,14 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
                 final_data = [adm_no] + marks_data + [total_val, lvl_val]
 
-                self.db._cursor.execute(query, final_data)
+                self.db.cursor().execute(query, final_data)
+                print(f"DEBUG: Row {row_idx}: SQL executed successfully for {student_name}")
 
                 success_count += 1
 
+            print(f"DEBUG: Committing to database. Total students saved: {success_count}")
             self.db.conn.commit()
+            print(f"DEBUG: Database commit successful")
 
             # Calculate and save rankings
 
@@ -1450,22 +1640,22 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
             sum_query = " + ".join(clean_names)
 
-            self.db._cursor.execute(
+            self.db.cursor().execute(
                 f"UPDATE primary_marks SET total_points = ({sum_query})"
             )
 
             # Get all students for this class sorted by total_points descending
 
-            self.db._cursor.execute(
+            self.db.cursor().execute(
                 """
 
-                SELECT pm.adm_no, pm.total_points 
+                SELECT pm.adm_no, pm.total_points
 
                 FROM primary_marks pm
 
                 JOIN students s ON pm.adm_no = s.adm_no
 
-                WHERE s.grade = ?
+                WHERE UPPER(s.grade) = UPPER(?)
 
                 ORDER BY pm.total_points DESC
 
@@ -1473,7 +1663,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
                 (self.class_name,),
             )
 
-            students = self.db._cursor.fetchall()
+            students = self.db.cursor().fetchall()
 
             # Assign ranks starting from 1
 
@@ -1489,7 +1679,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
                     prev_score = score
 
-                self.db._cursor.execute(
+                self.db.cursor().execute(
                     "UPDATE primary_marks SET rank = ? WHERE adm_no = ?",
                     (current_rank, adm_no),
                 )
@@ -1680,14 +1870,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
                 rows[row][col] = widget
 
-            # Skip header rows (0 and 1)
-
             for row in sorted(rows.keys()):
-
-                if row < 2:
-
-                    continue
-
                 row_widgets = rows[row]
 
                 if not row_widgets:
@@ -1794,8 +1977,8 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
                     # Clear DB marks
 
-                    self.db._cursor.execute(
-                        "DELETE FROM primary_marks WHERE adm_no IN (SELECT adm_no FROM students WHERE grade = ?)",
+                    self.db.cursor().execute(
+                        "DELETE FROM primary_marks WHERE adm_no IN (SELECT adm_no FROM students WHERE UPPER(grade) = UPPER(?))",
                         (self.class_name,),
                     )
 
@@ -1874,15 +2057,15 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
             LEFT JOIN primary_marks m ON s.adm_no = m.adm_no
 
-            WHERE s.grade = ?
+            WHERE UPPER(s.grade) = UPPER(?)
 
             ORDER BY CASE WHEN m.rank IS NULL THEN 1 ELSE 0 END, m.rank ASC
 
         """
 
-        self.db._cursor.execute(query, (self.class_name,))
+        self.db.cursor().execute(query, (self.class_name,))
 
-        records = self.db._cursor.fetchall()
+        records = self.db.cursor().fetchall()
 
         # Convert to JSON
 
@@ -1935,13 +2118,13 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
             LEFT JOIN primary_marks m ON s.adm_no = m.adm_no
 
-            WHERE s.grade = ?
+            WHERE UPPER(s.grade) = UPPER(?)
 
         """
 
-        self.db._cursor.execute(query, (self.class_name,))
+        self.db.cursor().execute(query, (self.class_name,))
 
-        rows = self.db._cursor.fetchall()
+        rows = self.db.cursor().fetchall()
 
         for row in rows:
 
@@ -2009,13 +2192,13 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
                 JOIN students s ON m.adm_no = s.adm_no
 
-                WHERE s.grade = ?
+                WHERE UPPER(s.grade) = UPPER(?)
 
             """
 
-            self.db._cursor.execute(query, (self.class_name,))
+            self.db.cursor().execute(query, (self.class_name,))
 
-            subject_rows = self.db._cursor.fetchall()
+            subject_rows = self.db.cursor().fetchall()
 
             for score_row in subject_rows:
 

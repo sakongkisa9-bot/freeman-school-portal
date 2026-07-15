@@ -206,8 +206,6 @@ class CloudService:
             return {"success": False, "message": "No newsletter data available"}
         payload = {
             "school_code": credentials["school_code"],
-            "username": credentials["username"],
-            "password": credentials["password"],
             "newsletter": newsletter_data,
         }
         print(f"DEBUG: Sending newsletter with subject: {newsletter_data.get('subject')}")
@@ -264,13 +262,31 @@ def apply_cloud_records_to_table(
             break
     
     if has_grid_info:
+        # Check if this is Junior marksheet (separate header frame)
+        # Junior marksheet has headers in a separate header_frame, so student rows start at row 0
+        # Other marksheets have headers in the same frame, so student rows start at row 2
+        has_header_in_frame = False
+        for child in direct_children:
+            if hasattr(child, "winfo_children"):
+                for w in child.winfo_children():
+                    try:
+                        if w.cget("text") == "STUDENT NAME":
+                            has_header_in_frame = True
+                            break
+                    except:
+                        continue
+            if has_header_in_frame:
+                break
+        
         # Grid-based layout (Junior marksheet)
         for child in direct_children:
             info = child.grid_info()
             r_idx = info.get("row")
             
-            # Skip header rows (0 and 1)
-            if r_idx is None or r_idx < 2:
+            # Skip header rows (0 and 1) only if headers are in the same frame
+            if r_idx is None:
+                continue
+            if has_header_in_frame and r_idx < 2:
                 continue
                 
             if r_idx not in rows:
@@ -287,8 +303,25 @@ def apply_cloud_records_to_table(
                 # Direct widget (for PP1 style)
                 rows[r_idx].append(child)
     else:
-        # Pack-based layout (PP2 marksheet) - assign row indices based on order
-        row_idx = 2  # Start after header rows
+        # Pack-based layout (PP2, Playgroup marksheet) - assign row indices based on order
+        # Check if headers are in the same frame (start at row 2) or separate (start at row 0)
+        has_header_in_frame = False
+        for child in direct_children:
+            if hasattr(child, "winfo_children"):
+                widgets_in_child = child.winfo_children()
+                if widgets_in_child:
+                    # Check if this looks like a header (has "STUDENT NAME" label)
+                    for w in widgets_in_child:
+                        try:
+                            if w.cget("text") == "STUDENT NAME":
+                                has_header_in_frame = True
+                                break
+                        except:
+                            continue
+            if has_header_in_frame:
+                break
+        
+        row_idx = 2 if has_header_in_frame else 0  # Start after header rows if headers in same frame
         for child in direct_children:
             # Skip header frames
             if hasattr(child, "winfo_children"):
@@ -414,14 +447,15 @@ def apply_cloud_records_to_table(
                                 w.configure(state=curr_state)
                             break
 
-            # Fill in total_points and average_level in the summary columns
-            total_points = record.get("total_points", "0")
-            average_level = record.get("average_level", "")
-            
+            # Fill in total_points/total_scores in the summary columns
+            # Note: average_level is NOT filled from cloud - it will be recalculated locally
+            # JSS uses total_points, other grades use total_scores
+            total_points = record.get("total_points", record.get("total_scores", "0"))
+
             # Summary columns start after all subject columns
             total_start_col = 1 + (len(subjects) * columns_per_subject)
-            print(f"DEBUG: Filling totals for {raw_name}, total_start_col={total_start_col}, total_points={total_points}, avg_level={average_level}")
-            
+            print(f"DEBUG: Filling totals for {raw_name}, total_start_col={total_start_col}, total_points={total_points}")
+
             # Fill total_points column
             tot_found = False
             for w in widgets:
@@ -438,30 +472,6 @@ def apply_cloud_records_to_table(
                     break
             if not tot_found:
                 print(f"DEBUG: Could not find widget at column {total_start_col} for total_points")
-            
-            # Fill average_level column
-            avg_found = False
-            for w in widgets:
-                col = w.grid_info().get("column")
-                if col is not None and int(col) == total_start_col + 1:
-                    # Handle both Entry and Label widgets
-                    if hasattr(w, "delete"):
-                        # Entry widget
-                        curr_state = w.cget("state")
-                        w.configure(state="normal")
-                        w.delete(0, "end")
-                        w.insert(0, str(average_level))
-                        w.configure(state=curr_state)
-                        avg_found = True
-                        print(f"DEBUG: Filled average_level (Entry) at column {col}")
-                    elif hasattr(w, "configure"):
-                        # Label widget
-                        w.configure(text=str(average_level))
-                        avg_found = True
-                        print(f"DEBUG: Filled average_level (Label) at column {col}")
-                    break
-            if not avg_found:
-                print(f"DEBUG: Could not find widget at column {total_start_col + 1} for average_level")
 
             filled_count += 1
             print(f"✅ Sync Successful: {raw_name}")

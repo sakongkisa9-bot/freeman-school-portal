@@ -11,10 +11,40 @@ class UpdateManager:
     """Manages system updates for remote deployment"""
     
     def __init__(self):
-        self.version_file = os.path.join(
-            os.path.dirname(os.path.realpath(__file__)), "version.json"
-        )
+        # Handle both development and executable environments
+        if getattr(sys, 'frozen', False):
+            # Running as executable
+            BASE_DIR = sys._MEIPASS
+            USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
+            os.makedirs(USER_DATA_DIR, exist_ok=True)
+            
+            # Copy config files from bundled location to user data directory if they don't exist
+            self._initialize_config_files(BASE_DIR, USER_DATA_DIR)
+        else:
+            # Running as script
+            BASE_DIR = os.path.dirname(os.path.realpath(__file__))
+            USER_DATA_DIR = BASE_DIR
+        
+        self.version_file = os.path.join(USER_DATA_DIR, "version.json")
+        self.config_file = os.path.join(USER_DATA_DIR, "update_config.json")
+        self.temp_dir = os.path.join(USER_DATA_DIR, "temp_updates")
+        self.backup_dir = os.path.join(USER_DATA_DIR, "backup")
         self.current_version = self.get_current_version()
+    
+    def _initialize_config_files(self, bundled_dir, user_data_dir):
+        """Copy config files from bundled location to user data directory if they don't exist"""
+        config_files = ['update_config.json', 'version.json']
+        
+        for config_file in config_files:
+            bundled_path = os.path.join(bundled_dir, config_file)
+            user_path = os.path.join(user_data_dir, config_file)
+            
+            if not os.path.exists(user_path) and os.path.exists(bundled_path):
+                try:
+                    shutil.copy2(bundled_path, user_path)
+                    print(f"[UpdateManager] Copied {config_file} from bundled to user data directory")
+                except Exception as e:
+                    print(f"[UpdateManager] Failed to copy {config_file}: {e}")
     
     def get_current_version(self):
         """Get current version from version.json"""
@@ -45,11 +75,16 @@ class UpdateManager:
                 remote_version = remote_version_data.get("version", "1.0.0")
                 
                 if self.is_newer_version(remote_version):
+                    # Use download_url from server if available, otherwise construct default
+                    download_url = remote_version_data.get("download_url")
+                    if not download_url:
+                        download_url = f"{update_url}freeman_update_{remote_version}.zip"
+                    
                     return True, {
                         "current_version": self.current_version,
                         "new_version": remote_version,
                         "changelog": remote_version_data.get("changelog", ""),
-                        "download_url": f"{update_url}freeman_update_{remote_version}.zip"
+                        "download_url": download_url
                     }
                 else:
                     return False, "System is up to date"
@@ -85,12 +120,8 @@ class UpdateManager:
             total_size = int(response.headers.get('content-length', 0))
             
             # Create temp directory for download
-            temp_dir = os.path.join(
-                os.path.dirname(os.path.realpath(__file__)), "temp_updates"
-            )
-            os.makedirs(temp_dir, exist_ok=True)
-            
-            update_file = os.path.join(temp_dir, "update.zip")
+            os.makedirs(self.temp_dir, exist_ok=True)
+            update_file = os.path.join(self.temp_dir, "update.zip")
             
             downloaded = 0
             with open(update_file, 'wb') as f:
@@ -110,17 +141,19 @@ class UpdateManager:
         """Install downloaded update"""
         try:
             # Create backup directory
-            backup_dir = os.path.join(
-                os.path.dirname(os.path.realpath(__file__)), "backup"
-            )
-            os.makedirs(backup_dir, exist_ok=True)
+            os.makedirs(self.backup_dir, exist_ok=True)
+            
+            # Get current directory
+            if getattr(sys, 'frozen', False):
+                current_dir = sys._MEIPASS
+            else:
+                current_dir = os.path.dirname(os.path.realpath(__file__))
             
             # Backup current files
-            current_dir = os.path.dirname(os.path.realpath(__file__))
             for item in os.listdir(current_dir):
                 item_path = os.path.join(current_dir, item)
                 if os.path.isfile(item_path) and not item.endswith('.db'):
-                    shutil.copy2(item_path, os.path.join(backup_dir, item))
+                    shutil.copy2(item_path, os.path.join(self.backup_dir, item))
             
             # Extract update
             with zipfile.ZipFile(update_file, 'r') as zip_ref:
@@ -157,11 +190,8 @@ class UpdateManager:
     def load_config(self):
         """Load update configuration"""
         try:
-            config_path = os.path.join(
-                os.path.dirname(os.path.realpath(__file__)), "update_config.json"
-            )
-            if os.path.exists(config_path):
-                with open(config_path, "r") as f:
+            if os.path.exists(self.config_file):
+                with open(self.config_file, "r") as f:
                     return json.load(f)
         except Exception:
             pass
@@ -170,10 +200,7 @@ class UpdateManager:
     def cleanup(self):
         """Clean up temporary files"""
         try:
-            temp_dir = os.path.join(
-                os.path.dirname(os.path.realpath(__file__)), "temp_updates"
-            )
-            if os.path.exists(temp_dir):
-                shutil.rmtree(temp_dir)
+            if os.path.exists(self.temp_dir):
+                shutil.rmtree(self.temp_dir)
         except Exception:
             pass

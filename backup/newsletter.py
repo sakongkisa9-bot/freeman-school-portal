@@ -525,8 +525,8 @@ class NewsletterCreator(ctk.CTkToplevel):
     def _get_class_options(self):
         """Get available class/grade options from database"""
         try:
-            self.db._cursor.execute("SELECT DISTINCT grade FROM students WHERE grade IS NOT NULL ORDER BY grade")
-            classes = [row[0] for row in self.db._cursor.fetchall()]
+            self.db.cursor().execute("SELECT DISTINCT grade FROM students WHERE grade IS NOT NULL ORDER BY grade")
+            classes = [row[0] for row in self.db.cursor().fetchall()]
             if classes:
                 return ["All Classes"] + classes
             return ["All Classes"]
@@ -576,11 +576,11 @@ class NewsletterCreator(ctk.CTkToplevel):
     def _get_students_for_class(self, class_name):
         """Get list of student names for a specific class"""
         try:
-            self.db._cursor.execute(
+            self.db.cursor().execute(
                 "SELECT name FROM students WHERE grade = ? ORDER BY name",
                 (class_name,)
             )
-            students = [row[0] for row in self.db._cursor.fetchall()]
+            students = [row[0] for row in self.db.cursor().fetchall()]
             return students if students else []
         except Exception as e:
             print(f"Error fetching students for class {class_name}: {e}")
@@ -602,11 +602,11 @@ class NewsletterCreator(ctk.CTkToplevel):
     def _get_streams_for_class(self, class_name):
         """Get list of stream names for a specific class"""
         try:
-            self.db._cursor.execute(
+            self.db.cursor().execute(
                 "SELECT DISTINCT stream FROM students WHERE grade = ? AND stream IS NOT NULL AND stream != '' ORDER BY stream",
                 (class_name,)
             )
-            streams = [row[0] for row in self.db._cursor.fetchall()]
+            streams = [row[0] for row in self.db.cursor().fetchall()]
             return streams if streams else []
         except Exception as e:
             print(f"Error fetching streams for class {class_name}: {e}")
@@ -1152,7 +1152,6 @@ class NewsletterCreator(ctk.CTkToplevel):
                 "Parents can now view it in their portal app.\n"
                 "SMS notifications have been queued."
             )
-            self.destroy()
             
         except Exception as e:
             messagebox.showerror("Publish Error", f"Could not publish to portal: {e}")
@@ -1161,7 +1160,7 @@ class NewsletterCreator(ctk.CTkToplevel):
         """Sync newsletter to cloud portal"""
         try:
             # Get cloud credentials
-            credentials = ask_cloud_credentials(self)
+            credentials = ask_cloud_credentials(parent=self)
             if not credentials:
                 print("Cloud sync cancelled - no credentials provided")
                 return
@@ -1203,7 +1202,7 @@ class NewsletterCreator(ctk.CTkToplevel):
         """Save circular to database"""
         try:
             # Create newsletters table if it doesn't exist
-            self.db._cursor.execute("""
+            self.db.cursor().execute("""
                 CREATE TABLE IF NOT EXISTS newsletters (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     subject TEXT NOT NULL,
@@ -1221,7 +1220,7 @@ class NewsletterCreator(ctk.CTkToplevel):
             """)
             
             # Insert the newsletter
-            self.db._cursor.execute("""
+            self.db.cursor().execute("""
                 INSERT INTO newsletters (
                     subject, body, target_type, class_context, recipient_role,
                     attachment_path, send_email, send_sms, is_draft, sent_at
@@ -1248,13 +1247,41 @@ class NewsletterCreator(ctk.CTkToplevel):
     def _load_school_config(self):
         """Load school configuration for letterhead"""
         try:
-            current_dir = os.path.dirname(os.path.realpath(__file__))
-            json_path = os.path.join(current_dir, "school_config.json")
-            if os.path.exists(json_path):
-                with open(json_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
+            import sys
+            
+            # Try multiple locations for the config file
+            config_locations = []
+            
+            # 1. User data directory (for executable)
+            if getattr(sys, 'frozen', False):
+                user_data_dir = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
+                config_locations.append(os.path.join(user_data_dir, "school_config.json"))
+                # Also try the bundled location
+                config_locations.append(os.path.join(sys._MEIPASS, "school_config.json"))
+            
+            # 2. Script directory (for development)
+            script_dir = os.path.dirname(os.path.realpath(__file__))
+            config_locations.append(os.path.join(script_dir, "school_config.json"))
+            
+            # 3. Parent directory (in case script is in a subdirectory)
+            parent_dir = os.path.dirname(script_dir)
+            config_locations.append(os.path.join(parent_dir, "school_config.json"))
+            
+            # Try each location
+            for config_path in config_locations:
+                if os.path.exists(config_path):
+                    with open(config_path, "r", encoding="utf-8") as f:
+                        config = json.load(f)
+                        print(f"Loaded school config from: {config_path}")
+                        return config
+            
+            print("Warning: school_config.json not found in any location")
+            
         except Exception as e:
             print(f"Error loading school config: {e}")
+            import traceback
+            traceback.print_exc()
+        
         return {}
     
     def _generate_pdf(self, subject, body):
@@ -1263,7 +1290,7 @@ class NewsletterCreator(ctk.CTkToplevel):
             from reportlab.lib.pagesizes import A4
             from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
             from reportlab.lib.units import inch
-            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Image
             from reportlab.lib import colors
             from reportlab.pdfbase import pdfmetrics
             from reportlab.pdfbase.ttfonts import TTFont
@@ -1284,8 +1311,15 @@ class NewsletterCreator(ctk.CTkToplevel):
             school_name = school_config.get("school_name", "School Name")
             school_address = school_config.get("address", "School Address")
             school_phone = school_config.get("contacts", "")
+            school_logo = school_config.get("logo", "")
+            school_administrator = school_config.get("school_administrator", "")
+            system_password = school_config.get("system_password", "")
+            cloud_teacher_password = school_config.get("cloud_teacher_password", "")
             paybill = school_config.get("paybill", "")
             term_dates = school_config.get("term_dates", "")
+            # Get signature path from config
+            signatures = school_config.get("signatures", {})
+            signature_path = signatures.get("headteacher", "")
             
             # Custom styles
             title_style = ParagraphStyle(
@@ -1316,7 +1350,17 @@ class NewsletterCreator(ctk.CTkToplevel):
                 leading=14
             )
             
-            # School letterhead
+            # School letterhead with logo
+            if school_logo and os.path.exists(school_logo):
+                try:
+                    # Add logo image
+                    logo = Image(school_logo, width=1.5*inch, height=1.5*inch)
+                    logo.hAlign = 'CENTER'
+                    story.append(logo)
+                    story.append(Spacer(1, 0.1*inch))
+                except Exception as e:
+                    print(f"Error loading logo: {e}")
+            
             story.append(Paragraph(school_name.upper(), title_style))
             story.append(Paragraph(school_address, header_style))
             if school_phone:
@@ -1349,9 +1393,23 @@ class NewsletterCreator(ctk.CTkToplevel):
             
             story.append(Spacer(1, 0.5*inch))
             
-            # Signature block
-            story.append(Paragraph("<b>_____________________</b>", body_style))
-            story.append(Paragraph("<i>Principal / Head Teacher</i>", body_style))
+            # Signature block with school administrator info
+            # Add signature image if available
+            if signature_path and os.path.exists(signature_path):
+                try:
+                    signature = Image(signature_path, width=2*inch, height=1*inch)
+                    signature.hAlign = 'LEFT'
+                    story.append(signature)
+                except Exception as e:
+                    print(f"Error loading signature: {e}")
+                    story.append(Paragraph("<b>_____________________</b>", body_style))
+            else:
+                story.append(Paragraph("<b>_____________________</b>", body_style))
+            
+            if school_administrator:
+                story.append(Paragraph(f"<b>{school_administrator.upper()}</b>", body_style))
+            else:
+                story.append(Paragraph("<b>Principal / Head Teacher</b>", body_style))
             
             # Build PDF
             doc.build(story)
@@ -1368,7 +1426,7 @@ class NewsletterCreator(ctk.CTkToplevel):
         """Insert circular into portal_announcements table"""
         try:
             # Create portal_announcements table if it doesn't exist
-            self.db._cursor.execute("""
+            self.db.cursor().execute("""
                 CREATE TABLE IF NOT EXISTS portal_announcements (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     newsletter_id INTEGER,
@@ -1384,14 +1442,14 @@ class NewsletterCreator(ctk.CTkToplevel):
             """)
             
             # Get the newsletter_id from the last insert
-            self.db._cursor.execute("SELECT last_insert_rowid()")
-            newsletter_id = self.db._cursor.fetchone()[0]
+            self.db.cursor().execute("SELECT last_insert_rowid()")
+            newsletter_id = self.db.cursor().fetchone()[0]
             
             # Get target class IDs based on selection
             target_class_ids = self._get_target_class_ids()
             
             # Insert into portal_announcements
-            self.db._cursor.execute("""
+            self.db.cursor().execute("""
                 INSERT INTO portal_announcements (
                     newsletter_id, subject, body, target_type, 
                     class_context, recipient_role, attachment_path
@@ -1407,8 +1465,8 @@ class NewsletterCreator(ctk.CTkToplevel):
             ))
             
             # Get the portal_announcement_id
-            self.db._cursor.execute("SELECT last_insert_rowid()")
-            announcement_id = self.db._cursor.fetchone()[0]
+            self.db.cursor().execute("SELECT last_insert_rowid()")
+            announcement_id = self.db.cursor().fetchone()[0]
             
             # Link announcement to target classes
             if target_class_ids:
@@ -1431,8 +1489,8 @@ class NewsletterCreator(ctk.CTkToplevel):
             
             if target_type == "All School" or class_context == "All Classes":
                 # Return all class IDs
-                self.db._cursor.execute("SELECT DISTINCT grade FROM students WHERE grade IS NOT NULL")
-                return [row[0] for row in self.db._cursor.fetchall()]
+                self.db.cursor().execute("SELECT DISTINCT grade FROM students WHERE grade IS NOT NULL")
+                return [row[0] for row in self.db.cursor().fetchall()]
             elif target_type == "Individual Student":
                 # For individual student, return the class but we'll handle student filtering separately
                 return [class_context]
@@ -1451,7 +1509,7 @@ class NewsletterCreator(ctk.CTkToplevel):
         """Link announcement to target classes in junction table"""
         try:
             # Create junction table if it doesn't exist
-            self.db._cursor.execute("""
+            self.db.cursor().execute("""
                 CREATE TABLE IF NOT EXISTS announcement_class_links (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     announcement_id INTEGER,
@@ -1462,7 +1520,7 @@ class NewsletterCreator(ctk.CTkToplevel):
             
             # Insert links
             for class_name in class_ids:
-                self.db._cursor.execute("""
+                self.db.cursor().execute("""
                     INSERT INTO announcement_class_links (announcement_id, class_name)
                     VALUES (?, ?)
                 """, (announcement_id, class_name))
@@ -1474,7 +1532,7 @@ class NewsletterCreator(ctk.CTkToplevel):
         """Queue email notifications for background processing"""
         try:
             # Create email_queue table if it doesn't exist
-            self.db._cursor.execute("""
+            self.db.cursor().execute("""
                 CREATE TABLE IF NOT EXISTS email_queue (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     newsletter_id INTEGER,
@@ -1489,8 +1547,8 @@ class NewsletterCreator(ctk.CTkToplevel):
             """)
             
             # Get newsletter_id from last insert
-            self.db._cursor.execute("SELECT last_insert_rowid()")
-            newsletter_id = self.db._cursor.fetchone()[0]
+            self.db.cursor().execute("SELECT last_insert_rowid()")
+            newsletter_id = self.db.cursor().fetchone()[0]
             
             # Get recipient emails based on selection
             recipients = self._get_recipient_emails()
@@ -1499,7 +1557,7 @@ class NewsletterCreator(ctk.CTkToplevel):
             
             # Queue emails
             for email in recipients:
-                self.db._cursor.execute("""
+                self.db.cursor().execute("""
                     INSERT INTO email_queue (newsletter_id, recipient_email, subject, body)
                     VALUES (?, ?, ?, ?)
                 """, (newsletter_id, email, subject, body))
@@ -1514,7 +1572,7 @@ class NewsletterCreator(ctk.CTkToplevel):
         """Queue SMS notifications for background processing"""
         try:
             # Create sms_queue table if it doesn't exist
-            self.db._cursor.execute("""
+            self.db.cursor().execute("""
                 CREATE TABLE IF NOT EXISTS sms_queue (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     newsletter_id INTEGER,
@@ -1528,8 +1586,8 @@ class NewsletterCreator(ctk.CTkToplevel):
             """)
             
             # Get newsletter_id from last insert
-            self.db._cursor.execute("SELECT last_insert_rowid()")
-            newsletter_id = self.db._cursor.fetchone()[0]
+            self.db.cursor().execute("SELECT last_insert_rowid()")
+            newsletter_id = self.db.cursor().fetchone()[0]
             
             # Get recipient phone numbers based on selection
             recipients = self._get_recipient_phones()
@@ -1541,7 +1599,7 @@ class NewsletterCreator(ctk.CTkToplevel):
             
             # Queue SMS
             for phone in recipients:
-                self.db._cursor.execute("""
+                self.db.cursor().execute("""
                     INSERT INTO sms_queue (newsletter_id, recipient_phone, message)
                     VALUES (?, ?, ?)
                 """, (newsletter_id, phone, sms_message))
@@ -1574,8 +1632,8 @@ class NewsletterCreator(ctk.CTkToplevel):
                 query += " AND grade = ?"
                 params.append(class_context)
             
-            self.db._cursor.execute(query, params)
-            return [row[0] for row in self.db._cursor.fetchall() if row[0]]
+            self.db.cursor().execute(query, params)
+            return [row[0] for row in self.db.cursor().fetchall() if row[0]]
             
         except Exception as e:
             print(f"Error getting recipient emails: {e}")
@@ -1603,8 +1661,8 @@ class NewsletterCreator(ctk.CTkToplevel):
                 query += " AND grade = ?"
                 params.append(class_context)
             
-            self.db._cursor.execute(query, params)
-            return [row[0] for row in self.db._cursor.fetchall() if row[0]]
+            self.db.cursor().execute(query, params)
+            return [row[0] for row in self.db.cursor().fetchall() if row[0]]
             
         except Exception as e:
             print(f"Error getting recipient phones: {e}")
@@ -1614,7 +1672,7 @@ class NewsletterCreator(ctk.CTkToplevel):
         """Create notification entries for all students in target classes"""
         try:
             # Create parent_view_status table if it doesn't exist
-            self.db._cursor.execute("""
+            self.db.cursor().execute("""
                 CREATE TABLE IF NOT EXISTS parent_view_status (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     student_id INTEGER NOT NULL,
@@ -1634,11 +1692,11 @@ class NewsletterCreator(ctk.CTkToplevel):
                 student_name = self.recipient_role_var.get()
                 class_context = self.class_context_var.get()
                 
-                self.db._cursor.execute(
+                self.db.cursor().execute(
                     "SELECT id FROM students WHERE name = ? AND grade = ?",
                     (student_name, class_context)
                 )
-                student_row = self.db._cursor.fetchone()
+                student_row = self.db.cursor().fetchone()
                 
                 if student_row:
                     student_ids = [student_row[0]]
@@ -1649,26 +1707,26 @@ class NewsletterCreator(ctk.CTkToplevel):
                 stream_name = self.recipient_role_var.get()
                 class_context = self.class_context_var.get()
                 
-                self.db._cursor.execute(
+                self.db.cursor().execute(
                     "SELECT id FROM students WHERE grade = ? AND stream = ?",
                     (class_context, stream_name)
                 )
-                student_ids = [row[0] for row in self.db._cursor.fetchall()]
+                student_ids = [row[0] for row in self.db.cursor().fetchall()]
             elif "All Classes" in class_ids or len(class_ids) == 0:
                 # Get all students
-                self.db._cursor.execute("SELECT id FROM students")
-                student_ids = [row[0] for row in self.db._cursor.fetchall()]
+                self.db.cursor().execute("SELECT id FROM students")
+                student_ids = [row[0] for row in self.db.cursor().fetchall()]
             else:
                 # Get students in specific classes
                 student_ids = []
                 for class_name in class_ids:
-                    self.db._cursor.execute("SELECT id FROM students WHERE grade = ?", (class_name,))
-                    student_ids.extend([row[0] for row in self.db._cursor.fetchall()])
+                    self.db.cursor().execute("SELECT id FROM students WHERE grade = ?", (class_name,))
+                    student_ids.extend([row[0] for row in self.db.cursor().fetchall()])
             
             # Create notification entries for each student
             for student_id in student_ids:
                 try:
-                    self.db._cursor.execute("""
+                    self.db.cursor().execute("""
                         INSERT OR IGNORE INTO parent_view_status (student_id, content_type, content_id, has_viewed)
                         VALUES (?, ?, ?, 0)
                     """, (student_id, content_type, content_id))

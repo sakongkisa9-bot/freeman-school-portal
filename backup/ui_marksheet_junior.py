@@ -13,6 +13,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.lib import colors
 import os
+import sys
 import json
 from tkinter import filedialog, messagebox
 from cloud_service import (
@@ -20,6 +21,25 @@ from cloud_service import (
     ask_cloud_credentials,
     apply_cloud_records_to_table,
 )
+
+
+def debug_log(*_args, **_kwargs):
+    """Compatibility stub for debug logging without a visible console."""
+    return None
+
+
+def get_app_dir():
+    """Get the application directory, handling both script and executable environments"""
+    if getattr(sys, "frozen", False):
+        # Running as executable
+        BASE_DIR = sys._MEIPASS
+        USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
+        os.makedirs(USER_DATA_DIR, exist_ok=True)
+    else:
+        # Running as script
+        BASE_DIR = os.path.dirname(os.path.realpath(__file__))
+        USER_DATA_DIR = BASE_DIR
+    return BASE_DIR, USER_DATA_DIR
 
 
 def calculate_junior_grade(score):
@@ -86,6 +106,9 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         self.marks_data = marks_data
         self.summary_data = summary_data
 
+        # Initialize proper paths for executable environment
+        self.BASE_DIR, self.USER_DATA_DIR = get_app_dir()
+
         # FIX: Load subjects from JSON immediately
         self.subjects = self.get_subjects_from_json()
         if self.read_only and self.exam_name:
@@ -93,11 +116,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         else:
             self.current_exam_title = "PERFORMANCE RECORD"
             try:
-                import json
-                import os
-
-                project_dir = os.path.dirname(os.path.realpath(__file__))
-                json_path = os.path.join(project_dir, "school_config.json")
+                json_path = os.path.join(self.USER_DATA_DIR, "school_config.json")
                 if os.path.exists(json_path):
                     with open(json_path, "r") as f:
                         config = json.load(f)
@@ -126,7 +145,9 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             self.scroll_container, bg="#242424", highlightthickness=0
         )
         self.h_scroll = ctk.CTkScrollbar(
-            self.scroll_container, orientation="horizontal", command=self._on_horizontal_scroll
+            self.scroll_container,
+            orientation="horizontal",
+            command=self._on_horizontal_scroll,
         )
         self.v_scroll = ctk.CTkScrollbar(
             self.scroll_container, orientation="vertical", command=self.canvas.yview
@@ -135,9 +156,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         self.canvas.configure(
             xscrollcommand=self._update_h_scroll, yscrollcommand=self.v_scroll.set
         )
-        self.header_canvas.configure(
-            xscrollcommand=self._update_h_scroll
-        )
+        self.header_canvas.configure(xscrollcommand=self._update_h_scroll)
         self.h_scroll.pack(side="bottom", fill="x")
         self.v_scroll.pack(side="right", fill="y")
         self.canvas.pack(side="left", fill="both", expand=True)
@@ -214,12 +233,13 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             # Update header canvas scrollregion (horizontal only)
             # Use the same width as content canvas to ensure synchronization
             if header_bbox:
-                self.header_canvas.configure(scrollregion=(0, 0, max_width, header_bbox[3]))
+                self.header_canvas.configure(
+                    scrollregion=(0, 0, max_width, header_bbox[3])
+                )
             else:
                 self.header_canvas.configure(scrollregion=(0, 0, max_width, 90))
         except Exception:
             pass
-
 
     def create_header_section(self):
         self.header_label = ctk.CTkLabel(
@@ -326,9 +346,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
 
     def add_student_row(self, student_data, row_index, read_only=False):
         # Create a frame for this row to hold all widgets
-        row_frame = ctk.CTkFrame(
-            self.table_inner_frame, fg_color="transparent"
-        )
+        row_frame = ctk.CTkFrame(self.table_inner_frame, fg_color="transparent")
         # Calculate total columns: name (1) + subjects*3 + totals*3
         total_columns = 1 + (len(self.subjects) * 3) + 3
         # Use sticky="ew" to expand horizontally only; height is determined by content
@@ -527,19 +545,27 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                 total_box.insert(0, str(total_points_sum))
                 total_box.configure(state="disabled")
 
-            # 3. Calculate Average Grade
-            mean_points = total_points_sum / num_subjects if total_points_sum > 0 else 0
-            # Use the same level codes expected by summary distribution
-            grades = [
-                (7.5, "EE1"),
-                (6.5, "EE2"),
-                (5.5, "ME1"),
-                (4.5, "ME2"),
-                (3.5, "AE1"),
-                (2.5, "AE2"),
-                (1.5, "BE1"),
-            ]
-            avg_grade = next((g for p, g in grades if mean_points >= p), "BE2")
+            # 3. Calculate Average Grade using dynamic thresholds based on number of subjects
+            # Scale thresholds: EE1=90% of max points, EE2=75%, ME1=58%, ME2=41%, AE1=31%, AE2=21%, BE1=11%
+            max_points_per_subject = 8  # Maximum points per subject (EE1)
+            max_total_points = num_subjects * max_points_per_subject
+
+            if max_total_points > 0:
+                # Calculate thresholds dynamically based on percentage of maximum possible points
+                thresholds = [
+                    (int(max_total_points * 0.90), "EE1"),  # 90% or higher
+                    (int(max_total_points * 0.75), "EE2"),  # 75% or higher
+                    (int(max_total_points * 0.58), "ME1"),  # 58% or higher
+                    (int(max_total_points * 0.41), "ME2"),  # 41% or higher
+                    (int(max_total_points * 0.31), "AE1"),  # 31% or higher
+                    (int(max_total_points * 0.21), "AE2"),  # 21% or higher
+                    (int(max_total_points * 0.11), "BE1"),  # 11% or higher
+                ]
+                avg_grade = next(
+                    (g for t, g in thresholds if total_points_sum >= t), "BE2"
+                )
+            else:
+                avg_grade = "BE2"
 
             # Update Average Level Box (inside row_frame)
             avg_widgets = row_frame.grid_slaves(row=0, column=total_box_col + 1)
@@ -578,12 +604,15 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                 query = (
                     f"SELECT s.name, {cols_string}, m.total_points, m.average_points, m.rank "
                     f"FROM students s LEFT JOIN marksheet m ON s.adm_no = m.adm_no "
-                    f"WHERE s.grade = ? "
+                    f"WHERE UPPER(s.grade) = UPPER(?) "
                     f"ORDER BY CASE WHEN m.rank IS NULL THEN 1 ELSE 0 END, m.rank ASC"
                 )
 
-                self.db._cursor.execute(query, (self.class_name,))
-                records = self.db._cursor.fetchall()
+                self.db.cursor().execute(query, (self.class_name,))
+                records = self.db.cursor().fetchall()
+                print(
+                    f"DEBUG: Loaded {len(records)} students for grade '{self.class_name}' from database"
+                )
 
             # 1. Clear the UI
             for child in self.table_inner_frame.winfo_children():
@@ -598,9 +627,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                 self.add_student_row(student, idx, read_only=self.read_only)
 
             # Update scrollregion after all rows are added
-            self.canvas.after(
-                100, lambda: self._update_scrollregion()
-            )
+            self.canvas.after(100, lambda: self._update_scrollregion())
 
         except Exception as e:
             print(f"Dynamic Load Error: {e}")
@@ -739,9 +766,8 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             "PRE-TECH",
         ]
 
-        # Force the path to the project folder
-        project_dir = os.path.dirname(os.path.realpath(__file__))
-        json_path = os.path.join(project_dir, "school_config.json")
+        # Use USER_DATA_DIR for config file (works in both script and executable)
+        json_path = os.path.join(self.USER_DATA_DIR, "school_config.json")
 
         try:
             if os.path.exists(json_path):
@@ -758,9 +784,8 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         from fpdf import FPDF
         import os
 
-        # 1. Force the correct Project Directory paths
-        project_dir = os.path.dirname(os.path.realpath(__file__))
-        json_path = os.path.join(project_dir, "school_config.json")
+        # 1. Use USER_DATA_DIR for config file (works in both script and executable)
+        json_path = os.path.join(self.USER_DATA_DIR, "school_config.json")
 
         # 2. Fetch Dynamic Data from JSON (Priority)
         school_name = "MY SCHOOL"
@@ -904,24 +929,35 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             messagebox.showerror("Error", f"PDF Generation Failed: {e}")
 
     def save_all_marks(self, skip_reload=False):
+        # Force focus away from any entry widget to commit values
+        self.table_inner_frame.focus_set()
+
+        debug_log("DEBUG: save_all_marks called")
         success_count = 0
         subjects = self.get_subjects_from_json()
         num_subs = len(subjects)
+        debug_log(f"DEBUG: Found {num_subs} subjects: {subjects}")
 
         # 1. Get all row indices currently in the grid
-        # We start from row 2 because rows 0 and 1 are headers
+        # Junior marksheet has headers in separate header_frame, student rows start from row 0
         all_widgets = self.table_inner_frame.grid_slaves()
+        debug_log(f"DEBUG: Found {len(all_widgets)} total widgets in table_inner_frame")
         if not all_widgets:
+            debug_log("DEBUG: No widgets found, returning")
             return
 
         # Find the highest row index to know how many students we have
         max_row = max(w.grid_info()["row"] for w in all_widgets)
+        debug_log(f"DEBUG: Max row index: {max_row}")
 
-        for r in range(2, max_row + 1):
+        for r in range(0, max_row + 1):
             try:
+                debug_log(f"DEBUG: Processing row {r}")
                 # 2. Find the Student Name Label in this row
                 row_frames = self.table_inner_frame.grid_slaves(row=r, column=0)
+                debug_log(f"DEBUG: Row {r} column 0 has {len(row_frames)} frames")
                 if not row_frames:
+                    debug_log(f"DEBUG: No row frames found for row {r}")
                     continue
 
                 # Junior marksheet uses row_frame structure - get name label from inside the frame
@@ -929,20 +965,26 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                 if hasattr(row_frame, "winfo_children"):
                     # Get the name label at column 0 inside the row_frame
                     name_widgets = row_frame.grid_slaves(row=0, column=0)
+                    print(f"DEBUG: Row {r} has {len(name_widgets)} name widgets")
                     if not name_widgets:
+                        debug_log(f"DEBUG: No name widgets found for row {r}")
                         continue
                     student_name = name_widgets[0].cget("text")
+                    debug_log(f"DEBUG: Student name: {student_name}")
                 else:
+                    print(f"DEBUG: Row frame has no winfo_children")
                     continue
 
                 # 3. Get Admission Number from database
-                self.db._cursor.execute(
+                self.db.cursor().execute(
                     "SELECT adm_no FROM students WHERE name = ?", (student_name,)
                 )
-                result = self.db._cursor.fetchone()
+                result = self.db.cursor().fetchone()
                 if not result:
+                    debug_log(f"DEBUG: No adm_no found for student {student_name}")
                     continue
                 adm_no = result[0]
+                debug_log(f"DEBUG: adm_no: {adm_no}")
 
                 # 4. Collect Marks for each subject
                 update_parts = []
@@ -952,26 +994,67 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                     col_start = 1 + (i * 3)
                     # CLEANER & SAFER: Use the existing helper function
                     base = get_clean_col_name(sub)
+                    debug_log(
+                        f"DEBUG: Subject {i}: {sub}, base: {base}, col_start: {col_start}"
+                    )
 
                     # Get values from grid (inside the row_frame)
                     s_widgets = row_frame.grid_slaves(row=0, column=col_start)
                     r_widgets = row_frame.grid_slaves(row=0, column=col_start + 1)
                     p_widgets = row_frame.grid_slaves(row=0, column=col_start + 2)
 
+                    debug_log(
+                        f"DEBUG: s_widgets: {len(s_widgets)}, r_widgets: {len(r_widgets)}, p_widgets: {len(p_widgets)}"
+                    )
+
                     s_val = s_widgets[0].get() if s_widgets else "0"
-                    r_val = r_widgets[0].get() if r_widgets else "BE2"
-                    p_val = p_widgets[0].get() if p_widgets else "0"
+                    debug_log(f"DEBUG: s_val: {s_val}")
+
+                    # Temporarily enable disabled widgets to read their values
+                    r_val = "BE2"
+                    if r_widgets:
+                        orig_state = r_widgets[0].cget("state")
+                        r_widgets[0].configure(state="normal")
+                        r_val = r_widgets[0].get()
+                        r_widgets[0].configure(state=orig_state)
+                    debug_log(f"DEBUG: r_val: {r_val}")
+
+                    p_val = "0"
+                    if p_widgets:
+                        orig_state = p_widgets[0].cget("state")
+                        p_widgets[0].configure(state="normal")
+                        p_val = p_widgets[0].get()
+                        p_widgets[0].configure(state=orig_state)
+                    debug_log(f"DEBUG: p_val: {p_val}")
 
                     update_parts.extend([f"{base}_s=?", f"{base}_r=?", f"{base}_p=?"])
                     values.extend([s_val, r_val, p_val])
 
                 # 5. Get total_points and average_points from UI
                 total_start = 1 + (num_subs * 3)
+                debug_log(f"DEBUG: total_start: {total_start}")
                 total_widgets = row_frame.grid_slaves(row=0, column=total_start)
                 avg_widgets = row_frame.grid_slaves(row=0, column=total_start + 1)
 
-                total_val = total_widgets[0].get() if total_widgets else "0"
-                avg_val = avg_widgets[0].get() if avg_widgets else ""
+                debug_log(
+                    f"DEBUG: total_widgets: {len(total_widgets)}, avg_widgets: {len(avg_widgets)}"
+                )
+
+                total_val = "0"
+                if total_widgets:
+                    orig_state = total_widgets[0].cget("state")
+                    total_widgets[0].configure(state="normal")
+                    total_val = total_widgets[0].get()
+                    total_widgets[0].configure(state=orig_state)
+                debug_log(f"DEBUG: total_val: {total_val}")
+
+                avg_val = ""
+                if avg_widgets:
+                    orig_state = avg_widgets[0].cget("state")
+                    avg_widgets[0].configure(state="normal")
+                    avg_val = avg_widgets[0].get()
+                    avg_widgets[0].configure(state=orig_state)
+                debug_log(f"DEBUG: avg_val: {avg_val}")
 
                 update_parts.extend(["total_points=?", "average_points=?"])
                 values.extend([total_val, avg_val])
@@ -979,27 +1062,42 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                 # 6. Execute Update
                 values.append(adm_no)
                 sql = f"UPDATE marksheet SET {', '.join(update_parts)} WHERE adm_no=?"
+                debug_log(f"DEBUG: SQL: {sql}")
+                debug_log(f"DEBUG: Values: {values}")
 
                 # Ensure record exists
-                self.db._cursor.execute(
+                self.db.cursor().execute(
                     "SELECT 1 FROM marksheet WHERE adm_no=?", (adm_no,)
                 )
-                if not self.db._cursor.fetchone():
-                    self.db._cursor.execute(
+                if not self.db.cursor().fetchone():
+                    debug_log(
+                        f"DEBUG: No existing record for adm_no {adm_no}, inserting"
+                    )
+                    self.db.cursor().execute(
                         "INSERT INTO marksheet (adm_no) VALUES (?)", (adm_no,)
                     )
+                else:
+                    debug_log(f"DEBUG: Existing record found for adm_no {adm_no}")
 
-                self.db._cursor.execute(sql, values)
+                self.db.cursor().execute(sql, values)
                 success_count += 1
+                debug_log(
+                    f"DEBUG: Successfully saved row {r}, success_count: {success_count}"
+                )
 
             except Exception as e:
-                print(f"Error saving row {r}: {e}")
+                debug_log(f"Error saving row {r}: {e}")
+                import traceback
+
+                traceback.print_exc()
                 continue
 
         self.db.conn.commit()
+        debug_log(f"DEBUG: Committed to database, success_count: {success_count}")
         self.calculate_rankings()
         messagebox.showinfo("Success", f"Saved {success_count} students.")
         if not skip_reload:
+            debug_log("DEBUG: Reloading students from registry")
             self.load_students_from_registry()
 
     def calculate_rankings(self):
@@ -1011,10 +1109,10 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         # Use COALESCE to treat empty/null marks as 0, otherwise the sum becomes NULL
         sum_query = " + ".join([f"COALESCE({col}, 0)" for col in point_cols])
 
-        self.db._cursor.execute(f"UPDATE marksheet SET total_points = ({sum_query})")
+        self.db.cursor().execute(f"UPDATE marksheet SET total_points = ({sum_query})")
 
         # Calculate average_points based on total_points
-        self.db._cursor.execute(f"""
+        self.db.cursor().execute(f"""
             UPDATE marksheet 
             SET average_points = CASE 
                 WHEN total_points > 0 THEN (
@@ -1034,17 +1132,17 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         """)
 
         # Get all students for this class sorted by total_points descending
-        self.db._cursor.execute(
+        self.db.cursor().execute(
             """
             SELECT m.adm_no 
             FROM marksheet m
             JOIN students s ON m.adm_no = s.adm_no
-            WHERE s.grade = ?
+            WHERE UPPER(s.grade) = UPPER(?)
             ORDER BY m.total_points DESC
             """,
             (self.class_name,),
         )
-        ranked_students = self.db._cursor.fetchall()
+        ranked_students = self.db.cursor().fetchall()
 
         # Update the 'rank' column with their position (starting from 1)
         current_rank = 0
@@ -1052,10 +1150,10 @@ class JuniorMarkSheetView(ctk.CTkFrame):
 
         for i, (adm,) in enumerate(ranked_students, start=1):
             # Get the score for this student
-            self.db._cursor.execute(
+            self.db.cursor().execute(
                 "SELECT total_points FROM marksheet WHERE adm_no = ?", (adm,)
             )
-            result = self.db._cursor.fetchone()
+            result = self.db.cursor().fetchone()
             score = result[0] if result else 0
 
             # Assign rank (handle ties)
@@ -1063,7 +1161,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                 current_rank = i
                 prev_score = score
 
-            self.db._cursor.execute(
+            self.db.cursor().execute(
                 "UPDATE marksheet SET rank = ? WHERE adm_no = ?", (current_rank, adm)
             )
 
@@ -1080,8 +1178,8 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             self.save_current_exam_as_previous()
 
             # 2. Clear the marks in the DB
-            self.db._cursor.execute(
-                "DELETE FROM marksheet WHERE adm_no IN (SELECT adm_no FROM students WHERE grade = ?)",
+            self.db.cursor().execute(
+                "DELETE FROM marksheet WHERE adm_no IN (SELECT adm_no FROM students WHERE UPPER(grade) = UPPER(?))",
                 (self.class_name,),
             )
             self.db.conn.commit()
@@ -1094,8 +1192,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                 import json
                 import os
 
-                project_dir = os.path.dirname(os.path.realpath(__file__))
-                json_path = os.path.join(project_dir, "school_config.json")
+                json_path = os.path.join(self.USER_DATA_DIR, "school_config.json")
 
                 config = {}
                 if os.path.exists(json_path):
@@ -1133,12 +1230,12 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         query = (
             f"SELECT s.name, {cols_string}, m.total_points, m.average_points, m.rank "
             f"FROM students s LEFT JOIN marksheet m ON s.adm_no = m.adm_no "
-            f"WHERE s.grade = ? "
+            f"WHERE UPPER(s.grade) = UPPER(?) "
             f"ORDER BY CASE WHEN m.rank IS NULL THEN 1 ELSE 0 END, m.rank ASC"
         )
 
-        self.db._cursor.execute(query, (self.class_name,))
-        records = self.db._cursor.fetchall()
+        self.db.cursor().execute(query, (self.class_name,))
+        records = self.db.cursor().fetchall()
 
         # Convert to JSON-serializable format
         marks_data = json.dumps([list(record) for record in records])
@@ -1174,10 +1271,10 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             SELECT s.name, s.gender, m.total_points, m.average_points
             FROM students s
             LEFT JOIN marksheet m ON s.adm_no = m.adm_no
-            WHERE s.grade = ?
+            WHERE UPPER(s.grade) = UPPER(?)
         """
-        self.db._cursor.execute(query, (self.class_name,))
-        rows = self.db._cursor.fetchall()
+        self.db.cursor().execute(query, (self.class_name,))
+        rows = self.db.cursor().fetchall()
 
         for row in rows:
             if not row:
@@ -1224,10 +1321,10 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                 SELECT m.{score_col}, m.{points_col}
                 FROM marksheet m
                 JOIN students s ON m.adm_no = s.adm_no
-                WHERE s.grade = ?
+                WHERE UPPER(s.grade) = UPPER(?)
             """
-            self.db._cursor.execute(query, (self.class_name,))
-            subject_rows = self.db._cursor.fetchall()
+            self.db.cursor().execute(query, (self.class_name,))
+            subject_rows = self.db.cursor().fetchall()
 
             for score_row in subject_rows:
                 score, points = score_row
@@ -1455,8 +1552,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             delattr(self, "summary_window")
 
     def update_header_text(self, exam_title):
-        project_dir = os.path.dirname(os.path.realpath(__file__))
-        json_path = os.path.join(project_dir, "school_config.json")
+        json_path = os.path.join(self.USER_DATA_DIR, "school_config.json")
 
         school = "MY SCHOOL"  # Default
 
