@@ -179,7 +179,7 @@ def get_class_teacher_comment(average_level):
         "AE1": "You are making progress. Focus on the finer details to reach full mastery.",
         "AE2": "A promising performance. Keep practicing to strengthen your understanding of these topics.",
         "BE1": "You are starting to grasp the basics. Let's keep working together to build your confidence.",
-        "BE2": "A beginning step in your learning journey. Stay dedicated, and we will work on the fundamentals.",
+        "BE2": "Beginning step in your learning journey. Stay dedicated, and we will work on the fundamentals.",
     }
     return comments.get(average_level, "No comment available.")
 
