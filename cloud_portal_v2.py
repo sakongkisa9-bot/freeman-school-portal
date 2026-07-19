@@ -314,6 +314,9 @@ GRADE_SUBJECTS = {
     "playgroup": ["LANG", "MATH", "ENV", "CREAT"],
     "pp1": ["LANG", "MATH", "ENV", "PSYCH", "REL"],
     "pp2": ["LANG", "MATH", "ENV", "PSYCH", "REL"],
+    "lower": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
+    "primary": ["ENG", "KISW", "MATH", "SCIE", "AGRI", "SST", "CRE", "C/A", "PHE"],
+    "jss": ["MATH", "ENG", "KISW", "INT SCIE", "PRE-TECH", "SST", "CRE", "AGRI", "C/A"],
     "Grade 1": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
     "Grade 2": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
     "Grade 3": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
@@ -355,6 +358,22 @@ GRADE_SUBJECTS = {
     ],
 }
 SYSTEM_ADMIN_KEY = "16592@FREE man"
+
+
+def map_grade_to_config_key(grade):
+    """Map portal grade names to config keys used in school_config.json"""
+    grade_mapping = {
+        "Grade 1": "lower",
+        "Grade 2": "lower", 
+        "Grade 3": "lower",
+        "Grade 4": "primary",
+        "Grade 5": "primary",
+        "Grade 6": "primary",
+        "Grade 7": "jss",
+        "Grade 8": "jss",
+        "Grade 9": "jss",
+    }
+    return grade_mapping.get(grade, grade)
 
 
 def get_db():
@@ -1357,7 +1376,12 @@ def select_subject(grade):
             try:
                 subjects_data = json.loads(school["subjects"])
                 # subjects_data is a dict like {grade: [subjects]}
-                subjects = subjects_data.get(grade, [])
+                # Map grade name to config key (e.g., "Grade 1" -> "lower")
+                config_key = map_grade_to_config_key(grade)
+                subjects = subjects_data.get(config_key, [])
+                # If not found with mapped key, try original grade name
+                if not subjects:
+                    subjects = subjects_data.get(grade, [])
             except (json.JSONDecodeError, TypeError):
                 # If JSON parsing fails, fall back to hardcoded
                 subjects = []
@@ -3265,18 +3289,31 @@ def generate_analytics(report_data, conn, grade):
 
 def get_subjects_for_grade(grade):
     """Get subjects for a specific grade"""
-    grade_mapping = {
-        "playgroup": ["LANG", "MATH", "ENV", "CREAT"],
-        "pp1": ["LANG", "MATH", "ENV", "PSYCH", "REL"],
-        "pp2": ["LANG", "MATH", "ENV", "PSYCH", "REL"],
-        "Grade 1": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
-        "Grade 2": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
-        "Grade 3": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
-        "Grade 4": ["ENG", "KISW", "MATH", "SCIE", "AGRI", "SST", "CRE", "C/A", "PHE"],
-        "Grade 5": ["ENG", "KISW", "MATH", "SCIE", "AGRI", "SST", "CRE", "C/A", "PHE"],
-        "Grade 6": ["ENG", "KISW", "MATH", "SCIE", "AGRI", "SST", "CRE", "C/A", "PHE"],
-    }
-    return grade_mapping.get(grade, [])
+    # First try to get from database if school_id is in session
+    if "school_id" in session:
+        conn = get_db()
+        try:
+            school = conn.execute(
+                "SELECT subjects FROM schools WHERE id = ?", (session["school_id"],)
+            ).fetchone()
+            if school and school["subjects"]:
+                try:
+                    subjects_data = json.loads(school["subjects"])
+                    # Map grade name to config key (e.g., "Grade 1" -> "lower")
+                    config_key = map_grade_to_config_key(grade)
+                    subjects = subjects_data.get(config_key, [])
+                    # If not found with mapped key, try original grade name
+                    if not subjects:
+                        subjects = subjects_data.get(grade, [])
+                    if subjects:
+                        return subjects
+                except (json.JSONDecodeError, TypeError):
+                    pass
+        finally:
+            conn.close()
+    
+    # Fall back to hardcoded mapping
+    return GRADE_SUBJECTS.get(grade, [])
 
 
 def get_class_average(conn, grade, subject):

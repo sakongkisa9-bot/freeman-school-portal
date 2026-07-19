@@ -1501,10 +1501,6 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
         num_subs = len(subjects)
 
-        debug_log(
-            f"[DEBUG] Starting save for playgroup. Subjects: {subjects}, Count: {num_subs}"
-        )
-
         try:
 
             # Playgroup marksheet uses direct grid layout, not row frames
@@ -1513,11 +1509,11 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
             all_widgets = self.table_inner.grid_slaves()
 
-            debug_log(f"[DEBUG] Total widgets found: {len(all_widgets)}")
+           
 
             if not all_widgets:
 
-                debug_log("[DEBUG] No widgets found, returning")
+               
                 return
 
             # Group widgets by row
@@ -1534,8 +1530,7 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 rows[row].append(w)
 
-            debug_log(f"[DEBUG] Total rows found: {len(rows)}")
-            debug_log(f"[DEBUG] Row indices: {sorted(rows.keys())}")
+           
 
             for row_idx in sorted(rows.keys()):
 
@@ -1555,9 +1550,7 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 if not hasattr(name_widget, "cget"):
 
-                    debug_log(
-                        f"[DEBUG] Row {row_idx}: Name widget has no cget attribute"
-                    )
+                   
                     continue
 
                 student_name = name_widget.cget("text")
