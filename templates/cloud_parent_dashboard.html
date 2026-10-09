@@ -1113,7 +1113,7 @@ const previousExamsData = [];
 {% for prev_exam in previous_exams %}
 previousExamsData.push({
     title: '{{ prev_exam.exam_title[:15] }}',
-    avg: '{{ prev_exam.get("average_level", "BE2") }}'
+    avg: '{{ prev_exam.average_level }}'
 });
 {% endfor %}
 {% endif %}
