@@ -1098,31 +1098,25 @@
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-{% if report %}
-// Rating level order from lowest to highest
-const ratingLevels = ['BE2', 'BE1', 'AE2', 'AE1', 'ME2', 'ME1', 'EE2', 'EE1'];
-const ratingPoints = {'BE2': 1, 'BE1': 2, 'AE2': 3, 'AE1': 4, 'ME2': 5, 'ME1': 6, 'EE2': 7, 'EE1': 8};
+    const ratingLevels = ['BE2', 'BE1', 'AE2', 'AE1', 'ME2', 'ME1', 'EE2', 'EE1'];
+    const ratingPoints = {'BE2': 1, 'BE1': 2, 'AE2': 3, 'AE1': 4, 'ME2': 5, 'ME1': 6, 'EE2': 7, 'EE1': 8};
 
-// Prepare exam data including current exam
-const examLabels = [];
-const examData = [];
+    const previousExamsData = [];
+    {% if previous_exams %}
+    {% for prev_exam in previous_exams %}
+    previousExamsData.push({
+        title: '{{ prev_exam.exam_title[:15] }}',
+        avg: '{{ prev_exam.average_level }}'
+    });
+    {% endfor %}
+    {% endif %}
 
-// Collect previous exams data (they come in newest-first order from database)
-const previousExamsData = [];
-{% if previous_exams %}
-{% for prev_exam in previous_exams %}
-previousExamsData.push({
-    title: '{{ prev_exam.exam_title[:15] }}',
-    avg: '{{ prev_exam.average_level }}'
-});
-{% endfor %}
-{% endif %}
-
-// Reverse to get oldest-first order, then add to chart
-for (let i = previousExamsData.length - 1; i >= 0; i--) {
-    examLabels.push(previousExamsData[i].title);
-    examData.push(ratingPoints[previousExamsData[i].avg] || 1);
-}
+    // Reverse to get oldest-first order, then add to chart
+    for (let i = previousExamsData.length - 1; i >= 0; i--) {
+        examLabels.push(previousExamsData[i].title);
+        examData.push(ratingPoints[previousExamsData[i].avg] || 1);
+    }
+</script>
 
 // Add current exam at the end
 examLabels.push('{{ report.exam_title|default("Current") }}');

@@ -2579,358 +2579,115 @@ class ReportFormsView(ctk.CTkToplevel):
         print(f"DEBUG: generate_report_data called for {student.get('name', 'Unknown')} in {student['grade']}")
         print(f"DEBUG: generate_report_data - Student keys: {list(student.keys())}")
         print(f"DEBUG: generate_report_data - Photo field: {student.get('photo', 'NOT FOUND')}")
-        current_marks = self.get_student_current_marks(student['adm_no'], student['grade'])
         
-        # If no current marks, return None - don't print report
+        current_marks = self.get_student_current_marks(student['adm_no'], student['grade'])
         if not current_marks:
             print(f"DEBUG: No current marks found for {student.get('name', 'Unknown')} in {student['grade']}")
             return None
-        print(f"DEBUG: Current marks found, proceeding with report generation")
         
-        # Use current_exam_title for consistency with performance history graph
+        print(f"DEBUG: Current marks found, proceeding with report generation")
         exam_title = self.school_config.get("current_exam_title", "PERFORMANCE REPORT")
         
-        # Fetch previous exams for this student
         previous_exams_data = []
         previous_exams_list = self.db.get_previous_exams(student['grade'])
         print(f"DEBUG: Found {len(previous_exams_list)} previous exams in database for grade {student['grade']}")
-        for exam_name, exam_date in previous_exams_list:
-            print(f"DEBUG: Previous exam: {exam_name} at {exam_date}")
         
-        # Get subject names from school config instead of current marks
-        # This ensures we use the correct subject names even if current marks are incomplete
         subject_names = self.get_subjects_for_grade(student['grade'])
         print(f"DEBUG: Subject names from config: {subject_names}")
         
-        for exam_name, exam_date in previous_exams_list:  # Get all previous exams
+        rating_patterns = ['BE1', 'BE2', 'AE1', 'AE2', 'ME1', 'ME2', 'EE1', 'EE2']
+        grade_lower = student['grade'].lower()
+        is_junior = grade_lower in ["grade 7", "grade 8", "grade 9"]
+        
+        for exam_name, exam_date in previous_exams_list:
             marks_data, summary_data = self.db.get_previous_exam_data(exam_name, student['grade'])
             print(f"DEBUG: Got marks_data for {exam_name}: {marks_data is not None}")
+            
             if marks_data:
-                # Parse the marks data to extract this student's marks
                 try:
                     import json
-                    # Handle both list and dict structures
                     if isinstance(marks_data, str):
                         marks_data = json.loads(marks_data)
                     
                     if isinstance(marks_data, list):
-                        # List format: [[name, score1, rating1, score2, rating2, ...], ...]
-                        # Junior format: [[name, score1, rating1, points1, score2, rating2, points2, ...], ...]
                         print(f"DEBUG: Marks data is a list with {len(marks_data)} students")
-                        print(f"DEBUG: Student grade: {student['grade']}")
-                        
-                        # Detect if this is junior format (has 3 values per subject: score, rating, points)
-                        # by checking if the data length suggests 3 values per subject
-                        grade_lower = student['grade'].lower()
-                        is_junior = grade_lower in ["grade 7", "grade 8", "grade 9"]
-                        
                         for student_record in marks_data:
-                            if len(student_record) > 0:
-                                record_name = student_record[0]
-                                record_key = "".join(record_name.split()).lower()
-                                if record_key == "".join(student['name'].split()).lower():
-                                    # Found the student, extract their marks
-                                    # Convert list to dict format with subject names
-                                    marks_dict = {}
-                                    marks_list = student_record[1:]  # Skip name
-                                    # Valid rating patterns
-                                    rating_patterns = ['BE1', 'BE2', 'AE1', 'AE2', 'ME1', 'ME2', 'EE1', 'EE2']
-                                    
-                                    # Determine format based on grade
-                                    if is_junior:
-                                        # Junior format: [score1, rating1, points1, score2, rating2, points2, ...]
-                                        print(f"DEBUG: Using junior format (score, rating, points)")
-                                        for i, subject_name in enumerate(subject_names):
-                                            if i * 3 + 2 < len(marks_list):
-                                                score = marks_list[i * 3]
-                                                rating = marks_list[i * 3 + 1]
-                                                points = marks_list[i * 3 + 2]
-
-                                                # For junior, use score as the display value (not points)
-                                                marks_dict[subject_name.upper().replace(' ', '')] = {
-                                                    'score': score,
-                                                    'rating': rating,
-                                                    'points': points
-                                                }
-                                                print(f"DEBUG: Junior {subject_name}: score={score}, rating={rating}, points={points}")
-                                    else:
-                                        # Playgroup/Primary format: [score1, rating1, score2, rating2, ...]
-                                        print(f"DEBUG: Using standard format (score, rating)")
-                                        for i, subject_name in enumerate(subject_names):
-                                            if i * 2 + 1 < len(marks_list):
-                                                score = marks_list[i * 2]
-                                                rating = marks_list[i * 2 + 1]
-
-                                                marks_dict[subject_name.upper().replace(' ', '')] = {
-                                                    'score': score,
-                                                    'rating': rating
-                                                }
-                                    # Extract total_points and average_level if present (last 2 items after subjects)
-                                    # Format: [name, score1, rating1, ..., total, average_level]
-                                    total_points = None
-                                    avg_level = None
-                                    print(f"DEBUG: marks_list length: {len(marks_list)}, subject_names count: {len(subject_names)}")
-                                    print(f"DEBUG: marks_list last 5 items: {marks_list[-5:]}")
-                                    
-                                    if is_junior:
-                                        # Junior format: [name, score1, rating1, points1, ..., total_points, average_level]
-                                        # Calculate expected length: 1 (name) + 3 * num_subjects + 2 (total, avg)
-                                        expected_len = 1 + len(subject_names) * 3 + 2
-                                        print(f"DEBUG: Junior expected_len={expected_len}, actual_len={len(marks_list)}")
-
-                                        if len(marks_list) >= expected_len:
-                                            # The data might have extra items or be in a different order
-                                            # Try to find the numeric total_points by checking the last few positions
-                                            found_total = False
-                                            for offset in range(-3, 0):  # Check positions -3, -2, -1
-                                                try:
-                                                    potential_total = int(marks_list[offset])
-                                                    if potential_total > 0 and potential_total < 1000:  # Reasonable range for total points
-                                                        total_points = potential_total
-                                                        found_total = True
-                                                        print(f"DEBUG: Junior found total_points={total_points} at offset {offset}")
-                                                        # Set avg_level from a different position
-                                                        avg_level = 'BE2'
-                                                        for val in marks_list[-3:]:
-                                                            if str(val).strip() in ['BE1', 'BE2', 'AE1', 'AE2', 'ME1', 'ME2', 'EE1', 'EE2']:
-                                                                avg_level = str(val).strip()
-                                                                break
-                                                        break
-                                                except (ValueError, TypeError):
-                                                    continue
-
-                                            if not found_total:
-                                                # Fallback: use position -2 but validate it's not a rating
-                                                total_points = marks_list[-2]
-                                                avg_level = 'BE2'
-                                                for val in marks_list[-3:]:
-                                                    if str(val).strip() in ['BE1', 'BE2', 'AE1', 'AE2', 'ME1', 'ME2', 'EE1', 'EE2']:
-                                                        avg_level = str(val).strip()
-                                                rating_patterns = ['BE1', 'BE2', 'AE1', 'AE2', 'ME1', 'ME2', 'EE1', 'EE2']
-                                                if str(total_points).strip() in rating_patterns:
-                                                    print(f"DEBUG: total_points is a rating string, calculating from subject points")
-                                                    total_points = 0
-                                                    for i, subject_name in enumerate(subject_names):
-                                                        if i * 3 + 2 < len(marks_list):
-                                                            points = marks_list[i * 3 + 2]
-                                                            try:
-                                                                total_points += int(points)
-                                                            except:
-                                                                pass
-                                                    print(f"DEBUG: Junior recalculated total_points={total_points} from subject points")
-                                                else:
-                                                    try:
-                                                        int(total_points)
-                                                    except (ValueError, TypeError):
-                                                        print(f"DEBUG: total_points '{total_points}' is not numeric, calculating from subject points")
-                                                        total_points = 0
-                                                        for i, subject_name in enumerate(subject_names):
-                                                            if i * 3 + 2 < len(marks_list):
-                                                                points = marks_list[i * 3 + 2]
-                                                                try:
-                                                                    total_points += int(points)
-                                                                except:
-                                                                    pass
-                                                        print(f"DEBUG: Junior recalculated total_points={total_points} from subject points")
-                                            print(f"DEBUG: Junior final total_points={total_points}, avg_level={avg_level}")
-                                        else:
-                                            # Try to calculate total from points if not present at end
-                                            total_points = 0
-                                            for i, subject_name in enumerate(subject_names):
-                                                if i * 3 + 2 < len(marks_list):
-                                                    points = marks_list[i * 3 + 2]
-                                                    try:
-                                                        total_points += int(points)
-                                                    except:
-                                                        pass
-                                            print(f"DEBUG: Junior calculated total_points={total_points} from subject points (list too short)")
-                                    else:
-                                        # Standard format: [name, score1, rating1, ..., total_points, average_level]
-                                        # Calculate expected length: 1 (name) + 2 * num_subjects + 2 (total, avg)
-                                        expected_len = 1 + len(subject_names) * 2 + 2
-                                        if len(marks_list) >= expected_len:
-                                            # The data might have extra items or be in a different order
-                                            # Try to find the numeric total_points by checking the last few positions
-                                            found_total = False
-                                            for offset in range(-3, 0):  # Check positions -3, -2, -1
-                                                try:
-                                                    potential_total = int(marks_list[offset])
-                                                    if potential_total > 0 and potential_total < 1000:  # Reasonable range for total scores
-                                                        total_points = potential_total
-                                                        found_total = True
-                                                        print(f"DEBUG: Standard found total_points={total_points} at offset {offset}")
-                                                        # Set avg_level from a different position
-                                                        avg_level = marks_list[-1] if offset == -3 else marks_list[-2] if offset == -2 else None
-                                                        break
-                                                except (ValueError, TypeError):
-                                                    continue
-
-                                            if not found_total:
-                                                # Fallback: use position -2 but validate it's not a rating
-                                                total_points = marks_list[-2]
-                                                avg_level = marks_list[-1]
-                                                rating_patterns = ['BE1', 'BE2', 'AE1', 'AE2', 'ME1', 'ME2', 'EE1', 'EE2']
-                                                if str(total_points).strip() in rating_patterns:
-                                                    print(f"DEBUG: total_points is a rating string, calculating from subject scores")
-                                                    total_points = 0
-                                                    for i, subject_name in enumerate(subject_names):
-                                                        if i * 2 < len(marks_list):
-                                                            score = marks_list[i * 2]
-                                                            try:
-                                                                total_points += int(score)
-                                                            except:
-                                                                pass
-                                                    print(f"DEBUG: Standard recalculated total_points={total_points} from subject scores")
-                                                else:
-                                                    try:
-                                                        int(total_points)
-                                                    except (ValueError, TypeError):
-                                                        print(f"DEBUG: total_points '{total_points}' is not numeric, calculating from subject scores")
-                                                        total_points = 0
-                                                        for i, subject_name in enumerate(subject_names):
-                                                            if i * 2 < len(marks_list):
-                                                                score = marks_list[i * 2]
-                                                                try:
-                                                                    total_points += int(score)
-                                                                except Exception:
-                                                                    pass
-                                                        print(f"DEBUG: Standard recalculated total_points={total_points} from subject scores")
-                                            print(f"DEBUG: Standard final total_points={total_points}, avg_level={avg_level}")
-                                        else:
-                                            # Try to calculate total from scores if not present at end
-                                            total_points = 0
-                                            for i, subject_name in enumerate(subject_names):
-                                                if i * 2 < len(marks_list):
-                                                    score = marks_list[i * 2]
-                                                    try:
-                                                        total_points += int(score)
-                                                    except Exception:
-                                                        pass
-                                            print(f"DEBUG: Standard calculated total_points={total_points} from subject scores")
-                                    
-                                    # Check if all marks are empty - if so, skip this exam
-                                    has_data = False
-                                    for subject, mark_data in marks_dict.items():
-                                        score = mark_data.get('score', '')
-                                        if score and str(score).strip():
-                                            has_data = True
-                                            break
-                                    
-                                    if not has_data:
-                                        print(f"DEBUG: Skipping {exam_name} - all marks are empty for this student")
-                                    else:
-                                        previous_exams_data.append({
-                                            'exam_name': exam_name,
-                                            'exam_date': exam_date,
-                                            'marks': marks_dict,
-                                            'total_points': total_points,
-                                            'average_level': avg_level if avg_level in rating_patterns else 'BE2'
-                                        })
-                                        print(f"DEBUG: Added previous exam {exam_name} with mapped dict marks, total_points={total_points}, avg_level={avg_level}")
-                                    print(f"DEBUG: marks_dict keys: {list(marks_dict.keys())}")
-                                    print(f"DEBUG: marks_dict sample: {list(marks_dict.items())[:3]}")
-                                    break
-                    elif isinstance(marks_data, dict):
-                        print(f"DEBUG: Marks dict keys: {list(marks_dict.keys())[:5]}")  # Show first 5 keys
-                        # Find this student's marks
-                        student_key = "".join(student['name'].split()).lower()
-                        print(f"DEBUG: Looking for student key: {student_key} in marks_dict")
-                        if student_key in marks_dict:
-                            student_marks = marks_dict[student_key]
-                            # Extract total_points and average_level if present
-                            total_points = student_marks.get('total_points') if isinstance(student_marks, dict) else None
-                            avg_level = student_marks.get('average_level') if isinstance(student_marks, dict) else None
-
-                            # If average_level is missing, calculate it from the subject ratings
-                            if not avg_level and isinstance(student_marks, dict):
-                                rating_hierarchy = {'BE1': 1, 'BE2': 2, 'AE1': 3, 'AE2': 4, 'ME1': 5, 'ME2': 6, 'EE1': 7, 'EE2': 8}
-                                reverse_hierarchy = {v: k for k, v in rating_hierarchy.items()}
+                            if student_record and student_record[0].strip().lower() == student['name'].strip().lower():
+                                marks_dict = {}
+                                marks_list = student_record[1:]
                                 
-                                ratings_found = []
-                                for subj, val in student_marks.items():
-                                    if isinstance(val, dict):
-                                        r = val.get('rating', '')
-                                        if r in rating_hierarchy:
-                                            ratings_found.append(rating_hierarchy[r])
-                                            
-                                if ratings_found:
-                                    avg_val = round(sum(ratings_found) / len(ratings_found))
-                                    avg_level = reverse_hierarchy.get(avg_val, 'ME1')
+                                if is_junior:
+                                    print(f"DEBUG: Using junior format (score, rating, points)")
+                                    for i, subject_name in enumerate(subject_names):
+                                        if i * 3 + 2 < len(marks_list):
+                                            marks_dict[subject_name.upper().replace(' ', '')] = {
+                                                'score': marks_list[i * 3],
+                                                'rating': marks_list[i * 3 + 1],
+                                                'points': marks_list[i * 3 + 2]
+                                            }
                                 else:
-                                    avg_level = 'BE2'
-
-                            # Fix swapped score/rating fields in dict format
-                            # Valid rating patterns
-                            rating_patterns = ['BE1', 'BE2', 'AE1', 'AE2', 'ME1', 'ME2', 'EE1', 'EE2']
-                            if isinstance(student_marks, dict):
-                                for subject, mark_data in student_marks.items():
-                                    if isinstance(mark_data, dict):
-                                        score = mark_data.get('score', '')
-                                        rating = mark_data.get('rating', '')
-                                        
-                                        # Enhanced validation to fix corrupted score/rating fields
-                                        score_str = str(score).strip()
-                                        rating_str = str(rating).strip()
-                                        
-                                        # Case 1: score is a rating pattern and rating looks like a score/number
-                                        if score_str in rating_patterns and rating_str.isdigit():
-                                            print(f"DEBUG: Swapping score/rating for {subject}: score={score}, rating={rating}")
-                                            mark_data['score'] = rating
-                                            mark_data['rating'] = score
-                                        # Case 2: score is a rating pattern and rating is also a rating (corrupted)
-                                        elif score_str in rating_patterns and rating_str in rating_patterns:
-                                            print(f"DEBUG: Both score and rating are ratings for {subject}: score={score}, rating={rating}")
-                                            # Keep first rating as rating, set score to empty
-                                            mark_data['rating'] = score_str
-                                            mark_data['score'] = ''
-                                        # Case 3: score is a point (1-8) and rating is a rating (swapped)
-                                        elif score_str.isdigit() and 1 <= int(score_str) <= 8 and rating_str in rating_patterns:
-                                            print(f"DEBUG: Score is point and rating is rating for {subject}: score={score}, rating={rating}")
-                                            # This might be correct for playgroup, but for junior we want scores
-                                            # For now, keep as is since points are valid for some grades
-                                        # Case 4: score is a point (1-8) and rating is also a point (corrupted)
-                                        elif score_str.isdigit() and rating_str.isdigit() and 1 <= int(score_str) <= 8 and 1 <= int(rating_str) <= 8:
-                                            print(f"DEBUG: Both score and rating are points for {subject}: score={score}, rating={rating}")
-                                            # Keep first point as score, set rating to empty
-                                            mark_data['score'] = score_str
-                                            mark_data['rating'] = ''
-                            
-                            # Check if all marks are empty - if so, skip this exam
-                            has_data = False
-                            if isinstance(student_marks, dict):
-                                for subject, mark_data in student_marks.items():
-                                    if isinstance(mark_data, dict):
-                                        score = mark_data.get('score', '')
-                                        if score and str(score).strip():
-                                            has_data = True
+                                    print(f"DEBUG: Using standard format (score, rating)")
+                                    for i, subject_name in enumerate(subject_names):
+                                        if i * 2 + 1 < len(marks_list):
+                                            marks_dict[subject_name.upper().replace(' ', '')] = {
+                                                'score': marks_list[i * 2],
+                                                'rating': marks_list[i * 2 + 1]
+                                            }
+                                
+                                total_points, avg_level = None, 'BE2'
+                                for offset in range(-3, 0):
+                                    try:
+                                        pt = int(marks_list[offset])
+                                        if 0 < pt < 1000:
+                                            total_points = pt
                                             break
+                                    except (ValueError, TypeError):
+                                        continue
+                                        
+                                if total_points is None and len(marks_list) >= 2:
+                                    try:
+                                        total_points = int(marks_list[-2])
+                                    except:
+                                        total_points = 0
+                                        
+                                for val in marks_list[-3:]:
+                                    if str(val).strip() in rating_patterns:
+                                        avg_level = str(val).strip()
+                                        break
+
+                                has_data = any(m.get('score', '') for m in marks_dict.values() if isinstance(m, dict))
+                                if has_data:
+                                    previous_exams_data.append({
+                                        'exam_name': exam_name,
+                                        'exam_date': exam_date,
+                                        'marks': marks_dict,
+                                        'total_points': total_points,
+                                        'average_level': avg_level
+                                    })
+                                    print(f"DEBUG: Added previous exam {exam_name}, total={total_points}, avg={avg_level}")
+                                break
+                                
+                    elif isinstance(marks_data, dict):
+                        student_key = "".join(student['name'].split()).lower()
+                        if student_key in marks_data:
+                            student_marks = marks_data[student_key]
+                            total_points = student_marks.get('total_points') if isinstance(student_marks, dict) else None
+                            avg_level = student_marks.get('average_level') if isinstance(student_marks, dict) else 'BE2'
                             
-                            if not has_data:
-                                print(f"DEBUG: Skipping {exam_name} - all marks are empty for this student")
-                            else:
-                                previous_exams_data.append({
-                                    'exam_name': exam_name,
-                                    'exam_date': exam_date,
-                                    'marks': student_marks,
-                                    'total_points': total_points,
-                                    'average_level': avg_level if avg_level in rating_patterns else 'BE2'
-                                })
-                                print(f"DEBUG: Added previous exam {exam_name} with dict marks, total_points={total_points}, avg_level={avg_level}")
-                        else:
-                            print(f"DEBUG: Student key not found in marks_dict")
+                            previous_exams_data.append({
+                                'exam_name': exam_name,
+                                'exam_date': exam_date,
+                                'marks': student_marks,
+                                'total_points': total_points,
+                                'average_level': avg_level if avg_level in rating_patterns else 'BE2'
+                            })
                 except Exception as e:
                     print(f"DEBUG: Error parsing marks data: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    pass
-        
+                    
         print(f"DEBUG: Total previous_exams_data: {len(previous_exams_data)}")
+        
+        # Base64 photo encoding
         import base64
-
-        # Convert local photo path to base64 so the cloud portal can render it
-        import base64
-
-        # Convert local photo path to base64 so the cloud portal can render it
         photo_path = student.get('photo', '')
         encoded_photo = ''
         if photo_path and os.path.exists(photo_path):
@@ -2943,7 +2700,7 @@ class ReportFormsView(ctk.CTkToplevel):
                     encoded_photo = f"data:{mime_type};base64,{encoded_string}"
             except Exception as e:
                 print(f"DEBUG: Error encoding student photo to base64: {e}")
-        
+                
         return {
             'student_name': student['name'],
             'adm_no': student['adm_no'],
