@@ -1110,10 +1110,10 @@ const examData = [];
 const previousExamsData = [];
 {% if previous_exams %}
 {% for prev_exam in previous_exams %}
-{# Use pre-calculated average_level from report data #}
+// Use pre-calculated average_level from report data 
 {% set prev_avg = prev_exam.average_level if prev_exam.average_level is defined else 'BE2' %}
 previousExamsData.push({
-    title: '{{ prev_exam.exam_title[:15] }}',
+    title: '{{ prev_exam.exam_name[:15] }}',
     avg: '{{ prev_avg }}'
 });
 {% endfor %}
