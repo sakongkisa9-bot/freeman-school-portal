@@ -2841,6 +2841,24 @@ class ReportFormsView(ctk.CTkToplevel):
                             total_points = student_marks.get('total_points') if isinstance(student_marks, dict) else None
                             avg_level = student_marks.get('average_level') if isinstance(student_marks, dict) else None
 
+                            # If average_level is missing, calculate it from the subject ratings
+                            if not avg_level and isinstance(student_marks, dict):
+                                rating_hierarchy = {'BE1': 1, 'BE2': 2, 'AE1': 3, 'AE2': 4, 'ME1': 5, 'ME2': 6, 'EE1': 7, 'EE2': 8}
+                                reverse_hierarchy = {v: k for k, v in rating_hierarchy.items()}
+                                
+                                ratings_found = []
+                                for subj, val in student_marks.items():
+                                    if isinstance(val, dict):
+                                        r = val.get('rating', '')
+                                        if r in rating_hierarchy:
+                                            ratings_found.append(rating_hierarchy[r])
+                                            
+                                if ratings_found:
+                                    avg_val = round(sum(ratings_found) / len(ratings_found))
+                                    avg_level = reverse_hierarchy.get(avg_val, 'ME1')
+                                else:
+                                    avg_level = 'BE2'
+
                             # Fix swapped score/rating fields in dict format
                             # Valid rating patterns
                             rating_patterns = ['BE1', 'BE2', 'AE1', 'AE2', 'ME1', 'ME2', 'EE1', 'EE2']
