@@ -179,7 +179,7 @@ def get_class_teacher_comment(average_level):
         "AE1": "You are making progress. Focus on the finer details to reach full mastery.",
         "AE2": "A promising performance. Keep practicing to strengthen your understanding of these topics.",
         "BE1": "You are starting to grasp the basics. Let's keep working together to build your confidence.",
-        "BE2": "Beginning step in your learning journey. Stay dedicated, and we will work on the fundamentals.",
+        "BE2": "A beginning step in your learning journey. Stay dedicated, and we will work on the fundamentals.",
     }
     return comments.get(average_level, "No comment available.")
 
@@ -551,6 +551,33 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(student_id, token),
             FOREIGN KEY(student_id) REFERENCES students(id)
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS student_payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            adm_no TEXT NOT NULL,
+            student_name TEXT NOT NULL,
+            payment_type TEXT NOT NULL,
+            amount_paid REAL NOT NULL,
+            payment_status TEXT DEFAULT 'pending',
+            payment_date TEXT,
+            notification_sent INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(adm_no, payment_type)
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS payment_settings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            full_payment_amount REAL NOT NULL,
+            payment_percentage REAL DEFAULT 70.0,
+            payment_option TEXT DEFAULT 'full',
+            system_locked INTEGER DEFAULT 0,
+            phone_number TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
     cursor.execute("""
@@ -2572,11 +2599,45 @@ def parent_login():
             ).fetchone()
 
             if student:
+                # Check if system is locked and payment is required
+                payment_settings = conn.execute(
+                    "SELECT * FROM payment_settings ORDER BY id DESC LIMIT 1"
+                ).fetchone()
+                
+                if payment_settings and payment_settings["system_locked"] == 1:
+                    # System is locked, check payment status
+                    payment_status = conn.execute(
+                        """
+                        SELECT payment_status, payment_type 
+                        FROM student_payments 
+                        WHERE adm_no = ? AND payment_status = 'paid'
+                        """,
+                        (adm_no_normalized,)
+                    ).fetchone()
+                    
+                    if not payment_status:
+                        # Student hasn't paid - show warning message
+                        flash(
+                            "⚠️ PAYMENT REQUIRED: You will not be able to view your child's newsletters and reports "
+                            "until the required payment is made. Please contact the school administration for payment details.",
+                            "warning"
+                        )
+                        # Still allow login but with restricted access
+                        session["parent_student_id"] = student["id"]
+                        session["parent_student_name"] = student_name
+                        session["parent_school_name"] = school_name
+                        session["parent_adm_no"] = adm_no
+                        session["parent_grade"] = student["grade"]
+                        session["payment_status"] = "unpaid"
+                        return redirect(url_for("parent_dashboard"))
+                
+                # System not locked or student has paid - normal login
                 session["parent_student_id"] = student["id"]
                 session["parent_student_name"] = student_name
                 session["parent_school_name"] = school_name
                 session["parent_adm_no"] = adm_no
                 session["parent_grade"] = student["grade"]
+                session["payment_status"] = "paid"
                 return redirect(url_for("parent_dashboard"))
             else:
                 flash("Student not found. Please check your details.", "error")
@@ -2638,6 +2699,15 @@ def parent_report():
     if "parent_student_id" not in session:
         logging.warning("Parent report: No parent_student_id in session")
         return redirect(url_for("parent_login"))
+
+    # Check payment status before allowing report access
+    if session.get("payment_status") == "unpaid":
+        flash(
+            "⚠️ PAYMENT REQUIRED: You cannot view your child's report until the required payment is made. "
+            "Please contact the school administration for payment details.",
+            "error"
+        )
+        return redirect(url_for("parent_dashboard"))
 
     conn = get_db()
     try:
@@ -2909,6 +2979,27 @@ def parent_report():
                         )
                         marks = {}
                 previous_exam_marks[prev_exam["exam_name"]] = marks
+                # Older desktop versions may not include an exam average. Derive
+                # it from the subject ratings so the template/chart doesn't fall
+                # back to BE2 when ratings are available.
+                exam_entry = previous_exams[-1]
+                if not exam_entry.get("average_level") and isinstance(marks, dict):
+                    rating_points = []
+                    for mark in marks.values():
+                        rating = mark.get("rating") if isinstance(mark, dict) else mark
+                        points = rating_to_points(str(rating).strip()) if rating else 0
+                        if points:
+                            rating_points.append(points)
+                    if rating_points:
+                        exam_entry["average_level"] = points_to_rating(
+                            sum(rating_points) / len(rating_points)
+                        )
+                        logging.info(
+                            "Derived previous exam average_level=%s for %s from %d subject ratings",
+                            exam_entry["average_level"],
+                            prev_exam["exam_name"],
+                            len(rating_points),
+                        )
                 logging.info(
                     f"Previous exam: {prev_exam['exam_name']}, marks type: {type(marks)}, is dict: {isinstance(marks, dict)}, is list: {isinstance(marks, list)}"
                 )
@@ -2993,7 +3084,16 @@ def parent_report():
             (session["parent_student_name"], session["parent_adm_no"]),
         ).fetchone()
 
-        student_photo = student["photo"] if student and student["photo"] else None
+        # The desktop report now carries a compressed data URL. Prefer it over
+        # a local path from the cloud students table (which may not exist here).
+        student_photo = (
+            report_data.get("photo")
+            if isinstance(report_data, dict) and report_data.get("photo")
+            else (student["photo"] if student and student["photo"] else None)
+        )
+        if student_photo and not str(student_photo).startswith(("http://", "https://", "data:image/")):
+            # Handle photos stored as paths on the cloud host, if any.
+            student_photo = image_to_base64(student_photo) or None
         student_stream = student["stream"] if student and student["stream"] else "None"
 
         # Fetch school_id from database using school_name
@@ -3050,6 +3150,15 @@ def parent_report():
 def parent_newsletters():
     if "parent_student_id" not in session:
         return redirect(url_for("parent_login"))
+
+    # Check payment status before allowing newsletter access
+    if session.get("payment_status") == "unpaid":
+        flash(
+            "⚠️ PAYMENT REQUIRED: You cannot view newsletters until the required payment is made. "
+            "Please contact the school administration for payment details.",
+            "error"
+        )
+        return redirect(url_for("parent_dashboard"))
 
     # Get newsletters for this parent's student class
     conn = get_db()

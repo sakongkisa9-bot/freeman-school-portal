@@ -2067,6 +2067,35 @@ class ReportFormsView(ctk.CTkToplevel):
         total_students = sum(len(self.get_students_in_class(cls)) for cls in classes)
         messagebox.showinfo("Print", f"Would print {total_students} reports for all classes.")
     
+    def _photo_for_cloud(self, photo_value):
+        """Return a web-displayable photo URL for cloud report payloads."""
+        if not photo_value:
+            return ""
+
+        photo_value = str(photo_value).strip()
+        if photo_value.startswith(("data:image/", "https://", "http://")):
+            return photo_value
+        if not os.path.isfile(photo_value):
+            print(f"DEBUG: Student photo path is not a local file: {photo_value}")
+            return ""
+
+        try:
+            import base64
+            from io import BytesIO
+
+            with Image.open(photo_value) as image:
+                image.thumbnail((600, 800))
+                if image.mode != "RGB":
+                    image = image.convert("RGB")
+                buffer = BytesIO()
+                image.save(buffer, format="JPEG", quality=78, optimize=True)
+
+            encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+            return f"data:image/jpeg;base64,{encoded}"
+        except Exception as e:
+            print(f"DEBUG: Could not prepare student photo for cloud: {e}")
+            return ""
+
     def generate_report_data(self, student):
         print(f"DEBUG: generate_report_data called for {student.get('name', 'Unknown')} in {student['grade']}")
         print(f"DEBUG: generate_report_data - Student keys: {list(student.keys())}")
@@ -2330,7 +2359,9 @@ class ReportFormsView(ctk.CTkToplevel):
             'exam_title': exam_title,
             'previous_exams': previous_exams_data,
             'generated_date': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'photo': student.get('photo', '')
+            'photo': self._photo_for_cloud(
+                student.get('photo') or student.get('student_photo') or student.get('image_path')
+            )
         }
     
     def get_cloud_credentials(self):
