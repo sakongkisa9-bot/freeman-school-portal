@@ -804,16 +804,15 @@
             <!-- Student Photo (Right) -->
             {% if student_photo and (student_photo.startswith('http') or student_photo.startswith('data:')) %}
             <div class="student-photo">
-            {% if report.photo %}
-            <img src="{{ report.photo }}" alt="Student Photo">
-            {% elif report.student_photo %}
-            <img src="{{ report.student_photo }}" alt="Student Photo">
+                <img src="{{ student_photo }}" alt="Student Photo">
+            </div>
             {% else %}
-            <div style="background: linear-gradient(135deg, #e0e0e0 0%, #ffffff 50%, #e0e0e0 100%); display: flex; align-items: center; justify-content: center; font-size: 10px; text-align: center; color: #666; height: 100%;">
+            <div class="student-photo" style="background: linear-gradient(135deg, #e0e0e0 0%, #ffffff 50%, #e0e0e0 100%); display: flex; align-items: center; justify-content: center; font-size: 10px; text-align: center; color: #666;">
                 Student<br>Photo
             </div>
             {% endif %}
         </div>
+
         <!-- Student Metadata -->
         <div class="student-metadata">
             <div class="metadata-item">
@@ -1098,25 +1097,33 @@
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    const ratingLevels = ['BE2', 'BE1', 'AE2', 'AE1', 'ME2', 'ME1', 'EE2', 'EE1'];
-    const ratingPoints = {'BE2': 1, 'BE1': 2, 'AE2': 3, 'AE1': 4, 'ME2': 5, 'ME1': 6, 'EE2': 7, 'EE1': 8};
+{% if report %}
+// Rating level order from lowest to highest
+const ratingLevels = ['BE2', 'BE1', 'AE2', 'AE1', 'ME2', 'ME1', 'EE2', 'EE1'];
+const ratingPoints = {'BE2': 1, 'BE1': 2, 'AE2': 3, 'AE1': 4, 'ME2': 5, 'ME1': 6, 'EE2': 7, 'EE1': 8};
 
-    const previousExamsData = [];
-    {% if previous_exams %}
-    {% for prev_exam in previous_exams %}
-    previousExamsData.push({
-        title: '{{ prev_exam.exam_title[:15] }}',
-        avg: '{{ prev_exam.average_level }}'
-    });
-    {% endfor %}
-    {% endif %}
+// Prepare exam data including current exam
+const examLabels = [];
+const examData = [];
 
-    // Reverse to get oldest-first order, then add to chart
-    for (let i = previousExamsData.length - 1; i >= 0; i--) {
-        examLabels.push(previousExamsData[i].title);
-        examData.push(ratingPoints[previousExamsData[i].avg] || 1);
-    }
-</script>
+// Collect previous exams data (they come in newest-first order from database)
+const previousExamsData = [];
+{% if previous_exams %}
+{% for prev_exam in previous_exams %}
+{# Use pre-calculated average_level from report data #}
+{% set prev_avg = prev_exam.average_level if prev_exam.average_level is defined else 'BE2' %}
+previousExamsData.push({
+    title: '{{ prev_exam.exam_title[:15] }}',
+    avg: '{{ prev_avg }}'
+});
+{% endfor %}
+{% endif %}
+
+// Reverse to get oldest-first order, then add to chart
+for (let i = previousExamsData.length - 1; i >= 0; i--) {
+    examLabels.push(previousExamsData[i].title);
+    examData.push(ratingPoints[previousExamsData[i].avg] || 1);
+}
 
 // Add current exam at the end
 examLabels.push('{{ report.exam_title|default("Current") }}');

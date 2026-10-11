@@ -4,59 +4,30 @@ from PIL import Image, ImageDraw, ImageFont
 import os
 import sys
 import json
-import logging
 from database import FreemanDB
 from cloud_service import CloudService, ask_cloud_credentials
-from grading_logic import get_grade_7_8_rating, get_grade_4_6_rating
-from fpdf import FPDF
 import datetime
-
-# Log when reportforms is imported
-logging.info("=" * 60)
-logging.info("REPORTFORMS.PY - MODULE IMPORTED")
-logging.info("=" * 60)
-logging.info(f"ReportForms imported from: {__file__}")
-logging.info(f"sys.frozen: {getattr(sys, 'frozen', False)}")
-if getattr(sys, 'frozen', False):
-    logging.info(f"sys._MEIPASS: {sys._MEIPASS}")
-logging.info("=" * 60)
 
 
 class ReportFormsView(ctk.CTkToplevel):
     def __init__(self, parent_window, db):
         super().__init__(parent_window)
-
-        logging.info("=" * 60)
-        logging.info("REPORTFORMS VIEW - INITIALIZING")
-        logging.info("=" * 60)
-
+        
         self.parent_window = parent_window
         self.db = db
         self.current_class = None
         self.current_student = None
-        self.current_report_window = None  # Track the current report window for dialog parenting
-
+        
         # Initialize proper paths for executable environment
         if getattr(sys, 'frozen', False):
             # Running as executable
-            self.BASE_DIR = sys._MEIPASS
             self.USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
             os.makedirs(self.USER_DATA_DIR, exist_ok=True)
-            logging.info(f"Running in EXECUTABLE mode")
-            logging.info(f"  BASE_DIR: {self.BASE_DIR}")
-            logging.info(f"  USER_DATA_DIR: {self.USER_DATA_DIR}")
         else:
             # Running as script
-            self.BASE_DIR = os.path.dirname(os.path.realpath(__file__))
-            self.USER_DATA_DIR = self.BASE_DIR
-            logging.info(f"Running in SCRIPT mode")
-            logging.info(f"  BASE_DIR: {self.BASE_DIR}")
-            logging.info(f"  USER_DATA_DIR: {self.USER_DATA_DIR}")
-
-        logging.info("Loading school config...")
+            self.USER_DATA_DIR = os.path.dirname(os.path.realpath(__file__))
+        
         self.school_config = self.load_school_config()
-        logging.info(f"School config loaded: {len(self.school_config)} keys")
-        logging.info("=" * 60)
         
         # Window configuration
         self.title("Report Forms - Freeman Tech Solutions")
@@ -258,16 +229,15 @@ class ReportFormsView(ctk.CTkToplevel):
     def show_report_form(self, student):
         self.current_student = student
         self.clear_container()
-
+        
         # Debug: Check if student has photo
         print(f"DEBUG show_report_form: Student keys: {list(student.keys())}")
         print(f"DEBUG show_report_form: Photo field: {student.get('photo', 'NOT FOUND')}")
-
+        
         # Create report form window
         report_window = ctk.CTkToplevel(self)
         report_window.title(f"Report Form - {student['name']}")
         report_window.geometry("1000x800")
-        self.current_report_window = report_window  # Store reference for dialog parenting
         
         # Main container
         report_container = ctk.CTkScrollableFrame(report_window)
@@ -296,7 +266,7 @@ class ReportFormsView(ctk.CTkToplevel):
         print_btn = ctk.CTkButton(button_frame, text="📄 Print as PDF",
                                  fg_color="#27ae60", hover_color="#1e8449",
                                  font=("Arial Bold", 14), height=45, width=200,
-                                 command=lambda: self.print_report_pdf(report_container, student, opening_date=None, closing_date=None))
+                                 command=lambda: self.print_report_pdf(report_container, student))
         print_btn.pack(side="left", padx=10)
         
         # Send to parent button
@@ -331,21 +301,14 @@ class ReportFormsView(ctk.CTkToplevel):
         try:
             logo_path = self.school_config.get('logo', '')
             if logo_path and os.path.exists(logo_path):
-                try:
-                    logo_photo = ctk.CTkImage(Image.open(logo_path), size=(80, 80))
-                    logo_label = ctk.CTkLabel(logo_frame, image=logo_photo, text="")
-                    logo_label.pack(pady=10)
-                except Exception as img_error:
-                    print(f"Error loading logo: {img_error}")
-                    logo_label = ctk.CTkLabel(logo_frame, text="SCHOOL\nLOGO",
-                                             font=("Arial Bold", 10), text_color="#666")
-                    logo_label.pack(pady=20)
+                logo_photo = ctk.CTkImage(Image.open(logo_path), size=(80, 80))
+                logo_label = ctk.CTkLabel(logo_frame, image=logo_photo, text="")
+                logo_label.pack(pady=10)
             else:
                 logo_label = ctk.CTkLabel(logo_frame, text="SCHOOL\nLOGO",
                                          font=("Arial Bold", 10), text_color="#666")
                 logo_label.pack(pady=20)
-        except Exception as e:
-            print(f"Error in logo display: {e}")
+        except:
             logo_label = ctk.CTkLabel(logo_frame, text="SCHOOL\nLOGO",
                                      font=("Arial Bold", 10), text_color="#666")
             logo_label.pack(pady=20)
@@ -383,11 +346,6 @@ class ReportFormsView(ctk.CTkToplevel):
                 photo_img = ctk.CTkImage(Image.open(student_photo), size=(80, 100))
                 photo_label = ctk.CTkLabel(photo_frame, image=photo_img, text="")
                 photo_label.pack(pady=10)
-            except Exception as img_error:
-                print(f"Error loading student photo: {img_error}")
-                photo_label = ctk.CTkLabel(photo_frame, text="STUDENT\nPHOTO",
-                                         font=("Arial Bold", 10), text_color="#666")
-                photo_label.pack(pady=20)
             except Exception as e:
                 print(f"Error loading student photo: {e}")
                 photo_label = ctk.CTkLabel(photo_frame, text="STUDENT\nPHOTO",
@@ -643,7 +601,7 @@ class ReportFormsView(ctk.CTkToplevel):
 
             # Teacher comment
             comment = self.rating_to_comment(current_rating) if current_rating else 'No comment'
-            comment_label = ctk.CTkLabel(row_frame, text=comment, font=("Arial", 8), width=comment_width, anchor="w", text_color="#000000", wraplength=comment_width - 10)
+            comment_label = ctk.CTkLabel(row_frame, text=comment[:40], font=("Arial", 8), width=comment_width, anchor="w", text_color="#000000")
             comment_label.pack(side="left", padx=2)
 
         # Summary row with portal gradient styling
@@ -683,95 +641,12 @@ class ReportFormsView(ctk.CTkToplevel):
             if not exam_col['is_current']:
                 total_points = exam_col.get('total_points', '')
                 if total_points and total_points not in ['', '-']:
-                    # Check if total_points is a rating string (ME1, EE2, etc.) instead of numeric
-                    rating_patterns = ['BE1', 'BE2', 'AE1', 'AE2', 'ME1', 'ME2', 'EE1', 'EE2']
-                    if str(total_points).strip() in rating_patterns:
-                        # It's a rating, calculate from marks instead
-                        exam_marks = exam_col.get('marks', {})
-                        calc_total = 0
-                        if isinstance(exam_marks, dict):
-                            for subject in subjects:
-                                # Use the same subject key mapping as in the data retrieval
-                                subject_key_map = {
-                                    'INT_SCIE': 'INTSCIE', 'PRE_TECH': 'PRE-TECH', 'C_A': 'C/A',
-                                    'PRETECH': 'PRE-TECH', 'CA': 'C/A'
-                                }
-                                subject_upper = subject.upper().replace(' ', '_').replace('-', '_').replace('/', '_')
-                                mapped_key = subject_key_map.get(subject_upper, subject_upper)
-                                if is_junior:
-                                    points = exam_marks.get(mapped_key, {}).get('points', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
-                                    if points and points not in ['', '-']:
-                                        try:
-                                            calc_total += float(points)
-                                        except:
-                                            pass
-                                else:
-                                    score = exam_marks.get(mapped_key, {}).get('score', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
-                                    if score and score not in ['', '-']:
-                                        try:
-                                            calc_total += float(score)
-                                        except:
-                                            pass
-                        total_label_widget = ctk.CTkLabel(summary_frame, text=str(int(calc_total)) if calc_total > 0 else "-", font=("Arial Bold", 10), width=exam_width, anchor="center", text_color="#000000")
-                    else:
-                        try:
-                            total_label_widget = ctk.CTkLabel(summary_frame, text=str(int(float(total_points))), font=("Arial Bold", 10), width=exam_width, anchor="center", text_color="#000000")
-                        except (ValueError, TypeError):
-                            # Fallback: calculate from marks if total_points is invalid
-                            exam_marks = exam_col.get('marks', {})
-                            calc_total = 0
-                            if isinstance(exam_marks, dict):
-                                for subject in subjects:
-                                    # Use the same subject key mapping as in the data retrieval
-                                    subject_key_map = {
-                                        'INT_SCIE': 'INTSCIE', 'PRE_TECH': 'PRE-TECH', 'C_A': 'C/A',
-                                        'PRETECH': 'PRE-TECH', 'CA': 'C/A'
-                                    }
-                                    subject_upper = subject.upper().replace(' ', '_').replace('-', '_').replace('/', '_')
-                                    mapped_key = subject_key_map.get(subject_upper, subject_upper)
-                                    if is_junior:
-                                        points = exam_marks.get(mapped_key, {}).get('points', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
-                                        if points and points not in ['', '-']:
-                                            try:
-                                                calc_total += float(points)
-                                            except:
-                                                pass
-                                    else:
-                                        score = exam_marks.get(mapped_key, {}).get('score', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
-                                        if score and score not in ['', '-']:
-                                            try:
-                                                calc_total += float(score)
-                                            except:
-                                                pass
-                            total_label_widget = ctk.CTkLabel(summary_frame, text=str(int(calc_total)) if calc_total > 0 else "-", font=("Arial Bold", 10), width=exam_width, anchor="center", text_color="#000000")
+                    try:
+                        total_label_widget = ctk.CTkLabel(summary_frame, text=str(int(total_points)), font=("Arial Bold", 10), width=exam_width, anchor="center", text_color="#000000")
+                    except (ValueError, TypeError):
+                        total_label_widget = ctk.CTkLabel(summary_frame, text="-", font=("Arial Bold", 10), width=exam_width, anchor="center", text_color="#000000")
                 else:
-                    # Fallback: calculate from marks if total_points is missing
-                    exam_marks = exam_col.get('marks', {})
-                    calc_total = 0
-                    if isinstance(exam_marks, dict):
-                        for subject in subjects:
-                            # Use the same subject key mapping as in the data retrieval
-                            subject_key_map = {
-                                'INT_SCIE': 'INTSCIE', 'PRE_TECH': 'PRE-TECH', 'C_A': 'C/A',
-                                'PRETECH': 'PRE-TECH', 'CA': 'C/A'
-                            }
-                            subject_upper = subject.upper().replace(' ', '_').replace('-', '_').replace('/', '_')
-                            mapped_key = subject_key_map.get(subject_upper, subject_upper)
-                            if is_junior:
-                                points = exam_marks.get(mapped_key, {}).get('points', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
-                                if points and points not in ['', '-']:
-                                    try:
-                                        calc_total += float(points)
-                                    except:
-                                        pass
-                            else:
-                                score = exam_marks.get(mapped_key, {}).get('score', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
-                                if score and score not in ['', '-']:
-                                    try:
-                                        calc_total += float(score)
-                                    except:
-                                        pass
-                    total_label_widget = ctk.CTkLabel(summary_frame, text=str(int(calc_total)) if calc_total > 0 else "-", font=("Arial Bold", 10), width=exam_width, anchor="center", text_color="#000000")
+                    total_label_widget = ctk.CTkLabel(summary_frame, text="-", font=("Arial Bold", 10), width=exam_width, anchor="center", text_color="#000000")
                 total_label_widget.pack(side="left", padx=2)
 
         # Current total
@@ -844,87 +719,23 @@ class ReportFormsView(ctk.CTkToplevel):
             exam_name = exam_col['name'][:8]
             exam_marks = exam_col['marks']
             total = 0
-
-            # Use pre-calculated total_points if available (more accurate)
-            if not exam_col['is_current']:
-                total_points = exam_col.get('total_points', '')
-                if total_points and total_points not in ['', '-']:
-                    # Check if total_points is a rating string (ME1, EE2, etc.) instead of numeric
-                    rating_patterns = ['BE1', 'BE2', 'AE1', 'AE2', 'ME1', 'ME2', 'EE1', 'EE2']
-                    if str(total_points).strip() in rating_patterns:
-                        # It's a rating, calculate from marks instead
-                        if isinstance(exam_marks, dict):
-                            for subject in subjects:
-                                # Use the same subject key mapping as in the data retrieval
-                                subject_key_map = {
-                                    'INT_SCIE': 'INTSCIE', 'PRE_TECH': 'PRE-TECH', 'C_A': 'C/A',
-                                    'PRETECH': 'PRE-TECH', 'CA': 'C/A'
-                                }
-                                subject_upper = subject.upper().replace(' ', '_').replace('-', '_').replace('/', '_')
-                                mapped_key = subject_key_map.get(subject_upper, subject_upper)
-                                if is_junior:
-                                    points = exam_marks.get(mapped_key, {}).get('points', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
-                                    if points and points not in ['', '-']:
-                                        try:
-                                            total += float(points)
-                                        except:
-                                            pass
-                                else:
-                                    score = exam_marks.get(mapped_key, {}).get('score', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
-                                    if score and score not in ['', '-']:
-                                        try:
-                                            total += float(score)
-                                        except:
-                                            pass
+            if isinstance(exam_marks, dict):
+                for subject in subjects:
+                    subject_key = subject_keys.get(subject.replace('-', ' ').replace('/', ' ').title(), subject.lower().replace(' ', '_').replace('-', '_').replace('/', '_'))
+                    if is_junior:
+                        points = exam_marks.get(subject_key, {}).get('points', '') if isinstance(exam_marks.get(subject_key, {}), dict) else ''
+                        if points and points not in ['', '-']:
+                            try:
+                                total += float(points)
+                            except:
+                                pass
                     else:
-                        try:
-                            total = float(total_points)
-                        except (ValueError, TypeError):
-                            total = 0
-                            # Fallback to calculating from marks if total_points is invalid
-                            if isinstance(exam_marks, dict):
-                                for subject in subjects:
-                                    # Use the same subject key mapping as in the data retrieval
-                                    subject_key_map = {
-                                        'INT_SCIE': 'INTSCIE', 'PRE_TECH': 'PRE-TECH', 'C_A': 'C/A',
-                                        'PRETECH': 'PRE-TECH', 'CA': 'C/A'
-                                    }
-                                    subject_upper = subject.upper().replace(' ', '_').replace('-', '_').replace('/', '_')
-                                    mapped_key = subject_key_map.get(subject_upper, subject_upper)
-                                    if is_junior:
-                                        points = exam_marks.get(mapped_key, {}).get('points', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
-                                        if points and points not in ['', '-']:
-                                            try:
-                                                total += float(points)
-                                            except:
-                                                pass
-                                    else:
-                                        score = exam_marks.get(mapped_key, {}).get('score', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
-                                        if score and score not in ['', '-']:
-                                            try:
-                                                total += float(score)
-                                            except:
-                                                pass
-            else:
-                # For current exam, calculate from marks
-                if isinstance(exam_marks, dict):
-                    for subject in subjects:
-                        subject_key = subject_keys.get(subject.replace('-', ' ').replace('/', ' ').title(), subject.lower().replace(' ', '_').replace('-', '_').replace('/', '_'))
-                        if is_junior:
-                            points = exam_marks.get(f'{subject_key}_p', '')
-                            if points and points not in ['', '-']:
-                                try:
-                                    total += float(points)
-                                except:
-                                    pass
-                        else:
-                            score = exam_marks.get(f'{subject_key}_s', '')
-                            if score and score not in ['', '-']:
-                                try:
-                                    total += float(score)
-                                except:
-                                    pass
-
+                        score = exam_marks.get(subject_key, {}).get('score', '') if isinstance(exam_marks.get(subject_key, {}), dict) else ''
+                        if score and score not in ['', '-']:
+                            try:
+                                total += float(score)
+                            except:
+                                pass
             performance_data.append({'name': exam_name, 'total': total})
 
         if performance_data:
@@ -1557,9 +1368,10 @@ class ReportFormsView(ctk.CTkToplevel):
                                  font=("Arial", 13), text_color="#2c3e50")
         date_label.pack(pady=5, anchor="w")
     
-    def print_report_pdf(self, container, student, file_path=None, opening_date=None, closing_date=None):
+    def print_report_pdf(self, container, student, file_path=None):
+        from fpdf import FPDF
         import os
-        from tkinter import filedialog, simpledialog, messagebox
+        from tkinter import filedialog
 
         # Check if student data is valid
         if not student:
@@ -1567,10 +1379,6 @@ class ReportFormsView(ctk.CTkToplevel):
             if not file_path:
                 messagebox.showerror("Error", "No student data provided")
             return
-
-        # Dates are no longer required - will be integrated later
-        opening_date = None
-        closing_date = None
 
         # Get school configuration
         school_name = self.school_config.get("school_name", "MY SCHOOL")
@@ -1600,52 +1408,16 @@ class ReportFormsView(ctk.CTkToplevel):
 
         # Ask for save location only if file_path is not provided
         if not file_path:
-            print(f"DEBUG PDF: Opening file dialog...")
-            # For executable, default to user's Documents folder
-            if getattr(sys, 'frozen', False):
-                initial_dir = os.path.join(os.path.expanduser("~"), "Documents")
-                if not os.path.exists(initial_dir):
-                    initial_dir = os.path.expanduser("~")
-            else:
-                initial_dir = os.getcwd()
-
             file_path = filedialog.asksaveasfilename(
                 defaultextension=".pdf",
                 initialfile=f"{student_name.replace(' ', '_')}_{exam_title.replace(' ', '_')}.pdf",
-                initialdir=initial_dir,
             )
-            print(f"DEBUG PDF: File dialog returned: {file_path}")
         if not file_path:
-            print(f"DEBUG PDF: No file path selected, aborting")
             return
 
-        # Check if the directory is writable
         try:
-            import os
-            file_dir = os.path.dirname(file_path) or os.getcwd()
-            if not os.path.exists(file_dir):
-                os.makedirs(file_dir, exist_ok=True)
-            test_file = os.path.join(file_dir, ".write_test")
-            with open(test_file, 'w') as f:
-                f.write("test")
-            os.remove(test_file)
-            print(f"DEBUG PDF: Directory is writable: {file_dir}")
-        except Exception as e:
-            print(f"ERROR PDF: Directory not writable: {e}")
-            if not file_path:
-                messagebox.showerror("Error", f"Cannot write to selected location: {e}")
-            return
-
-        # Convert to absolute path to avoid relative path issues
-        file_path = os.path.abspath(file_path)
-        print(f"DEBUG PDF: Absolute file path: {file_path}")
-
-        try:
-            print(f"DEBUG PDF: Creating FPDF object...")
             pdf = FPDF(orientation="L", unit="mm", format="A4")
-            print(f"DEBUG PDF: Adding page...")
             pdf.add_page()
-            print(f"DEBUG PDF: Page added successfully")
 
             # Page frame/border
             pdf.set_draw_color(0, 0, 0)
@@ -1967,7 +1739,7 @@ class ReportFormsView(ctk.CTkToplevel):
                     
                     # Teacher comment - use multi_cell for wrapping
                     comment = self.rating_to_comment(current_rating) if current_rating else 'No comment'
-                    pdf.multi_cell(comment_col_width, 5, txt=comment, border=1, align="L")
+                    pdf.multi_cell(comment_col_width, 5, txt=comment, border=1, ln=1, align="L")
                 
                 # Summary row - Total and Average with modern color
                 pdf.set_fill_color(241, 245, 249)
@@ -2005,95 +1777,13 @@ class ReportFormsView(ctk.CTkToplevel):
                     if not exam_col['is_current']:
                         total_points = exam_col.get('total_points', '')
                         if total_points and total_points not in ['', '-']:
-                            # Check if total_points is a rating string (ME1, EE2, etc.) instead of numeric
-                            rating_patterns = ['BE1', 'BE2', 'AE1', 'AE2', 'ME1', 'ME2', 'EE1', 'EE2']
-                            if str(total_points).strip() in rating_patterns:
-                                # It's a rating, calculate from marks instead
-                                exam_marks = exam_col.get('marks', {})
-                                calc_total = 0
-                                if isinstance(exam_marks, dict):
-                                    for subject in subjects:
-                                        # Use the same subject key mapping as in the data retrieval
-                                        subject_key_map = {
-                                            'INT_SCIE': 'INTSCIE', 'PRE_TECH': 'PRE-TECH', 'C_A': 'C/A',
-                                            'PRETECH': 'PRE-TECH', 'CA': 'C/A'
-                                        }
-                                        subject_upper = subject.upper().replace(' ', '_').replace('-', '_').replace('/', '_')
-                                        mapped_key = subject_key_map.get(subject_upper, subject_upper)
-                                        if is_junior:
-                                            points = exam_marks.get(mapped_key, {}).get('points', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
-                                            if points and points not in ['', '-']:
-                                                try:
-                                                    calc_total += float(points)
-                                                except:
-                                                    pass
-                                        else:
-                                            score = exam_marks.get(mapped_key, {}).get('score', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
-                                            if score and score not in ['', '-']:
-                                                try:
-                                                    calc_total += float(score)
-                                                except:
-                                                    pass
-                                pdf.cell(exam_col_width, 6, txt=str(int(calc_total)) if calc_total > 0 else "-", border=1, ln=0, align="C", fill=True)
-                            else:
-                                try:
-                                    pdf.cell(exam_col_width, 6, txt=str(int(float(total_points))), border=1, ln=0, align="C", fill=True)
-                                except (ValueError, TypeError):
-                                    # Fallback: calculate from marks if total_points is invalid
-                                    exam_marks = exam_col.get('marks', {})
-                                    calc_total = 0
-                                    if isinstance(exam_marks, dict):
-                                        for subject in subjects:
-                                            # Use the same subject key mapping as in the data retrieval
-                                            subject_key_map = {
-                                                'INT_SCIE': 'INTSCIE', 'PRE_TECH': 'PRE-TECH', 'C_A': 'C/A',
-                                                'PRETECH': 'PRE-TECH', 'CA': 'C/A'
-                                            }
-                                            subject_upper = subject.upper().replace(' ', '_').replace('-', '_').replace('/', '_')
-                                            mapped_key = subject_key_map.get(subject_upper, subject_upper)
-                                            if is_junior:
-                                                points = exam_marks.get(mapped_key, {}).get('points', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
-                                                if points and points not in ['', '-']:
-                                                    try:
-                                                        calc_total += float(points)
-                                                    except:
-                                                        pass
-                                            else:
-                                                score = exam_marks.get(mapped_key, {}).get('score', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
-                                                if score and score not in ['', '-']:
-                                                    try:
-                                                        calc_total += float(score)
-                                                    except:
-                                                        pass
-                                    pdf.cell(exam_col_width, 6, txt=str(int(calc_total)) if calc_total > 0 else "-", border=1, ln=0, align="C", fill=True)
+                            try:
+                                pdf.cell(exam_col_width, 6, txt=str(int(total_points)), border=1, ln=0, align="C", fill=True)
+                            except (ValueError, TypeError):
+                                # If total_points is not numeric, show dash
+                                pdf.cell(exam_col_width, 6, txt="-", border=1, ln=0, align="C", fill=True)
                         else:
-                            # Fallback: calculate from marks if total_points is missing
-                            exam_marks = exam_col.get('marks', {})
-                            calc_total = 0
-                            if isinstance(exam_marks, dict):
-                                for subject in subjects:
-                                    # Use the same subject key mapping as in the data retrieval
-                                    subject_key_map = {
-                                        'INT_SCIE': 'INTSCIE', 'PRE_TECH': 'PRE-TECH', 'C_A': 'C/A',
-                                        'PRETECH': 'PRE-TECH', 'CA': 'C/A'
-                                    }
-                                    subject_upper = subject.upper().replace(' ', '_').replace('-', '_').replace('/', '_')
-                                    mapped_key = subject_key_map.get(subject_upper, subject_upper)
-                                    if is_junior:
-                                        points = exam_marks.get(mapped_key, {}).get('points', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
-                                        if points and points not in ['', '-']:
-                                            try:
-                                                calc_total += float(points)
-                                            except:
-                                                pass
-                                    else:
-                                        score = exam_marks.get(mapped_key, {}).get('score', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
-                                        if score and score not in ['', '-']:
-                                            try:
-                                                calc_total += float(score)
-                                            except:
-                                                pass
-                            pdf.cell(exam_col_width, 6, txt=str(int(calc_total)) if calc_total > 0 else "-", border=1, ln=0, align="C", fill=True)
+                            pdf.cell(exam_col_width, 6, txt="-", border=1, ln=0, align="C", fill=True)
                 
                 pdf.cell(exam_col_width, 6, txt=str(int(current_total)) if current_total > 0 else "-", border=1, ln=0, align="C", fill=True)
                 pdf.cell(rating_col_width, 6, txt=avg_level, border=1, ln=0, align="C", fill=True)
@@ -2137,91 +1827,29 @@ class ReportFormsView(ctk.CTkToplevel):
                         exam_name = exam_col['name'][:8]
                         exam_marks = exam_col['marks']
                         total = 0
-
-                        # Use pre-calculated total_points if available (more accurate)
-                        if not exam_col['is_current']:
-                            total_points = exam_col.get('total_points', '')
-                            if total_points and total_points not in ['', '-']:
-                                # Check if total_points is a rating string (ME1, EE2, etc.) instead of numeric
-                                rating_patterns = ['BE1', 'BE2', 'AE1', 'AE2', 'ME1', 'ME2', 'EE1', 'EE2']
-                                if str(total_points).strip() in rating_patterns:
-                                    # It's a rating, calculate from marks instead
-                                    if isinstance(exam_marks, dict):
-                                        for subject in subjects:
-                                            # Use the same subject key mapping as in the data retrieval
-                                            subject_key_map = {
-                                                'INT_SCIE': 'INTSCIE', 'PRE_TECH': 'PRE-TECH', 'C_A': 'C/A',
-                                                'PRETECH': 'PRE-TECH', 'CA': 'C/A'
-                                            }
-                                            subject_upper = subject.upper().replace(' ', '_').replace('-', '_').replace('/', '_')
-                                            mapped_key = subject_key_map.get(subject_upper, subject_upper)
-                                            if is_junior:
-                                                # For junior, check for points
-                                                points = exam_marks.get(mapped_key, {}).get('points', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
-                                                if points and points not in ['', '-']:
-                                                    try:
-                                                        total += float(points)
-                                                    except:
-                                                        pass
-                                            else:
-                                                # For other grades, check for score
-                                                score = exam_marks.get(mapped_key, {}).get('score', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
-                                                if score and score not in ['', '-']:
-                                                    try:
-                                                        total += float(score)
-                                                    except:
-                                                        pass
-                                else:
-                                    try:
-                                        total = float(total_points)
-                                    except (ValueError, TypeError):
-                                        total = 0
-                                        # Fallback to calculating from marks if total_points is invalid
-                                        if isinstance(exam_marks, dict):
-                                            for subject in subjects:
-                                                # Use the same subject key mapping as in the data retrieval
-                                                subject_key_map = {
-                                                    'INT_SCIE': 'INTSCIE', 'PRE_TECH': 'PRE-TECH', 'C_A': 'C/A',
-                                                    'PRETECH': 'PRE-TECH', 'CA': 'C/A'
-                                                }
-                                                subject_upper = subject.upper().replace(' ', '_').replace('-', '_').replace('/', '_')
-                                                mapped_key = subject_key_map.get(subject_upper, subject_upper)
-                                                if is_junior:
-                                                    # For junior, check for points
-                                                    points = exam_marks.get(mapped_key, {}).get('points', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
-                                                    if points and points not in ['', '-']:
-                                                        try:
-                                                            total += float(points)
-                                                        except:
-                                                            pass
-                                                else:
-                                                    # For other grades, check for score
-                                                    score = exam_marks.get(mapped_key, {}).get('score', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
-                                                    if score and score not in ['', '-']:
-                                                        try:
-                                                            total += float(score)
-                                                        except:
-                                                            pass
-                        else:
-                            # For current exam, calculate from marks
-                            if isinstance(exam_marks, dict):
-                                for subject in subjects:
-                                    subject_key = subject_keys.get(subject.replace('-', ' ').replace('/', ' ').title(), subject.lower().replace(' ', '_').replace('-', '_').replace('/', '_'))
+                        if isinstance(exam_marks, dict):
+                            for subject in subjects:
+                                subject_key = subject_keys.get(subject.replace('-', ' ').replace('/', ' ').title(), subject.lower().replace(' ', '_').replace('-', '_').replace('/', '_'))
+                                if exam_col['is_current']:
+                                    score = current_marks.get(f'{subject_key}_s', '')
                                     if is_junior:
-                                        points = current_marks.get(f'{subject_key}_p', '')
-                                        if points and points not in ['', '-']:
-                                            try:
-                                                total += float(points)
-                                            except:
-                                                pass
-                                    else:
-                                        score = current_marks.get(f'{subject_key}_s', '')
-                                        if score and score not in ['', '-']:
-                                            try:
-                                                total += float(score)
-                                            except:
-                                                pass
-
+                                        score = current_marks.get(f'{subject_key}_p', '')
+                                else:
+                                    subject_key_map = {
+                                        'INT_SCIE': 'INTSCIE',
+                                        'PRE_TECH': 'PRE-TECH',
+                                        'C_A': 'C/A',
+                                        'PRETECH': 'PRE-TECH',
+                                        'CA': 'C/A'
+                                    }
+                                    subject_upper = subject.upper().replace(' ', '_').replace('-', '_').replace('/', '_')
+                                    mapped_key = subject_key_map.get(subject_upper, subject_upper)
+                                    score = exam_marks.get(mapped_key, {}).get('score', '') if isinstance(exam_marks.get(mapped_key, {}), dict) else ''
+                                if score and score not in ['', '-']:
+                                    try:
+                                        total += float(score)
+                                    except:
+                                        pass
                         performance_data.append({'name': exam_name, 'total': total})
                     
                     # Draw bars
@@ -2291,8 +1919,10 @@ class ReportFormsView(ctk.CTkToplevel):
                     avg_score = sum(scores) / len(scores)
                     # Convert to rating for junior grades
                     if is_junior:
+                        from grading_logic import get_grade_7_8_rating
                         rating_result = get_grade_7_8_rating(avg_score)
                     else:
+                        from grading_logic import get_grade_4_6_rating
                         rating_result = get_grade_4_6_rating(avg_score)
                     # Extract rating string if it's a tuple
                     if isinstance(rating_result, tuple):
@@ -2334,36 +1964,13 @@ class ReportFormsView(ctk.CTkToplevel):
             else:
                 pdf.cell(0, 5, txt="_________________", border=0, ln=1)
                 pdf.ln(3)
-            
-            # Add opening and closing dates to the right of signature if provided
-            if opening_date and closing_date:
-                pdf.set_xy(150, pdf.get_y() - 28)  # Position to the right of signature
-                pdf.set_font("Helvetica", "B", 8)
-                pdf.cell(0, 5, txt=f"Opening Date: {opening_date}", border=0, ln=1, align="L")
-                pdf.set_xy(150, pdf.get_y() + 5)
-                pdf.cell(0, 5, txt=f"Closing Date: {closing_date}", border=0, ln=1, align="L")
 
-            print(f"DEBUG PDF: Attempting to write PDF to: {file_path}")
             pdf.output(file_path)
-            print(f"DEBUG PDF: PDF written successfully")
-
-            # Verify file was actually created
-            if os.path.exists(file_path):
-                file_size = os.path.getsize(file_path)
-                print(f"DEBUG PDF: File verified - Size: {file_size} bytes")
-                if file_size < 1000:
-                    print(f"WARNING PDF: File size suspiciously small ({file_size} bytes)")
-            else:
-                print(f"ERROR PDF: File was not created at {file_path}")
-
             # Only show success message for individual printing (when file_path is not provided)
             if not file_path:
-                messagebox.showinfo("Success", f"PDF generated successfully!\nLocation: {file_path}")
+                messagebox.showinfo("Success", "PDF generated successfully!")
 
         except Exception as e:
-            print(f"ERROR PDF: PDF Generation Failed: {e}")
-            import traceback
-            traceback.print_exc()
             # Only show error message for individual printing (when file_path is not provided)
             if not file_path:
                 messagebox.showerror("Error", f"PDF Generation Failed: {e}")
@@ -2450,63 +2057,6 @@ class ReportFormsView(ctk.CTkToplevel):
             return
         
         messagebox.showinfo("Print", f"Would print {len(students)} reports for {self.current_class}.")
-        
-        students = self.get_students_in_class(self.current_class)
-        if not students:
-            messagebox.showinfo("Info", "No students in this class.")
-            return
-        
-        print(f"=== Found {len(students)} students in {self.current_class} ===")
-
-        # Dates are no longer required - will be integrated later
-        opening_date = None
-        closing_date = None
-
-        # Ask for save directory
-        from tkinter import filedialog
-        # For executable, default to user's Documents folder
-        if getattr(sys, 'frozen', False):
-            initial_dir = os.path.join(os.path.expanduser("~"), "Documents")
-            if not os.path.exists(initial_dir):
-                initial_dir = os.path.expanduser("~")
-        else:
-            initial_dir = os.getcwd()
-
-        save_dir = filedialog.askdirectory(title="Select directory to save PDFs", initialdir=initial_dir)
-        if not save_dir:
-            return
-
-        # Convert to absolute path
-        save_dir = os.path.abspath(save_dir)
-        print(f"DEBUG PDF: Batch save directory: {save_dir}")
-        
-        # Print reports for all students in the class
-        success_count = 0
-        for student in students:
-            # Generate report data for this student
-            report_data = self.generate_report_data(student)
-            if not report_data:
-                continue
-            
-            # Merge student basic info with report data
-            report_data['name'] = student.get('name', '')
-            report_data['adm_no'] = student.get('adm_no', '')
-            report_data['grade'] = student.get('grade', '')
-            report_data['stream'] = student.get('stream', 'none')
-            report_data['photo'] = student.get('photo', '')
-            
-            # Create file path
-            file_path = os.path.join(save_dir, f"{student['name'].replace(' ', '_')}_report.pdf")
-            
-            # Print the report
-            try:
-                self.print_report_pdf(None, report_data, file_path=file_path, 
-                                    opening_date=opening_date, closing_date=closing_date)
-                success_count += 1
-            except Exception as e:
-                print(f"Error printing report for {student['name']}: {e}")
-        
-        messagebox.showinfo("Success", f"Printed {success_count}/{len(students)} reports for {self.current_class}.")
     
     def print_all_reports(self):
         classes = self.get_available_classes()
@@ -2516,191 +2066,259 @@ class ReportFormsView(ctk.CTkToplevel):
         
         total_students = sum(len(self.get_students_in_class(cls)) for cls in classes)
         messagebox.showinfo("Print", f"Would print {total_students} reports for all classes.")
-        
-        print(f"=== Found {len(classes)} classes ===")
-
-        # Dates are no longer required - will be integrated later
-        opening_date = None
-        closing_date = None
-
-        # Ask for save directory
-        from tkinter import filedialog
-        # For executable, default to user's Documents folder
-        if getattr(sys, 'frozen', False):
-            initial_dir = os.path.join(os.path.expanduser("~"), "Documents")
-            if not os.path.exists(initial_dir):
-                initial_dir = os.path.expanduser("~")
-        else:
-            initial_dir = os.getcwd()
-
-        save_dir = filedialog.askdirectory(title="Select directory to save PDFs", initialdir=initial_dir)
-        if not save_dir:
-            return
-
-        # Convert to absolute path
-        save_dir = os.path.abspath(save_dir)
-        print(f"DEBUG PDF: Batch save directory: {save_dir}")
-        
-        # Print reports for all students in all classes
-        total_success = 0
-        total_students = 0
-        
-        for class_name in classes:
-            students = self.get_students_in_class(class_name)
-            total_students += len(students)
-            
-            for student in students:
-                # Generate report data for this student
-                report_data = self.generate_report_data(student)
-                if not report_data:
-                    continue
-                
-                # Merge student basic info with report data
-                report_data['name'] = student.get('name', '')
-                report_data['adm_no'] = student.get('adm_no', '')
-                report_data['grade'] = student.get('grade', '')
-                report_data['stream'] = student.get('stream', 'none')
-                report_data['photo'] = student.get('photo', '')
-                
-                # Create file path
-                file_path = os.path.join(save_dir, f"{student['name'].replace(' ', '_')}_{class_name}_report.pdf")
-                
-                # Print the report
-                try:
-                    self.print_report_pdf(None, report_data, file_path=file_path, 
-                                        opening_date=opening_date, closing_date=closing_date)
-                    total_success += 1
-                except Exception as e:
-                    print(f"Error printing report for {student['name']}: {e}")
-        
-        messagebox.showinfo("Success", f"Printed {total_success}/{total_students} reports for all classes.")
     
     def generate_report_data(self, student):
         print(f"DEBUG: generate_report_data called for {student.get('name', 'Unknown')} in {student['grade']}")
         print(f"DEBUG: generate_report_data - Student keys: {list(student.keys())}")
         print(f"DEBUG: generate_report_data - Photo field: {student.get('photo', 'NOT FOUND')}")
-        
         current_marks = self.get_student_current_marks(student['adm_no'], student['grade'])
+        
+        # If no current marks, return None - don't print report
         if not current_marks:
             print(f"DEBUG: No current marks found for {student.get('name', 'Unknown')} in {student['grade']}")
             return None
-        
         print(f"DEBUG: Current marks found, proceeding with report generation")
+        
+        # Use current_exam_title for consistency with performance history graph
         exam_title = self.school_config.get("current_exam_title", "PERFORMANCE REPORT")
         
+        # Fetch previous exams for this student
         previous_exams_data = []
         previous_exams_list = self.db.get_previous_exams(student['grade'])
         print(f"DEBUG: Found {len(previous_exams_list)} previous exams in database for grade {student['grade']}")
+        for exam_name, exam_date in previous_exams_list:
+            print(f"DEBUG: Previous exam: {exam_name} at {exam_date}")
         
+        # Get subject names from school config instead of current marks
+        # This ensures we use the correct subject names even if current marks are incomplete
         subject_names = self.get_subjects_for_grade(student['grade'])
         print(f"DEBUG: Subject names from config: {subject_names}")
         
-        rating_patterns = ['BE1', 'BE2', 'AE1', 'AE2', 'ME1', 'ME2', 'EE1', 'EE2']
-        grade_lower = student['grade'].lower()
-        is_junior = grade_lower in ["grade 7", "grade 8", "grade 9"]
-        
-        for exam_name, exam_date in previous_exams_list:
+        for exam_name, exam_date in previous_exams_list:  # Get all previous exams
             marks_data, summary_data = self.db.get_previous_exam_data(exam_name, student['grade'])
             print(f"DEBUG: Got marks_data for {exam_name}: {marks_data is not None}")
-            
             if marks_data:
+                # Parse the marks data to extract this student's marks
                 try:
                     import json
+                    # Handle both list and dict structures
                     if isinstance(marks_data, str):
                         marks_data = json.loads(marks_data)
                     
                     if isinstance(marks_data, list):
+                        # List format: [[name, score1, rating1, score2, rating2, ...], ...]
+                        # Junior format: [[name, score1, rating1, points1, score2, rating2, points2, ...], ...]
                         print(f"DEBUG: Marks data is a list with {len(marks_data)} students")
+                        print(f"DEBUG: Student grade: {student['grade']}")
+                        
+                        # Detect if this is junior format (has 3 values per subject: score, rating, points)
+                        # by checking if the data length suggests 3 values per subject
+                        grade_lower = student['grade'].lower()
+                        is_junior = grade_lower in ["grade 7", "grade 8", "grade 9"]
+                        
                         for student_record in marks_data:
-                            if student_record and student_record[0].strip().lower() == student['name'].strip().lower():
-                                marks_dict = {}
-                                marks_list = student_record[1:]
-                                
-                                if is_junior:
-                                    print(f"DEBUG: Using junior format (score, rating, points)")
-                                    for i, subject_name in enumerate(subject_names):
-                                        if i * 3 + 2 < len(marks_list):
-                                            marks_dict[subject_name.upper().replace(' ', '')] = {
-                                                'score': marks_list[i * 3],
-                                                'rating': marks_list[i * 3 + 1],
-                                                'points': marks_list[i * 3 + 2]
-                                            }
-                                else:
-                                    print(f"DEBUG: Using standard format (score, rating)")
-                                    for i, subject_name in enumerate(subject_names):
-                                        if i * 2 + 1 < len(marks_list):
-                                            marks_dict[subject_name.upper().replace(' ', '')] = {
-                                                'score': marks_list[i * 2],
-                                                'rating': marks_list[i * 2 + 1]
-                                            }
-                                
-                                total_points, avg_level = None, 'BE2'
-                                for offset in range(-3, 0):
-                                    try:
-                                        pt = int(marks_list[offset])
-                                        if 0 < pt < 1000:
-                                            total_points = pt
+                            if len(student_record) > 0:
+                                record_name = student_record[0]
+                                record_key = "".join(record_name.split()).lower()
+                                if record_key == "".join(student['name'].split()).lower():
+                                    # Found the student, extract their marks
+                                    # Convert list to dict format with subject names
+                                    marks_dict = {}
+                                    marks_list = student_record[1:]  # Skip name
+                                    # Valid rating patterns
+                                    rating_patterns = ['BE1', 'BE2', 'AE1', 'AE2', 'ME1', 'ME2', 'EE1', 'EE2']
+                                    
+                                    # Determine format based on grade
+                                    if is_junior:
+                                        # Junior format: [score1, rating1, points1, score2, rating2, points2, ...]
+                                        print(f"DEBUG: Using junior format (score, rating, points)")
+                                        for i, subject_name in enumerate(subject_names):
+                                            if i * 3 + 2 < len(marks_list):
+                                                score = marks_list[i * 3]
+                                                rating = marks_list[i * 3 + 1]
+                                                points = marks_list[i * 3 + 2]
+                                                
+                                                # For junior, use score as the display value (not points)
+                                                marks_dict[subject_name.upper().replace(' ', '')] = {
+                                                    'score': score,
+                                                    'rating': rating,
+                                                    'points': points
+                                                }
+                                                print(f"DEBUG: Junior {subject_name}: score={score}, rating={rating}, points={points}")
+                                    else:
+                                        # Playgroup/Primary format: [score1, rating1, score2, rating2, ...]
+                                        print(f"DEBUG: Using standard format (score, rating)")
+                                        for i, subject_name in enumerate(subject_names):
+                                            if i * 2 + 1 < len(marks_list):
+                                                score = marks_list[i * 2]
+                                                rating = marks_list[i * 2 + 1]
+                                                
+                                                marks_dict[subject_name.upper().replace(' ', '')] = {
+                                                    'score': score,
+                                                    'rating': rating
+                                                }
+                                    # Extract total_points and average_level if present (last 2 items after subjects)
+                                    # Format: [name, score1, rating1, ..., total, average_level]
+                                    total_points = None
+                                    avg_level = None
+                                    print(f"DEBUG: marks_list length: {len(marks_list)}, subject_names count: {len(subject_names)}")
+                                    print(f"DEBUG: marks_list last 5 items: {marks_list[-5:]}")
+                                    
+                                    if is_junior:
+                                        # Junior format: [name, score1, rating1, points1, ..., total_points, average_level]
+                                        # Calculate expected length: 1 (name) + 3 * num_subjects + 2 (total, avg)
+                                        expected_len = 1 + len(subject_names) * 3 + 2
+                                        print(f"DEBUG: Junior expected_len={expected_len}, actual_len={len(marks_list)}")
+                                        
+                                        if len(marks_list) >= expected_len:
+                                            avg_level = marks_list[-1]  # Last item is average_level
+                                            total_points = marks_list[-2]  # Second to last item is total_points
+                                            print(f"DEBUG: Junior total_points from end={total_points}, avg_level={avg_level}")
+                                            # Validate that total_points is numeric
+                                            try:
+                                                int(total_points)
+                                            except (ValueError, TypeError):
+                                                print(f"DEBUG: total_points '{total_points}' is not numeric, calculating from subject points")
+                                                total_points = 0
+                                                for i, subject_name in enumerate(subject_names):
+                                                    if i * 3 + 2 < len(marks_list):
+                                                        points = marks_list[i * 3 + 2]
+                                                        try:
+                                                            total_points += int(points)
+                                                        except:
+                                                            pass
+                                                print(f"DEBUG: Junior recalculated total_points={total_points} from subject points")
+                                        else:
+                                            # Try to calculate total from points if not present at end
+                                            total_points = 0
+                                            for i, subject_name in enumerate(subject_names):
+                                                if i * 3 + 2 < len(marks_list):
+                                                    points = marks_list[i * 3 + 2]
+                                                    try:
+                                                        total_points += int(points)
+                                                    except:
+                                                        pass
+                                            print(f"DEBUG: Junior calculated total_points={total_points} from subject points (list too short)")
+                                    else:
+                                        # Standard format: [name, score1, rating1, ..., total_points, average_level]
+                                        # Calculate expected length: 1 (name) + 2 * num_subjects + 2 (total, avg)
+                                        expected_len = 1 + len(subject_names) * 2 + 2
+                                        if len(marks_list) >= expected_len:
+                                            avg_level = marks_list[-1]  # Last item is average_level
+                                            total_points = marks_list[-2]  # Second to last item is total_points
+                                            print(f"DEBUG: Standard total_points={total_points}, avg_level={avg_level}")
+                                        else:
+                                            # Try to calculate total from scores if not present at end
+                                            total_points = 0
+                                            for i, subject_name in enumerate(subject_names):
+                                                if i * 2 < len(marks_list):
+                                                    score = marks_list[i * 2]
+                                                    try:
+                                                        total_points += int(score)
+                                                    except:
+                                                        pass
+                                            print(f"DEBUG: Standard calculated total_points={total_points} from subject scores")
+                                    
+                                    # Check if all marks are empty - if so, skip this exam
+                                    has_data = False
+                                    for subject, mark_data in marks_dict.items():
+                                        score = mark_data.get('score', '')
+                                        if score and str(score).strip():
+                                            has_data = True
                                             break
-                                    except (ValueError, TypeError):
-                                        continue
-                                        
-                                if total_points is None and len(marks_list) >= 2:
-                                    try:
-                                        total_points = int(marks_list[-2])
-                                    except:
-                                        total_points = 0
-                                        
-                                for val in marks_list[-3:]:
-                                    if str(val).strip() in rating_patterns:
-                                        avg_level = str(val).strip()
-                                        break
-
-                                has_data = any(m.get('score', '') for m in marks_dict.values() if isinstance(m, dict))
-                                if has_data:
-                                    previous_exams_data.append({
-                                        'exam_name': exam_name,
-                                        'exam_date': exam_date,
-                                        'marks': marks_dict,
-                                        'total_points': total_points,
-                                        'average_level': avg_level
-                                    })
-                                    print(f"DEBUG: Added previous exam {exam_name}, total={total_points}, avg={avg_level}")
-                                break
-                                
+                                    
+                                    if not has_data:
+                                        print(f"DEBUG: Skipping {exam_name} - all marks are empty for this student")
+                                    else:
+                                        previous_exams_data.append({
+                                            'exam_name': exam_name,
+                                            'exam_date': exam_date,
+                                            'marks': marks_dict,
+                                            'total_points': total_points,
+                                            'average_level': avg_level
+                                        })
+                                        print(f"DEBUG: Added previous exam {exam_name} with mapped dict marks, total_points={total_points}, avg_level={avg_level}")
+                                    print(f"DEBUG: marks_dict keys: {list(marks_dict.keys())}")
+                                    print(f"DEBUG: marks_dict sample: {list(marks_dict.items())[:3]}")
+                                    break
                     elif isinstance(marks_data, dict):
+                        print(f"DEBUG: Marks dict keys: {list(marks_dict.keys())[:5]}")  # Show first 5 keys
+                        # Find this student's marks
                         student_key = "".join(student['name'].split()).lower()
-                        if student_key in marks_data:
-                            student_marks = marks_data[student_key]
+                        print(f"DEBUG: Looking for student key: {student_key} in marks_dict")
+                        if student_key in marks_dict:
+                            student_marks = marks_dict[student_key]
+                            # Extract total_points and average_level if present
                             total_points = student_marks.get('total_points') if isinstance(student_marks, dict) else None
-                            avg_level = student_marks.get('average_level') if isinstance(student_marks, dict) else 'BE2'
+                            avg_level = student_marks.get('average_level') if isinstance(student_marks, dict) else None
                             
-                            previous_exams_data.append({
-                                'exam_name': exam_name,
-                                'exam_date': exam_date,
-                                'marks': student_marks,
-                                'total_points': total_points,
-                                'average_level': avg_level if avg_level in rating_patterns else 'BE2'
-                            })
+                            # Fix swapped score/rating fields in dict format
+                            # Valid rating patterns
+                            rating_patterns = ['BE1', 'BE2', 'AE1', 'AE2', 'ME1', 'ME2', 'EE1', 'EE2']
+                            if isinstance(student_marks, dict):
+                                for subject, mark_data in student_marks.items():
+                                    if isinstance(mark_data, dict):
+                                        score = mark_data.get('score', '')
+                                        rating = mark_data.get('rating', '')
+                                        
+                                        # Enhanced validation to fix corrupted score/rating fields
+                                        score_str = str(score).strip()
+                                        rating_str = str(rating).strip()
+                                        
+                                        # Case 1: score is a rating pattern and rating looks like a score/number
+                                        if score_str in rating_patterns and rating_str.isdigit():
+                                            print(f"DEBUG: Swapping score/rating for {subject}: score={score}, rating={rating}")
+                                            mark_data['score'] = rating
+                                            mark_data['rating'] = score
+                                        # Case 2: score is a rating pattern and rating is also a rating (corrupted)
+                                        elif score_str in rating_patterns and rating_str in rating_patterns:
+                                            print(f"DEBUG: Both score and rating are ratings for {subject}: score={score}, rating={rating}")
+                                            # Keep first rating as rating, set score to empty
+                                            mark_data['rating'] = score_str
+                                            mark_data['score'] = ''
+                                        # Case 3: score is a point (1-8) and rating is a rating (swapped)
+                                        elif score_str.isdigit() and 1 <= int(score_str) <= 8 and rating_str in rating_patterns:
+                                            print(f"DEBUG: Score is point and rating is rating for {subject}: score={score}, rating={rating}")
+                                            # This might be correct for playgroup, but for junior we want scores
+                                            # For now, keep as is since points are valid for some grades
+                                        # Case 4: score is a point (1-8) and rating is also a point (corrupted)
+                                        elif score_str.isdigit() and rating_str.isdigit() and 1 <= int(score_str) <= 8 and 1 <= int(rating_str) <= 8:
+                                            print(f"DEBUG: Both score and rating are points for {subject}: score={score}, rating={rating}")
+                                            # Keep first point as score, set rating to empty
+                                            mark_data['score'] = score_str
+                                            mark_data['rating'] = ''
+                            
+                            # Check if all marks are empty - if so, skip this exam
+                            has_data = False
+                            if isinstance(student_marks, dict):
+                                for subject, mark_data in student_marks.items():
+                                    if isinstance(mark_data, dict):
+                                        score = mark_data.get('score', '')
+                                        if score and str(score).strip():
+                                            has_data = True
+                                            break
+                            
+                            if not has_data:
+                                print(f"DEBUG: Skipping {exam_name} - all marks are empty for this student")
+                            else:
+                                previous_exams_data.append({
+                                    'exam_name': exam_name,
+                                    'exam_date': exam_date,
+                                    'marks': student_marks,
+                                    'total_points': total_points,
+                                    'average_level': avg_level
+                                })
+                                print(f"DEBUG: Added previous exam {exam_name} with dict marks, total_points={total_points}, avg_level={avg_level}")
+                        else:
+                            print(f"DEBUG: Student key not found in marks_dict")
                 except Exception as e:
                     print(f"DEBUG: Error parsing marks data: {e}")
-                    
+                    import traceback
+                    traceback.print_exc()
+                    pass
+        
         print(f"DEBUG: Total previous_exams_data: {len(previous_exams_data)}")
         
-        # Base64 photo encoding
-        import base64
-        photo_path = student.get('photo', '')
-        encoded_photo = ''
-        if photo_path and os.path.exists(photo_path):
-            try:
-                with open(photo_path, "rb") as image_file:
-                    file_bytes = image_file.read()
-                    encoded_string = base64.b64encode(file_bytes).decode('utf-8')
-                    ext = photo_path.split('.')[-1].lower()
-                    mime_type = 'image/png' if ext == 'png' else 'image/jpeg'
-                    encoded_photo = f"data:{mime_type};base64,{encoded_string}"
-            except Exception as e:
-                print(f"DEBUG: Error encoding student photo to base64: {e}")
-                
         return {
             'student_name': student['name'],
             'adm_no': student['adm_no'],
@@ -2712,8 +2330,7 @@ class ReportFormsView(ctk.CTkToplevel):
             'exam_title': exam_title,
             'previous_exams': previous_exams_data,
             'generated_date': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'photo': encoded_photo,
-            'student_photo': encoded_photo
+            'photo': student.get('photo', '')
         }
     
     def get_cloud_credentials(self):
