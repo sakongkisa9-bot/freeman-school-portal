@@ -935,7 +935,7 @@
                         <td>-</td>
                     {% endif %}
                     <td class="left-align">{{ teacher_name }}</td>
-                    <td class="teacher-comment">{{ rating|rating_to_comment }}</td>
+                    <td class="teacher-comment">{{ rating|rating_to_comment(subject_name, report.subject_comment_indices|default({})) }}</td>
                 </tr>
                 {% endif %}
                 {% endif %}
