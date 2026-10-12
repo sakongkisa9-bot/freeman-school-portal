@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from tkinter import messagebox, filedialog
+from tkinter import messagebox, filedialog, Listbox
 from tkinter import font as tkfont
 import os
 import json
@@ -15,6 +15,7 @@ class NewsletterCreator(ctk.CTkToplevel):
         self.db = db
         self.parent = parent
         self.attachment_path = None
+        self.current_draft_id = None
         
         # Window configuration
         self.title("Newsletter & Circular Creator")
@@ -36,27 +37,14 @@ class NewsletterCreator(ctk.CTkToplevel):
         self.grab_set()
         
         # Main container with scrollable frame
-        self.scrollable_frame = ctk.CTkScrollableFrame(self, fg_color="#f0f0f0")
+        self.configure(fg_color="#08171d")
+        self.scrollable_frame = ctk.CTkScrollableFrame(self, fg_color="#08171d")
         self.scrollable_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
-        self.main_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#f0f0f0")
+        self.main_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#08171d")
         self.main_frame.pack(fill="both", expand=True)
         
-        # Close button in top right corner
-        close_btn = ctk.CTkButton(
-            self.main_frame,
-            text="✕",
-            width=40,
-            height=40,
-            command=self.destroy,
-            fg_color="#e74c3c",
-            hover_color="#c0392b",
-            font=("Arial", 18),
-            corner_radius=20
-        )
-        close_btn.place(relx=1.0, rely=0.0, x=-15, y=15, anchor="ne")
-        
-        # Build the three sections
+        self._build_header()
         self._build_audience_selector()
         self._build_wysiwyg_editor()
         self._build_attachment_channels()
@@ -66,18 +54,58 @@ class NewsletterCreator(ctk.CTkToplevel):
         
         # Initialize button states after a short delay
         self.after(100, self._update_button_states)
+
+    def _build_header(self):
+        header = ctk.CTkFrame(
+            self.main_frame,
+            fg_color="#10252d",
+            border_color="#1c4650",
+            border_width=1,
+            corner_radius=8,
+        )
+        header.pack(fill="x", padx=10, pady=(10, 5))
+
+        title = ctk.CTkLabel(
+            header,
+            text="CIRCULAR COMPOSER",
+            font=("Segoe UI", 21, "bold"),
+            text_color="#e4fbfa",
+        )
+        title.pack(side="left", padx=(20, 8), pady=16)
+
+        subtitle = ctk.CTkLabel(
+            header,
+            text="SCHOOL COMMUNICATIONS  /  EDITOR",
+            font=("Segoe UI", 10, "bold"),
+            text_color="#68c9c1",
+        )
+        subtitle.pack(side="left", padx=8, pady=16)
+
+        close_btn = ctk.CTkButton(
+            header,
+            text="Close",
+            width=82,
+            height=34,
+            command=self.destroy,
+            fg_color="#193942",
+            hover_color="#275661",
+            text_color="#d7eeef",
+            font=("Segoe UI", 11, "bold"),
+            corner_radius=6,
+        )
+        close_btn.pack(side="right", padx=14, pady=10)
         
     def _build_audience_selector(self):
         """Top Section: Audience Selector with three dropdowns"""
-        audience_frame = ctk.CTkFrame(self.main_frame, fg_color="white", corner_radius=10)
+        audience_frame = ctk.CTkFrame(self.main_frame, fg_color="#10252d", border_color="#1c4650", border_width=1, corner_radius=8)
         audience_frame.pack(fill="x", padx=10, pady=(10, 5))
         
         # Title
         title_label = ctk.CTkLabel(
             audience_frame, 
             text="📋 Select Recipients", 
-            font=("Arial Bold", 14),
-            text_color="#2c3e50"
+            font=("Segoe UI", 14, "bold"),
+            text_color="#e4fbfa"
         )
         title_label.pack(pady=(10, 5))
         
@@ -93,8 +121,8 @@ class NewsletterCreator(ctk.CTkToplevel):
         target_label = ctk.CTkLabel(
             dropdowns_frame, 
             text="Target Type", 
-            font=("Arial", 11),
-            text_color="#34495e"
+            font=("Segoe UI", 11, "bold"),
+            text_color="#9bc4c8"
         )
         target_label.grid(row=0, column=0, padx=5, pady=2, sticky="w")
         
@@ -104,11 +132,11 @@ class NewsletterCreator(ctk.CTkToplevel):
             variable=self.target_type_var,
             values=["All School", "By Class", "By Stream", "Individual Student"],
             command=self._on_target_type_change,
-            fg_color="white",
-            button_color="#3498db",
-            button_hover_color="#2980b9",
-            dropdown_fg_color="white",
-            dropdown_text_color="#2c3e50"
+            fg_color="#17343c",
+            button_color="#087e80",
+            button_hover_color="#0a9998",
+            dropdown_fg_color="#10252d",
+            dropdown_text_color="#d7eeef"
         )
         self.target_type_dropdown.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
         
@@ -116,8 +144,8 @@ class NewsletterCreator(ctk.CTkToplevel):
         class_label = ctk.CTkLabel(
             dropdowns_frame, 
             text="Class/Grade", 
-            font=("Arial", 11),
-            text_color="#34495e"
+            font=("Segoe UI", 11, "bold"),
+            text_color="#9bc4c8"
         )
         class_label.grid(row=0, column=1, padx=5, pady=2, sticky="w")
         
@@ -126,11 +154,11 @@ class NewsletterCreator(ctk.CTkToplevel):
             dropdowns_frame,
             variable=self.class_context_var,
             values=self._get_class_options(),
-            fg_color="white",
-            button_color="#3498db",
-            button_hover_color="#2980b9",
-            dropdown_fg_color="white",
-            dropdown_text_color="#2c3e50"
+            fg_color="#17343c",
+            button_color="#087e80",
+            button_hover_color="#0a9998",
+            dropdown_fg_color="#10252d",
+            dropdown_text_color="#d7eeef"
         )
         self.class_context_dropdown.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
         
@@ -138,8 +166,8 @@ class NewsletterCreator(ctk.CTkToplevel):
         role_label = ctk.CTkLabel(
             dropdowns_frame, 
             text="Send To", 
-            font=("Arial", 11),
-            text_color="#34495e"
+            font=("Segoe UI", 11, "bold"),
+            text_color="#9bc4c8"
         )
         role_label.grid(row=0, column=2, padx=5, pady=2, sticky="w")
         
@@ -148,25 +176,25 @@ class NewsletterCreator(ctk.CTkToplevel):
             dropdowns_frame,
             variable=self.recipient_role_var,
             values=["Father", "Mother", "Both Parents"],
-            fg_color="white",
-            button_color="#3498db",
-            button_hover_color="#2980b9",
-            dropdown_fg_color="white",
-            dropdown_text_color="#2c3e50"
+            fg_color="#17343c",
+            button_color="#087e80",
+            button_hover_color="#0a9998",
+            dropdown_fg_color="#10252d",
+            dropdown_text_color="#d7eeef"
         )
         self.recipient_role_dropdown.grid(row=1, column=2, padx=5, pady=5, sticky="ew")
         
     def _build_wysiwyg_editor(self):
         """Middle Section: WYSIWYG Text Editor with formatting toolbar"""
-        editor_frame = ctk.CTkFrame(self.main_frame, fg_color="white", corner_radius=10)
+        editor_frame = ctk.CTkFrame(self.main_frame, fg_color="#10252d", border_color="#1c4650", border_width=1, corner_radius=8)
         editor_frame.pack(fill="both", expand=True, padx=10, pady=5)
         
         # Editor title
         editor_title = ctk.CTkLabel(
             editor_frame, 
             text="✍️ Write Your Circular", 
-            font=("Arial Bold", 14),
-            text_color="#2c3e50"
+            font=("Segoe UI", 14, "bold"),
+            text_color="#e4fbfa"
         )
         editor_title.pack(pady=(10, 5))
         
@@ -177,8 +205,8 @@ class NewsletterCreator(ctk.CTkToplevel):
         subject_label = ctk.CTkLabel(
             subject_frame, 
             text="Circular Title:", 
-            font=("Arial Bold", 11),
-            text_color="#2c3e50",
+            font=("Segoe UI", 11, "bold"),
+            text_color="#9bc4c8",
             width=100
         )
         subject_label.pack(side="left", padx=(0, 10))
@@ -196,7 +224,7 @@ class NewsletterCreator(ctk.CTkToplevel):
         self.subject_entry.pack(side="left", fill="x", expand=True)
         
         # Formatting toolbar with horizontal scroll
-        toolbar_scroll_frame = ctk.CTkScrollableFrame(editor_frame, fg_color="#ecf0f1", corner_radius=5, orientation="horizontal")
+        toolbar_scroll_frame = ctk.CTkScrollableFrame(editor_frame, fg_color="#17343c", corner_radius=5, orientation="horizontal")
         toolbar_scroll_frame.pack(fill="x", padx=20, pady=(0, 10))
         
         toolbar_frame = ctk.CTkFrame(toolbar_scroll_frame, fg_color="transparent")
@@ -206,11 +234,11 @@ class NewsletterCreator(ctk.CTkToplevel):
         btn_style = {
             "width": 45,
             "height": 45,
-            "fg_color": "white",
-            "hover_color": "#bdc3c7",
-            "text_color": "#2c3e50",
-            "font": ("Arial Bold", 14),
-            "corner_radius": 8
+            "fg_color": "#17343c",
+            "hover_color": "#275661",
+            "text_color": "#d7eeef",
+            "font": ("Segoe UI", 14, "bold"),
+            "corner_radius": 6
         }
         
         self.bold_btn = ctk.CTkButton(toolbar_frame, text="B", command=lambda: [self._apply_format("bold"), self.after(10, self._update_button_states)], **btn_style)
@@ -233,11 +261,11 @@ class NewsletterCreator(ctk.CTkToplevel):
             variable=self.font_var,
             values=["Arial", "Times New Roman", "Georgia", "Courier New"],
             command=self._apply_font,
-            fg_color="white",
-            button_color="#3498db",
-            button_hover_color="#2980b9",
-            dropdown_fg_color="white",
-            dropdown_text_color="#2c3e50",
+            fg_color="#17343c",
+            button_color="#087e80",
+            button_hover_color="#0a9998",
+            dropdown_fg_color="#10252d",
+            dropdown_text_color="#d7eeef",
             width=120,
             height=45
         )
@@ -250,11 +278,11 @@ class NewsletterCreator(ctk.CTkToplevel):
             variable=self.text_size_var,
             values=["10", "12", "14", "16", "18", "20"],
             command=self._apply_size,
-            fg_color="white",
-            button_color="#3498db",
-            button_hover_color="#2980b9",
-            dropdown_fg_color="white",
-            dropdown_text_color="#2c3e50",
+            fg_color="#17343c",
+            button_color="#087e80",
+            button_hover_color="#0a9998",
+            dropdown_fg_color="#10252d",
+            dropdown_text_color="#d7eeef",
             width=70,
             height=45
         )
@@ -285,11 +313,11 @@ class NewsletterCreator(ctk.CTkToplevel):
             variable=self.heading_var,
             values=["Normal", "Heading 1", "Heading 2", "Heading 3"],
             command=self._apply_heading,
-            fg_color="white",
-            button_color="#3498db",
-            button_hover_color="#2980b9",
-            dropdown_fg_color="white",
-            dropdown_text_color="#2c3e50",
+            fg_color="#17343c",
+            button_color="#087e80",
+            button_hover_color="#0a9998",
+            dropdown_fg_color="#10252d",
+            dropdown_text_color="#d7eeef",
             width=100,
             height=45
         )
@@ -417,15 +445,15 @@ class NewsletterCreator(ctk.CTkToplevel):
         
     def _build_attachment_channels(self):
         """Bottom Section: Attachment & Channels Bar"""
-        bottom_frame = ctk.CTkFrame(self.main_frame, fg_color="white", corner_radius=10)
+        bottom_frame = ctk.CTkFrame(self.main_frame, fg_color="#10252d", border_color="#1c4650", border_width=1, corner_radius=8)
         bottom_frame.pack(fill="x", padx=10, pady=(5, 10))
         
         # Title
         bottom_title = ctk.CTkLabel(
             bottom_frame, 
             text="📎 Attachments & Delivery", 
-            font=("Arial Bold", 14),
-            text_color="#2c3e50"
+            font=("Segoe UI", 14, "bold"),
+            text_color="#e4fbfa"
         )
         bottom_title.pack(pady=(10, 5))
         
@@ -495,6 +523,19 @@ class NewsletterCreator(ctk.CTkToplevel):
             font=("Arial", 11)
         )
         save_draft_btn.pack(side="left", padx=5)
+
+        view_drafts_btn = ctk.CTkButton(
+            button_frame,
+            text="View Drafts",
+            width=120,
+            height=40,
+            command=self._view_drafts,
+            fg_color="#193942",
+            hover_color="#275661",
+            text_color="#d7eeef",
+            font=("Segoe UI", 11, "bold"),
+        )
+        view_drafts_btn.pack(side="left", padx=5)
         
         # Print PDF Circular button (secondary action)
         print_pdf_btn = ctk.CTkButton(
@@ -1054,6 +1095,144 @@ class NewsletterCreator(ctk.CTkToplevel):
             self.attachment_path = file_path
             filename = os.path.basename(file_path)
             self.attachment_label.configure(text=f"📎 {filename}")
+
+    def _view_drafts(self):
+        """Show saved drafts and allow one to be reopened in the editor."""
+        draft_window = ctk.CTkToplevel(self)
+        draft_window.title("Saved Circular Drafts")
+        draft_window.geometry("820x520")
+        draft_window.configure(fg_color="#08171d")
+        draft_window.transient(self)
+
+        try:
+            self.db.cursor().execute(
+                """SELECT id, subject, body, target_type, class_context,
+                          recipient_role, attachment_path, send_sms, created_at
+                   FROM newsletters WHERE is_draft = 1 ORDER BY created_at DESC, id DESC"""
+            )
+            self.draft_records = self.db.cursor().fetchall()
+        except sqlite3.OperationalError:
+            self.draft_records = []
+
+        content = ctk.CTkFrame(draft_window, fg_color="#10252d", corner_radius=8)
+        content.pack(fill="both", expand=True, padx=16, pady=16)
+        ctk.CTkLabel(
+            content,
+            text="SAVED DRAFTS",
+            font=("Segoe UI", 16, "bold"),
+            text_color="#e4fbfa",
+        ).pack(anchor="w", padx=16, pady=(14, 8))
+
+        body_frame = ctk.CTkFrame(content, fg_color="transparent")
+        body_frame.pack(fill="both", expand=True, padx=12, pady=(0, 10))
+        body_frame.grid_columnconfigure(0, weight=1, uniform="drafts")
+        body_frame.grid_columnconfigure(1, weight=2, uniform="drafts")
+        body_frame.grid_rowconfigure(0, weight=1)
+
+        self.draft_listbox = Listbox(
+            body_frame,
+            bg="#0b1c22",
+            fg="#d7eeef",
+            selectbackground="#087e80",
+            selectforeground="white",
+            font=("Segoe UI", 11),
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground="#1c4650",
+            activestyle="none",
+        )
+        self.draft_listbox.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+
+        preview = ctk.CTkTextbox(
+            body_frame,
+            fg_color="#0b1c22",
+            text_color="#d7eeef",
+            border_color="#1c4650",
+            border_width=1,
+            font=("Segoe UI", 12),
+            wrap="word",
+        )
+        preview.grid(row=0, column=1, sticky="nsew")
+        preview.insert("1.0", "Select a draft to preview its contents.")
+        preview.configure(state="disabled")
+
+        for record in self.draft_records:
+            created_at = str(record[8] or "")[:16]
+            self.draft_listbox.insert("end", f"{record[1] or '(Untitled)'}  |  {created_at}")
+
+        def show_preview(event=None):
+            selection = self.draft_listbox.curselection()
+            if not selection:
+                return
+            record = self.draft_records[selection[0]]
+            preview.configure(state="normal")
+            preview.delete("1.0", "end")
+            preview.insert("1.0", f"{record[1] or '(Untitled)'}\n\n{record[2] or ''}")
+            preview.configure(state="disabled")
+
+        self.draft_listbox.bind("<<ListboxSelect>>", show_preview)
+
+        actions = ctk.CTkFrame(content, fg_color="transparent")
+        actions.pack(fill="x", padx=12, pady=(0, 12))
+        ctk.CTkButton(
+            actions,
+            text="Open Selected Draft",
+            width=170,
+            command=lambda: self._load_selected_draft(draft_window),
+            fg_color="#087e80",
+            hover_color="#0a9998",
+            text_color="white",
+            font=("Segoe UI", 11, "bold"),
+        ).pack(side="right")
+        if not self.draft_records:
+            ctk.CTkLabel(
+                body_frame,
+                text="No saved drafts yet.",
+                text_color="#8baeb2",
+                font=("Segoe UI", 12),
+            ).grid(row=0, column=0, sticky="n", pady=18)
+
+    def _load_selected_draft(self, draft_window):
+        selection = self.draft_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("Select a Draft", "Choose a draft to open.", parent=draft_window)
+            return
+
+        record = self.draft_records[selection[0]]
+        self.current_draft_id = record[0]
+        self.subject_entry.delete(0, "end")
+        self.subject_entry.insert(0, record[1] or "")
+        self.text_editor.delete("1.0", "end")
+        self.text_editor.insert("1.0", record[2] or "")
+
+        target_type = record[3] or "All School"
+        class_context = record[4] or "All Classes"
+        recipient_role = record[5] or "Both Parents"
+        self.target_type_var.set(target_type)
+        class_options = self._get_class_options()
+        if class_context not in class_options:
+            class_options.append(class_context)
+        self.class_context_dropdown.configure(values=class_options, state="normal")
+        self.class_context_var.set(class_context)
+
+        role_options = [recipient_role]
+        if target_type == "Individual Student":
+            role_options = self._get_students_for_class(class_context) or role_options
+        elif target_type == "By Stream":
+            role_options = self._get_streams_for_class(class_context) or role_options
+        elif target_type == "All School":
+            role_options = ["All Parents"]
+        self.recipient_role_dropdown.configure(values=role_options, state="normal")
+        self.recipient_role_var.set(recipient_role if recipient_role in role_options else role_options[0])
+
+        self.attachment_path = record[6]
+        if self.attachment_path:
+            self.attachment_label.configure(text=f"📎 {os.path.basename(self.attachment_path)}")
+        else:
+            self.attachment_label.configure(text="📎 Attach Fee Structure / PDF / Image")
+        self.sms_var.set(bool(record[7]))
+        draft_window.destroy()
+        self.lift()
     
     def _save_draft(self):
         """Save the circular as a draft"""
@@ -1066,9 +1245,9 @@ class NewsletterCreator(ctk.CTkToplevel):
         
         try:
             # Save to database
-            self._save_to_database(subject, body, draft=True)
+            draft_id = self._save_to_database(subject, body, draft=True)
+            self.current_draft_id = draft_id
             messagebox.showinfo("Draft Saved", "Circular saved as draft successfully!")
-            self.destroy()
         except Exception as e:
             messagebox.showerror("Save Error", f"Could not save draft: {e}")
     
@@ -1219,26 +1398,46 @@ class NewsletterCreator(ctk.CTkToplevel):
                 )
             """)
             
-            # Insert the newsletter
-            self.db.cursor().execute("""
-                INSERT INTO newsletters (
-                    subject, body, target_type, class_context, recipient_role,
-                    attachment_path, send_email, send_sms, is_draft, sent_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                subject,
-                body,
-                self.target_type_var.get(),
-                self.class_context_var.get(),
-                self.recipient_role_var.get(),
-                self.attachment_path,
-                0,  # Email is no longer supported
-                1 if self.sms_var.get() else 0,
-                1 if draft else 0,
-                None if draft else "CURRENT_TIMESTAMP"
-            ))
+            if draft and self.current_draft_id:
+                self.db.cursor().execute("""
+                    UPDATE newsletters SET
+                        subject = ?, body = ?, target_type = ?, class_context = ?,
+                        recipient_role = ?, attachment_path = ?, send_email = 0,
+                        send_sms = ?, is_draft = 1, sent_at = NULL
+                    WHERE id = ?
+                """, (
+                    subject,
+                    body,
+                    self.target_type_var.get(),
+                    self.class_context_var.get(),
+                    self.recipient_role_var.get(),
+                    self.attachment_path,
+                    1 if self.sms_var.get() else 0,
+                    self.current_draft_id,
+                ))
+                newsletter_id = self.current_draft_id
+            else:
+                self.db.cursor().execute("""
+                    INSERT INTO newsletters (
+                        subject, body, target_type, class_context, recipient_role,
+                        attachment_path, send_email, send_sms, is_draft, sent_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    subject,
+                    body,
+                    self.target_type_var.get(),
+                    self.class_context_var.get(),
+                    self.recipient_role_var.get(),
+                    self.attachment_path,
+                    0,
+                    1 if self.sms_var.get() else 0,
+                    1 if draft else 0,
+                    None if draft else "CURRENT_TIMESTAMP"
+                ))
+                newsletter_id = self.db.cursor().lastrowid
             
             self.db.conn.commit()
+            return newsletter_id
             
         except Exception as e:
             self.db.conn.rollback()

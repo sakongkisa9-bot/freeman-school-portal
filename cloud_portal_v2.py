@@ -13,8 +13,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import os
 import json
+import uuid
 from datetime import datetime
 import logging
+from werkzeug.utils import secure_filename
 from grading_logic import (
     get_grade_7_8_rating,
     get_grade_4_6_rating,
@@ -25,6 +27,7 @@ from teacher_comments import rating_to_comment as get_subject_rating_comment
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(PROJECT_DIR, "templates")
 app = Flask(__name__, template_folder=TEMPLATES_DIR)
+app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
 
 # Configure session for Railway (multi-container environment)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-2026")
@@ -1974,11 +1977,17 @@ def parent_enable_notifications():
 @app.route("/api/save_newsletter", methods=["POST"])
 def api_save_newsletter():
     """Save a newsletter to the cloud database"""
-    data = request.json
+    data = request.get_json(silent=True) or request.form
     school_code = data.get("school_code", "").strip().lower()
     username = data.get("username", "")
     password = data.get("password", "")
     newsletter_data = data.get("newsletter", {})
+
+    if isinstance(newsletter_data, str):
+        try:
+            newsletter_data = json.loads(newsletter_data)
+        except json.JSONDecodeError:
+            return jsonify({"success": False, "message": "Invalid newsletter data"}), 400
 
     logging.info(
         f"Received newsletter: {newsletter_data.get('subject')}, target: {newsletter_data.get('target_type')}"
@@ -2002,6 +2011,26 @@ def api_save_newsletter():
                     }
                 ),
                 404,
+            )
+
+        attachment = request.files.get("attachment")
+        if attachment and attachment.filename:
+            safe_filename = secure_filename(attachment.filename)
+            extension = os.path.splitext(safe_filename)[1].lower()
+            if not safe_filename or extension not in {".pdf", ".png", ".jpg", ".jpeg", ".gif"}:
+                return jsonify({"success": False, "message": "Unsupported attachment type"}), 400
+
+            safe_school_code = secure_filename(school_code)
+            upload_dir = os.path.join(
+                PROJECT_DIR, "static", "uploads", "newsletters", safe_school_code
+            )
+            os.makedirs(upload_dir, exist_ok=True)
+            stored_filename = f"{uuid.uuid4().hex}_{safe_filename}"
+            attachment.save(os.path.join(upload_dir, stored_filename))
+            newsletter_data["attachment_path"] = url_for(
+                "newsletter_attachment",
+                school_code=safe_school_code,
+                filename=stored_filename,
             )
 
         # Create tables if they don't exist
@@ -2425,6 +2454,24 @@ def api_save_newsletter():
         return jsonify({"success": False, "message": str(e)}), 500
     finally:
         conn.close()
+
+
+@app.route("/newsletter-attachments/<school_code>/<filename>")
+def newsletter_attachment(school_code, filename):
+    """Serve a newsletter attachment inline or as a downloadable file."""
+    safe_school_code = secure_filename(school_code)
+    safe_filename = secure_filename(filename)
+    if not safe_school_code or safe_filename != filename:
+        return jsonify({"success": False, "message": "Attachment not found"}), 404
+
+    upload_dir = os.path.join(
+        PROJECT_DIR, "static", "uploads", "newsletters", safe_school_code
+    )
+    return send_from_directory(
+        upload_dir,
+        safe_filename,
+        as_attachment=request.args.get("download") == "1",
+    )
 
 
 @app.route("/api/save_class_reports", methods=["POST"])
