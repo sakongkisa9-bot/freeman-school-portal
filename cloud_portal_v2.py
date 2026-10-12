@@ -20,6 +20,7 @@ from grading_logic import (
     get_grade_4_6_rating,
     calculate_final_level,
 )
+from teacher_comments import rating_to_comment as get_subject_rating_comment
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(PROJECT_DIR, "templates")
@@ -153,19 +154,9 @@ def rating_to_points(rating):
 
 
 # Custom Jinja2 filter to convert rating to teacher comment
-def rating_to_comment(rating):
-    """Convert rating to teacher comment based on performance level"""
-    rating_comments = {
-        "BE1": "A starting point. Focus on understanding the basic concepts, and I am here to help you practice.",
-        "BE2": "You are showing effort, but need more practice on the fundamentals to reach the expected level.",
-        "AE1": "You are approaching the expected level. With more practice, you will master this.",
-        "AE2": "Good effort shown. Keep working on the basics to build a stronger foundation.",
-        "ME1": "Good progress. You are grasping the core ideas; continue practicing to gain more confidence.",
-        "ME2": "Well done! You are very close to mastering this. Pay close attention to the finer details.",
-        "EE1": "Great work! You have successfully demonstrated this competency. Keep up the consistent performance.",
-        "EE2": "Outstanding! You have mastered the task and shown deep understanding. Keep challenging yourself.",
-    }
-    return rating_comments.get(rating, "No comment available.")
+def rating_to_comment(rating, subject=None, subject_comment_indices=None):
+    """Convert a rating to the comment set assigned to its subject."""
+    return get_subject_rating_comment(rating, subject, subject_comment_indices)
 
 
 # Custom Jinja2 filter to get class teacher comment based on average level
