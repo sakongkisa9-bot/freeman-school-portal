@@ -24,7 +24,12 @@ from grading_logic import (
     calculate_final_level,
 )
 from teacher_comments import rating_to_comment as get_subject_rating_comment
-from cba_logic import convert_raw_score, task_score_bounds, validate_tasks
+from cba_logic import (
+    convert_raw_score,
+    describe_criterion,
+    task_score_bounds,
+    validate_tasks,
+)
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(PROJECT_DIR, "templates")
@@ -1651,6 +1656,7 @@ def enter_cba_marks(grade):
         students=students,
         tasks=tasks,
         task_bounds=task_bounds,
+        describe_criterion=describe_criterion,
         saved_scores=saved_scores,
     )
 
@@ -1700,7 +1706,14 @@ def export_cba_marks(grade, export_format):
 
     headers = ["Admission Number", "Learner Name"]
     for task in tasks:
-        headers.extend([f"{task['name']} Raw", f"{task['name']} Level", f"{task['name']} Points"])
+        unit = f" ({task['unit']})" if task.get("unit") else ""
+        headers.extend(
+            [
+                f"{task['name']} Raw{unit}",
+                f"{task['name']} Level",
+                f"{task['name']} Points",
+            ]
+        )
     headers.append("Total Points")
     output_rows = []
     for student in students:

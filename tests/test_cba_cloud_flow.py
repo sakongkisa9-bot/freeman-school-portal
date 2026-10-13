@@ -46,6 +46,13 @@ class CBACloudFlowTests(unittest.TestCase):
             """,
             (self.school_id,),
         )
+        connection.execute(
+            """
+            INSERT INTO students (school_id, grade, adm_no, student_name)
+            VALUES (?, 'Grade 3', 'A002', 'Brian Otieno')
+            """,
+            (self.school_id,),
+        )
         connection.commit()
         connection.close()
         self.client = cloud_portal_v2.app.test_client()
@@ -61,11 +68,12 @@ class CBACloudFlowTests(unittest.TestCase):
         tasks = [
             {
                 "name": "Task 1",
+                "unit": "words",
                 "ranges": {
-                    "Level 1": {"min": 1, "max": 4},
-                    "Level 2": {"min": 5, "max": 8},
-                    "Level 3": {"min": 9, "max": 12},
-                    "Level 4": {"min": 13, "max": 16},
+                    "Level 1": {"type": "range", "min": 0, "max": 44},
+                    "Level 2": {"type": "range", "min": 45, "max": 89},
+                    "Level 3": {"type": "exact", "value": 90},
+                    "Level 4": {"type": "above", "value": 90},
                 },
             }
         ]
@@ -90,10 +98,11 @@ class CBACloudFlowTests(unittest.TestCase):
         page_response = self.client.get("/cba/marks/Grade%203?subject=ENG")
         self.assertEqual(page_response.status_code, 200)
         self.assertIn(b"Task 1", page_response.data)
+        self.assertIn(b"Above 90 words", page_response.data)
 
         save_response = self.client.post(
             "/cba/marks/Grade%203?subject=ENG",
-            data={"score_1_0": "4"},
+            data={"score_1_0": "4", "score_2_0": "90"},
             follow_redirects=True,
         )
         self.assertEqual(save_response.status_code, 200)
@@ -109,7 +118,7 @@ class CBACloudFlowTests(unittest.TestCase):
 
         invalid_response = self.client.post(
             "/cba/marks/Grade%203?subject=ENG",
-            data={"score_1_0": "17"},
+            data={"score_1_0": "-1"},
             follow_redirects=True,
         )
         self.assertEqual(invalid_response.status_code, 200)
@@ -131,6 +140,9 @@ class CBACloudFlowTests(unittest.TestCase):
         self.assertEqual(worksheet.cell(4, 3).value, 4)
         self.assertEqual(worksheet.cell(4, 4).value, "Level 1")
         self.assertEqual(worksheet.cell(4, 5).value, 1)
+        self.assertEqual(worksheet.cell(5, 3).value, 90)
+        self.assertEqual(worksheet.cell(5, 4).value, "Level 3")
+        self.assertEqual(worksheet.cell(5, 5).value, 3)
 
         pdf_response = self.client.get("/cba/export/Grade%203/pdf?subject=ENG")
         self.assertEqual(pdf_response.status_code, 200)
