@@ -25,6 +25,7 @@ from grading_logic import (
 )
 from teacher_comments import rating_to_comment as get_subject_rating_comment
 from cba_logic import (
+    absence_mark_for_grade,
     convert_raw_score,
     describe_criterion,
     task_score_bounds,
@@ -523,6 +524,50 @@ def init_db():
             UNIQUE(school_id, grade, subject, adm_no, task_name),
             FOREIGN KEY(school_id) REFERENCES schools(id)
         )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS cba_term_task_configs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            school_id INTEGER NOT NULL,
+            grade TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            term TEXT NOT NULL,
+            tasks_json TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(school_id, grade, subject, term),
+            FOREIGN KEY(school_id) REFERENCES schools(id)
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS cba_term_scores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            school_id INTEGER NOT NULL,
+            grade TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            term TEXT NOT NULL,
+            adm_no TEXT NOT NULL,
+            student_name TEXT NOT NULL,
+            task_name TEXT NOT NULL,
+            raw_score TEXT NOT NULL,
+            teacher_code TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(school_id, grade, subject, term, adm_no, task_name),
+            FOREIGN KEY(school_id) REFERENCES schools(id)
+        )
+    """)
+    cursor.execute("""
+        INSERT OR IGNORE INTO cba_term_task_configs
+            (school_id, grade, subject, term, tasks_json, updated_at)
+        SELECT school_id, grade, subject, 'Term 1', tasks_json, updated_at
+        FROM cba_task_configs
+    """)
+    cursor.execute("""
+        INSERT OR IGNORE INTO cba_term_scores
+            (school_id, grade, subject, term, adm_no, student_name, task_name,
+             raw_score, teacher_code, updated_at)
+        SELECT school_id, grade, subject, 'Term 1', adm_no, student_name, task_name,
+               raw_score, teacher_code, updated_at
+        FROM cba_scores
     """)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS teacher_assignments (
@@ -1236,6 +1281,7 @@ def api_upload_cba_tasks():
     password = data.get("password", "")
     grade = str(data.get("grade", "")).strip()
     subject = str(data.get("subject", "")).strip()
+    term = str(data.get("term", "Term 1")).strip() or "Term 1"
     try:
         tasks = validate_tasks(data.get("tasks"))
     except ValueError as error:
@@ -1255,9 +1301,10 @@ def api_upload_cba_tasks():
 
         conn.execute(
             """
-            INSERT INTO cba_task_configs (school_id, grade, subject, tasks_json, updated_at)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(school_id, grade, subject) DO UPDATE SET
+            INSERT INTO cba_term_task_configs
+                (school_id, grade, subject, term, tasks_json, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(school_id, grade, subject, term) DO UPDATE SET
                 tasks_json = excluded.tasks_json,
                 updated_at = excluded.updated_at
             """,
@@ -1265,6 +1312,7 @@ def api_upload_cba_tasks():
                 school["id"],
                 grade,
                 subject,
+                term,
                 json.dumps(tasks),
                 datetime.now(timezone.utc).isoformat(),
             ),
@@ -1576,9 +1624,27 @@ def enter_cba_marks(grade):
         flash("You are not assigned to this class and subject.", "danger")
         return redirect(url_for("select_cba_subject", grade=grade))
 
-    config = conn.execute(
-        "SELECT tasks_json FROM cba_task_configs WHERE school_id = ? AND grade = ? AND subject = ?",
+    term_rows = conn.execute(
+        "SELECT term FROM cba_term_task_configs WHERE school_id = ? AND grade = ? AND subject = ? ORDER BY updated_at DESC",
         (session["school_id"], grade, subject),
+    ).fetchall()
+    terms = list(dict.fromkeys(row["term"] for row in term_rows))
+    if not terms:
+        conn.close()
+        flash("CBA tasks have not been published for this subject.", "warning")
+        return redirect(url_for("select_cba_subject", grade=grade))
+
+    term = request.args.get("term", "").strip() or terms[0]
+    if term not in terms:
+        conn.close()
+        flash("Select a term with published CBA tasks.", "warning")
+        return redirect(
+            url_for("enter_cba_marks", grade=grade, subject=subject, term=terms[0])
+        )
+
+    config = conn.execute(
+        "SELECT tasks_json FROM cba_term_task_configs WHERE school_id = ? AND grade = ? AND subject = ? AND term = ?",
+        (session["school_id"], grade, subject, term),
     ).fetchone()
     if not config:
         conn.close()
@@ -1604,10 +1670,13 @@ def enter_cba_marks(grade):
                 for task_index, task in enumerate(tasks):
                     raw_score = request.form.get(
                         f"score_{student['id']}_{task_index}", ""
-                    ).strip()
+                    )
+                    raw_score = (raw_score or "").strip()
                     # A blank task field means the learner was absent, not that
                     # the mark should be omitted from the saved result.
                     if not raw_score:
+                        raw_score = "AB"
+                    if raw_score.upper() in {"A", "AB"}:
                         raw_score = "AB"
                     convert_raw_score(task, raw_score)
                     score_rows.append(
@@ -1615,6 +1684,7 @@ def enter_cba_marks(grade):
                             session["school_id"],
                             grade,
                             subject,
+                            term,
                             student["adm_no"],
                             student["student_name"],
                             task["name"],
@@ -1629,25 +1699,27 @@ def enter_cba_marks(grade):
             return redirect(url_for("enter_cba_marks", grade=grade, subject=subject))
 
         conn.execute(
-            "DELETE FROM cba_scores WHERE school_id = ? AND grade = ? AND subject = ?",
-            (session["school_id"], grade, subject),
+            "DELETE FROM cba_term_scores WHERE school_id = ? AND grade = ? AND subject = ? AND term = ?",
+            (session["school_id"], grade, subject, term),
         )
         conn.executemany(
             """
-            INSERT INTO cba_scores
-                (school_id, grade, subject, adm_no, student_name, task_name, raw_score, teacher_code, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO cba_term_scores
+                (school_id, grade, subject, term, adm_no, student_name, task_name, raw_score, teacher_code, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             score_rows,
         )
         conn.commit()
         conn.close()
         flash(f"CBA raw scores for {subject} saved successfully.", "success")
-        return redirect(url_for("enter_cba_marks", grade=grade, subject=subject))
+        return redirect(
+            url_for("enter_cba_marks", grade=grade, subject=subject, term=term)
+        )
 
     saved_rows = conn.execute(
-        "SELECT adm_no, task_name, raw_score FROM cba_scores WHERE school_id = ? AND grade = ? AND subject = ?",
-        (session["school_id"], grade, subject),
+        "SELECT adm_no, task_name, raw_score FROM cba_term_scores WHERE school_id = ? AND grade = ? AND subject = ? AND term = ?",
+        (session["school_id"], grade, subject, term),
     ).fetchall()
     conn.close()
     saved_scores = {}
@@ -1659,6 +1731,9 @@ def enter_cba_marks(grade):
         "cloud_cba_marks.html",
         grade=grade,
         subject=subject,
+        term=term,
+        terms=terms,
+        absence_mark=absence_mark_for_grade(grade),
         students=students,
         tasks=tasks,
         task_bounds=task_bounds,
@@ -1675,6 +1750,7 @@ def export_cba_marks(grade, export_format):
         return "Unsupported export format", 404
 
     subject = request.args.get("subject", "").strip()
+    term = request.args.get("term", "").strip()
     teacher_code = session.get("teacher_code")
     if not subject or not teacher_code:
         return "Subject is required", 400
@@ -1684,9 +1760,16 @@ def export_cba_marks(grade, export_format):
         "SELECT 1 FROM teacher_assignments WHERE school_id = ? AND class_name = ? AND subject = ? AND teacher_code = ?",
         (session["school_id"], grade, subject, teacher_code),
     ).fetchone()
-    config = conn.execute(
-        "SELECT tasks_json FROM cba_task_configs WHERE school_id = ? AND grade = ? AND subject = ?",
+    term_rows = conn.execute(
+        "SELECT term FROM cba_term_task_configs WHERE school_id = ? AND grade = ? AND subject = ? ORDER BY updated_at DESC",
         (session["school_id"], grade, subject),
+    ).fetchall()
+    terms = list(dict.fromkeys(row["term"] for row in term_rows))
+    if not term:
+        term = terms[0] if terms else ""
+    config = conn.execute(
+        "SELECT tasks_json FROM cba_term_task_configs WHERE school_id = ? AND grade = ? AND subject = ? AND term = ?",
+        (session["school_id"], grade, subject, term),
     ).fetchone()
     if not assignment or not config:
         conn.close()
@@ -1694,12 +1777,12 @@ def export_cba_marks(grade, export_format):
 
     tasks = validate_tasks(json.loads(config["tasks_json"]))
     students = conn.execute(
-        "SELECT adm_no, assessment_number, student_name, gender FROM students WHERE school_id = ? AND grade = ? ORDER BY student_name",
+        "SELECT adm_no, assessment_number, student_name, gender FROM students WHERE school_id = ? AND grade = ? ORDER BY student_name COLLATE NOCASE, adm_no",
         (session["school_id"], grade),
     ).fetchall()
     scores = conn.execute(
-        "SELECT adm_no, task_name, raw_score FROM cba_scores WHERE school_id = ? AND grade = ? AND subject = ?",
-        (session["school_id"], grade, subject),
+        "SELECT adm_no, task_name, raw_score FROM cba_term_scores WHERE school_id = ? AND grade = ? AND subject = ? AND term = ?",
+        (session["school_id"], grade, subject, term),
     ).fetchall()
     school = conn.execute(
         "SELECT school_name FROM schools WHERE id = ?", (session["school_id"],)
@@ -1739,16 +1822,20 @@ def export_cba_marks(grade, export_format):
                 all_scores_present = False
                 continue
             converted = convert_raw_score(task, raw_score)
-            if converted["level"] == "AB":
-                row.append("AB")
+            if converted["points"] is None:
+                row.append(absence_mark_for_grade(grade))
                 has_absence = True
             else:
                 row.append(converted["points"])
                 total_points += converted["points"]
-        row.append("AB" if has_absence else total_points if all_scores_present else "")
+        row.append(
+            absence_mark_for_grade(grade)
+            if has_absence
+            else total_points if all_scores_present else ""
+        )
         output_rows.append(row)
 
-    filename = secure_filename(f"{grade}_{subject}_cba_results.{export_format}")
+    filename = secure_filename(f"{grade}_{subject}_{term}_cba_results.{export_format}")
     if export_format == "xlsx":
         from io import BytesIO
         from openpyxl import Workbook
@@ -1758,36 +1845,44 @@ def export_cba_marks(grade, export_format):
         workbook = Workbook()
         worksheet = workbook.active
         worksheet.title = "CBA Results"
+        report_title = f"{school['school_name'] if school else 'CBA Results'} | {grade} | {subject} | {term}"
+        worksheet.append([report_title])
+        worksheet.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
         worksheet.append(column_labels)
         worksheet.append(headers)
         for row in output_rows:
             worksheet.append(row)
-        worksheet.freeze_panes = "A3"
-        worksheet.auto_filter.ref = f"A2:{get_column_letter(len(headers))}{worksheet.max_row}"
+        worksheet.freeze_panes = "A4"
+        worksheet.auto_filter.ref = f"A3:{get_column_letter(len(headers))}{worksheet.max_row}"
         worksheet.sheet_properties.pageSetUpPr.fitToPage = True
         worksheet.page_setup.orientation = "landscape"
         worksheet.page_setup.paperSize = worksheet.PAPERSIZE_A4
         worksheet.page_setup.fitToWidth = 1
         worksheet.page_setup.fitToHeight = 0
-        worksheet.print_title_rows = "1:2"
+        worksheet.print_title_rows = "2:3"
         thin_green = Side(style="thin", color="B7C9C0")
         for cell in worksheet[1]:
+            cell.font = Font(name="Calibri", size=13, bold=True, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor="245B4B")
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+        worksheet.row_dimensions[1].height = 28
+        for cell in worksheet[2]:
             cell.font = Font(name="Calibri", size=10, bold=True, color="344A41")
             cell.fill = PatternFill("solid", fgColor="EAF0EC")
             cell.alignment = Alignment(vertical="center", wrap_text=True)
-        for cell in worksheet[2]:
+        for cell in worksheet[3]:
             cell.font = Font(name="Calibri", size=10, bold=True, color="FFFFFF")
             cell.fill = PatternFill("solid", fgColor="245B4B")
             cell.alignment = Alignment(vertical="center", wrap_text=True)
         for row in worksheet.iter_rows(min_row=1, max_row=worksheet.max_row):
             for cell in row:
                 cell.border = Border(bottom=thin_green)
-                if cell.row > 2:
+                if cell.row > 3:
                     cell.alignment = Alignment(vertical="center", wrap_text=True)
                     if cell.row % 2:
                         cell.fill = PatternFill("solid", fgColor="F0F5F2")
-        worksheet.row_dimensions[1].height = 24
-        worksheet.row_dimensions[2].height = 34
+        worksheet.row_dimensions[2].height = 24
+        worksheet.row_dimensions[3].height = 34
         worksheet.column_dimensions["A"].width = 23
         worksheet.column_dimensions["B"].width = 29
         worksheet.column_dimensions["C"].width = 12
@@ -1821,7 +1916,7 @@ def export_cba_marks(grade, export_format):
     )
     styles = getSampleStyleSheet()
     title = Paragraph(
-        f"{school['school_name'] if school else 'CBA Results'} - {grade} - {subject}",
+        f"{school['school_name'] if school else 'CBA Results'} - {grade} - {subject} - {term}",
         styles["Title"],
     )
     table_data = [column_labels, headers] + output_rows

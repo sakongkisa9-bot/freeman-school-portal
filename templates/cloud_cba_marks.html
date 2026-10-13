@@ -81,12 +81,18 @@
     <header>
         <div>
             <h1>KNEC CBA: {{ subject }}</h1>
-            <p class="subtitle">{{ grade }} · Enter each learner's raw task scores</p>
+            <p class="subtitle">{{ grade }} · {{ term }} · Enter each learner's raw task scores</p>
         </div>
         <nav class="actions">
+            <label for="termSelect">Term</label>
+            <select id="termSelect" class="search-input" aria-label="CBA term">
+                {% for available_term in terms %}
+                <option value="{{ available_term }}"{% if available_term == term %} selected{% endif %}>{{ available_term }}</option>
+                {% endfor %}
+            </select>
             <a class="button" href="{{ url_for('dashboard') }}">Dashboard</a>
-            <a class="button" href="{{ url_for('export_cba_marks', grade=grade, export_format='xlsx', subject=subject) }}">Download Excel</a>
-            <a class="button" href="{{ url_for('export_cba_marks', grade=grade, export_format='pdf', subject=subject) }}">Download PDF</a>
+            <a class="button" href="{{ url_for('export_cba_marks', grade=grade, export_format='xlsx', subject=subject, term=term) }}">Download Excel</a>
+            <a class="button" href="{{ url_for('export_cba_marks', grade=grade, export_format='pdf', subject=subject, term=term) }}">Download PDF</a>
         </nav>
     </header>
 
@@ -130,7 +136,7 @@
                                    name="score_{{ student.id }}_{{ loop.index0 }}"
                                    data-min="{{ task_bounds[task.name][0] }}" data-max="{{ task_bounds[task.name][1] if task_bounds[task.name][1] is not none else '' }}"
                                    value="{{ saved_scores.get(student.adm_no, {}).get(task.name, '') }}"
-                                   placeholder="Score / AB" aria-label="{{ student.student_name }} {{ task.name }} raw score">
+                                   placeholder="Score / {{ absence_mark }}" aria-label="{{ student.student_name }} {{ task.name }} raw score">
                         </td>
                         {% endfor %}
                     </tr>
@@ -159,6 +165,12 @@
 
     searchInput.addEventListener("input", filterRoster);
     filterRoster();
+
+    document.getElementById("termSelect").addEventListener("change", event => {
+        const url = new URL(window.location.href);
+        url.searchParams.set("term", event.target.value);
+        window.location.assign(url);
+    });
 
     document.querySelector("form").addEventListener("submit", event => {
         for (const input of document.querySelectorAll(".score-input")) {

@@ -1,6 +1,12 @@
 import unittest
 
-from cba_logic import convert_raw_score, describe_criterion, task_score_bounds, validate_tasks
+from cba_logic import (
+    absence_mark_for_grade,
+    convert_raw_score,
+    describe_criterion,
+    task_score_bounds,
+    validate_tasks,
+)
 
 
 class CBALogicTests(unittest.TestCase):
@@ -66,6 +72,11 @@ class CBALogicTests(unittest.TestCase):
             convert_raw_score(self.task, "AB"),
             {"level": "AB", "points": None},
         )
+
+    def test_absence_marker_depends_on_grade(self):
+        self.assertEqual(absence_mark_for_grade("Grade 3"), "A")
+        self.assertEqual(absence_mark_for_grade("grade 4"), "A")
+        self.assertEqual(absence_mark_for_grade("Grade 5"), "AB")
 
 
 if __name__ == "__main__":

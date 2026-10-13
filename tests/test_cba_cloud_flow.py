@@ -92,6 +92,7 @@ class CBACloudFlowTests(unittest.TestCase):
                 "password": "school-password",
                 "grade": "Grade 3",
                 "subject": "ENG",
+                "term": "Term 3",
                 "tasks": tasks,
             },
         )
@@ -102,15 +103,16 @@ class CBACloudFlowTests(unittest.TestCase):
         self.assertIn(b"ENG", subject_response.data)
         self.assertIn(b"/cba/marks/Grade%203?subject=ENG", subject_response.data)
 
-        page_response = self.client.get("/cba/marks/Grade%203?subject=ENG")
+        page_response = self.client.get("/cba/marks/Grade%203?subject=ENG&term=Term%203")
         self.assertEqual(page_response.status_code, 200)
+        self.assertIn(b"Term 3", page_response.data)
         self.assertIn(b"Task 1", page_response.data)
         self.assertIn(b"Min 0", page_response.data)
         self.assertIn(b"No limit words", page_response.data)
         self.assertIn(b"studentSearch", page_response.data)
 
         save_response = self.client.post(
-            "/cba/marks/Grade%203?subject=ENG",
+            "/cba/marks/Grade%203?subject=ENG&term=Term%203",
             # A missing field for student A003 must be saved as absent (AB).
             data={"score_1_0": "4", "score_2_0": "90"},
             follow_redirects=True,
@@ -119,10 +121,10 @@ class CBACloudFlowTests(unittest.TestCase):
 
         connection = sqlite3.connect(self.db_path)
         raw_score = connection.execute(
-            "SELECT raw_score FROM cba_scores WHERE adm_no = 'A001' AND task_name = 'Task 1'"
+            "SELECT raw_score FROM cba_term_scores WHERE adm_no = 'A001' AND task_name = 'Task 1' AND term = 'Term 3'"
         ).fetchone()[0]
         absent_score = connection.execute(
-            "SELECT raw_score FROM cba_scores WHERE adm_no = 'A003' AND task_name = 'Task 1'"
+            "SELECT raw_score FROM cba_term_scores WHERE adm_no = 'A003' AND task_name = 'Task 1' AND term = 'Term 3'"
         ).fetchone()[0]
         percentage_count = connection.execute("SELECT COUNT(*) FROM marks").fetchone()[0]
         connection.close()
@@ -130,43 +132,72 @@ class CBACloudFlowTests(unittest.TestCase):
         self.assertEqual(absent_score, "AB")
         self.assertEqual(percentage_count, 0)
 
+        new_term_response = self.client.post(
+            "/api/upload_cba_tasks",
+            json={
+                "school_code": "test-school",
+                "username": "admin",
+                "password": "school-password",
+                "grade": "Grade 3",
+                "subject": "ENG",
+                "term": "Term 2",
+                "tasks": tasks,
+            },
+        )
+        self.assertEqual(new_term_response.status_code, 200)
+        latest_term_page = self.client.get("/cba/marks/Grade%203?subject=ENG")
+        self.assertIn(b"Term 2", latest_term_page.data)
+        old_term_page = self.client.get(
+            "/cba/marks/Grade%203?subject=ENG&term=Term%203"
+        )
+        self.assertIn(b'value="4"', old_term_page.data)
+        connection = sqlite3.connect(self.db_path)
+        old_term_scores = connection.execute(
+            "SELECT COUNT(*) FROM cba_term_scores WHERE term = 'Term 3'"
+        ).fetchone()[0]
+        connection.close()
+        self.assertEqual(old_term_scores, 3)
+
         invalid_response = self.client.post(
-            "/cba/marks/Grade%203?subject=ENG",
+            "/cba/marks/Grade%203?subject=ENG&term=Term%203",
             data={"score_1_0": "-1", "score_2_0": "90"},
             follow_redirects=True,
         )
         self.assertEqual(invalid_response.status_code, 200)
         connection = sqlite3.connect(self.db_path)
         preserved_score = connection.execute(
-            "SELECT raw_score FROM cba_scores WHERE adm_no = 'A001' AND task_name = 'Task 1'"
+            "SELECT raw_score FROM cba_term_scores WHERE adm_no = 'A001' AND task_name = 'Task 1' AND term = 'Term 3'"
         ).fetchone()[0]
         connection.close()
         self.assertEqual(preserved_score, "4")
 
         excel_response = self.client.get(
-            "/cba/export/Grade%203/xlsx?subject=ENG"
+            "/cba/export/Grade%203/xlsx?subject=ENG&term=Term%203"
         )
         self.assertEqual(excel_response.status_code, 200)
         from openpyxl import load_workbook
 
         workbook = load_workbook(io.BytesIO(excel_response.data), data_only=True)
         worksheet = workbook.active
-        self.assertEqual(worksheet.cell(1, 1).value, "Column A")
-        self.assertEqual(worksheet.cell(2, 1).value, "Assessment Number")
-        self.assertEqual(worksheet.cell(2, 2).value, "Learner's Name")
-        self.assertEqual(worksheet.cell(2, 3).value, "Gender")
-        self.assertEqual(worksheet.cell(2, 4).value, "Task 1")
-        self.assertEqual(worksheet.cell(2, 5).value, "Total Score")
-        self.assertEqual(worksheet.cell(3, 1).value, "K0010203001")
-        self.assertEqual(worksheet.cell(3, 3).value, "F")
-        self.assertEqual(worksheet.cell(3, 4).value, 1)
-        self.assertEqual(worksheet.cell(3, 5).value, 1)
-        self.assertEqual(worksheet.cell(4, 4).value, 3)
-        self.assertEqual(worksheet.cell(4, 5).value, 3)
-        self.assertEqual(worksheet.cell(5, 4).value, "AB")
-        self.assertEqual(worksheet.cell(5, 5).value, "AB")
+        self.assertIn("Term 3", worksheet.cell(1, 1).value)
+        self.assertEqual(worksheet.cell(2, 1).value, "Column A")
+        self.assertEqual(worksheet.cell(3, 1).value, "Assessment Number")
+        self.assertEqual(worksheet.cell(3, 2).value, "Learner's Name")
+        self.assertEqual(worksheet.cell(3, 3).value, "Gender")
+        self.assertEqual(worksheet.cell(3, 4).value, "Task 1")
+        self.assertEqual(worksheet.cell(3, 5).value, "Total Score")
+        self.assertEqual(worksheet.cell(4, 1).value, "K0010203001")
+        self.assertEqual(worksheet.cell(4, 3).value, "F")
+        self.assertEqual(worksheet.cell(4, 4).value, 1)
+        self.assertEqual(worksheet.cell(4, 5).value, 1)
+        self.assertEqual(worksheet.cell(5, 4).value, 3)
+        self.assertEqual(worksheet.cell(5, 5).value, 3)
+        self.assertEqual(worksheet.cell(6, 4).value, "A")
+        self.assertEqual(worksheet.cell(6, 5).value, "A")
 
-        pdf_response = self.client.get("/cba/export/Grade%203/pdf?subject=ENG")
+        pdf_response = self.client.get(
+            "/cba/export/Grade%203/pdf?subject=ENG&term=Term%203"
+        )
         self.assertEqual(pdf_response.status_code, 200)
         self.assertTrue(pdf_response.data.startswith(b"%PDF"))
 

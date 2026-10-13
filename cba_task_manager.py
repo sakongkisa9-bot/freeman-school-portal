@@ -4,17 +4,39 @@ from tkinter import messagebox
 from cba_logic import LEVEL_NAMES, validate_tasks
 from cloud_service import CloudService, ask_cloud_credentials
 
+TERMS = ("Term 1", "Term 2", "Term 3")
+
 
 class CBATaskManager(ctk.CTkToplevel):
-    def __init__(self, parent, grade, subject, tasks=None, on_publish=None):
+    def __init__(
+        self,
+        parent,
+        grade,
+        subject,
+        tasks=None,
+        tasks_by_term=None,
+        term="Term 1",
+        on_publish=None,
+        on_change=None,
+    ):
         super().__init__(parent)
         self.grade = grade
         self.subject = subject
         self.on_publish = on_publish
+        self.on_change = on_change
+        self.term = term if term in TERMS else TERMS[0]
+        self.tasks_by_term = {}
+        for configured_term, configured_tasks in (tasks_by_term or {}).items():
+            try:
+                self.tasks_by_term[configured_term] = validate_tasks(configured_tasks)
+            except ValueError:
+                self.tasks_by_term[configured_term] = []
         try:
-            self.tasks = validate_tasks(tasks) if tasks else []
+            initial_tasks = tasks if tasks is not None else self.tasks_by_term.get(self.term, [])
+            self.tasks = validate_tasks(initial_tasks) if initial_tasks else []
         except ValueError:
             self.tasks = []
+        self.tasks_by_term[self.term] = list(self.tasks)
         self.selected_index = None
         self.rule_menus = {}
         self.first_value_entries = {}
@@ -31,11 +53,21 @@ class CBATaskManager(ctk.CTkToplevel):
     def _build_widgets(self):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
+        heading = ctk.CTkFrame(self, fg_color="transparent")
+        heading.grid(row=0, column=0, sticky="ew", padx=24, pady=(18, 12))
+        heading.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
-            self,
+            heading,
             text=f"{self.grade}  /  {self.subject}",
             font=("Arial Bold", 22),
-        ).grid(row=0, column=0, sticky="w", padx=24, pady=(20, 12))
+        ).grid(row=0, column=0, sticky="w")
+        ctk.CTkLabel(heading, text="Term").grid(row=0, column=1, padx=(10, 6))
+        available_terms = list(dict.fromkeys((*TERMS, *self.tasks_by_term.keys())))
+        self.term_menu = ctk.CTkOptionMenu(
+            heading, values=available_terms, command=self._change_term, width=130
+        )
+        self.term_menu.set(self.term)
+        self.term_menu.grid(row=0, column=2, sticky="e")
 
         body = ctk.CTkFrame(self, fg_color="transparent")
         body.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 16))
@@ -153,6 +185,7 @@ class CBATaskManager(ctk.CTkToplevel):
             return
         self._refresh_task_list()
         self._clear_form()
+        self._persist_current_tasks()
 
     def _select_task(self, index):
         self.selected_index = index
@@ -184,6 +217,22 @@ class CBATaskManager(ctk.CTkToplevel):
         elif self.selected_index is not None and self.selected_index > index:
             self.selected_index -= 1
         self._refresh_task_list()
+        self._persist_current_tasks()
+
+    def _persist_current_tasks(self):
+        self.tasks_by_term[self.term] = list(self.tasks)
+        if self.on_change:
+            self.on_change(self.term, list(self.tasks))
+
+    def _change_term(self, term):
+        if term == self.term:
+            return
+        self._persist_current_tasks()
+        self.term = term
+        self.tasks = list(self.tasks_by_term.get(term, []))
+        self._clear_form()
+        self._refresh_task_list()
+        self._persist_current_tasks()
 
     def _update_rule_fields(self, level, mode):
         first_entry = self.first_value_entries[level]
@@ -243,8 +292,9 @@ class CBATaskManager(ctk.CTkToplevel):
         credentials = ask_cloud_credentials(self)
         if not credentials:
             return
+        self._persist_current_tasks()
         result = CloudService().upload_cba_tasks(
-            self.grade, self.subject, tasks, credentials
+            self.grade, self.subject, tasks, credentials, term=self.term
         )
         if not result.get("success"):
             error_message = result.get("message", "Could not publish task configuration.")
@@ -260,5 +310,9 @@ class CBATaskManager(ctk.CTkToplevel):
             )
             return
         if self.on_publish:
-            self.on_publish(tasks)
-        messagebox.showinfo("KNEC CBA", "Task configuration published to the cloud.", parent=self)
+            self.on_publish(self.term, tasks)
+        messagebox.showinfo(
+            "KNEC CBA",
+            f"{self.term} task configuration published to the cloud.",
+            parent=self,
+        )

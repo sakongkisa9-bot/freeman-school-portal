@@ -3559,19 +3559,50 @@ class Dashboard(ctk.CTk):
 
     def open_cba_task_manager(self, class_name, subject):
         config = self.load_school_config()
-        tasks = config.get("cba_tasks", {}).get(class_name, {}).get(subject, [])
+        subject_tasks = (
+            config.get("cba_tasks", {}).get(class_name, {}).get(subject, {})
+        )
+        if isinstance(subject_tasks, list):
+            tasks_by_term = {"Term 1": subject_tasks}
+        elif isinstance(subject_tasks, dict):
+            tasks_by_term = subject_tasks
+        else:
+            tasks_by_term = {}
+        active_term = (
+            config.get("cba_active_terms", {}).get(class_name, {}).get(subject)
+        )
+        if active_term not in ("Term 1", "Term 2", "Term 3"):
+            active_term = next(
+                (
+                    term
+                    for term in reversed(("Term 1", "Term 2", "Term 3"))
+                    if tasks_by_term.get(term)
+                ),
+                "Term 1",
+            )
 
-        def save_published_tasks(published_tasks):
-            cba_tasks = self.load_school_config().get("cba_tasks", {})
-            cba_tasks.setdefault(class_name, {})[subject] = published_tasks
-            self.save_school_config({"cba_tasks": cba_tasks})
+        def save_tasks_for_term(term, saved_tasks):
+            current_config = self.load_school_config()
+            cba_tasks = current_config.get("cba_tasks", {})
+            class_tasks = cba_tasks.setdefault(class_name, {})
+            current = class_tasks.get(subject, {})
+            if isinstance(current, list):
+                current = {"Term 1": current}
+            current[term] = saved_tasks
+            class_tasks[subject] = current
+            active_terms = current_config.get("cba_active_terms", {})
+            active_terms.setdefault(class_name, {})[subject] = term
+            self.save_school_config(
+                {"cba_tasks": cba_tasks, "cba_active_terms": active_terms}
+            )
 
         CBATaskManager(
             self,
             class_name,
             subject,
-            tasks=tasks,
-            on_publish=save_published_tasks,
+            tasks_by_term=tasks_by_term,
+            term=active_term,
+            on_change=save_tasks_for_term,
         )
 
     def load_students_from_db(self, class_name):
