@@ -826,6 +826,7 @@ def register():
         # Check the Master Key first
         master_key = request.form.get("master_key")
         if master_key != SYSTEM_ADMIN_KEY:
+            session.pop('_flashes', None)
             flash("Unauthorized: Invalid System Admin Key.", "danger")
             return redirect(url_for("register"))
 
@@ -852,6 +853,7 @@ def register():
                 (row["id"], un, ph, "admin", now),
             )
             conn.commit()
+            session.pop('_flashes', None)
             flash(f"School {sn} Registered Successfully!", "success")
             return redirect(url_for("teacher_login"))
         except sqlite3.IntegrityError:
@@ -906,9 +908,11 @@ def admin_delete_school(school_code):
         # Delete school
         conn.execute("DELETE FROM schools WHERE school_code = ?", (school_code,))
         conn.commit()
+        session.pop('_flashes', None)
         flash(f"School '{school_code}' deleted successfully.", "success")
     except Exception as e:
         conn.rollback()
+        session.pop('_flashes', None)
         flash(f"Error deleting school: {e}", "danger")
     finally:
         conn.close()
@@ -928,6 +932,7 @@ def admin_edit_school(school_code):
             signature_file = request.files.get("signature")
 
             if not school_name:
+                session.pop('_flashes', None)
                 flash("School name is required.", "danger")
                 return redirect(url_for("admin_edit_school", school_code=school_code))
 
@@ -971,10 +976,12 @@ def admin_edit_school(school_code):
                 )
 
             conn.commit()
+            session.pop('_flashes', None)
             flash(f"School '{school_code}' updated successfully.", "success")
             return redirect(url_for("admin_schools"))
         except Exception as e:
             conn.rollback()
+            session.pop('_flashes', None)
             flash(f"Error updating school: {e}", "danger")
         finally:
             conn.close()
@@ -984,6 +991,7 @@ def admin_edit_school(school_code):
         ).fetchone()
         conn.close()
         if not school:
+            session.pop('_flashes', None)
             flash("School not found.", "danger")
             return redirect(url_for("admin_schools"))
         return render_template("cloud_edit_school.html", school=school)
@@ -1005,6 +1013,7 @@ def teacher_login():
             auth, err = authenticate_user(sc, un, pw, teacher_code)
             if err:
                 print(f"[DEBUG] Authentication failed: {err}")
+                session.pop('_flashes', None)
                 flash(err, "danger")
                 return redirect(url_for("teacher_login"))
 
@@ -1341,6 +1350,7 @@ def enter_marks(grade):
 
     if not school or school["portal_open"] == 0:
         conn.close()
+        session.pop('_flashes', None)
         flash(
             "The teachers portal is currently closed. Please contact your administrator.",
             "danger",
@@ -1351,6 +1361,7 @@ def enter_marks(grade):
     teacher_code = session.get("teacher_code")
     if not teacher_code:
         conn.close()
+        session.pop('_flashes', None)
         flash("Teacher code not found. Please login again.", "danger")
         return redirect(url_for("teacher_login"))
 
@@ -1362,6 +1373,7 @@ def enter_marks(grade):
 
     if not teacher_assignment:
         conn.close()
+        session.pop('_flashes', None)
         flash(
             f"You are not authorized to enter marks for {subject} in {grade}. Your teacher code does not match.",
             "danger",
@@ -1488,6 +1500,7 @@ def enter_marks(grade):
             )
 
         conn.commit()
+        session.pop('_flashes', None)
         flash(f"Marks for {subject} saved successfully.", "success")
 
     # Fetch existing marks to display in the input boxes
@@ -1549,6 +1562,7 @@ def select_subject(grade):
             subjects = GRADE_SUBJECTS.get(grade, [])
 
         if not subjects:
+            session.pop('_flashes', None)
             flash(f"No subjects configured for {grade}.", "warning")
             return redirect(url_for("dashboard"))
 
@@ -1560,6 +1574,7 @@ def select_subject(grade):
         # Fall back to hardcoded subjects if there's an error
         subjects = GRADE_SUBJECTS.get(grade, [])
         if not subjects:
+            session.pop('_flashes', None)
             flash(f"No subjects configured for {grade}.", "warning")
             return redirect(url_for("dashboard"))
         return render_template(
@@ -1576,6 +1591,7 @@ def select_cba_subject(grade):
         return redirect(url_for("teacher_login"))
     teacher_code = session.get("teacher_code")
     if not teacher_code:
+        session.pop('_flashes', None)
         flash("Teacher code not found. Please login again.", "danger")
         return redirect(url_for("teacher_login"))
 
@@ -1589,6 +1605,7 @@ def select_cba_subject(grade):
     ]
     conn.close()
     if not subjects:
+        session.pop('_flashes', None)
         flash(f"No subjects are assigned to you for {grade}.", "warning")
         return redirect(url_for("dashboard"))
     return render_template(
@@ -1603,6 +1620,7 @@ def enter_cba_marks(grade):
     subject = request.args.get("subject", "").strip()
     teacher_code = session.get("teacher_code")
     if not subject or not teacher_code:
+        session.pop('_flashes', None)
         flash("Choose an assigned subject to enter CBA scores.", "danger")
         return redirect(url_for("select_cba_subject", grade=grade))
 
@@ -1612,6 +1630,7 @@ def enter_cba_marks(grade):
     ).fetchone()
     if not school or school["portal_open"] == 0:
         conn.close()
+        session.pop('_flashes', None)
         flash("The teachers portal is currently closed.", "danger")
         return redirect(url_for("dashboard"))
 
@@ -1621,6 +1640,7 @@ def enter_cba_marks(grade):
     ).fetchone()
     if not assignment:
         conn.close()
+        session.pop('_flashes', None)
         flash("You are not assigned to this class and subject.", "danger")
         return redirect(url_for("select_cba_subject", grade=grade))
 
@@ -1631,12 +1651,14 @@ def enter_cba_marks(grade):
     terms = list(dict.fromkeys(row["term"] for row in term_rows))
     if not terms:
         conn.close()
+        session.pop('_flashes', None)
         flash("CBA tasks have not been published for this subject.", "warning")
         return redirect(url_for("select_cba_subject", grade=grade))
 
     term = request.args.get("term", "").strip() or terms[0]
     if term not in terms:
         conn.close()
+        session.pop('_flashes', None)
         flash("Select a term with published CBA tasks.", "warning")
         return redirect(
             url_for("enter_cba_marks", grade=grade, subject=subject, term=terms[0])
@@ -1648,6 +1670,7 @@ def enter_cba_marks(grade):
     ).fetchone()
     if not config:
         conn.close()
+        session.pop('_flashes', None)
         flash("CBA tasks have not been published for this subject.", "warning")
         return redirect(url_for("select_cba_subject", grade=grade))
     try:
@@ -1655,6 +1678,7 @@ def enter_cba_marks(grade):
     except (ValueError, TypeError, json.JSONDecodeError) as error:
         conn.close()
         logging.exception("Invalid CBA task configuration")
+        session.pop('_flashes', None)
         flash(f"The CBA task configuration is invalid: {error}", "danger")
         return redirect(url_for("dashboard"))
 
@@ -1695,6 +1719,7 @@ def enter_cba_marks(grade):
                     )
         except ValueError as error:
             conn.close()
+            session.pop('_flashes', None)
             flash(str(error), "danger")
             return redirect(url_for("enter_cba_marks", grade=grade, subject=subject))
 
@@ -1712,6 +1737,7 @@ def enter_cba_marks(grade):
         )
         conn.commit()
         conn.close()
+        session.pop('_flashes', None)
         flash(f"CBA raw scores for {subject} saved successfully.", "success")
         return redirect(
             url_for("enter_cba_marks", grade=grade, subject=subject, term=term)
@@ -3230,6 +3256,7 @@ def parent_login():
         adm_no = request.form.get("adm_no", "").strip()
 
         if not student_name or not school_name or not adm_no:
+            session.pop('_flashes', None)
             flash("Please fill in all fields", "error")
             return render_template("cloud_parent_login.html")
 
@@ -3270,6 +3297,7 @@ def parent_login():
                     
                     if not payment_status:
                         # Student hasn't paid - show warning message
+                        session.pop('_flashes', None)
                         flash(
                             "⚠️ PAYMENT REQUIRED: You will not be able to view your child's newsletters and reports "
                             "until the required payment is made. Please contact the school administration for payment details.",
@@ -3293,9 +3321,11 @@ def parent_login():
                 session["payment_status"] = "paid"
                 return redirect(url_for("parent_dashboard"))
             else:
+                session.pop('_flashes', None)
                 flash("Student not found. Please check your details.", "error")
         except Exception as e:
             logging.error(f"Parent login error: {e}")
+            session.pop('_flashes', None)
             flash("An error occurred. Please try again.", "error")
         finally:
             conn.close()
@@ -3355,6 +3385,7 @@ def parent_report():
 
     # Check payment status before allowing report access
     if session.get("payment_status") == "unpaid":
+        session.pop('_flashes', None)
         flash(
             "⚠️ PAYMENT REQUIRED: You cannot view your child's report until the required payment is made. "
             "Please contact the school administration for payment details.",
@@ -3793,6 +3824,7 @@ def parent_report():
         )
     except Exception as e:
         logging.error(f"Parent dashboard error: {e}", exc_info=True)
+        session.pop('_flashes', None)
         flash("An error occurred loading the dashboard.", "error")
         return redirect(url_for("parent_login"))
     finally:
@@ -3806,6 +3838,7 @@ def parent_newsletters():
 
     # Check payment status before allowing newsletter access
     if session.get("payment_status") == "unpaid":
+        session.pop('_flashes', None)
         flash(
             "⚠️ PAYMENT REQUIRED: You cannot view newsletters until the required payment is made. "
             "Please contact the school administration for payment details.",

@@ -580,9 +580,9 @@ class ReportFormsView(ctk.CTkToplevel):
         # Prepare exam columns (previous + current)
         exam_cols = []
         if previous_exams and len(previous_exams) >= 2:
-            exam_cols.append({**previous_exams[1], 'name': previous_exams[1].get('exam_name', ''), 'marks': previous_exams[1].get('marks', {}), 'is_current': False})
+            exam_cols.append({**previous_exams[1], 'name': previous_exams[1].get('exam_name', ''), 'marks': previous_exams[1].get('marks', {}), 'total_points': previous_exams[1].get('total_points', ''), 'is_current': False})
         if previous_exams and len(previous_exams) >= 1:
-            exam_cols.append({**previous_exams[0], 'name': previous_exams[0].get('exam_name', ''), 'marks': previous_exams[0].get('marks', {}), 'is_current': False})
+            exam_cols.append({**previous_exams[0], 'name': previous_exams[0].get('exam_name', ''), 'marks': previous_exams[0].get('marks', {}), 'total_points': previous_exams[0].get('total_points', ''), 'is_current': False})
         exam_cols.append({'name': exam_title, 'marks': current_marks, 'total_points': None, 'is_current': True})
 
         # Table frame with portal styling
