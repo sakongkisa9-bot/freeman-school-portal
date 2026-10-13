@@ -132,6 +132,25 @@ class CBACloudFlowTests(unittest.TestCase):
         self.assertEqual(absent_score, "AB")
         self.assertEqual(percentage_count, 0)
 
+        fetched_results = self.client.post(
+            "/api/fetch_cba_results",
+            json={
+                "school_code": "test-school",
+                "username": "admin",
+                "password": "school-password",
+                "grade": "Grade 3",
+                "subject": "ENG",
+                "term": "Term 3",
+            },
+        )
+        self.assertEqual(fetched_results.status_code, 200)
+        fetched_data = fetched_results.get_json()
+        self.assertEqual(
+            [row[1] for row in fetched_data["records"]],
+            ["Amina Wanjiku", "Brian Otieno", "Carol Njeri"],
+        )
+        self.assertEqual(fetched_data["records"][2][-2:], ["A", "A"])
+
         new_term_response = self.client.post(
             "/api/upload_cba_tasks",
             json={
@@ -194,6 +213,16 @@ class CBACloudFlowTests(unittest.TestCase):
         self.assertEqual(worksheet.cell(5, 5).value, 3)
         self.assertEqual(worksheet.cell(6, 4).value, "A")
         self.assertEqual(worksheet.cell(6, 5).value, "A")
+
+        excel_without_total = self.client.get(
+            "/cba/export/Grade%203/xlsx?subject=ENG&term=Term%203&include_total=0"
+        )
+        self.assertEqual(excel_without_total.status_code, 200)
+        without_total_sheet = load_workbook(
+            io.BytesIO(excel_without_total.data), data_only=True
+        ).active
+        self.assertEqual(without_total_sheet.cell(3, 4).value, "Task 1")
+        self.assertEqual(without_total_sheet.max_column, 4)
 
         pdf_response = self.client.get(
             "/cba/export/Grade%203/pdf?subject=ENG&term=Term%203"

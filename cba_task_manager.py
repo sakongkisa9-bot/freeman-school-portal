@@ -16,12 +16,14 @@ class CBATaskManager(ctk.CTkToplevel):
         tasks=None,
         tasks_by_term=None,
         term="Term 1",
+        targets=None,
         on_publish=None,
         on_change=None,
     ):
         super().__init__(parent)
         self.grade = grade
         self.subject = subject
+        self.targets = targets or [(grade, subject)]
         self.on_publish = on_publish
         self.on_change = on_change
         self.term = term if term in TERMS else TERMS[0]
@@ -42,7 +44,12 @@ class CBATaskManager(ctk.CTkToplevel):
         self.first_value_entries = {}
         self.second_value_entries = {}
 
-        self.title(f"KNEC CBA Tasks - {grade} / {subject}")
+        target_label = (
+            f"{len(self.targets)} class/subject assignments"
+            if len(self.targets) > 1
+            else f"{grade} / {subject}"
+        )
+        self.title(f"KNEC CBA Tasks - {target_label}")
         self.geometry("1040x680")
         self.minsize(900, 600)
         self.transient(parent)
@@ -58,7 +65,11 @@ class CBATaskManager(ctk.CTkToplevel):
         heading.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
             heading,
-            text=f"{self.grade}  /  {self.subject}",
+            text=(
+                f"{self.grade} / {self.subject}"
+                if len(self.targets) == 1
+                else f"Shared task set for {len(self.targets)} class/subject assignments"
+            ),
             font=("Arial Bold", 22),
         ).grid(row=0, column=0, sticky="w")
         ctk.CTkLabel(heading, text="Term").grid(row=0, column=1, padx=(10, 6))
@@ -293,22 +304,26 @@ class CBATaskManager(ctk.CTkToplevel):
         if not credentials:
             return
         self._persist_current_tasks()
-        result = CloudService().upload_cba_tasks(
-            self.grade, self.subject, tasks, credentials, term=self.term
-        )
-        if not result.get("success"):
-            error_message = result.get("message", "Could not publish task configuration.")
-            if "Status: 404" in error_message:
-                error_message = (
-                    "The live cloud portal has not been updated with KNEC CBA yet. "
-                    "Deploy the latest cloud_portal_v2.py to Railway, then try publishing again."
-                )
-            messagebox.showerror(
-                "CBA Publish Failed",
-                error_message,
-                parent=self,
+        service = CloudService()
+        for grade, subject in self.targets:
+            result = service.upload_cba_tasks(
+                grade, subject, tasks, credentials, term=self.term
             )
-            return
+            if not result.get("success"):
+                error_message = result.get(
+                    "message", "Could not publish task configuration."
+                )
+                if "Status: 404" in error_message:
+                    error_message = (
+                        "The live cloud portal has not been updated with KNEC CBA yet. "
+                        "Deploy the latest cloud_portal_v2.py to Railway, then try publishing again."
+                    )
+                messagebox.showerror(
+                    "CBA Publish Failed",
+                    f"Could not publish for {grade} / {subject}:\n{error_message}",
+                    parent=self,
+                )
+                return
         if self.on_publish:
             self.on_publish(self.term, tasks)
         messagebox.showinfo(

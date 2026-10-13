@@ -7,6 +7,7 @@ from ui_marksheet_lower import LowerMarkSheetView
 from ui_summary import ClassSummaryView
 from teachers_linked import TeachersLinkedView, get_subjects_for_class
 from cba_task_manager import CBATaskManager
+from cba_results_view import CBAResultsView
 from reportforms import ReportFormsView, ask_opening_closing_dates
 from ocr_student_dialog import show_ocr_dialog
 from excel_student_import import read_student_rows
@@ -3520,6 +3521,217 @@ class Dashboard(ctk.CTk):
                 "KNEC CBA Tasks", self.btn_knec_cba
             ),
         ).pack(pady=10)
+        ctk.CTkButton(
+            menu,
+            text="Add Tasks for Several Classes",
+            width=260,
+            height=48,
+            command=self.show_cba_bulk_class_selection,
+        ).pack(pady=10)
+        ctk.CTkButton(
+            menu,
+            text="Fetch Converted CBA",
+            width=260,
+            height=48,
+            command=lambda: self.show_class_selection(
+                "KNEC CBA Fetch", self.btn_knec_cba
+            ),
+        ).pack(pady=10)
+
+    def show_cba_bulk_class_selection(self):
+        for widget in self.content_panel.winfo_children():
+            if widget != self.header_frame and widget != self.theme_frame:
+                widget.destroy()
+
+        frame = ctk.CTkScrollableFrame(
+            self.content_panel,
+            label_text="SELECT CLASSES FOR SHARED TASKS",
+            label_font=("Arial Bold", 20),
+            width=520,
+            height=520,
+        )
+        frame.pack(expand=True, fill="both", padx=30, pady=30)
+        classes = [
+            "playgroup", "pp1", "pp2", "Grade 1", "Grade 2", "Grade 3",
+            "Grade 4", "Grade 5", "Grade 6", "Grade 7", "Grade 8", "Grade 9",
+        ]
+        self.cba_class_vars = {}
+        for class_name in classes:
+            selected = ctk.BooleanVar(value=False)
+            self.cba_class_vars[class_name] = selected
+            ctk.CTkCheckBox(frame, text=class_name, variable=selected).pack(
+                anchor="w", padx=12, pady=5
+            )
+        ctk.CTkButton(
+            frame,
+            text="OK",
+            command=self.show_cba_bulk_subject_selection,
+        ).pack(pady=16)
+
+    def show_cba_bulk_subject_selection(self):
+        selected_classes = [
+            class_name
+            for class_name, variable in self.cba_class_vars.items()
+            if variable.get()
+        ]
+        if not selected_classes:
+            messagebox.showwarning("Select Classes", "Select at least one class.")
+            return
+
+        for widget in self.content_panel.winfo_children():
+            if widget != self.header_frame and widget != self.theme_frame:
+                widget.destroy()
+        frame = ctk.CTkFrame(self.content_panel, fg_color="transparent")
+        frame.pack(expand=True)
+        ctk.CTkLabel(
+            frame,
+            text=f"Shared tasks for {len(selected_classes)} selected class(es)",
+            font=("Arial Bold", 20),
+        ).pack(pady=14)
+
+        subject_sets = [set(get_subjects_for_class(name)) for name in selected_classes]
+        common_subjects = sorted(set.intersection(*subject_sets)) if subject_sets else []
+        subject_mode = ctk.StringVar(value="Same subject")
+        mode = ctk.CTkSegmentedButton(
+            frame,
+            values=["Same subject", "All subjects"],
+            variable=subject_mode,
+            command=lambda _: update_subject_control(),
+        )
+        mode.pack(pady=12)
+
+        if not common_subjects:
+            mode.configure(values=["All subjects"])
+            subject_mode.set("All subjects")
+        subject_menu = ctk.CTkOptionMenu(
+            frame,
+            values=common_subjects or ["No common subject"],
+            width=250,
+        )
+        subject_menu.pack(pady=12)
+
+        def update_subject_control():
+            if subject_mode.get() == "Same subject" and common_subjects:
+                subject_menu.configure(state="normal")
+            else:
+                subject_menu.configure(state="disabled")
+
+        def open_shared_editor():
+            if subject_mode.get() == "Same subject":
+                subject = subject_menu.get()
+                targets = [(class_name, subject) for class_name in selected_classes]
+            else:
+                targets = [
+                    (class_name, subject)
+                    for class_name in selected_classes
+                    for subject in get_subjects_for_class(class_name)
+                ]
+            if not targets:
+                messagebox.showwarning(
+                    "No Subjects", "No configured subjects were found for the selected classes."
+                )
+                return
+            first_class, first_subject = targets[0]
+            self.open_cba_task_manager(
+                first_class, first_subject, targets=targets
+            )
+
+        ctk.CTkButton(frame, text="OK", command=open_shared_editor).pack(pady=16)
+        ctk.CTkButton(
+            frame,
+            text="Back to Classes",
+            command=self.show_cba_bulk_class_selection,
+        ).pack(pady=5)
+
+    def show_cba_fetch_subject_selection(self, class_name):
+        for widget in self.content_panel.winfo_children():
+            if widget != self.header_frame and widget != self.theme_frame:
+                widget.destroy()
+
+        subjects = get_subjects_for_class(class_name)
+        if not subjects:
+            messagebox.showwarning("No Subjects", f"No subjects are configured for {class_name}.")
+            return
+
+        frame = ctk.CTkFrame(self.content_panel, fg_color="transparent")
+        frame.pack(expand=True)
+        ctk.CTkLabel(
+            frame,
+            text=f"Fetch converted CBA results · {class_name}",
+            font=("Arial Bold", 21),
+        ).pack(pady=14)
+
+        subject_menu = ctk.CTkOptionMenu(frame, values=subjects, width=260)
+        subject_menu.pack(pady=10)
+        term_menu = ctk.CTkOptionMenu(
+            frame, values=["Term 1", "Term 2", "Term 3"], width=180
+        )
+        term_menu.pack(pady=10)
+
+        def update_terms(selected_subject):
+            class_tasks = (
+                self.load_school_config()
+                .get("cba_tasks", {})
+                .get(class_name, {})
+                .get(selected_subject, {})
+            )
+            available_terms = (
+                list(class_tasks.keys())
+                if isinstance(class_tasks, dict)
+                else ["Term 1"]
+            )
+            if not available_terms:
+                available_terms = ["Term 1", "Term 2", "Term 3"]
+            term_menu.configure(values=available_terms)
+            active_term = (
+                self.load_school_config()
+                .get("cba_active_terms", {})
+                .get(class_name, {})
+                .get(selected_subject)
+            )
+            term_menu.set(active_term if active_term in available_terms else available_terms[0])
+
+        subject_menu.configure(command=update_terms)
+        update_terms(subject_menu.get())
+
+        def fetch_results():
+            credentials = ask_cloud_credentials(self)
+            if not credentials:
+                return
+            result = CloudService().fetch_cba_results(
+                class_name, subject_menu.get(), term_menu.get(), credentials
+            )
+            if not result.get("success"):
+                messagebox.showerror(
+                    "CBA Fetch Failed",
+                    result.get("message", "Could not fetch converted CBA results."),
+                )
+                return
+            for widget in self.content_panel.winfo_children():
+                if widget != self.header_frame and widget != self.theme_frame:
+                    widget.destroy()
+            self.current_view = CBAResultsView(
+                self.content_panel,
+                result,
+                return_callback=lambda: self.show_cba_fetch_subject_selection(class_name),
+            )
+            self.current_view.pack(fill="both", expand=True)
+
+        ctk.CTkButton(
+            frame,
+            text="Fetch Converted CBA",
+            width=240,
+            height=44,
+            command=fetch_results,
+        ).pack(pady=18)
+
+        ctk.CTkButton(
+            frame,
+            text="Back to Classes",
+            command=lambda: self.show_class_selection(
+                "KNEC CBA Fetch", self.btn_knec_cba
+            ),
+        ).pack(pady=6)
 
     def show_cba_subject_selection(self, class_name):
         for widget in self.content_panel.winfo_children():
@@ -3557,7 +3769,8 @@ class Dashboard(ctk.CTk):
             ),
         ).pack(pady=18)
 
-    def open_cba_task_manager(self, class_name, subject):
+    def open_cba_task_manager(self, class_name, subject, targets=None):
+        targets = targets or [(class_name, subject)]
         config = self.load_school_config()
         subject_tasks = (
             config.get("cba_tasks", {}).get(class_name, {}).get(subject, {})
@@ -3584,14 +3797,15 @@ class Dashboard(ctk.CTk):
         def save_tasks_for_term(term, saved_tasks):
             current_config = self.load_school_config()
             cba_tasks = current_config.get("cba_tasks", {})
-            class_tasks = cba_tasks.setdefault(class_name, {})
-            current = class_tasks.get(subject, {})
-            if isinstance(current, list):
-                current = {"Term 1": current}
-            current[term] = saved_tasks
-            class_tasks[subject] = current
             active_terms = current_config.get("cba_active_terms", {})
-            active_terms.setdefault(class_name, {})[subject] = term
+            for target_class, target_subject in targets:
+                class_tasks = cba_tasks.setdefault(target_class, {})
+                current = class_tasks.get(target_subject, {})
+                if isinstance(current, list):
+                    current = {"Term 1": current}
+                current[term] = saved_tasks
+                class_tasks[target_subject] = current
+                active_terms.setdefault(target_class, {})[target_subject] = term
             self.save_school_config(
                 {"cba_tasks": cba_tasks, "cba_active_terms": active_terms}
             )
@@ -3602,6 +3816,7 @@ class Dashboard(ctk.CTk):
             subject,
             tasks_by_term=tasks_by_term,
             term=active_term,
+            targets=targets,
             on_change=save_tasks_for_term,
         )
 
@@ -4019,6 +4234,9 @@ class Dashboard(ctk.CTk):
 
         elif action_type == "KNEC CBA Tasks":
             self.show_cba_subject_selection(class_selected)
+
+        elif action_type == "KNEC CBA Fetch":
+            self.show_cba_fetch_subject_selection(class_selected)
 
         # This handles the Register button
         elif action_type == "Registering" or action_type == "Registration":

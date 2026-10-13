@@ -1751,6 +1751,7 @@ def export_cba_marks(grade, export_format):
 
     subject = request.args.get("subject", "").strip()
     term = request.args.get("term", "").strip()
+    include_total = request.args.get("include_total", "1") != "0"
     teacher_code = session.get("teacher_code")
     if not subject or not teacher_code:
         return "Subject is required", 400
@@ -1795,7 +1796,8 @@ def export_cba_marks(grade, export_format):
 
     headers = ["Assessment Number", "Learner's Name", "Gender"]
     headers.extend(task["name"] for task in tasks)
-    headers.append("Total Score")
+    if include_total:
+        headers.append("Total Score")
     column_labels = []
     for column_index in range(len(headers)):
         label_number = column_index + 1
@@ -1828,11 +1830,12 @@ def export_cba_marks(grade, export_format):
             else:
                 row.append(converted["points"])
                 total_points += converted["points"]
-        row.append(
-            absence_mark_for_grade(grade)
-            if has_absence
-            else total_points if all_scores_present else ""
-        )
+        if include_total:
+            row.append(
+                absence_mark_for_grade(grade)
+                if has_absence
+                else total_points if all_scores_present else ""
+            )
         output_rows.append(row)
 
     filename = secure_filename(f"{grade}_{subject}_{term}_cba_results.{export_format}")
@@ -1945,6 +1948,104 @@ def export_cba_marks(grade, export_format):
     document.build([title, table])
     buffer.seek(0)
     return send_file(buffer, as_attachment=True, download_name=filename, mimetype="application/pdf")
+
+
+@app.route("/api/fetch_cba_results", methods=["POST"])
+def api_fetch_cba_results():
+    data = request.get_json(silent=True) or {}
+    school_code = str(data.get("school_code", "")).strip().lower()
+    password = data.get("password", "")
+    grade = str(data.get("grade", "")).strip()
+    subject = str(data.get("subject", "")).strip()
+    term = str(data.get("term", "")).strip()
+    if not school_code or not password or not grade or not subject:
+        return jsonify({"success": False, "message": "Missing school credentials or class/subject."}), 400
+
+    conn = get_db()
+    try:
+        school = conn.execute(
+            "SELECT id, password_hash FROM schools WHERE school_code = ?",
+            (school_code,),
+        ).fetchone()
+        if not school or not check_password_hash(school["password_hash"], password):
+            return jsonify({"success": False, "message": "Invalid school credentials."}), 401
+
+        if not term:
+            latest = conn.execute(
+                "SELECT term FROM cba_term_task_configs WHERE school_id = ? AND grade = ? AND subject = ? ORDER BY updated_at DESC LIMIT 1",
+                (school["id"], grade, subject),
+            ).fetchone()
+            term = latest["term"] if latest else ""
+        config = conn.execute(
+            "SELECT tasks_json FROM cba_term_task_configs WHERE school_id = ? AND grade = ? AND subject = ? AND term = ?",
+            (school["id"], grade, subject, term),
+        ).fetchone()
+        if not config:
+            return jsonify({"success": False, "message": "No CBA tasks found for this class, subject, and term."}), 404
+
+        tasks = validate_tasks(json.loads(config["tasks_json"]))
+        students = conn.execute(
+            "SELECT adm_no, assessment_number, student_name, gender FROM students WHERE school_id = ? AND grade = ? ORDER BY student_name COLLATE NOCASE, adm_no",
+            (school["id"], grade),
+        ).fetchall()
+        scores = conn.execute(
+            "SELECT adm_no, task_name, raw_score FROM cba_term_scores WHERE school_id = ? AND grade = ? AND subject = ? AND term = ?",
+            (school["id"], grade, subject, term),
+        ).fetchall()
+
+        scores_by_student = {}
+        for row in scores:
+            scores_by_student.setdefault(row["adm_no"], {})[row["task_name"]] = row["raw_score"]
+
+        columns = ["Assessment Number", "Learner's Name", "Gender"]
+        columns.extend(task["name"] for task in tasks)
+        columns.append("Total Score")
+        absence_mark = absence_mark_for_grade(grade)
+        records = []
+        for student in students:
+            row = [
+                student["assessment_number"] or "",
+                student["student_name"],
+                student["gender"] or "",
+            ]
+            total_points = 0
+            all_scores_present = True
+            has_absence = False
+            for task in tasks:
+                raw_score = scores_by_student.get(student["adm_no"], {}).get(task["name"])
+                if raw_score is None:
+                    row.append("")
+                    all_scores_present = False
+                    continue
+                converted = convert_raw_score(task, raw_score)
+                if converted["points"] is None:
+                    row.append(absence_mark)
+                    has_absence = True
+                else:
+                    row.append(converted["points"])
+                    total_points += converted["points"]
+            row.append(
+                absence_mark
+                if has_absence
+                else total_points if all_scores_present else ""
+            )
+            records.append(row)
+
+        return jsonify(
+            {
+                "success": True,
+                "grade": grade,
+                "subject": subject,
+                "term": term,
+                "columns": columns,
+                "records": records,
+            }
+        )
+    except Exception as error:
+        logging.exception("Could not fetch converted CBA results")
+        return jsonify({"success": False, "message": str(error)}), 500
+    finally:
+        conn.close()
 
 
 @app.route("/api/get_marks", methods=["POST"])
