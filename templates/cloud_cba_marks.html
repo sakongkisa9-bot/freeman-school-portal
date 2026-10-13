@@ -183,6 +183,10 @@
     });
 
     document.querySelector("form").addEventListener("submit", event => {
+        // Clear all previous custom validity messages before validation
+        for (const input of document.querySelectorAll(".score-input")) {
+            input.setCustomValidity("");
+        }
         for (const input of document.querySelectorAll(".score-input")) {
             const value = input.value.trim().toUpperCase();
             if (!value || value === "AB") continue;
@@ -196,7 +200,6 @@
                 input.reportValidity();
                 return;
             }
-            input.setCustomValidity("");
             input.value = value;
         }
     });

@@ -186,6 +186,1532 @@
                     }
                 }
             ]
+        },
+        "Grade 7": {
+            "MATH": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "ENG": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "KISW": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "INT SCIE": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "PRE-TECH": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "SST": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "CRE": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "AGRI": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "C/A": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            }
+        },
+        "Grade 8": {
+            "MATH": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "ENG": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "KISW": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "INT SCIE": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "PRE-TECH": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "SST": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "CRE": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "AGRI": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "C/A": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            }
+        },
+        "Grade 9": {
+            "MATH": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "ENG": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "KISW": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "INT SCIE": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "PRE-TECH": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "SST": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "CRE": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "AGRI": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            },
+            "C/A": {
+                "Term 1": [
+                    {
+                        "name": "task 1",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 44
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 45,
+                                "max": 89
+                            },
+                            "Level 3": {
+                                "type": "exact",
+                                "value": 90
+                            },
+                            "Level 4": {
+                                "type": "above",
+                                "value": 90
+                            }
+                        }
+                    },
+                    {
+                        "name": "task 2",
+                        "unit": "",
+                        "ranges": {
+                            "Level 1": {
+                                "type": "range",
+                                "min": 0,
+                                "max": 5
+                            },
+                            "Level 2": {
+                                "type": "range",
+                                "min": 6,
+                                "max": 10
+                            },
+                            "Level 3": {
+                                "type": "range",
+                                "min": 11,
+                                "max": 15
+                            },
+                            "Level 4": {
+                                "type": "range",
+                                "min": 16,
+                                "max": 20
+                            }
+                        }
+                    }
+                ],
+                "Term 2": []
+            }
+        }
+    },
+    "cba_active_terms": {
+        "Grade 7": {
+            "MATH": "Term 1",
+            "ENG": "Term 1",
+            "KISW": "Term 1",
+            "INT SCIE": "Term 1",
+            "PRE-TECH": "Term 1",
+            "SST": "Term 1",
+            "CRE": "Term 1",
+            "AGRI": "Term 1",
+            "C/A": "Term 1"
+        },
+        "Grade 8": {
+            "MATH": "Term 1",
+            "ENG": "Term 1",
+            "KISW": "Term 1",
+            "INT SCIE": "Term 1",
+            "PRE-TECH": "Term 1",
+            "SST": "Term 1",
+            "CRE": "Term 1",
+            "AGRI": "Term 1",
+            "C/A": "Term 1"
+        },
+        "Grade 9": {
+            "MATH": "Term 1",
+            "ENG": "Term 1",
+            "KISW": "Term 1",
+            "INT SCIE": "Term 1",
+            "PRE-TECH": "Term 1",
+            "SST": "Term 1",
+            "CRE": "Term 1",
+            "AGRI": "Term 1",
+            "C/A": "Term 1"
         }
     }
 }
