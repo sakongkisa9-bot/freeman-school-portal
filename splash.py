@@ -1,6 +1,42 @@
 import customtkinter as ctk
+import ctypes
+import sys
 import time
 from PIL import Image, ImageDraw, ImageFont
+
+
+def apply_rounded_corners(window, radius=24):
+    if sys.platform != "win32":
+        return
+
+    try:
+        window.update_idletasks()
+        width = window.winfo_width()
+        height = window.winfo_height()
+        gdi32 = ctypes.WinDLL("gdi32", use_last_error=True)
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        gdi32.CreateRoundRectRgn.argtypes = [
+            ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+            ctypes.c_int, ctypes.c_int,
+        ]
+        gdi32.CreateRoundRectRgn.restype = ctypes.c_void_p
+        gdi32.DeleteObject.argtypes = [ctypes.c_void_p]
+        gdi32.DeleteObject.restype = ctypes.c_int
+        user32.GetAncestor.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+        user32.GetAncestor.restype = ctypes.c_void_p
+        user32.SetWindowRgn.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int]
+        user32.SetWindowRgn.restype = ctypes.c_int
+
+        hwnd = user32.GetAncestor(window.winfo_id(), 2)
+        region = gdi32.CreateRoundRectRgn(
+            0, 0, width + 1, height + 1, radius * 2, radius * 2
+        )
+        if not hwnd or not region or not user32.SetWindowRgn(hwnd, region, 1):
+            if region:
+                gdi32.DeleteObject(region)
+    except (AttributeError, OSError, TypeError):
+        return
+
 
 class SplashScreen2(ctk.CTk):
     def __init__(self):
@@ -46,6 +82,8 @@ class SplashScreen2(ctk.CTk):
                                            corner_radius=10)
         self.progress.set(0)
         self.progress.pack(pady=10)
+
+        self.after(100, apply_rounded_corners, self)
 
         # Start the "Fake" Loading Sequence
         self.after(500, self.run_loading_animation)

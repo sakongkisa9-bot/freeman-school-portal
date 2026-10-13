@@ -8,13 +8,14 @@ from flask import (
     flash,
     jsonify,
     send_from_directory,
+    send_file,
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import os
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 from werkzeug.utils import secure_filename
 from grading_logic import (
@@ -23,6 +24,7 @@ from grading_logic import (
     calculate_final_level,
 )
 from teacher_comments import rating_to_comment as get_subject_rating_comment
+from cba_logic import convert_raw_score, task_score_bounds, validate_tasks
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(PROJECT_DIR, "templates")
@@ -483,6 +485,34 @@ def init_db():
             average_level TEXT,
             updated_at TEXT NOT NULL,
             UNIQUE(school_id, grade, adm_no, exam_title),
+            FOREIGN KEY(school_id) REFERENCES schools(id)
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS cba_task_configs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            school_id INTEGER NOT NULL,
+            grade TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            tasks_json TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(school_id, grade, subject),
+            FOREIGN KEY(school_id) REFERENCES schools(id)
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS cba_scores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            school_id INTEGER NOT NULL,
+            grade TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            adm_no TEXT NOT NULL,
+            student_name TEXT NOT NULL,
+            task_name TEXT NOT NULL,
+            raw_score INTEGER NOT NULL,
+            teacher_code TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(school_id, grade, subject, adm_no, task_name),
             FOREIGN KEY(school_id) REFERENCES schools(id)
         )
     """)
@@ -1190,6 +1220,56 @@ def api_sync_teachers():
         conn.close()
 
 
+@app.route("/api/upload_cba_tasks", methods=["POST"])
+def api_upload_cba_tasks():
+    data = request.get_json(silent=True) or {}
+    school_code = str(data.get("school_code", "")).strip().lower()
+    password = data.get("password", "")
+    grade = str(data.get("grade", "")).strip()
+    subject = str(data.get("subject", "")).strip()
+    try:
+        tasks = validate_tasks(data.get("tasks"))
+    except ValueError as error:
+        return jsonify({"success": False, "message": str(error)}), 400
+
+    if not school_code or not password or not grade or not subject:
+        return jsonify({"success": False, "message": "Missing school credentials or class/subject."}), 400
+
+    conn = get_db()
+    try:
+        school = conn.execute(
+            "SELECT id, password_hash FROM schools WHERE school_code = ?",
+            (school_code,),
+        ).fetchone()
+        if not school or not check_password_hash(school["password_hash"], password):
+            return jsonify({"success": False, "message": "Invalid school credentials."}), 401
+
+        conn.execute(
+            """
+            INSERT INTO cba_task_configs (school_id, grade, subject, tasks_json, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(school_id, grade, subject) DO UPDATE SET
+                tasks_json = excluded.tasks_json,
+                updated_at = excluded.updated_at
+            """,
+            (
+                school["id"],
+                grade,
+                subject,
+                json.dumps(tasks),
+                datetime.now(timezone.utc).isoformat(),
+            ),
+        )
+        conn.commit()
+        return jsonify({"success": True, "message": "CBA tasks published."})
+    except Exception as error:
+        conn.rollback()
+        logging.exception("CBA task publish failed")
+        return jsonify({"success": False, "message": str(error)}), 500
+    finally:
+        conn.close()
+
+
 @app.route("/marks/<grade>", methods=["GET", "POST"])
 def enter_marks(grade):
     subject = request.args.get("subject")
@@ -1431,6 +1511,274 @@ def select_subject(grade):
     finally:
         if conn:
             conn.close()
+
+
+@app.route("/cba/select_subject/<grade>")
+def select_cba_subject(grade):
+    if "school_id" not in session:
+        return redirect(url_for("teacher_login"))
+    teacher_code = session.get("teacher_code")
+    if not teacher_code:
+        flash("Teacher code not found. Please login again.", "danger")
+        return redirect(url_for("teacher_login"))
+
+    conn = get_db()
+    subjects = [
+        row["subject"]
+        for row in conn.execute(
+            "SELECT subject FROM teacher_assignments WHERE school_id = ? AND class_name = ? AND teacher_code = ? ORDER BY subject",
+            (session["school_id"], grade, teacher_code),
+        ).fetchall()
+    ]
+    conn.close()
+    if not subjects:
+        flash(f"No subjects are assigned to you for {grade}.", "warning")
+        return redirect(url_for("dashboard"))
+    return render_template(
+        "cloud_select_subject.html", grade=grade, subjects=subjects, mode="cba"
+    )
+
+
+@app.route("/cba/marks/<grade>", methods=["GET", "POST"])
+def enter_cba_marks(grade):
+    if "school_id" not in session:
+        return redirect(url_for("teacher_login"))
+    subject = request.args.get("subject", "").strip()
+    teacher_code = session.get("teacher_code")
+    if not subject or not teacher_code:
+        flash("Choose an assigned subject to enter CBA scores.", "danger")
+        return redirect(url_for("select_cba_subject", grade=grade))
+
+    conn = get_db()
+    school = conn.execute(
+        "SELECT portal_open FROM schools WHERE id = ?", (session["school_id"],)
+    ).fetchone()
+    if not school or school["portal_open"] == 0:
+        conn.close()
+        flash("The teachers portal is currently closed.", "danger")
+        return redirect(url_for("dashboard"))
+
+    assignment = conn.execute(
+        "SELECT 1 FROM teacher_assignments WHERE school_id = ? AND class_name = ? AND subject = ? AND teacher_code = ?",
+        (session["school_id"], grade, subject, teacher_code),
+    ).fetchone()
+    if not assignment:
+        conn.close()
+        flash("You are not assigned to this class and subject.", "danger")
+        return redirect(url_for("select_cba_subject", grade=grade))
+
+    config = conn.execute(
+        "SELECT tasks_json FROM cba_task_configs WHERE school_id = ? AND grade = ? AND subject = ?",
+        (session["school_id"], grade, subject),
+    ).fetchone()
+    if not config:
+        conn.close()
+        flash("CBA tasks have not been published for this subject.", "warning")
+        return redirect(url_for("select_cba_subject", grade=grade))
+    try:
+        tasks = validate_tasks(json.loads(config["tasks_json"]))
+    except (ValueError, TypeError, json.JSONDecodeError) as error:
+        conn.close()
+        logging.exception("Invalid CBA task configuration")
+        flash(f"The CBA task configuration is invalid: {error}", "danger")
+        return redirect(url_for("dashboard"))
+
+    students = conn.execute(
+        "SELECT id, adm_no, student_name FROM students WHERE school_id = ? AND grade = ? ORDER BY student_name",
+        (session["school_id"], grade),
+    ).fetchall()
+
+    if request.method == "POST":
+        score_rows = []
+        try:
+            for student in students:
+                for task_index, task in enumerate(tasks):
+                    raw_score = request.form.get(
+                        f"score_{student['id']}_{task_index}", ""
+                    ).strip()
+                    if not raw_score:
+                        continue
+                    convert_raw_score(task, raw_score)
+                    score_rows.append(
+                        (
+                            session["school_id"],
+                            grade,
+                            subject,
+                            student["adm_no"],
+                            student["student_name"],
+                            task["name"],
+                            int(raw_score),
+                            teacher_code,
+                            datetime.now(timezone.utc).isoformat(),
+                        )
+                    )
+        except ValueError as error:
+            conn.close()
+            flash(str(error), "danger")
+            return redirect(url_for("enter_cba_marks", grade=grade, subject=subject))
+
+        conn.execute(
+            "DELETE FROM cba_scores WHERE school_id = ? AND grade = ? AND subject = ?",
+            (session["school_id"], grade, subject),
+        )
+        conn.executemany(
+            """
+            INSERT INTO cba_scores
+                (school_id, grade, subject, adm_no, student_name, task_name, raw_score, teacher_code, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            score_rows,
+        )
+        conn.commit()
+        conn.close()
+        flash(f"CBA raw scores for {subject} saved successfully.", "success")
+        return redirect(url_for("enter_cba_marks", grade=grade, subject=subject))
+
+    saved_rows = conn.execute(
+        "SELECT adm_no, task_name, raw_score FROM cba_scores WHERE school_id = ? AND grade = ? AND subject = ?",
+        (session["school_id"], grade, subject),
+    ).fetchall()
+    conn.close()
+    saved_scores = {}
+    for row in saved_rows:
+        saved_scores.setdefault(row["adm_no"], {})[row["task_name"]] = row["raw_score"]
+
+    task_bounds = {task["name"]: task_score_bounds(task) for task in tasks}
+    return render_template(
+        "cloud_cba_marks.html",
+        grade=grade,
+        subject=subject,
+        students=students,
+        tasks=tasks,
+        task_bounds=task_bounds,
+        saved_scores=saved_scores,
+    )
+
+
+@app.route("/cba/export/<grade>/<export_format>")
+def export_cba_marks(grade, export_format):
+    if "school_id" not in session:
+        return redirect(url_for("teacher_login"))
+    if export_format not in {"xlsx", "pdf"}:
+        return "Unsupported export format", 404
+
+    subject = request.args.get("subject", "").strip()
+    teacher_code = session.get("teacher_code")
+    if not subject or not teacher_code:
+        return "Subject is required", 400
+
+    conn = get_db()
+    assignment = conn.execute(
+        "SELECT 1 FROM teacher_assignments WHERE school_id = ? AND class_name = ? AND subject = ? AND teacher_code = ?",
+        (session["school_id"], grade, subject, teacher_code),
+    ).fetchone()
+    config = conn.execute(
+        "SELECT tasks_json FROM cba_task_configs WHERE school_id = ? AND grade = ? AND subject = ?",
+        (session["school_id"], grade, subject),
+    ).fetchone()
+    if not assignment or not config:
+        conn.close()
+        return "No CBA results are available for this assigned subject", 404
+
+    tasks = validate_tasks(json.loads(config["tasks_json"]))
+    students = conn.execute(
+        "SELECT adm_no, student_name FROM students WHERE school_id = ? AND grade = ? ORDER BY student_name",
+        (session["school_id"], grade),
+    ).fetchall()
+    scores = conn.execute(
+        "SELECT adm_no, task_name, raw_score FROM cba_scores WHERE school_id = ? AND grade = ? AND subject = ?",
+        (session["school_id"], grade, subject),
+    ).fetchall()
+    school = conn.execute(
+        "SELECT school_name FROM schools WHERE id = ?", (session["school_id"],)
+    ).fetchone()
+    conn.close()
+
+    scores_by_student = {}
+    for row in scores:
+        scores_by_student.setdefault(row["adm_no"], {})[row["task_name"]] = row["raw_score"]
+
+    headers = ["Admission Number", "Learner Name"]
+    for task in tasks:
+        headers.extend([f"{task['name']} Raw", f"{task['name']} Level", f"{task['name']} Points"])
+    headers.append("Total Points")
+    output_rows = []
+    for student in students:
+        row = [student["adm_no"], student["student_name"]]
+        total_points = 0
+        for task in tasks:
+            raw_score = scores_by_student.get(student["adm_no"], {}).get(task["name"])
+            if raw_score is None:
+                row.extend(["", "", ""])
+                continue
+            converted = convert_raw_score(task, raw_score)
+            total_points += converted["points"]
+            row.extend([raw_score, converted["level"], converted["points"]])
+        row.append(total_points)
+        output_rows.append(row)
+
+    filename = secure_filename(f"{grade}_{subject}_cba_results.{export_format}")
+    if export_format == "xlsx":
+        from io import BytesIO
+        from openpyxl import Workbook
+
+        workbook = Workbook()
+        worksheet = workbook.active
+        worksheet.title = "CBA Results"
+        worksheet.append([school["school_name"] if school else "CBA Results"])
+        worksheet.append([f"{grade} - {subject}"])
+        worksheet.append(headers)
+        for row in output_rows:
+            worksheet.append(row)
+        worksheet.freeze_panes = "C4"
+        worksheet.auto_filter.ref = worksheet.dimensions
+        buffer = BytesIO()
+        workbook.save(buffer)
+        buffer.seek(0)
+        return send_file(
+            buffer,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+    from io import BytesIO
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Table, TableStyle
+
+    buffer = BytesIO()
+    document = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        rightMargin=12 * mm,
+        leftMargin=12 * mm,
+        topMargin=12 * mm,
+        bottomMargin=12 * mm,
+    )
+    styles = getSampleStyleSheet()
+    title = Paragraph(f"{school['school_name'] if school else 'CBA Results'} - {grade} - {subject}", styles["Title"])
+    table = Table([headers] + output_rows, repeatRows=1)
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#245b4b")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 7),
+                ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#aebbb5")),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#edf3ef")]),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+    document.build([title, table])
+    buffer.seek(0)
+    return send_file(buffer, as_attachment=True, download_name=filename, mimetype="application/pdf")
 
 
 @app.route("/api/get_marks", methods=["POST"])

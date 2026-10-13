@@ -126,10 +126,16 @@ class SchoolSetupWizard(ctk.CTkToplevel):
         self.premium_days_entry.insert(0, "90")
 
         self.logo_path = ctk.StringVar()
-        ctk.CTkButton(self.scroll_frame, text="📁 Browse Logo", command=lambda: self.pick_file(self.logo_path)).pack(pady=5)
+        logo_button_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
+        logo_button_frame.pack(pady=5)
+        ctk.CTkButton(logo_button_frame, text="📁 Browse Logo", command=lambda: self.pick_file(self.logo_path)).pack(side="left", padx=5)
+        ctk.CTkButton(logo_button_frame, text="🗑️ Clear Logo", command=lambda: self.logo_path.set("")).pack(side="left", padx=5)
 
         self.sig_path = ctk.StringVar()
-        ctk.CTkButton(self.scroll_frame, text="✍️ Browse Signature", command=lambda: self.pick_file(self.sig_path)).pack(pady=5)
+        sig_button_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
+        sig_button_frame.pack(pady=5)
+        ctk.CTkButton(sig_button_frame, text="✍️ Browse Signature", command=lambda: self.pick_file(self.sig_path)).pack(side="left", padx=5)
+        ctk.CTkButton(sig_button_frame, text="🗑️ Clear Signature", command=lambda: self.sig_path.set("")).pack(side="left", padx=5)
 
         # Save Button
         ctk.CTkButton(self, text="🚀 SAVE ALL SETTINGS", fg_color="#10b981", text_color="black",

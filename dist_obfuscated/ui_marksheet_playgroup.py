@@ -995,7 +995,15 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
             e.grid(row=row_index, column=col_idx, sticky="ew", padx=1, pady=0)
 
-            val = row_data[col_idx]
+            if read_only:
+
+                saved_subject_end = max(1, len(row_data) - 2)
+
+                val = row_data[col_idx] if col_idx < saved_subject_end else ""
+
+            else:
+
+                val = row_data[col_idx] if col_idx < len(row_data) else ""
 
             if val is not None:
 
@@ -1020,13 +1028,24 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
         t_idx = 1 + (num_subs * 2)
 
+        if read_only and len(row_data) >= 2:
+
+            summary_values = (row_data[-2], row_data[-1])
+
+        else:
+
+            summary_values = tuple(
+                row_data[index] if index < len(row_data) else ""
+                for index in (t_idx, t_idx + 1)
+            )
+
         summary_colors = ["gray30", "#1f538d", "#4a1515"]
 
         for j in range(3):
 
             col_idx = t_idx + j
 
-            val = row_data[col_idx] if len(row_data) > col_idx else ""
+            val = summary_values[j] if j < 2 else ""
 
             if j == 2:
 
@@ -1309,19 +1328,14 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                 # Recalculate rank from total scores (rank is not saved in JSON)
 
-                total_idx = 1 + (num_subs * 2)
-
                 scored_students = []
 
                 for row_data in records:
 
                     try:
 
-                        score = (
-                            int(row_data[total_idx])
-                            if row_data[total_idx] is not None
-                            else -1
-                        )
+                        total_value = row_data[-2] if len(row_data) >= 2 else None
+                        score = int(total_value) if total_value is not None else -1
 
                     except (ValueError, TypeError):
 
@@ -1513,7 +1527,7 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
             if not all_widgets:
 
-                
+               
                 return
 
             # Group widgets by row

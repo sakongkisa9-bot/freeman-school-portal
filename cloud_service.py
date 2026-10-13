@@ -141,6 +141,17 @@ class CloudService:
         }
         return self._post_json("/api/upload_teachers", payload)
 
+    def upload_cba_tasks(self, grade, subject, tasks, credentials):
+        payload = {
+            "school_code": credentials["school_code"],
+            "username": credentials["username"],
+            "password": credentials["password"],
+            "grade": grade,
+            "subject": subject,
+            "tasks": tasks,
+        }
+        return self._post_json("/api/upload_cba_tasks", payload)
+
     def fetch_students(self, grade, credentials):
         payload = {
             "school_code": credentials["school_code"],

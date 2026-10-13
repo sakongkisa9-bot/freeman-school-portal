@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import sys
 from typing import List, Dict, Optional
 
 try:
@@ -11,8 +12,18 @@ except ImportError:
     FCM_AVAILABLE = False
     logging.warning("firebase-admin not installed. FCM notifications will not work.")
 
-PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Handle both development and executable environments
+if getattr(sys, 'frozen', False):
+    # Running as executable
+    PROJECT_DIR = sys._MEIPASS
+    USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
+else:
+    # Running as script
+    PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+    USER_DATA_DIR = PROJECT_DIR
+
 SERVICE_ACCOUNT_PATH = os.path.join(PROJECT_DIR, "firebase-service-account.json")
+SERVICE_ACCOUNT_USER_PATH = os.path.join(USER_DATA_DIR, "firebase-service-account.json")
 
 
 class FCMService:
@@ -46,16 +57,23 @@ class FCMService:
                     logging.error(f"Failed to parse FIREBASE_SERVICE_ACCOUNT JSON: {e}")
             
             # Fallback to file (for local development)
-            if not os.path.exists(SERVICE_ACCOUNT_PATH):
-                logging.warning(f"Firebase service account file not found at {SERVICE_ACCOUNT_PATH}")
+            # Check both bundled and user data directory
+            if os.path.exists(SERVICE_ACCOUNT_PATH):
+                cred = credentials.Certificate(SERVICE_ACCOUNT_PATH)
+                firebase_admin.initialize_app(cred)
+                self.initialized = True
+                logging.info("Firebase initialized from bundled file")
+                return
+            elif os.path.exists(SERVICE_ACCOUNT_USER_PATH):
+                cred = credentials.Certificate(SERVICE_ACCOUNT_USER_PATH)
+                firebase_admin.initialize_app(cred)
+                self.initialized = True
+                logging.info("Firebase initialized from user data file")
+                return
+            else:
+                logging.warning(f"Firebase service account file not found at {SERVICE_ACCOUNT_PATH} or {SERVICE_ACCOUNT_USER_PATH}")
                 logging.warning("Set FIREBASE_SERVICE_ACCOUNT environment variable or place firebase-service-account.json in project root")
                 return
-            
-            # Initialize Firebase with service account file
-            cred = credentials.Certificate(SERVICE_ACCOUNT_PATH)
-            firebase_admin.initialize_app(cred)
-            self.initialized = True
-            logging.info("Firebase initialized from file")
             
         except Exception as e:
             logging.error(f"Failed to initialize Firebase: {e}")

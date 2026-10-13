@@ -1,32 +1,38 @@
 {
-    "school_name": "SHINNERS SCHOOL",
+    "school_name": "LENANA SCHOOL",
     "address": "P.O.BOX12 MATUNDA",
     "contacts": "0789087654",
-    "logo": "C:/Users/HomePC/Downloads/images.png",
+    "logo": "",
     "school_administrator": "MISTER MOSS",
     "signatures": {
         "headteacher": "C:/Users/HomePC/Pictures/SIGNATURE.png"
     },
     "cloud_portal_url": "https://freeman-school-portal.up.railway.app",
-    "cloud_school_code": "shinners20",
-    "cloud_teacher_username": "shinners20",
-    "cloud_teacher_password": "shinners20",
+    "cloud_school_code": "freeman20",
+    "cloud_teacher_username": "freeman20",
+    "cloud_teacher_password": "freeman20",
     "system_username": "kibet",
     "system_password": "1659",
     "installation_fee": 5000,
     "amount_per_student": 100,
     "grace_period_days": 0,
-    "trial_days": 120,
-    "premium_days": 120,
-    "playgroup_exam_title": "YU",
-    "primary_exam_title": "PRIMARY SCHOOL MERIT LIST",
-    "jss_exam_title": "JUNIOR SECONDARY ASSESSMENT",
+    "trial_days": 0,
+    "premium_days": 90,
+    "playgroup_exam_title": "opener exam",
+    "pp1_exam_title": "opener exam",
+    "pp2_exam_title": "opener exam",
+    "lower_exam_title": "opener exam",
+    "primary_exam_title": "opener exam",
+    "jss_exam_title": "opener exam",
+    "current_exam_title": "opener exam",
+    "portal_open": true,
     "subjects": {
         "playgroup": [
             "LANG",
             "MATH",
             "CREAT",
-            "ENV"
+            "ENV",
+            "BIO"
         ],
         "pp1": [
             "LANG",
@@ -75,6 +81,31 @@
             "C/A"
         ]
     },
-    "portal_open": false,
-    "current_exam_title": "ASSESSMENT"
+    "dashboard_accent": "#25855a",
+    "bing_wallpaper_enabled": false,
+    "dashboard_background_url": "",
+    "dashboard_background": "",
+    "bing_wallpaper_last_refresh": "",
+    "bing_wallpaper_credit": "",
+    "dashboard_control_positions": {
+        "dashboard_theme_controls": {
+            "x": 0,
+            "y": 0
+        },
+        "dashboard_header_controls": {
+            "x": 0,
+            "y": 0
+        },
+        "dashboard_promote_button": {
+            "x": 0,
+            "y": 52
+        },
+        "dashboard_system_settings_button": {
+            "x": 0,
+            "y": 111
+        }
+    },
+    "bing_wallpaper_interval_hours": 1,
+    "dashboard_appearance": "Dark",
+    "dashboard_particles_enabled": false
 }

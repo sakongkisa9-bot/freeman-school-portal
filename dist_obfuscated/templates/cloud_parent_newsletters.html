@@ -505,10 +505,13 @@
 
             <div class="newsletter-body">{{ newsletter.body }}</div>
 
-            {% if newsletter.attachment_path %}
+            {% if newsletter.attachment_path and newsletter.attachment_path.startswith('/newsletter-attachments/') %}
             <div class="attachment-section">
-                <a href="#" class="attachment-link">
-                    <i class="fas fa-paperclip"></i> View Attachment
+                <a href="{{ newsletter.attachment_path }}" class="attachment-link" target="_blank" rel="noopener">
+                    <i class="fas fa-eye"></i> Open Attachment
+                </a>
+                <a href="{{ newsletter.attachment_path }}?download=1" class="attachment-link" download>
+                    <i class="fas fa-download"></i> Download
                 </a>
             </div>
             {% endif %}

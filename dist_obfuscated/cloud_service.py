@@ -204,6 +204,35 @@ class CloudService:
         if newsletter_data is None:
             print("DEBUG: Cannot send newsletter - newsletter_data is None")
             return {"success": False, "message": "No newsletter data available"}
+
+        attachment_path = newsletter_data.get("attachment_path")
+        if attachment_path:
+            if not os.path.isfile(attachment_path):
+                return {"success": False, "message": "The selected attachment could not be found."}
+            if not self._ensure_requests():
+                return {"success": False, "message": "Requests library not installed."}
+
+            payload = {
+                "school_code": credentials["school_code"],
+                "newsletter": json.dumps(newsletter_data),
+            }
+            try:
+                with open(attachment_path, "rb") as attachment:
+                    response = self.session.post(
+                        f"{self.base_url}/api/save_newsletter",
+                        data=payload,
+                        files={"attachment": (os.path.basename(attachment_path), attachment)},
+                        timeout=60,
+                    )
+                if response.status_code != 200:
+                    return {
+                        "success": False,
+                        "message": f"Status: {response.status_code}, Response: {response.text}",
+                    }
+                return response.json()
+            except Exception as e:
+                return {"success": False, "message": f"Connection Failed: {e}"}
+
         payload = {
             "school_code": credentials["school_code"],
             "newsletter": newsletter_data,

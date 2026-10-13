@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>KNEC CBA - {{ subject }} - Freeman Portal</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: #101a19;
+            color: #f4f7f5;
+            font-family: "Segoe UI", Tahoma, sans-serif;
+        }
+        main { max-width: 1500px; margin: 0 auto; padding: 24px; }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            border-bottom: 1px solid #41524d;
+            padding-bottom: 18px;
+            margin-bottom: 20px;
+        }
+        h1 { margin: 0; font-size: 25px; }
+        .subtitle { color: #b7c8c1; margin: 7px 0 0; }
+        .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        a.button, button {
+            display: inline-block;
+            padding: 10px 14px;
+            border: 1px solid #53776d;
+            border-radius: 5px;
+            background: #19332d;
+            color: #effff8;
+            text-decoration: none;
+            font-weight: 650;
+            cursor: pointer;
+        }
+        a.button:hover, button:hover { background: #285347; }
+        .messages { margin: 14px 0; }
+        .message { padding: 10px 12px; border-left: 4px solid #d69c48; background: #26312b; }
+        .message.success { border-color: #4daf86; }
+        .message.danger { border-color: #d26060; }
+        .table-wrap { overflow-x: auto; border: 1px solid #354943; background: #17221f; }
+        table { width: 100%; min-width: 850px; border-collapse: collapse; }
+        th, td { border-bottom: 1px solid #354943; padding: 10px; text-align: left; }
+        th { position: sticky; top: 0; background: #20332d; color: #cde9dc; }
+        th:first-child, td:first-child { position: sticky; left: 0; background: #17221f; }
+        th:first-child { background: #20332d; }
+        .student-name { min-width: 190px; font-weight: 650; }
+        .adm { color: #93c9b2; white-space: nowrap; }
+        .task-col { min-width: 150px; }
+        .range { display: block; margin-top: 4px; color: #9fb7ad; font-size: 11px; line-height: 1.5; }
+        input[type=number] {
+            width: 100%; min-width: 80px; padding: 9px;
+            background: #0d1513; color: white; border: 1px solid #52665f; border-radius: 4px;
+        }
+        .save-row { display: flex; justify-content: flex-end; padding: 16px 0; }
+        button.save { border-color: #5c9c83; background: #28735b; min-width: 190px; }
+        @media (max-width: 650px) {
+            main { padding: 14px; }
+            h1 { font-size: 21px; }
+            header { align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <header>
+        <div>
+            <h1>KNEC CBA: {{ subject }}</h1>
+            <p class="subtitle">{{ grade }} · Enter each learner's raw task scores</p>
+        </div>
+        <nav class="actions">
+            <a class="button" href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a class="button" href="{{ url_for('export_cba_marks', grade=grade, export_format='xlsx', subject=subject) }}">Download Excel</a>
+            <a class="button" href="{{ url_for('export_cba_marks', grade=grade, export_format='pdf', subject=subject) }}">Download PDF</a>
+        </nav>
+    </header>
+
+    <div class="messages">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+        <div class="message {{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endwith %}
+    </div>
+
+    <form method="post" action="{{ url_for('enter_cba_marks', grade=grade, subject=subject) }}">
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Admission No.</th>
+                        <th>Learner</th>
+                        {% for task in tasks %}
+                        <th class="task-col">
+                            {{ task.name }}
+                            <span class="range">
+                                {% for level, score_range in task.ranges.items() %}
+                                {{ level }}: {{ score_range.min }}–{{ score_range.max }}{% if not loop.last %}<br>{% endif %}
+                                {% endfor %}
+                            </span>
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student in students %}
+                    <tr>
+                        <td class="adm">{{ student.adm_no }}</td>
+                        <td class="student-name">{{ student.student_name }}</td>
+                        {% for task in tasks %}
+                        {% set bounds = task_bounds[task.name] %}
+                        <td>
+                            <input type="number"
+                                   name="score_{{ student.id }}_{{ loop.index0 }}"
+                                   min="{{ bounds[0] }}" max="{{ bounds[1] }}" step="1"
+                                   value="{{ saved_scores.get(student.adm_no, {}).get(task.name, '') }}"
+                                   aria-label="{{ student.student_name }} {{ task.name }} raw score">
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="save-row"><button class="save" type="submit">Save CBA Scores</button></div>
+    </form>
+</main>
+</body>
+</html>

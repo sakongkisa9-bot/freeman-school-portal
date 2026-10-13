@@ -143,21 +143,46 @@ class UpdateManager:
             # Create backup directory
             os.makedirs(self.backup_dir, exist_ok=True)
             
-            # Get current directory
+            # Get current directory - ALWAYS use USER_DATA_DIR for updates
+            # When running as executable, sys._MEIPASS is read-only and temporary
+            # Updates must go to user data directory which is writable
             if getattr(sys, 'frozen', False):
-                current_dir = sys._MEIPASS
+                # For executable, extract to user data directory
+                extract_dir = self.version_file.replace("version.json", "").rstrip(os.sep)
             else:
-                current_dir = os.path.dirname(os.path.realpath(__file__))
+                # For script, use current directory
+                extract_dir = os.path.dirname(os.path.realpath(__file__))
             
-            # Backup current files
-            for item in os.listdir(current_dir):
-                item_path = os.path.join(current_dir, item)
-                if os.path.isfile(item_path) and not item.endswith('.db'):
-                    shutil.copy2(item_path, os.path.join(self.backup_dir, item))
+            # Backup current files from extraction directory
+            if os.path.exists(extract_dir):
+                for item in os.listdir(extract_dir):
+                    item_path = os.path.join(extract_dir, item)
+                    if os.path.isfile(item_path) and not item.endswith('.db'):
+                        shutil.copy2(item_path, os.path.join(self.backup_dir, item))
             
-            # Extract update
+            # Extract update to the writable directory. Published packages may
+            # contain an enclosing update_package directory.
             with zipfile.ZipFile(update_file, 'r') as zip_ref:
-                zip_ref.extractall(current_dir)
+                members = zip_ref.infolist()
+                package_prefix = 'update_package/'
+                wrapped_package = members and all(
+                    member.filename == package_prefix
+                    or member.filename.startswith(package_prefix)
+                    for member in members
+                )
+
+                if wrapped_package:
+                    for member in members:
+                        member.filename = member.filename[len(package_prefix):]
+                        if member.filename:
+                            zip_ref.extract(member, extract_dir)
+                else:
+                    zip_ref.extractall(extract_dir)
+            
+            # Verify extraction by checking for key files
+            print(f"[UpdateManager] Extracted files to: {extract_dir}")
+            extracted_files = os.listdir(extract_dir)
+            print(f"[UpdateManager] Files in extraction directory: {extracted_files[:10]}")
             
             # Update version file
             update_info = self.check_for_updates()
@@ -174,14 +199,16 @@ class UpdateManager:
             # Cleanup
             os.remove(update_file)
             
-            return True, "Update installed successfully"
+            # Restart the application automatically to apply updates
+            self.restart_application()
+            
+            return True, "Update installed successfully. Restarting application..."
         except Exception as e:
             # Restore from backup if update failed
             try:
-                current_dir = os.path.dirname(os.path.realpath(__file__))
-                backup_dir = os.path.join(current_dir, "backup")
-                for item in os.listdir(backup_dir):
-                    shutil.copy2(os.path.join(backup_dir, item), current_dir)
+                if os.path.exists(self.backup_dir):
+                    for item in os.listdir(self.backup_dir):
+                        shutil.copy2(os.path.join(self.backup_dir, item), extract_dir)
             except:
                 pass
             
@@ -197,6 +224,47 @@ class UpdateManager:
             pass
         return {}
     
+    def restart_application(self):
+        """Restart the application to apply updates"""
+        try:
+            import subprocess
+            import time
+            
+            # Create a flag file to indicate update is pending
+            # This helps the new instance know to prioritize user data files
+            flag_file = os.path.join(self.backup_dir, "update_pending.flag")
+            with open(flag_file, 'w') as f:
+                f.write("update_pending")
+            
+            if getattr(sys, 'frozen', False):
+                # Running as executable - restart the executable
+                executable = sys.executable
+                if os.path.exists(executable):
+                    # Use subprocess to restart the executable without shell
+                    # This is more reliable on Windows
+                    DETACHED_PROCESS = 0x00000008
+                    subprocess.Popen(
+                        [executable],
+                        creationflags=DETACHED_PROCESS,
+                        close_fds=True
+                    )
+                    # Give the new process time to start before exiting
+                    time.sleep(1.0)
+                    # Exit current instance
+                    sys.exit(0)
+            else:
+                # Running as script - restart with Python
+                script_path = os.path.realpath(__file__)
+                subprocess.Popen(
+                    [sys.executable, script_path],
+                    creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0,
+                    close_fds=True
+                )
+                time.sleep(1.0)
+                sys.exit(0)
+        except Exception as e:
+            print(f"[UpdateManager] Error restarting application: {e}")
+
     def cleanup(self):
         """Clean up temporary files"""
         try:

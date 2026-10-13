@@ -29,7 +29,7 @@ def get_grade_4_6_rating(score):
     except: return ""
 
 def calculate_final_level(total_val, is_primary=False, num_subjects=9):
-    """Maps total sum to Likuyani scale
+    """Maps total sum to KNEC CBC grading scale
     
     Args:
         total_val: Total score or points sum
@@ -37,37 +37,50 @@ def calculate_final_level(total_val, is_primary=False, num_subjects=9):
         num_subjects: Number of subjects (default 9, used for dynamic threshold calculation)
     """
     if is_primary:
-        # Grade 4-6: Using Raw Score Sum (0-900 for 9 subjects)
-        # Scale thresholds dynamically based on number of subjects
-        max_score_per_subject = 100  # Maximum score per subject
-        max_total_score = num_subjects * max_score_per_subject
-        
-        if max_total_score > 0:
-            # Calculate thresholds dynamically based on percentage of maximum possible score
-            if total_val >= int(max_total_score * 0.60): return "EE1"  # 60% or higher
-            elif total_val >= int(max_total_score * 0.50): return "EE2"  # 50% or higher
-            elif total_val >= int(max_total_score * 0.387): return "ME1"  # 38.7% or higher
-            elif total_val >= int(max_total_score * 0.273): return "ME2"  # 27.3% or higher
-            elif total_val >= int(max_total_score * 0.207): return "AE1"  # 20.7% or higher
-            elif total_val >= int(max_total_score * 0.14): return "AE2"  # 14% or higher
-            elif total_val >= int(max_total_score * 0.073): return "BE1"  # 7.3% or higher
-            return "BE2"
+        # Grade 4-6: Using average score per subject (sum of marks / number of subjects)
+        # Each subject is scored out of 100
+        if num_subjects > 0:
+            avg_score = total_val / num_subjects  # Average score per subject (0-100)
+            # Use KNEC percentage ranges
+            if avg_score >= 90:
+                return "EE1"  # 90–100%
+            elif avg_score >= 75:
+                return "EE2"  # 75–89%
+            elif avg_score >= 58:
+                return "ME1"  # 58–74%
+            elif avg_score >= 41:
+                return "ME2"  # 41–57%
+            elif avg_score >= 31:
+                return "AE1"  # 31–40%
+            elif avg_score >= 21:
+                return "AE2"  # 21–30%
+            elif avg_score >= 11:
+                return "BE1"  # 11–20%
+            else:
+                return "BE2"  # 1–10%
         else:
             return "BE2"
     else:
-        # Grade 7-8: Using Points Sum (max 8 points per subject)
-        max_points_per_subject = 8  # Maximum points per subject (EE1)
-        max_total_points = num_subjects * max_points_per_subject
-        
-        if max_total_points > 0:
-            # Calculate thresholds dynamically based on percentage of maximum possible points
-            if total_val >= int(max_total_points * 0.90): return "EE1"  # 90% or higher
-            elif total_val >= int(max_total_points * 0.75): return "EE2"  # 75% or higher
-            elif total_val >= int(max_total_points * 0.58): return "ME1"  # 58% or higher
-            elif total_val >= int(max_total_points * 0.41): return "ME2"  # 41% or higher
-            elif total_val >= int(max_total_points * 0.31): return "AE1"  # 31% or higher
-            elif total_val >= int(max_total_points * 0.21): return "AE2"  # 21% or higher
-            elif total_val >= int(max_total_points * 0.11): return "BE1"  # 11% or higher
-            return "BE2"
+        # Grade 7-8: Using average score per subject (sum of scores / number of subjects)
+        # Each subject is scored out of 100 (converted to points for individual subjects)
+        if num_subjects > 0:
+            avg_score = total_val / num_subjects  # Average score per subject (0-100)
+            # Use KNEC percentage ranges
+            if avg_score >= 90:
+                return "EE1"  # 90–100%
+            elif avg_score >= 75:
+                return "EE2"  # 75–89%
+            elif avg_score >= 58:
+                return "ME1"  # 58–74%
+            elif avg_score >= 41:
+                return "ME2"  # 41–57%
+            elif avg_score >= 31:
+                return "AE1"  # 31–40%
+            elif avg_score >= 21:
+                return "AE2"  # 21–30%
+            elif avg_score >= 11:
+                return "BE1"  # 11–20%
+            else:
+                return "BE2"  # 1–10%
         else:
             return "BE2"

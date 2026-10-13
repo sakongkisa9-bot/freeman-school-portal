@@ -1,0 +1,36 @@
+2026-10-12 10:23:14,660 - INFO - ================================================================================
+2026-10-12 10:23:14,664 - INFO - FREEMAN SCHOOL PORTAL - STARTING
+2026-10-12 10:23:14,667 - INFO - ================================================================================
+2026-10-12 10:23:14,667 - INFO - Python Version: 3.14.7 (tags/v3.14.7:823f032, Aug  5 2026, 10:51:32) [MSC v.1944 64 bit (AMD64)]
+2026-10-12 10:23:14,670 - INFO - Executable Mode: False
+2026-10-12 10:23:14,671 - INFO - Working Directory: C:\Users\sakon\Documents\FreemanTech_Project (2)\FreemanTech_Project
+2026-10-12 10:23:14,672 - INFO - Log File: C:\Users\sakon\Documents\FreemanTech_Project (2)\FreemanTech_Project\freeman_portal_log.txt
+2026-10-12 10:23:14,673 - INFO - ================================================================================
+2026-10-12 10:23:14,673 - INFO - Logging initialized successfully
+2026-10-12 10:23:14,744 - INFO - ============================================================
+2026-10-12 10:23:14,745 - INFO - FILE_LOADER.PY - MODULE IMPORTED
+2026-10-12 10:23:14,746 - INFO - ============================================================
+2026-10-12 10:23:14,747 - INFO - FileLoader imported from: c:\Users\sakon\Documents\FreemanTech_Project (2)\FreemanTech_Project\file_loader.py
+2026-10-12 10:23:14,747 - INFO - sys.frozen: False
+2026-10-12 10:23:14,748 - INFO - ============================================================
+2026-10-12 10:23:14,749 - INFO - file_loader imported successfully
+2026-10-12 10:23:14,751 - INFO - Initializing user data files...
+2026-10-12 10:23:14,755 - INFO - get_app_directories - Script mode:
+2026-10-12 10:23:14,755 - INFO -   bundled_dir: C:\Users\sakon\Documents\FreemanTech_Project (2)\FreemanTech_Project
+2026-10-12 10:23:14,756 - INFO -   user_data_dir: C:\Users\sakon\Documents\FreemanTech_Project (2)\FreemanTech_Project
+2026-10-12 10:23:14,756 - INFO - User data files initialized
+2026-10-12 10:23:14,756 - INFO - Syncing updated files...
+2026-10-12 10:23:14,757 - INFO - get_app_directories - Script mode:
+2026-10-12 10:23:14,758 - INFO -   bundled_dir: C:\Users\sakon\Documents\FreemanTech_Project (2)\FreemanTech_Project
+2026-10-12 10:23:14,758 - INFO -   user_data_dir: C:\Users\sakon\Documents\FreemanTech_Project (2)\FreemanTech_Project
+2026-10-12 10:23:14,758 - INFO - Updated files synced
+2026-10-12 10:23:14,759 - INFO - Running in development mode
+2026-10-12 10:23:14,759 - INFO - Importing customtkinter...
+2026-10-12 10:23:15,845 - INFO - customtkinter imported successfully
+2026-10-12 10:23:15,846 - INFO - Importing PIL...
+2026-10-12 10:23:15,847 - INFO - PIL imported successfully
+2026-10-12 10:23:15,847 - INFO - Importing license_manager...
+2026-10-12 10:23:15,988 - INFO - license_manager imported successfully
+2026-10-12 10:23:15,989 - INFO - Importing security...
+2026-10-12 10:23:16,042 - INFO - security imported successfully
+2026-10-12 10:23:19,577 - DEBUG - Importing JpegImagePlugin

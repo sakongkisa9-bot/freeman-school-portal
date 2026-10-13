@@ -7,7 +7,7 @@ import socket
 from tkinter import messagebox
 
 PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
-DB_PATH = os.path.join(PROJECT_DIR, "freeman_data.db")
+DB_PATH = os.path.join(PROJECT_DIR, "freeman_school.db")
 JSON_PATH = os.path.join(PROJECT_DIR, 'school_config.json')
 
 if not os.path.exists(DB_PATH):

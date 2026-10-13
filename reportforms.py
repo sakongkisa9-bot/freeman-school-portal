@@ -4,6 +4,8 @@ from PIL import Image, ImageDraw, ImageFont
 import os
 import sys
 import json
+import base64
+import tempfile
 from database import FreemanDB
 from cloud_service import CloudService, ask_cloud_credentials
 from teacher_comments import build_subject_comment_indices, rating_to_comment as get_rating_comment
@@ -598,15 +600,34 @@ class ReportFormsView(ctk.CTkToplevel):
         teacher_map = self.get_teacher_assignments(grade)
 
         # Header row with portal purple gradient (simulated with solid color)
-        header_frame = ctk.CTkFrame(table_frame, fg_color="#667eea", height=35, corner_radius=12)
+        header_line_count = max(
+            1,
+            *(len(str(exam_col['name'])) // max(1, (exam_width - 6) // 6) + 1 for exam_col in exam_cols),
+        )
+        header_frame = ctk.CTkFrame(
+            table_frame,
+            fg_color="#667eea",
+            height=max(35, header_line_count * 15 + 10),
+            corner_radius=12,
+        )
         header_frame.pack(fill="x", padx=5, pady=5)
+        header_frame.pack_propagate(False)
 
         # Header labels with fixed widths for alignment
         header_label = ctk.CTkLabel(header_frame, text="Learning Area", font=("Arial Bold", 10), text_color="#ffffff", width=subject_width, anchor="center")
         header_label.pack(side="left", padx=2)
 
         for exam_col in exam_cols:
-            header_label = ctk.CTkLabel(header_frame, text=exam_col['name'][:10], font=("Arial Bold", 10), text_color="#ffffff", width=exam_width, anchor="center", wraplength=exam_width - 6)
+            header_label = ctk.CTkLabel(
+                header_frame,
+                text=exam_col['name'],
+                font=("Arial Bold", 10),
+                text_color="#ffffff",
+                width=exam_width,
+                height=max(28, header_line_count * 14),
+                anchor="center",
+                wraplength=exam_width - 6,
+            )
             header_label.pack(side="left", padx=2)
 
         header_label = ctk.CTkLabel(header_frame, text="Rate", font=("Arial Bold", 10), text_color="#ffffff", width=rate_width, anchor="center")
@@ -747,22 +768,34 @@ class ReportFormsView(ctk.CTkToplevel):
 
         # Use the same subject score/points totals as the report table and PDF.
         performance_data = [
-            {"name": exam_col["name"][:12], "total": exam_total(exam_col)}
+            {"name": exam_col["name"], "total": exam_total(exam_col)}
             for exam_col in exam_cols
         ]
 
         if performance_data:
             max_total = max((item["total"] for item in performance_data), default=0) or 1
+            max_label_lines = max(
+                1, max((len(item["name"]) + 19) // 20 for item in performance_data)
+            )
+            label_height = max(28, max_label_lines * 12)
+            chart_content_height = max(190, 190 + label_height - 28)
             chart_content = ctk.CTkFrame(chart_frame, fg_color="transparent")
             chart_content.pack(fill="x", padx=15, pady=15)
-            bar_container = ctk.CTkFrame(chart_content, fg_color="transparent", height=190)
+            bar_container = ctk.CTkFrame(
+                chart_content, fg_color="transparent", height=chart_content_height
+            )
             bar_container.pack(fill="x")
             bar_container.pack_propagate(False)
 
             for data in performance_data:
                 ratio = data["total"] / max_total
                 bar_color = "#22c55e" if ratio >= 0.8 else "#eab308" if ratio >= 0.5 else "#ef4444"
-                column = ctk.CTkFrame(bar_container, fg_color="transparent", width=135, height=190)
+                column = ctk.CTkFrame(
+                    bar_container,
+                    fg_color="transparent",
+                    width=135,
+                    height=chart_content_height,
+                )
                 column.pack(side="left", padx=8, fill="y")
                 column.pack_propagate(False)
 
@@ -787,6 +820,8 @@ class ReportFormsView(ctk.CTkToplevel):
                     text=data["name"],
                     font=("Arial", 9),
                     text_color="#000000",
+                    width=125,
+                    height=max(28, ((len(data["name"]) + 19) // 20) * 12),
                     wraplength=125,
                 )
                 exam_label.pack(side="bottom", pady=(4, 0))
@@ -1424,7 +1459,7 @@ class ReportFormsView(ctk.CTkToplevel):
         
         # Debug: Check student data structure
         print(f"DEBUG PDF: Student data keys: {list(student.keys()) if student else 'None'}")
-        print(f"DEBUG PDF: Student photo field: {student.get('photo', 'NOT FOUND') if student else 'NO STUDENT'}")
+        print(f"DEBUG PDF: Student photo field: {'present' if student and student.get('photo') else 'not found'}")
         
         # Get class teacher (first teacher linked to this class)
         class_teacher = self.get_class_teacher(grade) if grade else ""
@@ -1438,6 +1473,7 @@ class ReportFormsView(ctk.CTkToplevel):
         if not file_path:
             return False
 
+        temporary_photo_path = None
         try:
             pdf = FPDF(orientation="L", unit="mm", format="A4")
             pdf.add_page()
@@ -1466,10 +1502,22 @@ class ReportFormsView(ctk.CTkToplevel):
             # Student photo (right) - matching cloud layout
             # Try multiple possible photo field names
             student_photo = student.get('photo', '') or student.get('student_photo', '') or student.get('image_path', '')
-            print(f"DEBUG PDF: Student photo path: {student_photo}")
-            if student_photo and os.path.exists(student_photo):
+            student_photo_path = student_photo
+            if isinstance(student_photo, str) and student_photo.startswith("data:image/"):
                 try:
-                    pdf.image(student_photo, 250, 8, 25)
+                    _, encoded_photo = student_photo.split(",", 1)
+                    photo_bytes = base64.b64decode(encoded_photo)
+                    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as photo_file:
+                        photo_file.write(photo_bytes)
+                        temporary_photo_path = photo_file.name
+                    student_photo_path = temporary_photo_path
+                except (ValueError, base64.binascii.Error) as e:
+                    print(f"Error decoding student photo for PDF: {e}")
+                    student_photo_path = None
+            print(f"DEBUG PDF: Student photo source: {'data URI' if isinstance(student_photo, str) and student_photo.startswith('data:image/') else student_photo}")
+            if student_photo_path and os.path.isfile(student_photo_path):
+                try:
+                    pdf.image(student_photo_path, 250, 8, 25)
                     print(f"DEBUG PDF: Student photo loaded successfully at (250, 8) size 25mm")
                 except Exception as e:
                     print(f"Error loading student photo in PDF: {e}")
@@ -1641,15 +1689,14 @@ class ReportFormsView(ctk.CTkToplevel):
                 for exam_col in exam_cols:
                     if not exam_col['is_current']:
                         pdf.set_xy(x_pos, current_y)
-                        # Truncate exam name to fit in column (approx 8 chars at 7pt font)
-                        exam_name = exam_col['name'][:8] if len(exam_col['name']) > 8 else exam_col['name']
-                        pdf.cell(exam_col_width, header_height, txt=exam_name, border=1, ln=0, align="C", fill=True)
+                        pdf.set_xy(x_pos, current_y)
+                        pdf.multi_cell(exam_col_width, 5, txt=exam_col['name'], border=1, align="C", fill=True)
                         x_pos += exam_col_width
                 
                 # Current exam column
                 pdf.set_xy(x_pos, current_y)
-                current_exam_name = exam_title[:8] if len(exam_title) > 8 else exam_title
-                pdf.cell(exam_col_width, header_height, txt=current_exam_name, border=1, ln=0, align="C", fill=True)
+                pdf.set_xy(x_pos, current_y)
+                pdf.multi_cell(exam_col_width, 5, txt=exam_title, border=1, align="C", fill=True)
                 x_pos += exam_col_width
                 
                 # Other columns
@@ -1847,7 +1894,7 @@ class ReportFormsView(ctk.CTkToplevel):
                     # Get performance data for chart
                     performance_data = []
                     for exam_col in exam_cols:
-                        exam_name = exam_col['name'][:8]
+                        exam_name = exam_col['name']
                         exam_marks = exam_col['marks']
                         total = 0
                         if isinstance(exam_marks, dict):
@@ -1903,8 +1950,13 @@ class ReportFormsView(ctk.CTkToplevel):
                             
                             # Exam name below bar
                             pdf.set_xy(bar_x, chart_y + chart_height - 8)
-                            pdf.set_font("Helvetica", "", 6)
-                            pdf.cell(bar_width - bar_spacing, 5, txt=data['name'], border=0, ln=0, align="C")
+                            label_width = bar_width - bar_spacing
+                            label_font_size = 6
+                            pdf.set_font("Helvetica", "", label_font_size)
+                            while label_font_size > 3 and pdf.get_string_width(data['name']) > label_width:
+                                label_font_size -= 0.5
+                                pdf.set_font("Helvetica", "", label_font_size)
+                            pdf.cell(label_width, 5, txt=data['name'], border=0, ln=0, align="C")
                             
                             # Total above bar
                             if data['total'] > 0:
@@ -2009,6 +2061,9 @@ class ReportFormsView(ctk.CTkToplevel):
                 pdf.cell(66, 6, txt=f"Closing: {date_range['closing_date']}", border=0, ln=1)
 
             pdf.output(file_path)
+            if temporary_photo_path and os.path.exists(temporary_photo_path):
+                os.remove(temporary_photo_path)
+                temporary_photo_path = None
             if show_messages:
                 messagebox.showinfo("Success", "PDF generated successfully!")
             return True
@@ -2021,6 +2076,9 @@ class ReportFormsView(ctk.CTkToplevel):
                 # For batch printing, just print to console
                 print(f"PDF Generation Failed: {e}")
             return False
+        finally:
+            if temporary_photo_path and os.path.exists(temporary_photo_path):
+                os.remove(temporary_photo_path)
     
     def send_student_report_to_portal(self, student):
         credentials = self.get_cloud_credentials()
@@ -2179,6 +2237,11 @@ class ReportFormsView(ctk.CTkToplevel):
             return ""
 
     def generate_report_data(self, student):
+        if not hasattr(self, "subject_comment_indices"):
+            self.subject_comment_indices = build_subject_comment_indices(
+                self.school_config.get("subjects", {})
+            )
+
         print(f"DEBUG: generate_report_data called for {student.get('name', 'Unknown')} in {student['grade']}")
         print(f"DEBUG: generate_report_data - Student keys: {list(student.keys())}")
         print(f"DEBUG: generate_report_data - Photo field: {student.get('photo', 'NOT FOUND')}")

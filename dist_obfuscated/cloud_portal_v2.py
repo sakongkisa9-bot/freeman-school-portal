@@ -13,17 +13,21 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import os
 import json
+import uuid
 from datetime import datetime
 import logging
+from werkzeug.utils import secure_filename
 from grading_logic import (
     get_grade_7_8_rating,
     get_grade_4_6_rating,
     calculate_final_level,
 )
+from teacher_comments import rating_to_comment as get_subject_rating_comment
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(PROJECT_DIR, "templates")
 app = Flask(__name__, template_folder=TEMPLATES_DIR)
+app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
 
 # Configure session for Railway (multi-container environment)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-2026")
@@ -153,19 +157,9 @@ def rating_to_points(rating):
 
 
 # Custom Jinja2 filter to convert rating to teacher comment
-def rating_to_comment(rating):
-    """Convert rating to teacher comment based on performance level"""
-    rating_comments = {
-        "BE1": "A starting point. Focus on understanding the basic concepts, and I am here to help you practice.",
-        "BE2": "You are showing effort, but need more practice on the fundamentals to reach the expected level.",
-        "AE1": "You are approaching the expected level. With more practice, you will master this.",
-        "AE2": "Good effort shown. Keep working on the basics to build a stronger foundation.",
-        "ME1": "Good progress. You are grasping the core ideas; continue practicing to gain more confidence.",
-        "ME2": "Well done! You are very close to mastering this. Pay close attention to the finer details.",
-        "EE1": "Great work! You have successfully demonstrated this competency. Keep up the consistent performance.",
-        "EE2": "Outstanding! You have mastered the task and shown deep understanding. Keep challenging yourself.",
-    }
-    return rating_comments.get(rating, "No comment available.")
+def rating_to_comment(rating, subject=None, subject_comment_indices=None):
+    """Convert a rating to the comment set assigned to its subject."""
+    return get_subject_rating_comment(rating, subject, subject_comment_indices)
 
 
 # Custom Jinja2 filter to get class teacher comment based on average level
@@ -314,6 +308,9 @@ GRADE_SUBJECTS = {
     "playgroup": ["LANG", "MATH", "ENV", "CREAT"],
     "pp1": ["LANG", "MATH", "ENV", "PSYCH", "REL"],
     "pp2": ["LANG", "MATH", "ENV", "PSYCH", "REL"],
+    "lower": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
+    "primary": ["ENG", "KISW", "MATH", "SCIE", "AGRI", "SST", "CRE", "C/A", "PHE"],
+    "jss": ["MATH", "ENG", "KISW", "INT SCIE", "PRE-TECH", "SST", "CRE", "AGRI", "C/A"],
     "Grade 1": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
     "Grade 2": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
     "Grade 3": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
@@ -355,6 +352,22 @@ GRADE_SUBJECTS = {
     ],
 }
 SYSTEM_ADMIN_KEY = "16592@FREE man"
+
+
+def map_grade_to_config_key(grade):
+    """Map portal grade names to config keys used in school_config.json"""
+    grade_mapping = {
+        "Grade 1": "lower",
+        "Grade 2": "lower", 
+        "Grade 3": "lower",
+        "Grade 4": "primary",
+        "Grade 5": "primary",
+        "Grade 6": "primary",
+        "Grade 7": "jss",
+        "Grade 8": "jss",
+        "Grade 9": "jss",
+    }
+    return grade_mapping.get(grade, grade)
 
 
 def get_db():
@@ -532,6 +545,33 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(student_id, token),
             FOREIGN KEY(student_id) REFERENCES students(id)
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS student_payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            adm_no TEXT NOT NULL,
+            student_name TEXT NOT NULL,
+            payment_type TEXT NOT NULL,
+            amount_paid REAL NOT NULL,
+            payment_status TEXT DEFAULT 'pending',
+            payment_date TEXT,
+            notification_sent INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(adm_no, payment_type)
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS payment_settings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            full_payment_amount REAL NOT NULL,
+            payment_percentage REAL DEFAULT 70.0,
+            payment_option TEXT DEFAULT 'full',
+            system_locked INTEGER DEFAULT 0,
+            phone_number TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
     cursor.execute("""
@@ -1357,7 +1397,12 @@ def select_subject(grade):
             try:
                 subjects_data = json.loads(school["subjects"])
                 # subjects_data is a dict like {grade: [subjects]}
-                subjects = subjects_data.get(grade, [])
+                # Map grade name to config key (e.g., "Grade 1" -> "lower")
+                config_key = map_grade_to_config_key(grade)
+                subjects = subjects_data.get(config_key, [])
+                # If not found with mapped key, try original grade name
+                if not subjects:
+                    subjects = subjects_data.get(grade, [])
             except (json.JSONDecodeError, TypeError):
                 # If JSON parsing fails, fall back to hardcoded
                 subjects = []
@@ -1932,11 +1977,17 @@ def parent_enable_notifications():
 @app.route("/api/save_newsletter", methods=["POST"])
 def api_save_newsletter():
     """Save a newsletter to the cloud database"""
-    data = request.json
+    data = request.get_json(silent=True) or request.form
     school_code = data.get("school_code", "").strip().lower()
     username = data.get("username", "")
     password = data.get("password", "")
     newsletter_data = data.get("newsletter", {})
+
+    if isinstance(newsletter_data, str):
+        try:
+            newsletter_data = json.loads(newsletter_data)
+        except json.JSONDecodeError:
+            return jsonify({"success": False, "message": "Invalid newsletter data"}), 400
 
     logging.info(
         f"Received newsletter: {newsletter_data.get('subject')}, target: {newsletter_data.get('target_type')}"
@@ -1960,6 +2011,26 @@ def api_save_newsletter():
                     }
                 ),
                 404,
+            )
+
+        attachment = request.files.get("attachment")
+        if attachment and attachment.filename:
+            safe_filename = secure_filename(attachment.filename)
+            extension = os.path.splitext(safe_filename)[1].lower()
+            if not safe_filename or extension not in {".pdf", ".png", ".jpg", ".jpeg", ".gif"}:
+                return jsonify({"success": False, "message": "Unsupported attachment type"}), 400
+
+            safe_school_code = secure_filename(school_code)
+            upload_dir = os.path.join(
+                PROJECT_DIR, "static", "uploads", "newsletters", safe_school_code
+            )
+            os.makedirs(upload_dir, exist_ok=True)
+            stored_filename = f"{uuid.uuid4().hex}_{safe_filename}"
+            attachment.save(os.path.join(upload_dir, stored_filename))
+            newsletter_data["attachment_path"] = url_for(
+                "newsletter_attachment",
+                school_code=safe_school_code,
+                filename=stored_filename,
             )
 
         # Create tables if they don't exist
@@ -2385,6 +2456,24 @@ def api_save_newsletter():
         conn.close()
 
 
+@app.route("/newsletter-attachments/<school_code>/<filename>")
+def newsletter_attachment(school_code, filename):
+    """Serve a newsletter attachment inline or as a downloadable file."""
+    safe_school_code = secure_filename(school_code)
+    safe_filename = secure_filename(filename)
+    if not safe_school_code or safe_filename != filename:
+        return jsonify({"success": False, "message": "Attachment not found"}), 404
+
+    upload_dir = os.path.join(
+        PROJECT_DIR, "static", "uploads", "newsletters", safe_school_code
+    )
+    return send_from_directory(
+        upload_dir,
+        safe_filename,
+        as_attachment=request.args.get("download") == "1",
+    )
+
+
 @app.route("/api/save_class_reports", methods=["POST"])
 def api_save_class_reports():
     """Save multiple reports for a class"""
@@ -2548,11 +2637,45 @@ def parent_login():
             ).fetchone()
 
             if student:
+                # Check if system is locked and payment is required
+                payment_settings = conn.execute(
+                    "SELECT * FROM payment_settings ORDER BY id DESC LIMIT 1"
+                ).fetchone()
+                
+                if payment_settings and payment_settings["system_locked"] == 1:
+                    # System is locked, check payment status
+                    payment_status = conn.execute(
+                        """
+                        SELECT payment_status, payment_type 
+                        FROM student_payments 
+                        WHERE adm_no = ? AND payment_status = 'paid'
+                        """,
+                        (adm_no_normalized,)
+                    ).fetchone()
+                    
+                    if not payment_status:
+                        # Student hasn't paid - show warning message
+                        flash(
+                            "⚠️ PAYMENT REQUIRED: You will not be able to view your child's newsletters and reports "
+                            "until the required payment is made. Please contact the school administration for payment details.",
+                            "warning"
+                        )
+                        # Still allow login but with restricted access
+                        session["parent_student_id"] = student["id"]
+                        session["parent_student_name"] = student_name
+                        session["parent_school_name"] = school_name
+                        session["parent_adm_no"] = adm_no
+                        session["parent_grade"] = student["grade"]
+                        session["payment_status"] = "unpaid"
+                        return redirect(url_for("parent_dashboard"))
+                
+                # System not locked or student has paid - normal login
                 session["parent_student_id"] = student["id"]
                 session["parent_student_name"] = student_name
                 session["parent_school_name"] = school_name
                 session["parent_adm_no"] = adm_no
                 session["parent_grade"] = student["grade"]
+                session["payment_status"] = "paid"
                 return redirect(url_for("parent_dashboard"))
             else:
                 flash("Student not found. Please check your details.", "error")
@@ -2614,6 +2737,15 @@ def parent_report():
     if "parent_student_id" not in session:
         logging.warning("Parent report: No parent_student_id in session")
         return redirect(url_for("parent_login"))
+
+    # Check payment status before allowing report access
+    if session.get("payment_status") == "unpaid":
+        flash(
+            "⚠️ PAYMENT REQUIRED: You cannot view your child's report until the required payment is made. "
+            "Please contact the school administration for payment details.",
+            "error"
+        )
+        return redirect(url_for("parent_dashboard"))
 
     conn = get_db()
     try:
@@ -2885,6 +3017,27 @@ def parent_report():
                         )
                         marks = {}
                 previous_exam_marks[prev_exam["exam_name"]] = marks
+                # Older desktop versions may not include an exam average. Derive
+                # it from the subject ratings so the template/chart doesn't fall
+                # back to BE2 when ratings are available.
+                exam_entry = previous_exams[-1]
+                if not exam_entry.get("average_level") and isinstance(marks, dict):
+                    rating_points = []
+                    for mark in marks.values():
+                        rating = mark.get("rating") if isinstance(mark, dict) else mark
+                        points = rating_to_points(str(rating).strip()) if rating else 0
+                        if points:
+                            rating_points.append(points)
+                    if rating_points:
+                        exam_entry["average_level"] = points_to_rating(
+                            sum(rating_points) / len(rating_points)
+                        )
+                        logging.info(
+                            "Derived previous exam average_level=%s for %s from %d subject ratings",
+                            exam_entry["average_level"],
+                            prev_exam["exam_name"],
+                            len(rating_points),
+                        )
                 logging.info(
                     f"Previous exam: {prev_exam['exam_name']}, marks type: {type(marks)}, is dict: {isinstance(marks, dict)}, is list: {isinstance(marks, list)}"
                 )
@@ -2969,7 +3122,16 @@ def parent_report():
             (session["parent_student_name"], session["parent_adm_no"]),
         ).fetchone()
 
-        student_photo = student["photo"] if student and student["photo"] else None
+        # The desktop report now carries a compressed data URL. Prefer it over
+        # a local path from the cloud students table (which may not exist here).
+        student_photo = (
+            report_data.get("photo")
+            if isinstance(report_data, dict) and report_data.get("photo")
+            else (student["photo"] if student and student["photo"] else None)
+        )
+        if student_photo and not str(student_photo).startswith(("http://", "https://", "data:image/")):
+            # Handle photos stored as paths on the cloud host, if any.
+            student_photo = image_to_base64(student_photo) or None
         student_stream = student["stream"] if student and student["stream"] else "None"
 
         # Fetch school_id from database using school_name
@@ -3026,6 +3188,15 @@ def parent_report():
 def parent_newsletters():
     if "parent_student_id" not in session:
         return redirect(url_for("parent_login"))
+
+    # Check payment status before allowing newsletter access
+    if session.get("payment_status") == "unpaid":
+        flash(
+            "⚠️ PAYMENT REQUIRED: You cannot view newsletters until the required payment is made. "
+            "Please contact the school administration for payment details.",
+            "error"
+        )
+        return redirect(url_for("parent_dashboard"))
 
     # Get newsletters for this parent's student class
     conn = get_db()
@@ -3265,18 +3436,31 @@ def generate_analytics(report_data, conn, grade):
 
 def get_subjects_for_grade(grade):
     """Get subjects for a specific grade"""
-    grade_mapping = {
-        "playgroup": ["LANG", "MATH", "ENV", "CREAT"],
-        "pp1": ["LANG", "MATH", "ENV", "PSYCH", "REL"],
-        "pp2": ["LANG", "MATH", "ENV", "PSYCH", "REL"],
-        "Grade 1": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
-        "Grade 2": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
-        "Grade 3": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
-        "Grade 4": ["ENG", "KISW", "MATH", "SCIE", "AGRI", "SST", "CRE", "C/A", "PHE"],
-        "Grade 5": ["ENG", "KISW", "MATH", "SCIE", "AGRI", "SST", "CRE", "C/A", "PHE"],
-        "Grade 6": ["ENG", "KISW", "MATH", "SCIE", "AGRI", "SST", "CRE", "C/A", "PHE"],
-    }
-    return grade_mapping.get(grade, [])
+    # First try to get from database if school_id is in session
+    if "school_id" in session:
+        conn = get_db()
+        try:
+            school = conn.execute(
+                "SELECT subjects FROM schools WHERE id = ?", (session["school_id"],)
+            ).fetchone()
+            if school and school["subjects"]:
+                try:
+                    subjects_data = json.loads(school["subjects"])
+                    # Map grade name to config key (e.g., "Grade 1" -> "lower")
+                    config_key = map_grade_to_config_key(grade)
+                    subjects = subjects_data.get(config_key, [])
+                    # If not found with mapped key, try original grade name
+                    if not subjects:
+                        subjects = subjects_data.get(grade, [])
+                    if subjects:
+                        return subjects
+                except (json.JSONDecodeError, TypeError):
+                    pass
+        finally:
+            conn.close()
+    
+    # Fall back to hardcoded mapping
+    return GRADE_SUBJECTS.get(grade, [])
 
 
 def get_class_average(conn, grade, subject):

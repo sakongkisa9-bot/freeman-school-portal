@@ -59,6 +59,8 @@ class FreemanDB:
         self.create_license_status_table()
         self.create_deleted_students_footprint_table()
         self.create_alert_queue_table()
+        self.create_student_payment_table()
+        self.create_payment_settings_table()
         
         # Run database migrations
         self.run_migrations()
@@ -699,3 +701,131 @@ class FreemanDB:
             WHERE expires_at < ?
         ''', (datetime.now().strftime("%Y-%m-%d %H:%M:%S"),))
         self.conn.commit()
+
+    def create_student_payment_table(self):
+        """Create table to track student payment status"""
+        self._cursor.execute('''
+            CREATE TABLE IF NOT EXISTS student_payments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                adm_no TEXT NOT NULL,
+                student_name TEXT NOT NULL,
+                payment_type TEXT NOT NULL,
+                amount_paid REAL NOT NULL,
+                payment_status TEXT DEFAULT 'pending',
+                payment_date TEXT,
+                notification_sent INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(adm_no, payment_type)
+            )
+        ''')
+        self.conn.commit()
+
+    def create_payment_settings_table(self):
+        """Create table to store payment configuration"""
+        self._cursor.execute('''
+            CREATE TABLE IF NOT EXISTS payment_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                full_payment_amount REAL NOT NULL,
+                payment_percentage REAL DEFAULT 70.0,
+                payment_option TEXT DEFAULT 'full',
+                system_locked INTEGER DEFAULT 0,
+                phone_number TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        self.conn.commit()
+
+    def save_payment_settings(self, full_payment_amount, payment_percentage=70.0, payment_option='full', system_locked=0):
+        """Save or update payment settings"""
+        from datetime import datetime
+        
+        # Check if settings exist
+        self._cursor.execute('SELECT id FROM payment_settings')
+        existing = self._cursor.fetchone()
+        
+        if existing:
+            self._cursor.execute('''
+                UPDATE payment_settings 
+                SET full_payment_amount = ?, payment_percentage = ?, payment_option = ?, 
+                    system_locked = ?, updated_at = ?
+                WHERE id = ?
+            ''', (full_payment_amount, payment_percentage, payment_option, system_locked, 
+                  datetime.now().strftime("%Y-%m-%d %H:%M:%S"), existing[0]))
+        else:
+            self._cursor.execute('''
+                INSERT INTO payment_settings 
+                (full_payment_amount, payment_percentage, payment_option, system_locked)
+                VALUES (?, ?, ?, ?)
+            ''', (full_payment_amount, payment_percentage, payment_option, system_locked))
+        self.conn.commit()
+
+    def get_payment_settings(self):
+        """Get current payment settings"""
+        self._cursor.execute('SELECT * FROM payment_settings ORDER BY id DESC LIMIT 1')
+        return self._cursor.fetchone()
+
+    def save_student_payment(self, adm_no, student_name, payment_type, amount_paid, payment_status='pending'):
+        """Save student payment record"""
+        from datetime import datetime
+        
+        self._cursor.execute('''
+            INSERT OR REPLACE INTO student_payments 
+            (adm_no, student_name, payment_type, amount_paid, payment_status, payment_date)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (adm_no, student_name, payment_type, amount_paid, payment_status, 
+              datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        self.conn.commit()
+
+    def get_student_payment_status(self, adm_no):
+        """Get payment status for a student"""
+        self._cursor.execute('''
+            SELECT payment_type, payment_status, amount_paid 
+            FROM student_payments WHERE adm_no = ?
+        ''', (adm_no,))
+        return self._cursor.fetchall()
+
+    def get_unpaid_students(self):
+        """Get list of students who haven't paid (for 70% payment option)"""
+        self._cursor.execute('''
+            SELECT s.adm_no, s.name, s.grade 
+            FROM students s
+            WHERE s.adm_no NOT IN (
+                SELECT DISTINCT adm_no FROM student_payments 
+                WHERE payment_status = 'paid'
+            )
+        ''')
+        return self._cursor.fetchall()
+
+    def update_student_payment_status(self, adm_no, payment_type, payment_status):
+        """Update payment status for a student"""
+        from datetime import datetime
+        self._cursor.execute('''
+            UPDATE student_payments 
+            SET payment_status = ?, updated_at = ?
+            WHERE adm_no = ? AND payment_type = ?
+        ''', (payment_status, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), adm_no, payment_type))
+        self.conn.commit()
+
+    def mark_notification_sent(self, adm_no):
+        """Mark that notification has been sent to parents"""
+        from datetime import datetime
+        self._cursor.execute('''
+            UPDATE student_payments 
+            SET notification_sent = 1, updated_at = ?
+            WHERE adm_no = ?
+        ''', (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), adm_no))
+        self.conn.commit()
+
+    def get_total_students_count(self):
+        """Get total number of students"""
+        self._cursor.execute('SELECT COUNT(*) FROM students')
+        result = self._cursor.fetchone()
+        return result[0] if result else 0
+
+    def get_paid_students_count(self):
+        """Get number of students who have paid"""
+        self._cursor.execute('SELECT COUNT(DISTINCT adm_no) FROM student_payments WHERE payment_status = "paid"')
+        result = self._cursor.fetchone()
+        return result[0] if result else 0

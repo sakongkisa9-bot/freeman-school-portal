@@ -509,6 +509,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
 
     def update_totals(self, row_index):
         total_points_sum = 0
+        total_score_sum = 0
         num_subjects = len(self.subjects)
 
         # Get the row_frame first (it's at column 0, spanning all columns)
@@ -517,15 +518,24 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             return
         row_frame = row_frames[0]
 
-        # 1. Sum up the Points (P) columns
+        # 1. Sum up the Points (P) columns and Scores (S) columns
         # Points are in columns 3, 6, 9... (multiples of 3)
+        # Scores are in columns 1, 4, 7... (multiples of 3, starting from 1)
         for sub_idx in range(1, num_subjects + 1):
-            p_col = sub_idx * 3
+            s_col = (sub_idx - 1) * 3 + 1  # Score column
+            p_col = sub_idx * 3  # Points column
             try:
+                # Look inside the row_frame for the score widget
+                score_widgets = row_frame.grid_slaves(row=0, column=s_col)
+                if score_widgets:
+                    val = score_widgets[0].get()
+                    if val.isdigit():
+                        total_score_sum += int(val)
+                
                 # Look inside the row_frame for the point widget
-                widgets = row_frame.grid_slaves(row=0, column=p_col)
-                if widgets:
-                    val = widgets[0].get()
+                point_widgets = row_frame.grid_slaves(row=0, column=p_col)
+                if point_widgets:
+                    val = point_widgets[0].get()
                     if val.isdigit():
                         total_points_sum += int(val)
             except Exception:
@@ -545,25 +555,27 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                 total_box.insert(0, str(total_points_sum))
                 total_box.configure(state="disabled")
 
-            # 3. Calculate Average Grade using dynamic thresholds based on number of subjects
-            # Scale thresholds: EE1=90% of max points, EE2=75%, ME1=58%, ME2=41%, AE1=31%, AE2=21%, BE1=11%
-            max_points_per_subject = 8  # Maximum points per subject (EE1)
-            max_total_points = num_subjects * max_points_per_subject
-
-            if max_total_points > 0:
-                # Calculate thresholds dynamically based on percentage of maximum possible points
-                thresholds = [
-                    (int(max_total_points * 0.90), "EE1"),  # 90% or higher
-                    (int(max_total_points * 0.75), "EE2"),  # 75% or higher
-                    (int(max_total_points * 0.58), "ME1"),  # 58% or higher
-                    (int(max_total_points * 0.41), "ME2"),  # 41% or higher
-                    (int(max_total_points * 0.31), "AE1"),  # 31% or higher
-                    (int(max_total_points * 0.21), "AE2"),  # 21% or higher
-                    (int(max_total_points * 0.11), "BE1"),  # 11% or higher
-                ]
-                avg_grade = next(
-                    (g for t, g in thresholds if total_points_sum >= t), "BE2"
-                )
+            # 3. Calculate Average Grade using KNEC percentage standards
+            # Calculate average percentage: total_score_sum / num_subjects
+            if num_subjects > 0:
+                avg_percentage = total_score_sum / num_subjects  # Average percentage per subject (0-100)
+                # Use KNEC percentage ranges
+                if avg_percentage >= 90:
+                    avg_grade = "EE1"  # 90–100%
+                elif avg_percentage >= 75:
+                    avg_grade = "EE2"  # 75–89%
+                elif avg_percentage >= 58:
+                    avg_grade = "ME1"  # 58–74%
+                elif avg_percentage >= 41:
+                    avg_grade = "ME2"  # 41–57%
+                elif avg_percentage >= 31:
+                    avg_grade = "AE1"  # 31–40%
+                elif avg_percentage >= 21:
+                    avg_grade = "AE2"  # 21–30%
+                elif avg_percentage >= 11:
+                    avg_grade = "BE1"  # 11–20%
+                else:
+                    avg_grade = "BE2"  # 1–10%
             else:
                 avg_grade = "BE2"
 
@@ -733,7 +745,17 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             )
             self.update_idletasks()
 
-            # 5. Save the fetched marks to database (skip reload to preserve cloud values)
+            # 5. Recalculate totals and average levels using KNEC standards for all rows
+            # This ensures average levels are calculated correctly after cloud fetch
+            row_frames = self.table_inner_frame.grid_slaves()
+            for row_frame in row_frames:
+                try:
+                    row_index = row_frame.grid_info()["row"]
+                    self.update_totals(row_index)
+                except:
+                    continue
+
+            # 6. Save the fetched marks to database (skip reload to preserve cloud values)
             self.save_all_marks(skip_reload=True)
 
             # 6. Consume marks from cloud (delete them after successful fetch)
@@ -875,15 +897,13 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             all_widgets = self.table_inner_frame.grid_slaves()
             if not all_widgets:
                 return
-            max_grid_row = max(w.grid_info()["row"] for w in all_widgets)
+            row_frames = sorted(
+                all_widgets, key=lambda widget: int(widget.grid_info()["row"])
+            )
 
-            for r in range(2, max_grid_row + 1):
+            for row_frame in row_frames:
                 try:
-                    name_widgets = self.table_inner_frame.grid_slaves(row=r, column=0)
-                    if not name_widgets:
-                        continue
                     # The name is in a CTkLabel inside the row_frame
-                    row_frame = name_widgets[0]
                     label_widgets = row_frame.grid_slaves(row=0, column=0)
                     if not label_widgets:
                         continue
@@ -920,7 +940,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                         )
 
                 except Exception as row_err:
-                    print(f"Skipping PDF row {r}: {row_err}")
+                    print(f"Skipping PDF row {row_frame.grid_info().get('row')}: {row_err}")
 
             pdf.output(file_path)
             messagebox.showinfo("Success", "PDF generated successfully!")

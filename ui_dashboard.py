@@ -5,9 +5,11 @@ from ui_marksheet_pp1 import PP1MarkSheetView
 from ui_marksheet_pp2 import PP2MarkSheetView
 from ui_marksheet_lower import LowerMarkSheetView
 from ui_summary import ClassSummaryView
-from teachers_linked import TeachersLinkedView
-from reportforms import ReportFormsView
+from teachers_linked import TeachersLinkedView, get_subjects_for_class
+from cba_task_manager import CBATaskManager
+from reportforms import ReportFormsView, ask_opening_closing_dates
 from ocr_student_dialog import show_ocr_dialog
+from excel_student_import import read_student_rows
 import os
 import sys
 import json
@@ -47,6 +49,53 @@ class Dashboard(ctk.CTk):
         self.db = FreemanDB()
         self.BASE_DIR, self.USER_DATA_DIR = get_app_dir()
 
+        theme_config = self.load_school_config()
+        self.dashboard_appearance = theme_config.get("dashboard_appearance", "Dark")
+        if self.dashboard_appearance not in ("Light", "Dark"):
+            self.dashboard_appearance = "Dark"
+        self.dashboard_accent = theme_config.get("dashboard_accent", "#1f6aa5")
+        if (
+            not isinstance(self.dashboard_accent, str)
+            or len(self.dashboard_accent) != 7
+            or not self.dashboard_accent.startswith("#")
+            or not all(char in "0123456789abcdefABCDEF" for char in self.dashboard_accent[1:])
+        ):
+            self.dashboard_accent = "#1f6aa5"
+        self.dashboard_background = theme_config.get("dashboard_background", "")
+        self.dashboard_background_url = theme_config.get(
+            "dashboard_background_url", ""
+        )
+        self.dashboard_particles_enabled = bool(
+            theme_config.get("dashboard_particles_enabled", True)
+        )
+        self.dashboard_particles = []
+        self.dashboard_particle_lines = []
+        self.dashboard_particle_after_id = None
+        self.dashboard_particle_canvas_size = (0, 0)
+        self.bing_wallpaper_enabled = bool(
+            theme_config.get("bing_wallpaper_enabled", False)
+        )
+        self.bing_wallpaper_last_refresh = theme_config.get(
+            "bing_wallpaper_last_refresh", ""
+        )
+        self.bing_wallpaper_credit = theme_config.get("bing_wallpaper_credit", "")
+        try:
+            self.bing_wallpaper_interval_hours = int(
+                theme_config.get("bing_wallpaper_interval_hours", 24)
+            )
+        except (TypeError, ValueError):
+            self.bing_wallpaper_interval_hours = 24
+        if self.bing_wallpaper_interval_hours not in (1, 3, 6, 12, 24, 48, 72):
+            self.bing_wallpaper_interval_hours = 24
+        self.bing_refresh_after_id = None
+        self.control_drag_state = None
+        self.dashboard_control_positions = theme_config.get(
+            "dashboard_control_positions", {}
+        )
+        if not isinstance(self.dashboard_control_positions, dict):
+            self.dashboard_control_positions = {}
+        ctk.set_appearance_mode(self.dashboard_appearance)
+
         # --- ADD THESE TWO LINES HERE ---
         self.search_var = ctk.StringVar()
         self.all_student_rows = []
@@ -75,52 +124,17 @@ class Dashboard(ctk.CTk):
         # This makes the window take up the entire screen
 
         # --- 1. ASSET PATHS ---
-        bg_image_path = os.path.join(self.BASE_DIR, "assets", "dashboard_bg.jpg")
+        default_bg_path = os.path.join(self.BASE_DIR, "assets", "dashboard_bg.jpg")
+        bg_image_path = self.dashboard_background
+        bing_cache_missing = self.bing_wallpaper_enabled and (
+            not bg_image_path or not os.path.isfile(bg_image_path)
+        )
+        if not bg_image_path or not os.path.isfile(bg_image_path):
+            bg_image_path = default_bg_path
 
         # --- THE BACKGROUND IMAGE WITH DIAGONAL WATERMARK ---
         try:
-            # This gets the actual width and height of the laptop screen
-            screen_width = self.winfo_screenwidth()
-            screen_height = self.winfo_screenheight()
-
-            bg_raw = Image.open(bg_image_path).resize((screen_width, screen_height))
-
-            # Add diagonal watermark text
-            from PIL import ImageDraw, ImageFont
-
-            draw = ImageDraw.Draw(bg_raw)
-            watermark_text = "FREEMAN TECH SOLUTIONS"
-            try:
-                # Try to use a larger bold font if available
-                font = ImageFont.truetype("arial.ttf", 120)
-            except:
-                font = ImageFont.load_default()
-
-            # Draw diagonal text (45 degrees)
-            text_color = (100, 100, 100, 80)  # Semi-transparent gray
-            draw.text(
-                (screen_width // 3, screen_height // 2 - 100),
-                watermark_text,
-                fill=(100, 100, 100),
-                font=font,
-            )
-
-            # Rotate the watermark for diagonal effect
-            watermark = Image.new("RGBA", (screen_width, screen_height), (0, 0, 0, 0))
-            watermark_draw = ImageDraw.Draw(watermark)
-            watermark_draw.text(
-                (50, screen_height // 2),
-                watermark_text,
-                fill=(100, 100, 100, 60),
-                font=font,
-            )
-            watermark_rotated = watermark.rotate(-45, expand=False)
-            bg_raw.paste(watermark_rotated, (0, 0), watermark_rotated)
-
-            bg_img = ctk.CTkImage(bg_raw, size=(screen_width, screen_height))
-
-            self.bg_label = ctk.CTkLabel(self, image=bg_img, text="")
-            self.bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+            self.set_dashboard_background(bg_image_path)
         except Exception as e:
             print(f"Background image error: {e}")
 
@@ -177,6 +191,15 @@ class Dashboard(ctk.CTk):
             ),
         )
         self.btn_mark_sheets.pack(pady=btn_pady)
+
+        self.btn_knec_cba = ctk.CTkButton(
+            self.menu_panel,
+            text="KNEC CBA",
+            width=btn_width,
+            height=btn_height,
+            command=lambda: self.require_auth(self.open_cba_menu),
+        )
+        self.btn_knec_cba.pack(pady=btn_pady)
 
         self.btn_previous_exams = ctk.CTkButton(
             self.menu_panel,
@@ -253,10 +276,12 @@ class Dashboard(ctk.CTk):
         self.sidebar_buttons = [
             self.btn_register,
             self.btn_mark_sheets,
+            self.btn_knec_cba,
             self.btn_previous_exams,
             self.btn_summary,
             self.btn_teachers,
             self.btn_report_forms,
+            self.btn_newsletter,
         ]
         self.btn_portal = ctk.CTkButton(
             self.menu_panel,
@@ -295,89 +320,16 @@ class Dashboard(ctk.CTk):
         # --- 4. MAIN CONTENT PANEL ---
         self.content_panel = ctk.CTkFrame(self, fg_color="transparent")
         self.content_panel.grid(row=0, column=1, sticky="nsew", padx=20, pady=20)
+        self.create_content_background()
 
-        # Row 0 of Content: Top Header (School Name / Homepage Title)
-        # matches the top-right corner of your drawing
-        self.header_frame = ctk.CTkFrame(self.content_panel, fg_color="transparent")
-        self.header_frame.pack(fill="x", pady=(10, 20))
-
-        # School Name [DYNAMIC]
-        self.school_title_label = ctk.CTkLabel(
-            self.header_frame, text=self.dynamic_school_name, font=("Arial Bold", 26)
+        self.header_frame = ctk.CTkFrame(
+            self.content_panel, width=1, height=1, fg_color="transparent"
         )
-        self.school_title_label.pack(side="left", padx=10)
-
-        # "Homepage" title
-        self.page_title_label = ctk.CTkLabel(
-            self.header_frame,
-            text="/ HOMEPAGE",
-            font=("Arial Italic", 14),
-            text_color="gray",
-        )
-        self.page_title_label.pack(side="left", padx=10)
-
-        # Right side buttons frame (moved down for countdown)
-        self.header_buttons_frame = ctk.CTkFrame(
-            self.header_frame, fg_color="transparent"
-        )
-        self.header_buttons_frame.pack(side="right", padx=10)
-
-        # Countdown Timer in top right corner
-        self.countdown_label = ctk.CTkLabel(
-            self.header_buttons_frame,
-            text="⏳ -- days",
-            font=("Arial Bold", 16),
-            text_color="#10b981",  # Green by default
-        )
-        self.countdown_label.pack(pady=(0, 5))
-
-        # Start countdown timer update
+        self.header_frame.place_forget()
+        self.create_home_header_controls()
         self.update_countdown_timer()
-
-        # Check for pending alerts on startup
         self.check_pending_alerts_on_startup()
-
-        # Check for updates on startup (in background)
         self.check_for_updates_on_startup()
-
-        # Promote Students button (moved down)
-        self.btn_promote = ctk.CTkButton(
-            self.header_buttons_frame,
-            text="📈 Promote Students to Next Class",
-            command=lambda: self.require_auth(self.promote_students),
-            fg_color="#e67e22",
-            hover_color="#d35400",
-            height=35,
-            font=("Arial Bold", 12),
-        )
-        self.btn_promote.pack(pady=(0, 5))
-
-        # System Settings button
-        self.btn_system_settings = ctk.CTkButton(
-            self.header_buttons_frame,
-            text="⚙️ System Settings",
-            command=lambda: self.require_auth(self.open_system_settings),
-            fg_color="#34495e",
-            hover_color="#2c3e50",
-            height=35,
-            font=("Arial Bold", 12),
-        )
-        self.btn_system_settings.pack(pady=(0, 5))
-
-        # Check for Updates button (hidden by default, shown when updates available)
-        self.btn_check_updates = ctk.CTkButton(
-            self.header_buttons_frame,
-            text="🔄 Update Available",
-            command=lambda: self.require_auth(self.check_for_updates),
-            fg_color="#3498db",
-            hover_color="#2980b9",
-            height=40,
-            font=("Arial Bold", 13),
-            corner_radius=8,
-            border_width=2,
-            border_color="#2980b9",
-        )
-        # Don't pack initially - will show when update available
 
         # Row 1 of Content: Future Workspace (Currently blank, can be used for summary stats later)
         self.work_area_label = ctk.CTkLabel(
@@ -391,30 +343,850 @@ class Dashboard(ctk.CTk):
         # --- 5. THE THEME/MODE TOGGLE (Bottom right of content) ---
         # Dark mode | Light mode toggle buttons from your drawing
         self.theme_frame = ctk.CTkFrame(self.content_panel, fg_color="transparent")
-        self.theme_frame.pack(side="bottom", anchor="se", pady=(20, 0))
-
-        # We will use a segmented button for a clean 'switch' look
-        self.theme_toggle = ctk.CTkSegmentedButton(
-            self.theme_frame,
-            values=["Light Mode", "Dark Mode"],
-            command=self.change_theme_event,
-        )
-
-        # Match current system setting (usually Dark)
-        current_mode = ctk.get_appearance_mode()
-        if current_mode == "Light":
-            self.theme_toggle.set("Light Mode")
-        else:
-            self.theme_toggle.set("Dark Mode")
-
-        self.theme_toggle.pack()
+        self.theme_frame.place_forget()
+        self.create_theme_controls()
+        self.apply_dashboard_theme()
         # --- ADD THIS INSIDE YOUR DashboardApp CLASS ---
 
         self.all_student_rows = []
+        if self.bing_wallpaper_enabled:
+            self.after(
+                1200,
+                lambda: self.refresh_bing_wallpaper_if_due(
+                    force=bing_cache_missing
+                ),
+            )
+        elif self.dashboard_background_url:
+            self.after(1200, self.refresh_online_dashboard_background)
 
     def open_wizard(self):
         # This calls the class we created in the previous step
         SchoolSetupWizard(self, self.db)
+
+    def create_home_header_controls(self):
+        self.countdown_label = ctk.CTkLabel(
+            self.content_panel,
+            text="⏳ -- days",
+            font=("Arial Bold", 16),
+            text_color="#10b981",
+        )
+        self.countdown_label.place(relx=1, rely=0, anchor="ne", x=-12, y=12)
+        self.btn_promote = ctk.CTkButton(
+            self.content_panel,
+            text="📈 Promote Students to Next Class",
+            command=lambda: self.run_draggable_button_command(
+                "dashboard_promote_button",
+                lambda: self.require_auth(self.promote_students),
+            ),
+            fg_color="#e67e22",
+            hover_color="#d35400",
+            height=35,
+            font=("Arial Bold", 12),
+        )
+        self.btn_system_settings = ctk.CTkButton(
+            self.content_panel,
+            text="⚙️ System Settings",
+            command=lambda: self.run_draggable_button_command(
+                "dashboard_system_settings_button",
+                lambda: self.require_auth(self.open_system_settings),
+            ),
+            fg_color="#34495e",
+            hover_color="#2c3e50",
+            height=35,
+            font=("Arial Bold", 12),
+        )
+        self.btn_check_updates = ctk.CTkButton(
+            self.content_panel,
+            text="🔄 Update Available",
+            command=lambda: self.require_auth(self.check_for_updates),
+            fg_color="#3498db",
+            hover_color="#2980b9",
+            height=40,
+            font=("Arial Bold", 13),
+            corner_radius=8,
+            border_width=2,
+            border_color="#2980b9",
+        )
+        self.bind_control_drag_events(self.btn_promote, "dashboard_promote_button")
+        self.bind_control_drag_events(
+            self.btn_system_settings, "dashboard_system_settings_button"
+        )
+        self.layout_dashboard_control_group("dashboard_promote_button")
+        self.layout_dashboard_control_group("dashboard_system_settings_button")
+        self.btn_check_updates.place(relx=1, rely=0, anchor="ne", x=-12, y=160)
+        self.btn_check_updates.lift()
+
+    def bind_control_drag_events(self, widget, group_name):
+        widget.bind(
+            "<ButtonPress-1>",
+            lambda event, name=group_name: self.begin_control_drag(event, name),
+            add="+",
+        )
+        widget.bind(
+            "<B1-Motion>",
+            lambda event, name=group_name: self.move_control_drag(event, name),
+            add="+",
+        )
+        widget.bind(
+            "<ButtonRelease-1>",
+            lambda event, name=group_name: self.finish_control_drag(name),
+            add="+",
+        )
+        for child in widget.winfo_children():
+            self.bind_control_drag_events(child, group_name)
+
+    def run_draggable_button_command(self, group_name, command):
+        drag_state = self.control_drag_state
+        if drag_state and drag_state["group"] == group_name and drag_state["moved"]:
+            return
+        command()
+
+    def get_control_position(self, group_name):
+        defaults = {
+            "dashboard_promote_button": {"x": -12, "y": 64},
+            "dashboard_system_settings_button": {"x": -12, "y": 108},
+        }
+        position = self.dashboard_control_positions.get(
+            group_name, defaults[group_name]
+        )
+        try:
+            return int(position.get("x", defaults[group_name]["x"])), int(
+                position.get("y", defaults[group_name]["y"])
+            )
+        except (AttributeError, TypeError, ValueError):
+            return defaults[group_name]["x"], defaults[group_name]["y"]
+
+    def layout_dashboard_control_group(self, group_name):
+        x, y = self.get_control_position(group_name)
+        if group_name == "dashboard_promote_button":
+            button = self.btn_promote
+        elif group_name == "dashboard_system_settings_button":
+            button = self.btn_system_settings
+        else:
+            return
+
+        button.place(relx=1, rely=0, anchor="ne", x=x, y=y)
+        button.lift()
+
+    def begin_control_drag(self, event, group_name):
+        x, y = self.get_control_position(group_name)
+        self.control_drag_state = {
+            "group": group_name,
+            "root_x": event.x_root,
+            "root_y": event.y_root,
+            "x": x,
+            "y": y,
+            "moved": False,
+        }
+
+    def move_control_drag(self, event, group_name):
+        state = self.control_drag_state
+        if not state or state["group"] != group_name:
+            return
+
+        parent_width = max(1, self.content_panel.winfo_width())
+        parent_height = max(1, self.content_panel.winfo_height())
+        group_width, group_height = 380, 42
+        minimum_y, maximum_y = 0, max(0, parent_height - group_height)
+
+        x = state["x"] + event.x_root - state["root_x"]
+        y = state["y"] + event.y_root - state["root_y"]
+        if abs(x - state["x"]) + abs(y - state["y"]) >= 3:
+            state["moved"] = True
+        if not state["moved"]:
+            return
+        x = min(0, max(-parent_width + group_width, x))
+        y = min(maximum_y, max(minimum_y, y))
+        self.dashboard_control_positions[group_name] = {"x": x, "y": y}
+        self.layout_dashboard_control_group(group_name)
+
+    def finish_control_drag(self, group_name):
+        if not self.control_drag_state or self.control_drag_state["group"] != group_name:
+            return
+        position = self.dashboard_control_positions.get(group_name)
+        if position and self.control_drag_state["moved"]:
+            self.save_school_config(
+                {"dashboard_control_positions": self.dashboard_control_positions}
+            )
+        self.control_drag_state = None
+
+    def create_theme_controls(self):
+        self.theme_toggle = ctk.CTkSegmentedButton(
+            self.content_panel,
+            values=["Light Mode", "Dark Mode"],
+            command=self.change_theme_event,
+        )
+        self.theme_toggle.set(f"{self.dashboard_appearance} Mode")
+
+        self.theme_settings_button = ctk.CTkButton(
+            self.content_panel,
+            text="Customize Theme",
+            width=130,
+            command=self.open_theme_settings,
+        )
+        self.theme_toggle.place(relx=1, rely=1, anchor="se", x=-150, y=-12)
+        self.theme_settings_button.place(
+            relx=1, rely=1, anchor="se", x=-12, y=-12
+        )
+        self.theme_toggle.lift()
+        self.theme_settings_button.lift()
+
+    def open_theme_settings(self):
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Customize Dashboard Theme")
+        dialog.geometry("460x590")
+        dialog.transient(self)
+        dialog.grab_set()
+
+        ctk.CTkLabel(
+            dialog, text="Dashboard accent color", font=("Arial Bold", 18)
+        ).pack(pady=(24, 16))
+
+        swatches = ctk.CTkFrame(dialog, fg_color="transparent")
+        swatches.pack(pady=8)
+        accent_presets = {
+            "Ocean": "#1f6aa5",
+            "Forest": "#25855a",
+            "Coral": "#c65d3a",
+            "Teal": "#168c8c",
+        }
+        for name, color in accent_presets.items():
+            ctk.CTkButton(
+                swatches,
+                text=name,
+                width=82,
+                fg_color=color,
+                hover_color=self.get_hover_color(color),
+                command=lambda selected=color: self.set_dashboard_accent(selected),
+            ).pack(side="left", padx=4)
+
+        ctk.CTkButton(
+            dialog,
+            text="Choose custom color...",
+            command=self.choose_dashboard_accent,
+        ).pack(pady=16)
+
+        ctk.CTkLabel(
+            dialog, text="Dashboard picture", font=("Arial Bold", 18)
+        ).pack(pady=(12, 8))
+        ctk.CTkButton(
+            dialog,
+            text="Choose picture from this computer...",
+            command=self.choose_dashboard_background,
+        ).pack(pady=5)
+        ctk.CTkButton(
+            dialog,
+            text="Download picture from a URL...",
+            command=self.download_dashboard_background,
+        ).pack(pady=5)
+        ctk.CTkButton(
+            dialog,
+            text="Restore default picture",
+            command=self.restore_default_dashboard_background,
+        ).pack(pady=5)
+
+        self.bing_wallpaper_var = ctk.BooleanVar(
+            value=self.bing_wallpaper_enabled
+        )
+        self.bing_wallpaper_switch = ctk.CTkSwitch(
+            dialog,
+            text="Daily Bing travel pictures",
+            variable=self.bing_wallpaper_var,
+            command=lambda: self.set_bing_wallpaper_enabled(
+                self.bing_wallpaper_var.get()
+            ),
+            onvalue=True,
+            offvalue=False,
+        )
+        self.bing_wallpaper_switch.pack(pady=(12, 4))
+
+        ctk.CTkLabel(dialog, text="Check for a new picture every:").pack(pady=(8, 2))
+        self.bing_interval_menu = ctk.CTkOptionMenu(
+            dialog,
+            values=["1 hour", "3 hours", "6 hours", "12 hours", "24 hours", "48 hours", "72 hours"],
+            command=self.set_bing_wallpaper_interval,
+        )
+        self.bing_interval_menu.set(
+            f"{self.bing_wallpaper_interval_hours} hours"
+            if self.bing_wallpaper_interval_hours != 1
+            else "1 hour"
+        )
+        self.bing_interval_menu.pack(pady=(2, 8))
+
+        ctk.CTkLabel(
+            dialog,
+            text="Bing may publish a new image daily. Internet is needed to check; the cached picture stays available offline.",
+            text_color="gray",
+            wraplength=400,
+        ).pack(pady=(4, 8))
+        if self.bing_wallpaper_credit:
+            ctk.CTkLabel(
+                dialog,
+                text=self.bing_wallpaper_credit,
+                text_color="gray",
+                wraplength=400,
+            ).pack(pady=(0, 8))
+
+        self.dashboard_particles_var = ctk.BooleanVar(
+            value=self.dashboard_particles_enabled
+        )
+        ctk.CTkSwitch(
+            dialog,
+            text="Portal-style moving particles",
+            variable=self.dashboard_particles_var,
+            command=lambda: self.set_dashboard_particles_enabled(
+                self.dashboard_particles_var.get()
+            ),
+        ).pack(pady=(4, 12))
+
+        ctk.CTkButton(dialog, text="Done", command=dialog.destroy, width=100).pack()
+
+    def set_dashboard_background(self, image_path):
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        background = Image.open(image_path).convert("RGB")
+        background = background.resize((screen_width, screen_height))
+
+        self.bg_image = ctk.CTkImage(
+            background, size=(screen_width, screen_height)
+        )
+        self.content_background_source = background.copy()
+        if hasattr(self, "bg_label") and self.bg_label.winfo_exists():
+            self.bg_label.configure(image=self.bg_image)
+        else:
+            self.bg_label = ctk.CTkLabel(self, image=self.bg_image, text="")
+            self.bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+        self.bg_label.lower()
+        self.create_content_background()
+
+    def create_content_background(self):
+        if not hasattr(self, "content_panel") or not hasattr(self, "bg_image"):
+            return
+        if not self.content_panel.winfo_exists():
+            return
+        canvas = self.content_panel._canvas
+        if not hasattr(self, "content_background_item"):
+            self.content_background_item = canvas.create_image(
+                0, 0, anchor="nw", tags=("dashboard_wallpaper",)
+            )
+            self.content_panel.bind(
+                "<Configure>", self.resize_content_background, add="+"
+            )
+        self.resize_content_background()
+
+    def resize_content_background(self, event=None):
+        if not hasattr(self, "content_background_item"):
+            return
+        width = max(1, self.content_panel.winfo_width())
+        height = max(1, self.content_panel.winfo_height())
+        scale = max(0.1, float(self.content_panel._get_widget_scaling()))
+        root_x = round(
+            (self.content_panel.winfo_rootx() - self.winfo_rootx()) / scale
+        )
+        root_y = round(
+            (self.content_panel.winfo_rooty() - self.winfo_rooty()) / scale
+        )
+        source_canvas_width = max(1, round(width / scale))
+        source_canvas_height = max(1, round(height / scale))
+        source_width, source_height = self.content_background_source.size
+        left = max(0, min(source_width - 1, root_x))
+        top = max(0, min(source_height - 1, root_y))
+        right = max(
+            left + 1, min(source_width, root_x + source_canvas_width)
+        )
+        bottom = max(
+            top + 1, min(source_height, root_y + source_canvas_height)
+        )
+        background = self.content_background_source.crop((left, top, right, bottom))
+        if background.size != (width, height):
+            background = background.resize((width, height))
+        from PIL import ImageTk
+
+        self.content_background_photo = ImageTk.PhotoImage(background)
+        canvas = self.content_panel._canvas
+        canvas.itemconfigure(
+            self.content_background_item,
+            image=self.content_background_photo,
+        )
+        canvas.coords(self.content_background_item, 0, 0)
+        canvas.tag_raise(self.content_background_item)
+        self.resize_dashboard_particles(width, height)
+
+    def set_dashboard_particles_enabled(self, enabled):
+        self.dashboard_particles_enabled = bool(enabled)
+        self.save_school_config(
+            {"dashboard_particles_enabled": self.dashboard_particles_enabled}
+        )
+        canvas = getattr(getattr(self, "content_panel", None), "_canvas", None)
+        if not canvas:
+            return
+        if enabled:
+            self.resize_content_background()
+            self.start_dashboard_particles()
+        else:
+            if self.dashboard_particle_after_id:
+                self.after_cancel(self.dashboard_particle_after_id)
+                self.dashboard_particle_after_id = None
+            canvas.delete("dashboard_particle_line")
+            canvas.delete("dashboard_particle_dot")
+            self.dashboard_particles = []
+            self.dashboard_particle_lines = []
+
+    def resize_dashboard_particles(self, width, height):
+        if not self.dashboard_particles_enabled:
+            return
+        old_width, old_height = self.dashboard_particle_canvas_size
+        if width < 10 or height < 10:
+            return
+        if not self.dashboard_particles:
+            import random
+
+            particle_count = 65
+            self.dashboard_particles = [
+                {
+                    "x": random.uniform(0, width),
+                    "y": random.uniform(0, height),
+                    "vx": random.uniform(-0.7, 0.7),
+                    "vy": random.uniform(-0.7, 0.7),
+                    "size": 2.5,
+                    "item": self.content_panel._canvas.create_oval(
+                        0,
+                        0,
+                        0,
+                        0,
+                        fill="#10b981",
+                        outline="",
+                        tags=("dashboard_particle_dot",),
+                    ),
+                }
+                for _ in range(particle_count)
+            ]
+            self.dashboard_particle_lines = [
+                (
+                    first,
+                    second,
+                    self.content_panel._canvas.create_line(
+                        0,
+                        0,
+                        0,
+                        0,
+                        fill="#187b6b",
+                        width=1,
+                        state="hidden",
+                        tags=("dashboard_particle_line",),
+                    ),
+                )
+                for first in range(particle_count)
+                for second in range(first + 1, particle_count)
+            ]
+        elif old_width and old_height and (old_width, old_height) != (width, height):
+            scale_x = width / old_width
+            scale_y = height / old_height
+            for particle in self.dashboard_particles:
+                particle["x"] *= scale_x
+                particle["y"] *= scale_y
+        self.dashboard_particle_canvas_size = (width, height)
+        self.start_dashboard_particles()
+
+    def start_dashboard_particles(self):
+        if (
+            not self.dashboard_particles_enabled
+            or not self.dashboard_particles
+            or self.dashboard_particle_after_id
+        ):
+            return
+        self.animate_dashboard_particles()
+
+    def animate_dashboard_particles(self):
+        if not self.dashboard_particles_enabled or not self.content_panel.winfo_exists():
+            self.dashboard_particle_after_id = None
+            return
+
+        canvas = self.content_panel._canvas
+        width, height = self.dashboard_particle_canvas_size
+        for particle in self.dashboard_particles:
+            particle["x"] += particle["vx"]
+            particle["y"] += particle["vy"]
+            if particle["x"] < 0 or particle["x"] > width:
+                particle["vx"] *= -1
+            if particle["y"] < 0 or particle["y"] > height:
+                particle["vy"] *= -1
+            size = particle["size"]
+            canvas.coords(
+                particle["item"],
+                particle["x"] - size,
+                particle["y"] - size,
+                particle["x"] + size,
+                particle["y"] + size,
+            )
+
+        for first, second, line_id in self.dashboard_particle_lines:
+            particle_a = self.dashboard_particles[first]
+            particle_b = self.dashboard_particles[second]
+            distance = (
+                (particle_a["x"] - particle_b["x"]) ** 2
+                + (particle_a["y"] - particle_b["y"]) ** 2
+            ) ** 0.5
+            if distance < 120:
+                canvas.coords(
+                    line_id,
+                    particle_a["x"],
+                    particle_a["y"],
+                    particle_b["x"],
+                    particle_b["y"],
+                )
+                canvas.itemconfigure(line_id, state="normal")
+            else:
+                canvas.itemconfigure(line_id, state="hidden")
+
+        canvas.tag_raise("dashboard_wallpaper")
+        canvas.tag_raise("dashboard_particle_line")
+        canvas.tag_raise("dashboard_particle_dot")
+        self.dashboard_particle_after_id = self.after(
+            40, self.animate_dashboard_particles
+        )
+
+    def choose_dashboard_background(self):
+        from tkinter import filedialog
+        import shutil
+
+        source_path = filedialog.askopenfilename(
+            parent=self,
+            title="Choose Dashboard Picture",
+            filetypes=[
+                ("Image files", "*.png *.jpg *.jpeg *.webp *.bmp"),
+                ("All files", "*.*"),
+            ],
+        )
+        if not source_path:
+            return
+
+        try:
+            background_dir = os.path.join(
+                self.USER_DATA_DIR, "dashboard_backgrounds"
+            )
+            os.makedirs(background_dir, exist_ok=True)
+            extension = os.path.splitext(source_path)[1].lower()
+            destination = os.path.join(background_dir, f"dashboard_wallpaper{extension}")
+            if os.path.abspath(source_path) != os.path.abspath(destination):
+                shutil.copy2(source_path, destination)
+            self.set_dashboard_background(destination)
+            self.dashboard_background = destination
+            self.dashboard_background_url = ""
+            self.bing_wallpaper_enabled = False
+            if hasattr(self, "bing_wallpaper_var"):
+                self.bing_wallpaper_var.set(False)
+            self.save_school_config(
+                {
+                    "dashboard_background": destination,
+                    "dashboard_background_url": "",
+                    "bing_wallpaper_enabled": False,
+                }
+            )
+        except Exception as error:
+            messagebox.showerror("Picture Error", f"Could not use this picture: {error}")
+
+    def download_dashboard_background(self):
+        from urllib.parse import urlparse
+
+        dialog = ctk.CTkInputDialog(
+            text="Enter a direct HTTPS or HTTP image URL:",
+            title="Download Dashboard Picture",
+        )
+        image_url = dialog.get_input()
+        if not image_url:
+            return
+        image_url = image_url.strip()
+        parsed_url = urlparse(image_url)
+        if parsed_url.scheme not in ("http", "https") or not parsed_url.netloc:
+            messagebox.showerror("Invalid URL", "Enter a valid HTTP or HTTPS URL.")
+            return
+
+        try:
+            destination = self.fetch_dashboard_background(image_url)
+            self.set_dashboard_background(destination)
+            self.dashboard_background = destination
+            self.dashboard_background_url = image_url
+            self.bing_wallpaper_enabled = False
+            if hasattr(self, "bing_wallpaper_var"):
+                self.bing_wallpaper_var.set(False)
+            self.save_school_config(
+                {
+                    "dashboard_background": destination,
+                    "dashboard_background_url": image_url,
+                    "bing_wallpaper_enabled": False,
+                }
+            )
+        except Exception as error:
+            messagebox.showerror(
+                "Download Error", f"Could not download this picture: {error}"
+            )
+
+    def fetch_dashboard_background(self, image_url, filename_prefix="downloaded_wallpaper"):
+        from urllib.parse import urlparse
+        from urllib.request import Request, urlopen
+
+        parsed_url = urlparse(image_url)
+        if parsed_url.scheme not in ("http", "https") or not parsed_url.netloc:
+            raise ValueError("Enter a valid HTTP or HTTPS image URL.")
+
+        request = Request(image_url, headers={"User-Agent": "FreemanSchoolPortal"})
+        with urlopen(request, timeout=15) as response:
+            image_bytes = response.read(10 * 1024 * 1024 + 1)
+        if len(image_bytes) > 10 * 1024 * 1024:
+            raise ValueError("The picture must be 10 MB or smaller.")
+
+        image = Image.open(io.BytesIO(image_bytes))
+        extensions = {
+            "JPEG": ".jpg",
+            "PNG": ".png",
+            "WEBP": ".webp",
+            "BMP": ".bmp",
+        }
+        if image.format not in extensions:
+            raise ValueError("Use a JPEG, PNG, WebP, or BMP image.")
+        image.verify()
+
+        background_dir = os.path.join(self.USER_DATA_DIR, "dashboard_backgrounds")
+        os.makedirs(background_dir, exist_ok=True)
+        destination = os.path.join(
+            background_dir, f"{filename_prefix}{extensions[image.format]}"
+        )
+        with open(destination, "wb") as image_file:
+            image_file.write(image_bytes)
+        return destination
+
+    def refresh_online_dashboard_background(self):
+        import threading
+
+        image_url = self.dashboard_background_url
+
+        def refresh():
+            try:
+                destination = self.fetch_dashboard_background(image_url)
+                self.after(
+                    0,
+                    lambda: self.apply_online_dashboard_background(
+                        image_url, destination
+                    ),
+                )
+            except Exception as error:
+                print(f"Online dashboard picture refresh failed: {error}")
+
+        threading.Thread(target=refresh, daemon=True).start()
+
+    def apply_online_dashboard_background(self, image_url, image_path):
+        if self.dashboard_background_url != image_url:
+            return
+        try:
+            self.set_dashboard_background(image_path)
+            self.dashboard_background = image_path
+            self.save_school_config({"dashboard_background": image_path})
+        except Exception as error:
+            print(f"Could not apply online dashboard picture: {error}")
+
+    def set_bing_wallpaper_enabled(self, enabled):
+        self.bing_wallpaper_enabled = bool(enabled)
+        self.dashboard_background_url = "" if enabled else self.dashboard_background_url
+        self.save_school_config(
+            {
+                "bing_wallpaper_enabled": self.bing_wallpaper_enabled,
+                "dashboard_background_url": self.dashboard_background_url,
+            }
+        )
+        if enabled:
+            self.refresh_bing_wallpaper_if_due(force=True)
+        elif self.bing_refresh_after_id:
+            self.after_cancel(self.bing_refresh_after_id)
+            self.bing_refresh_after_id = None
+
+    def set_bing_wallpaper_interval(self, selected_interval):
+        try:
+            interval_hours = int(selected_interval.split()[0])
+        except (AttributeError, ValueError):
+            return
+        if interval_hours not in (1, 3, 6, 12, 24, 48, 72):
+            return
+        self.bing_wallpaper_interval_hours = interval_hours
+        self.save_school_config({"bing_wallpaper_interval_hours": interval_hours})
+        if self.bing_wallpaper_enabled:
+            self.schedule_bing_wallpaper_check()
+
+    def refresh_bing_wallpaper_if_due(self, force=False):
+        if not self.bing_wallpaper_enabled:
+            return
+
+        now = datetime.now()
+        refresh_time = now.isoformat(timespec="seconds")
+        if not force and self.bing_wallpaper_last_refresh:
+            try:
+                last_refresh = datetime.fromisoformat(
+                    self.bing_wallpaper_last_refresh
+                )
+            except ValueError:
+                last_refresh = datetime.min
+            if now - last_refresh < timedelta(
+                hours=self.bing_wallpaper_interval_hours
+            ):
+                self.schedule_bing_wallpaper_check()
+                return
+
+        import threading
+        from urllib.request import Request, urlopen
+
+        def refresh():
+            try:
+                request = Request(
+                    "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=en-US",
+                    headers={"User-Agent": "FreemanSchoolPortal"},
+                )
+                with urlopen(request, timeout=15) as response:
+                    archive = json.loads(response.read(1024 * 1024).decode("utf-8"))
+                image_info = archive["images"][0]
+                image_url = image_info.get("url") or image_info.get("urlbase")
+                if not image_url:
+                    raise ValueError("Bing did not return a wallpaper URL.")
+                if image_url.startswith("//"):
+                    image_url = "https:" + image_url
+                elif image_url.startswith("/"):
+                    image_url = "https://www.bing.com" + image_url
+                destination = self.fetch_dashboard_background(
+                    image_url, filename_prefix="bing_wallpaper"
+                )
+                credit = image_info.get("copyright", "Bing daily image")
+                self.after(
+                    0,
+                    lambda: self.apply_bing_wallpaper(
+                        refresh_time, destination, credit
+                    ),
+                )
+            except Exception as error:
+                print(f"Bing wallpaper refresh failed: {error}")
+                self.after(0, lambda: self.schedule_bing_wallpaper_retry())
+
+        threading.Thread(target=refresh, daemon=True).start()
+
+    def apply_bing_wallpaper(self, refresh_date, image_path, credit):
+        if not self.bing_wallpaper_enabled:
+            return
+        try:
+            self.set_dashboard_background(image_path)
+            self.dashboard_background = image_path
+            self.bing_wallpaper_last_refresh = refresh_date
+            self.bing_wallpaper_credit = credit
+            self.save_school_config(
+                {
+                    "dashboard_background": image_path,
+                    "dashboard_background_url": "",
+                    "bing_wallpaper_enabled": True,
+                    "bing_wallpaper_last_refresh": refresh_date,
+                    "bing_wallpaper_credit": credit,
+                }
+            )
+            self.schedule_bing_wallpaper_check()
+        except Exception as error:
+            print(f"Could not apply Bing wallpaper: {error}")
+            self.schedule_bing_wallpaper_retry()
+
+    def schedule_bing_wallpaper_check(self):
+        if not self.bing_wallpaper_enabled:
+            return
+        if self.bing_refresh_after_id:
+            self.after_cancel(self.bing_refresh_after_id)
+        try:
+            last_refresh = datetime.fromisoformat(self.bing_wallpaper_last_refresh)
+            seconds_until_refresh = (
+                last_refresh
+                + timedelta(hours=self.bing_wallpaper_interval_hours)
+                - datetime.now()
+            ).total_seconds()
+        except (TypeError, ValueError):
+            seconds_until_refresh = 60
+        delay_seconds = max(
+            60,
+            min(seconds_until_refresh, self.bing_wallpaper_interval_hours * 3600),
+        )
+        self.bing_refresh_after_id = self.after(
+            int(delay_seconds * 1000), self.refresh_bing_wallpaper_if_due
+        )
+
+    def schedule_bing_wallpaper_retry(self):
+        if self.bing_wallpaper_enabled:
+            if self.bing_refresh_after_id:
+                self.after_cancel(self.bing_refresh_after_id)
+            self.bing_refresh_after_id = self.after(
+                30 * 60 * 1000, self.refresh_bing_wallpaper_if_due
+            )
+
+    def restore_default_dashboard_background(self):
+        default_path = os.path.join(self.BASE_DIR, "assets", "dashboard_bg.jpg")
+        try:
+            self.set_dashboard_background(default_path)
+            self.dashboard_background = ""
+            self.dashboard_background_url = ""
+            self.bing_wallpaper_enabled = False
+            self.bing_wallpaper_last_refresh = ""
+            self.bing_wallpaper_credit = ""
+            if hasattr(self, "bing_wallpaper_var"):
+                self.bing_wallpaper_var.set(False)
+            self.save_school_config(
+                {
+                    "dashboard_background": "",
+                    "dashboard_background_url": "",
+                    "bing_wallpaper_enabled": False,
+                    "bing_wallpaper_last_refresh": "",
+                    "bing_wallpaper_credit": "",
+                }
+            )
+        except Exception as error:
+            messagebox.showerror(
+                "Picture Error", f"Could not restore the default picture: {error}"
+            )
+
+    def choose_dashboard_accent(self):
+        from tkinter import colorchooser
+
+        selected_color = colorchooser.askcolor(
+            color=self.dashboard_accent, parent=self
+        )[1]
+        if selected_color:
+            self.set_dashboard_accent(selected_color)
+
+    def set_dashboard_accent(self, color):
+        self.dashboard_accent = color
+        self.save_school_config({"dashboard_accent": color})
+        self.apply_dashboard_theme()
+
+    @staticmethod
+    def get_hover_color(color):
+        red = max(0, int(color[1:3], 16) - 24)
+        green = max(0, int(color[3:5], 16) - 24)
+        blue = max(0, int(color[5:7], 16) - 24)
+        return f"#{red:02x}{green:02x}{blue:02x}"
+
+    def apply_dashboard_theme(self):
+        hover_color = self.get_hover_color(self.dashboard_accent)
+        if hasattr(self, "menu_panel"):
+            self.menu_panel.configure(border_color=self.dashboard_accent)
+        if hasattr(self, "brand_label"):
+            self.brand_label.configure(text_color=self.dashboard_accent)
+        if hasattr(self, "theme_toggle") and self.theme_toggle.winfo_exists():
+            self.theme_toggle.configure(
+                selected_color=self.dashboard_accent,
+                selected_hover_color=hover_color,
+            )
+        active_button = getattr(self, "active_sidebar_button", None)
+        if active_button is not None and active_button.winfo_exists():
+            active_button.configure(
+                fg_color=self.dashboard_accent,
+                border_color=hover_color,
+            )
+        for button in getattr(self, "class_selection_buttons", []):
+            if button.winfo_exists():
+                button.configure(
+                    fg_color=self.dashboard_accent,
+                    hover_color=hover_color,
+                )
 
     def verify_admin_password(self):
         """Prompt for admin password and verify against school_config.json"""
@@ -904,6 +1676,8 @@ class Dashboard(ctk.CTk):
 
     def open_system_settings(self):
         """Open the system settings dialog"""
+        self.reset_sidebar_highlights()
+
         # Clear content panel
         for widget in self.content_panel.winfo_children():
             widget.destroy()
@@ -1634,73 +2408,7 @@ class Dashboard(ctk.CTk):
 
     def restore_dashboard(self):
         """Restore the dashboard view"""
-        # Clear content panel
-        for widget in self.content_panel.winfo_children():
-            widget.destroy()
-
-        # Recreate the original dashboard content
-        self.header_frame = ctk.CTkFrame(self.content_panel, fg_color="transparent")
-        self.header_frame.pack(fill="x", pady=(10, 20))
-
-        self.school_title_label = ctk.CTkLabel(
-            self.header_frame, text=self.dynamic_school_name, font=("Arial Bold", 26)
-        )
-        self.school_title_label.pack(side="left", padx=10)
-
-        self.page_title_label = ctk.CTkLabel(
-            self.header_frame,
-            text="/ HOMEPAGE",
-            font=("Arial Italic", 14),
-            text_color="gray",
-        )
-        self.page_title_label.pack(side="left", anchor="sw", padx=(0, 20), pady=(0, 5))
-
-        self.header_buttons_frame = ctk.CTkFrame(
-            self.header_frame, fg_color="transparent"
-        )
-        self.header_buttons_frame.pack(side="right", padx=10)
-
-        # Countdown Timer in top right corner
-        self.countdown_label = ctk.CTkLabel(
-            self.header_buttons_frame,
-            text="⏳ -- days",
-            font=("Arial Bold", 16),
-            text_color="#10b981",  # Green by default
-        )
-        self.countdown_label.pack(pady=(0, 5))
-
-        self.btn_promote = ctk.CTkButton(
-            self.header_buttons_frame,
-            text="📈 Promote Students to Next Class",
-            command=lambda: self.require_auth(self.promote_students),
-            fg_color="#e67e22",
-            hover_color="#d35400",
-            height=35,
-            font=("Arial Bold", 12),
-        )
-        self.btn_promote.pack(pady=(0, 5))
-
-        self.btn_system_settings = ctk.CTkButton(
-            self.header_buttons_frame,
-            text="⚙️ System Settings",
-            command=lambda: self.require_auth(self.open_system_settings),
-            fg_color="#34495e",
-            hover_color="#2c3e50",
-            height=35,
-            font=("Arial Bold", 12),
-        )
-        self.btn_system_settings.pack(pady=(0, 5))
-
-        self.work_area_label = ctk.CTkLabel(
-            self.content_panel,
-            text="Dashboard Workspace initialized.\nClick a menu button on the left to begin.",
-            font=("Arial", 16),
-            text_color="gray60",
-        )
-        self.work_area_label.pack(expand=True)
-
-        # Update countdown timer to show actual value
-        self.update_countdown_timer()
+        self.return_to_home()
 
     def open_report_forms(self):
         # Use the existing class selection method
@@ -2086,10 +2794,10 @@ class Dashboard(ctk.CTk):
 
         self.all_student_rows.append(row_frame)
 
-        # Configure grid columns for 7 columns (5 entries + photo + stream + actions)
-        for i in range(7):
+        # Configure columns for student details, photo, and actions
+        for i in range(8):
             row_frame.grid_columnconfigure(i, weight=1, uniform="column_group")
-        row_frame.grid_columnconfigure(7, weight=0, minsize=150)
+        row_frame.grid_columnconfigure(8, weight=0, minsize=150)
 
         # 3. Entry Boxes (White Background & Black Text for Clarity)
         entry_style = {"fg_color": "white", "text_color": "black", "height": 30}
@@ -2097,21 +2805,26 @@ class Dashboard(ctk.CTk):
         adm = ctk.CTkEntry(row_frame, placeholder_text="ADM", **entry_style)
         adm.grid(row=0, column=0, padx=2, pady=5, sticky="ew")
 
+        assessment_number = ctk.CTkEntry(
+            row_frame, placeholder_text="Assessment No.", **entry_style
+        )
+        assessment_number.grid(row=0, column=1, padx=2, pady=5, sticky="ew")
+
         name = ctk.CTkEntry(row_frame, placeholder_text="Full Name", **entry_style)
-        name.grid(row=0, column=1, padx=2, pady=5, sticky="ew")
+        name.grid(row=0, column=2, padx=2, pady=5, sticky="ew")
 
         grade = ctk.CTkEntry(row_frame, placeholder_text="Grade", **entry_style)
-        grade.grid(row=0, column=2, padx=2, pady=5, sticky="ew")
+        grade.grid(row=0, column=3, padx=2, pady=5, sticky="ew")
 
         gender = ctk.CTkEntry(row_frame, placeholder_text="Gender", **entry_style)
-        gender.grid(row=0, column=3, padx=2, pady=5, sticky="ew")
+        gender.grid(row=0, column=4, padx=2, pady=5, sticky="ew")
 
         phone = ctk.CTkEntry(row_frame, placeholder_text="Phone", **entry_style)
-        phone.grid(row=0, column=4, padx=2, pady=5, sticky="ew")
+        phone.grid(row=0, column=5, padx=2, pady=5, sticky="ew")
 
         # Stream field
         stream = ctk.CTkEntry(row_frame, placeholder_text="Stream", **entry_style)
-        stream.grid(row=0, column=5, padx=2, pady=5, sticky="ew")
+        stream.grid(row=0, column=6, padx=2, pady=5, sticky="ew")
 
         # Photo upload button
         photo_path = ctk.StringVar()
@@ -2122,11 +2835,11 @@ class Dashboard(ctk.CTk):
             height=30,
             command=lambda: self.upload_student_photo(photo_path, photo_btn),
         )
-        photo_btn.grid(row=0, column=6, padx=2, pady=5, sticky="ew")
+        photo_btn.grid(row=0, column=7, padx=2, pady=5, sticky="ew")
 
         # 4. The Button Actions Frame (This holds Save, Edit, Delete together)
         actions_frame = ctk.CTkFrame(row_frame, fg_color="transparent")
-        actions_frame.grid(row=0, column=7, padx=5)
+        actions_frame.grid(row=0, column=8, padx=5)
 
         # SAVE (Green)
         save_btn = ctk.CTkButton(
@@ -2135,7 +2848,8 @@ class Dashboard(ctk.CTk):
             width=30,
             fg_color="green",
             command=lambda: self.save_to_db(
-                adm, name, grade, gender, phone, stream, photo_path, save_btn
+                adm, name, grade, gender, phone, stream, photo_path, save_btn,
+                assessment_number,
             ),
         )
         save_btn.pack(side="left", padx=2)
@@ -2149,6 +2863,7 @@ class Dashboard(ctk.CTk):
             fg_color="#1f538d",
             command=lambda e=[
                 adm,
+                assessment_number,
                 name,
                 grade,
                 gender,
@@ -2184,9 +2899,9 @@ class Dashboard(ctk.CTk):
 
     def unlock_row_for_edit(self, entries, save_button, photo_btn=None):
         """Unlocks a row and RE-LINKS the save button to the database function"""
-        # Unlock all entry fields (first 6 are CTkEntry, last is StringVar for photo)
+        # Unlock all entry fields; the final item is the photo-path variable.
         for i, entry in enumerate(entries):
-            if i < 6 and isinstance(entry, ctk.CTkEntry):
+            if i < 7 and isinstance(entry, ctk.CTkEntry):
                 entry.configure(state="normal", fg_color="white", text_color="black")
 
         # Enable photo button if it exists
@@ -2194,7 +2909,7 @@ class Dashboard(ctk.CTk):
             photo_btn.configure(
                 state="normal",
                 fg_color="#1f538d",
-                command=lambda: self.upload_student_photo(entries[6], photo_btn),
+                command=lambda: self.upload_student_photo(entries[7], photo_btn),
             )
 
         # We must re-configure the command so it knows to save again when clicked
@@ -2204,13 +2919,14 @@ class Dashboard(ctk.CTk):
             fg_color="green",
             command=lambda: self.save_to_db(
                 entries[0],
-                entries[1],
                 entries[2],
                 entries[3],
                 entries[4],
                 entries[5],
                 entries[6],
+                entries[7],
                 save_button,
+                entries[1],
             ),
         )
 
@@ -2224,9 +2940,11 @@ class Dashboard(ctk.CTk):
         stream_entry,
         photo_path_var,
         btn,
+        assessment_entry=None,
     ):
         adm = adm_entry.get()
         name = name_entry.get()
+        assessment_number = assessment_entry.get() if assessment_entry else ""
         gender = gender_entry.get()
         phone = phone_entry.get()
         stream = stream_entry.get() if stream_entry else "None"
@@ -2248,15 +2966,31 @@ class Dashboard(ctk.CTk):
         }
         grade = grade_mapping.get(current_class, current_class)
 
-        if not adm or not name:
-            messagebox.showwarning("Input Error", "ADM and Name are required!")
+        if not adm:
+            adm = self.next_registry_admission_number()
+            adm_entry.delete(0, "end")
+            adm_entry.insert(0, adm)
+
+        if not name:
+            messagebox.showwarning("Input Error", "Student name is required!")
             return
 
         try:
             # 1. Save to Database
-            self.db.add_student(
-                adm, name, grade, gender, phone, photo, stream, check_footprint=True
+            saved = self.db.add_student(
+                adm,
+                name,
+                grade,
+                gender,
+                phone,
+                photo,
+                stream,
+                check_footprint=True,
+                assessment_number=assessment_number,
             )
+            if not saved:
+                messagebox.showerror("Database Error", "The student could not be saved.")
+                return
 
             # 2. Lock the Row visually
             for entry in [
@@ -2266,6 +3000,7 @@ class Dashboard(ctk.CTk):
                 gender_entry,
                 phone_entry,
                 stream_entry,
+                assessment_entry,
             ]:
                 if entry:
                     entry.configure(
@@ -2314,7 +3049,7 @@ class Dashboard(ctk.CTk):
                                 save_btn = sub_widget
 
             # 2. Re-link the Save button so it works after being unlocked
-            if save_btn and len(row_entries) >= 6:
+            if save_btn and len(row_entries) >= 7:
                 # Create a StringVar for photo path if not exists
                 photo_path = ctk.StringVar()
                 save_btn.configure(
@@ -2322,7 +3057,7 @@ class Dashboard(ctk.CTk):
                     text="✓",
                     fg_color="green",
                     command=lambda r=row_entries, p=photo_path, pb=photo_btn, b=save_btn: self.save_to_db(
-                        r[0], r[1], r[2], r[3], r[4], r[5], p, b
+                        r[0], r[2], r[3], r[4], r[5], r[6], p, b, r[1]
                     ),
                 )
         print("All rows unlocked for editing.")
@@ -2506,13 +3241,14 @@ class Dashboard(ctk.CTk):
             fill="x", pady=(0, 10)
         )  # pady adds space before the first student
 
-        # Match the column logic of your rows (7 columns + actions)
-        for i in range(7):
+        # Match the column logic of your rows (8 columns + actions)
+        for i in range(8):
             header_frame.grid_columnconfigure(i, weight=1, uniform="column_group")
-        header_frame.grid_columnconfigure(7, weight=0, minsize=150)
+        header_frame.grid_columnconfigure(8, weight=0, minsize=150)
 
         cols = [
             "ADM NO",
+            "ASSESSMENT NO",
             "STUDENT NAME",
             "GRADE",
             "GENDER",
@@ -2525,10 +3261,10 @@ class Dashboard(ctk.CTk):
             lbl = ctk.CTkLabel(
                 header_frame, text=text, font=("Arial Bold", 12), text_color="white"
             )
-            if i < 7:
+            if i < 8:
                 lbl.grid(row=0, column=i, padx=10, pady=5, sticky="w")
             else:
-                lbl.grid(row=0, column=7, padx=10, pady=5)
+                lbl.grid(row=0, column=8, padx=10, pady=5)
 
     def show_student_registry(self, class_name):
         # 1. Layout: Hide sidebar and expand content
@@ -2604,6 +3340,16 @@ class Dashboard(ctk.CTk):
         )
         self.btn_add.pack(pady=10)
 
+        self.btn_import_excel = ctk.CTkButton(
+            self.control_panel,
+            text="Import from Excel",
+            fg_color="#247a74",
+            hover_color="#1d625d",
+            **btn_style,
+            command=lambda: self.import_students_from_excel(class_name),
+        )
+        self.btn_import_excel.pack(pady=10)
+
         self.btn_ocr = ctk.CTkButton(
             self.control_panel,
             text="📷 OCR Register",
@@ -2643,6 +3389,109 @@ class Dashboard(ctk.CTk):
 
         self.btn_remove.configure(command=self.clear_all_students)
 
+    def next_registry_admission_number(self):
+        """Allocate an admission number after saved and currently staged rows."""
+        next_admission_text = self.db.next_admission_number()
+        next_admission = int(next_admission_text)
+        pending_admissions = []
+        for row_frame in self.all_student_rows:
+            for widget in row_frame.winfo_children():
+                if not isinstance(widget, ctk.CTkEntry):
+                    continue
+                try:
+                    column = int(widget.grid_info().get("column", -1))
+                except (TypeError, ValueError):
+                    continue
+                value = widget.get().strip()
+                if column == 0 and value.isdigit():
+                    pending_admissions.append(int(value))
+        if pending_admissions:
+            next_admission = max(next_admission, max(pending_admissions) + 1)
+        width = max(len(str(next_admission)), len(next_admission_text))
+        return str(next_admission).zfill(width)
+
+    def import_students_from_excel(self, class_name):
+        """Load KNEC nominal-roll rows into the editable student registry."""
+        from tkinter import filedialog
+
+        file_path = filedialog.askopenfilename(
+            title="Select KNEC Nominal Roll",
+            filetypes=[("Excel workbooks", "*.xlsx *.xlsm")],
+        )
+        if not file_path:
+            return
+
+        try:
+            imported_students = read_student_rows(file_path)
+            self.db.cursor().execute(
+                "SELECT assessment_number FROM students WHERE assessment_number IS NOT NULL"
+            )
+            seen_assessment_numbers = {
+                str(row[0]).strip() for row in self.db.cursor().fetchall() if row[0]
+            }
+            for row_frame in self.all_student_rows:
+                for widget in row_frame.winfo_children():
+                    if not isinstance(widget, ctk.CTkEntry):
+                        continue
+                    try:
+                        column = int(widget.grid_info().get("column", -1))
+                    except (TypeError, ValueError):
+                        continue
+                    if column == 1 and widget.get().strip():
+                        seen_assessment_numbers.add(widget.get().strip())
+
+            students_to_add = []
+            skipped_duplicates = 0
+            for student in imported_students:
+                assessment_number = student["assessment_number"].strip()
+                if assessment_number in seen_assessment_numbers:
+                    skipped_duplicates += 1
+                    continue
+                seen_assessment_numbers.add(assessment_number)
+                students_to_add.append(student)
+
+            if not students_to_add:
+                messagebox.showinfo(
+                    "Excel Import",
+                    "No new students were found. Existing assessment numbers were skipped.",
+                )
+                return
+
+            grade_mapping = {
+                "Play group": "playgroup",
+                "Pre-Primary 1": "pp1",
+                "Pre-Primary 2": "pp2",
+            }
+            grade = grade_mapping.get(class_name, class_name)
+            for student in students_to_add:
+                self.add_empty_row()
+                row_frame = self.all_student_rows[-1]
+                entries = {
+                    int(widget.grid_info()["column"]): widget
+                    for widget in row_frame.winfo_children()
+                    if isinstance(widget, ctk.CTkEntry)
+                }
+                values = {
+                    0: self.next_registry_admission_number(),
+                    1: student["assessment_number"],
+                    2: student["name"],
+                    3: grade,
+                    4: student.get("gender", ""),
+                    5: student.get("phone", ""),
+                    6: student.get("stream", ""),
+                }
+                for column, value in values.items():
+                    entries[column].insert(0, value)
+
+            messagebox.showinfo(
+                "Excel Import",
+                f"Loaded {len(students_to_add)} students for review. "
+                f"{skipped_duplicates} duplicate assessment number(s) skipped. "
+                "Save each row to register it.",
+            )
+        except Exception as error:
+            messagebox.showerror("Excel Import", f"Could not read this workbook:\n{error}")
+
     def open_ocr_dialog(self, class_name):
         """Open the OCR student registration dialog"""
 
@@ -2651,6 +3500,78 @@ class Dashboard(ctk.CTk):
             self.show_student_registry(class_name)
 
         show_ocr_dialog(self, refresh_registry, self.db)
+
+    def open_cba_menu(self):
+        self.highlight_button(self.btn_knec_cba)
+        for widget in self.content_panel.winfo_children():
+            if widget != self.header_frame and widget != self.theme_frame:
+                widget.destroy()
+
+        menu = ctk.CTkFrame(self.content_panel, fg_color="transparent")
+        menu.pack(expand=True)
+        ctk.CTkLabel(menu, text="KNEC CBA", font=("Arial Bold", 26)).pack(pady=20)
+        ctk.CTkButton(
+            menu,
+            text="Add Tasks",
+            width=260,
+            height=48,
+            command=lambda: self.show_class_selection(
+                "KNEC CBA Tasks", self.btn_knec_cba
+            ),
+        ).pack(pady=10)
+
+    def show_cba_subject_selection(self, class_name):
+        for widget in self.content_panel.winfo_children():
+            if widget != self.header_frame and widget != self.theme_frame:
+                widget.destroy()
+
+        frame = ctk.CTkScrollableFrame(
+            self.content_panel,
+            label_text=f"SELECT SUBJECT FOR: {class_name.upper()}",
+            label_font=("Arial Bold", 20),
+            width=520,
+            height=520,
+        )
+        frame.pack(expand=True, fill="both", padx=30, pady=30)
+        subjects = get_subjects_for_class(class_name)
+        if not subjects:
+            ctk.CTkLabel(frame, text="No subjects are configured for this class.").pack(
+                pady=20
+            )
+        for subject in subjects:
+            ctk.CTkButton(
+                frame,
+                text=subject,
+                width=300,
+                height=42,
+                command=lambda selected=subject: self.open_cba_task_manager(
+                    class_name, selected
+                ),
+            ).pack(pady=7)
+        ctk.CTkButton(
+            frame,
+            text="Back to Classes",
+            command=lambda: self.show_class_selection(
+                "KNEC CBA Tasks", self.btn_knec_cba
+            ),
+        ).pack(pady=18)
+
+    def open_cba_task_manager(self, class_name, subject):
+        config = self.load_school_config()
+        tasks = config.get("cba_tasks", {}).get(class_name, {}).get(subject, [])
+
+        def save_published_tasks(published_tasks):
+            cba_tasks = self.load_school_config().get("cba_tasks", {})
+            cba_tasks.setdefault(class_name, {})[subject] = published_tasks
+            self.save_school_config({"cba_tasks": cba_tasks})
+
+        CBATaskManager(
+            self,
+            class_name,
+            subject,
+            tasks=tasks,
+            on_publish=save_published_tasks,
+        )
 
     def load_students_from_db(self, class_name):
         try:
@@ -2677,7 +3598,7 @@ class Dashboard(ctk.CTk):
             print(f"DEBUG: Total students in database: {total_count}")
 
             self.db.cursor().execute(
-                "SELECT adm_no, name, grade, gender, phone, photo, stream FROM students WHERE UPPER(grade) = UPPER(?)",
+                "SELECT adm_no, assessment_number, name, grade, gender, phone, photo, stream FROM students WHERE UPPER(grade) = UPPER(?)",
                 (class_name,),
             )
             records = self.db.cursor().fetchall()
@@ -2705,38 +3626,34 @@ class Dashboard(ctk.CTk):
         self.all_student_rows.append(row_frame)
 
         # --- THE ALIGNMENT FIX ---
-        # Force the first 7 columns to be exactly equal in size (5 entries + stream + photo)
-        for i in range(7):
+        # Keep all student fields aligned with the registry headers.
+        for i in range(8):
             row_frame.grid_columnconfigure(i, weight=1, uniform="column_group")
         # Keep the actions column fixed
-        row_frame.grid_columnconfigure(7, weight=0, minsize=150)
+        row_frame.grid_columnconfigure(8, weight=0, minsize=150)
 
         entries = []
-        # Create 5 main entry fields (adm, name, grade, gender, phone)
-        # Handle old records that might not have all columns
-        for i in range(5):
-            # Use sticky="ew" so the entry stretches to fill the uniform column
-            e = ctk.CTkEntry(
+        values = [
+            data[0] if len(data) > 0 else "",
+            data[1] if len(data) > 1 else "",
+            data[2] if len(data) > 2 else "",
+            data[3] if len(data) > 3 else "",
+            data[4] if len(data) > 4 else "",
+            data[5] if len(data) > 5 else "",
+            data[7] if len(data) > 7 else "None",
+        ]
+        for column, value in enumerate(values):
+            entry = ctk.CTkEntry(
                 row_frame, fg_color="gray20", text_color="white", height=30
             )
-            value = str(data[i]) if i < len(data) and data[i] is not None else ""
-            e.insert(0, value)
-            e.configure(state="disabled")
-            e.grid(row=0, column=i, padx=2, pady=5, sticky="ew")
-            entries.append(e)
+            if value is not None:
+                entry.insert(0, str(value))
+            entry.configure(state="disabled")
+            entry.grid(row=0, column=column, padx=2, pady=5, sticky="ew")
+            entries.append(entry)
 
-        # Stream field (column 5)
-        stream_value = str(data[6]) if len(data) > 6 and data[6] is not None else "None"
-        stream = ctk.CTkEntry(
-            row_frame, fg_color="gray20", text_color="white", height=30
-        )
-        stream.insert(0, stream_value)
-        stream.configure(state="disabled")
-        stream.grid(row=0, column=5, padx=2, pady=5, sticky="ew")
-        entries.append(stream)
-
-        # Photo field (column 6)
-        photo_value = data[5] if len(data) > 5 else None
+        # Photo field (column 7)
+        photo_value = data[6] if len(data) > 6 else None
         photo_path = ctk.StringVar(value=photo_value or "")
         photo_btn = ctk.CTkButton(
             row_frame,
@@ -2746,11 +3663,11 @@ class Dashboard(ctk.CTk):
             state="disabled",
             fg_color="gray",
         )
-        photo_btn.grid(row=0, column=6, padx=2, pady=5, sticky="ew")
+        photo_btn.grid(row=0, column=7, padx=2, pady=5, sticky="ew")
         entries.append(photo_path)  # Store the StringVar in entries list
 
         actions = ctk.CTkFrame(row_frame, fg_color="transparent")
-        actions.grid(row=0, column=7, padx=5)
+        actions.grid(row=0, column=8, padx=5)
 
         # DELETE (Red)
         # We use entries[0] because that's the ADM NO box we just created in the loop above
@@ -2764,7 +3681,15 @@ class Dashboard(ctk.CTk):
         del_btn.pack(side="left", padx=2)
 
         save_btn = ctk.CTkButton(
-            actions, text="Saved", width=40, state="disabled", fg_color="gray"
+            actions,
+            text="Saved",
+            width=40,
+            state="disabled",
+            fg_color="gray",
+            command=lambda: self.save_to_db(
+                entries[0], entries[2], entries[3], entries[4], entries[5],
+                entries[6], entries[7], save_btn, entries[1]
+            ),
         )
         save_btn.pack(side="left", padx=2)
 
@@ -2806,7 +3731,7 @@ class Dashboard(ctk.CTk):
 
             if row_widgets:
                 adm_text = row_widgets[0].get().lower()
-                name_text = row_widgets[1].get().lower()
+                name_text = row_widgets[2].get().lower()
 
                 # If the search matches either the ADM or the Name, show the row
                 if search_query in adm_text or search_query in name_text:
@@ -2816,130 +3741,38 @@ class Dashboard(ctk.CTk):
 
     def show_dashboard_workspace(self):
         """Resets the layout so the sidebar is visible again"""
-
-        # 1. BRING BACK THE SIDEBAR (Column 0)
         self.grid_columnconfigure(0, weight=0, minsize=250)
         self.grid_columnconfigure(1, weight=1)
         self.menu_panel.grid(row=0, column=0, sticky="nsew")
-
-        # 2. PUT CONTENT BACK IN COLUMN 1 (Don't let it span both columns)
         self.content_panel.grid(row=0, column=1, columnspan=1, sticky="nsew")
 
-        # 3. Clear the workspace
         for widget in self.content_panel.winfo_children():
             if widget != self.header_frame and widget != self.theme_frame:
                 widget.destroy()
 
-        # 4. Ensure header frame exists and recreate header buttons if needed
         if not hasattr(self, "header_frame") or not self.header_frame.winfo_exists():
-            # Recreate header frame if it was destroyed
-            self.header_frame = ctk.CTkFrame(self.content_panel, fg_color="transparent")
-            self.header_frame.pack(fill="x", pady=(10, 20))
-
-            # Recreate school name label
-            self.school_title_label = ctk.CTkLabel(
-                self.header_frame,
-                text=self.dynamic_school_name,
-                font=("Arial Bold", 26),
+            self.header_frame = ctk.CTkFrame(
+                self.content_panel, width=1, height=1, fg_color="transparent"
             )
-            self.school_title_label.pack(side="left", padx=10)
-
-            # Recreate page title label
-            self.page_title_label = ctk.CTkLabel(
-                self.header_frame,
-                text="/ HOMEPAGE",
-                font=("Arial Italic", 14),
-                text_color="gray",
-            )
-            self.page_title_label.pack(side="left", padx=10)
-
-        # Recreate header buttons frame
-        if hasattr(self, "header_buttons_frame"):
-            try:
-                self.header_buttons_frame.destroy()
-            except:
-                pass
-
-        self.header_buttons_frame = ctk.CTkFrame(
-            self.header_frame, fg_color="transparent"
-        )
-        self.header_buttons_frame.pack(side="right", padx=10)
-
-        # Recreate countdown label
-        self.countdown_label = ctk.CTkLabel(
-            self.header_buttons_frame,
-            text="⏳ -- days",
-            font=("Arial Bold", 16),
-            text_color="#10b981",
-        )
-        self.countdown_label.pack(pady=(0, 5))
-
-        # Update countdown timer to show actual value
-        self.update_countdown_timer()
-
-        # Recreate Promote Students button
-        self.btn_promote = ctk.CTkButton(
-            self.header_buttons_frame,
-            text="📈 Promote Students to Next Class",
-            command=lambda: self.require_auth(self.promote_students),
-            fg_color="#e67e22",
-            hover_color="#d35400",
-            height=35,
-            font=("Arial Bold", 12),
-        )
-        self.btn_promote.pack(pady=(0, 5))
-
-        # Recreate System Settings button
-        self.btn_system_settings = ctk.CTkButton(
-            self.header_buttons_frame,
-            text="⚙️ System Settings",
-            command=lambda: self.require_auth(self.open_system_settings),
-            fg_color="#34495e",
-            hover_color="#2c3e50",
-            height=35,
-            font=("Arial Bold", 12),
-        )
-        self.btn_system_settings.pack(pady=(0, 5))
-
-        # 5. Ensure theme frame exists and recreate if needed
+            self.header_frame.place_forget()
         if not hasattr(self, "theme_frame") or not self.theme_frame.winfo_exists():
-            # Recreate theme frame if it was destroyed
             self.theme_frame = ctk.CTkFrame(self.content_panel, fg_color="transparent")
-            self.theme_frame.pack(side="bottom", anchor="se", pady=(20, 0))
+            self.theme_frame.place_forget()
 
-            # Recreate theme toggle
-            self.theme_toggle = ctk.CTkSegmentedButton(
-                self.theme_frame,
-                values=["Light Mode", "Dark Mode"],
-                command=self.change_theme_event,
-            )
+        self.create_home_header_controls()
+        self.create_theme_controls()
 
-            # Match current system setting
-            current_mode = ctk.get_appearance_mode()
-            if current_mode == "Light":
-                self.theme_toggle.set("Light Mode")
-            else:
-                self.theme_toggle.set("Dark Mode")
-
-            self.theme_toggle.pack()
-
-        # 5. Show the Welcome Message
         self.work_area_label = ctk.CTkLabel(
             self.content_panel,
-            text="Welcome to Freeman Tech Solutions\nSelect a task from the sidebar to begin.",
+            text="Select a task from the sidebar to begin.",
             font=("Arial", 18),
             text_color="gray60",
         )
         self.work_area_label.pack(expand=True)
 
-        # 6. Reset button highlights
-        for btn in self.sidebar_buttons:
-            btn.configure(
-                fg_color="transparent",
-                text_color="gray",
-                border_width=0,
-                font=("Arial", 13),
-            )
+        self.update_countdown_timer()
+        self.reset_sidebar_highlights()
+        self.apply_dashboard_theme()
 
     def return_to_home(self):
         """Brings back the sidebar and resets the layout"""
@@ -2959,23 +3792,28 @@ class Dashboard(ctk.CTk):
 
     def highlight_button(self, active_button):
         """Resets all sidebar buttons to ghost-style and makes the active one pop out"""
-        for btn in self.sidebar_buttons:
-            # RESET: Non-selected buttons become semi-transparent/ghost
-            btn.configure(
-                fg_color="transparent",
-                text_color="gray",
-                font=("Arial", 13),
-                border_width=0,
-            )
+        self.reset_sidebar_highlights()
+        self.active_sidebar_button = active_button
 
         # ACTIVE: The selected button gets the 'Freeman Glow'
         active_button.configure(
-            fg_color="#1f6aa5",  # Solid Vibrant Blue
+            fg_color=self.dashboard_accent,
             text_color="white",  # Crisp White Text
             font=("Arial Bold", 14),  # Bigger and Bolder
             border_width=2,  # Thin border to make it sharp
-            border_color="#5dade2",  # Lighter blue border
+            border_color=self.get_hover_color(self.dashboard_accent),
         )
+
+    def reset_sidebar_highlights(self):
+        self.active_sidebar_button = None
+        for button in getattr(self, "sidebar_buttons", []):
+            if button.winfo_exists():
+                button.configure(
+                    fg_color="transparent",
+                    text_color="gray",
+                    font=("Arial", 13),
+                    border_width=0,
+                )
 
     def show_class_selection(self, action_type, button_object):
         # Trigger the visual highlight first
@@ -2996,6 +3834,7 @@ class Dashboard(ctk.CTk):
             height=500,
         )
         self.class_frame.pack(pady=40, expand=True)
+        self.class_selection_buttons = []
 
         # Add Create New Exam button at the top if viewing marks
         if action_type == "Viewing Marks":
@@ -3066,10 +3905,12 @@ class Dashboard(ctk.CTk):
                 text=class_name,
                 width=300,
                 height=45,
-                hover_color="#2ecc71",  # Glow green when hovering over a class
+                fg_color=self.dashboard_accent,
+                hover_color=self.get_hover_color(self.dashboard_accent),
                 command=lambda c=class_name: self.open_class_action(c, action_type),
             )
             btn.pack(pady=10)
+            self.class_selection_buttons.append(btn)
 
     def open_class_action(self, class_selected, action_type):
         # 1. Clear the old view completely (Class Selection Menu)
@@ -3143,6 +3984,9 @@ class Dashboard(ctk.CTk):
                 self.content_panel, self.db, class_selected
             )
             self.current_view.pack(fill="both", expand=True)
+
+        elif action_type == "KNEC CBA Tasks":
+            self.show_cba_subject_selection(class_selected)
 
         # This handles the Register button
         elif action_type == "Registering" or action_type == "Registration":
@@ -3285,18 +4129,22 @@ class Dashboard(ctk.CTk):
     def get_students_in_class(self, class_name):
         try:
             self.db.cursor().execute(
-                "SELECT adm_no, name, grade, stream FROM students WHERE grade = ? ORDER BY name",
+                "SELECT adm_no, name, grade, stream, photo FROM students WHERE grade = ? ORDER BY name",
                 (class_name,),
             )
-            students = [
-                {
+            students = []
+            for row in self.db.cursor().fetchall():
+                student_data = {
                     "adm_no": row[0],
                     "name": row[1],
                     "grade": row[2],
                     "stream": row[3] if row[3] else "none",
                 }
-                for row in self.db.cursor().fetchall()
-            ]
+                if len(row) > 4 and row[4]:
+                    student_data["photo"] = row[4]
+                else:
+                    student_data["photo"] = ""
+                students.append(student_data)
             return students
         except Exception as e:
             print(f"Error getting students: {e}")
@@ -3306,14 +4154,16 @@ class Dashboard(ctk.CTk):
         # Create a new toplevel window for the report form
         report_window = ctk.CTkToplevel(self)
         report_window.title(f"Report Form - {student['name']}")
-        report_window.geometry("1000x800")
+        report_window.geometry("1400x900")
+        report_window.state('zoomed')  # Full screen by default
 
-        # Main container
-        report_container = ctk.CTkScrollableFrame(report_window)
-        report_container.pack(fill="both", expand=True, padx=20, pady=20)
+        # Main container with portal gradient background
+        report_container = ctk.CTkScrollableFrame(report_window, fg_color="#f0f2f5")
+        report_container.pack(fill="both", expand=True, padx=0, pady=0)
 
         # Import report forms functionality
         from reportforms import ReportFormsView
+        from teacher_comments import build_subject_comment_indices
 
         # Create a temporary report forms instance to use its methods
         temp_report = ReportFormsView.__new__(ReportFormsView)
@@ -3322,15 +4172,16 @@ class Dashboard(ctk.CTk):
         temp_report.current_student = student
         temp_report.current_class = student["grade"]
         temp_report.school_config = self.load_school_config()
+        temp_report.subject_comment_indices = build_subject_comment_indices(
+            temp_report.school_config.get("subjects", {})
+        )
 
         # Create school header
         temp_report.create_school_header(report_container, student)
         # Create student info
         temp_report.create_student_info(report_container, student)
-        # Create current marks section
+        # Create unified marks section (includes current and previous exams)
         temp_report.create_current_marks_section(report_container, student)
-        # Create previous marks section
-        temp_report.create_previous_marks_section(report_container, student)
 
         # Action buttons
         button_frame = ctk.CTkFrame(report_container, fg_color="transparent")
@@ -3345,9 +4196,7 @@ class Dashboard(ctk.CTk):
             font=("Arial Bold", 14),
             height=45,
             width=200,
-            command=lambda: temp_report.print_report_pdf(
-                None, temp_report.generate_report_data(student)
-            ),
+            command=lambda: self.print_individual_report(temp_report, student),
         )
         print_btn.pack(side="left", padx=10)
 
@@ -3386,6 +4235,14 @@ class Dashboard(ctk.CTk):
         report_window.after(100, report_window.lift)
         report_window.after(100, report_window.focus_force)
 
+    def print_individual_report(self, report_view, student):
+        date_range = ask_opening_closing_dates(self)
+        if date_range is None:
+            return
+        report_data = report_view.generate_report_data(student)
+        if report_data:
+            report_view.print_report_pdf(None, report_data, date_range=date_range)
+
     def send_class_reports_to_portal(self, class_name):
         credentials = self.get_cloud_credentials()
         if not credentials:
@@ -3416,6 +4273,10 @@ class Dashboard(ctk.CTk):
         students = self.get_students_in_class(class_name)
         if not students:
             messagebox.showinfo("Info", "No students in this class.")
+            return
+
+        date_range = ask_opening_closing_dates(self)
+        if date_range is None:
             return
 
         from tkinter import filedialog
@@ -3451,8 +4312,10 @@ class Dashboard(ctk.CTk):
                 file_path = f"{save_dir}/{student_name.replace(' ', '_')}_{exam_title.replace(' ', '_')}.pdf"
 
                 # Call the print function with file_path
-                temp_report.print_report_pdf(None, report_data, file_path)
-                success_count += 1
+                if temp_report.print_report_pdf(
+                    None, report_data, file_path, date_range=date_range
+                ):
+                    success_count += 1
 
             except Exception as e:
                 print(f"Error generating PDF for {student.get('name', 'Unknown')}: {e}")
@@ -3557,6 +4420,10 @@ class Dashboard(ctk.CTk):
             "Grade 9",
         ]
 
+        date_range = ask_opening_closing_dates(self)
+        if date_range is None:
+            return
+
         from tkinter import filedialog
         from reportforms import ReportFormsView
 
@@ -3574,6 +4441,8 @@ class Dashboard(ctk.CTk):
                 continue
 
             total_students += len(students)
+            class_dir = os.path.join(save_dir, class_name)
+            os.makedirs(class_dir, exist_ok=True)
 
             for student in students:
                 try:
@@ -3594,11 +4463,16 @@ class Dashboard(ctk.CTk):
                     # Generate PDF
                     student_name = student.get("name", "")
                     exam_title = report_data.get("exam_title", "PERFORMANCE REPORT")
-                    file_path = f"{save_dir}/{class_name}_{student_name.replace(' ', '_')}_{exam_title.replace(' ', '_')}.pdf"
+                    file_path = os.path.join(
+                        class_dir,
+                        f"{student_name.replace(' ', '_')}_{exam_title.replace(' ', '_')}.pdf",
+                    )
 
                     # Call the print function with file_path
-                    temp_report.print_report_pdf(None, report_data, file_path)
-                    total_success += 1
+                    if temp_report.print_report_pdf(
+                        None, report_data, file_path, date_range=date_range
+                    ):
+                        total_success += 1
 
                 except Exception as e:
                     print(
@@ -3804,13 +4678,11 @@ class Dashboard(ctk.CTk):
         sys.exit()  # Tells Python to stop entirely
 
     def change_theme_event(self, selected_mode):
-        """Handles the user changing the theme via the button from the drawing"""
-        if selected_mode == "Light Mode":
-            ctk.set_appearance_mode("Light")
-            print("Switched to Light Mode")
-        else:
-            ctk.set_appearance_mode("Dark")
-            print("Switched to Dark Mode")
+        """Apply and persist the selected dashboard appearance mode."""
+        self.dashboard_appearance = "Light" if selected_mode == "Light Mode" else "Dark"
+        ctk.set_appearance_mode(self.dashboard_appearance)
+        self.save_school_config({"dashboard_appearance": self.dashboard_appearance})
+        self.apply_dashboard_theme()
 
     def dummy_event(self):
         """Temporary function so the buttons have commands without crashing"""
@@ -4254,17 +5126,22 @@ class Dashboard(ctk.CTk):
         """Show the update button when updates are available"""
         if (
             hasattr(self, "btn_check_updates")
+            and self.btn_check_updates.winfo_exists()
             and not self.btn_check_updates.winfo_ismapped()
         ):
-            self.btn_check_updates.pack(pady=(0, 5))
+            self.btn_check_updates.place(
+                relx=1, rely=0, anchor="ne", x=-12, y=160
+            )
+            self.btn_check_updates.lift()
 
     def hide_update_button(self):
         """Hide the update button when no updates are available"""
         if (
             hasattr(self, "btn_check_updates")
+            and self.btn_check_updates.winfo_exists()
             and self.btn_check_updates.winfo_ismapped()
         ):
-            self.btn_check_updates.pack_forget()
+            self.btn_check_updates.place_forget()
 
     def check_for_updates(self):
         """Check for system updates (manual check)"""
@@ -4449,12 +5326,22 @@ class Dashboard(ctk.CTk):
 
             # Check if license has expired (end_date is in the past)
             if time_remaining.total_seconds() <= 0:
-                # System closed
+                # System closed - initialize payment settings
                 self.countdown_label.configure(
                     text="⚠️ SYSTEM CLOSED", text_color="#e74c3c"
                 )
                 self.disable_system_buttons()
                 self.show_payment_message()
+                
+                # Initialize payment settings with default values if not already set
+                payment_settings = self.db.get_payment_settings()
+                if not payment_settings:
+                    self.db.save_payment_settings(
+                        full_payment_amount=2500,
+                        payment_percentage=70.0,
+                        payment_option='partial',
+                        system_locked=1
+                    )
             else:
                 # Update countdown with color coding
                 if remaining_days > 10:

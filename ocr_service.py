@@ -4,28 +4,37 @@ import numpy as np
 from PIL import Image
 import re
 import os
+import sys
 from typing import List, Dict, Optional, Tuple
 
 class OCRService:
     """Service for OCR-based student registration from images"""
-    
+
     def __init__(self):
         # Set Tesseract path for Windows (adjust if needed)
         if os.name == 'nt':  # Windows
+            # Handle both development and executable environments
+            if getattr(sys, 'frozen', False):
+                # Running as executable - use sys._MEIPASS for bundled resources
+                base_dir = sys._MEIPASS
+            else:
+                # Running as script
+                base_dir = os.path.dirname(os.path.realpath(__file__))
+
             # Try multiple possible Tesseract locations
             possible_paths = [
                 r'C:\Program Files\Tesseract-OCR\tesseract.exe',
                 r'C:\Program Files (x86)\Tesseract-OCR\tesseract.exe',
-                os.path.join(os.path.dirname(os.path.realpath(__file__)), 'tesseract', 'tesseract.exe'),
-                os.path.join(os.path.dirname(os.path.realpath(__file__)), 'tesseract.exe')
+                os.path.join(base_dir, 'tesseract', 'tesseract.exe'),
+                os.path.join(base_dir, 'tesseract.exe')
             ]
-            
+
             tesseract_path = None
             for path in possible_paths:
                 if os.path.exists(path):
                     tesseract_path = path
                     break
-            
+
             if tesseract_path:
                 pytesseract.pytesseract.tesseract_cmd = tesseract_path
                 print(f"Tesseract found at: {tesseract_path}")

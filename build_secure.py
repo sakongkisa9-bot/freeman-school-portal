@@ -25,6 +25,7 @@ DATA_FILES = [
     ("update_config.json", "."),
     ("version.json", "."),
     ("mpesa_config.json", "."),
+    ("file_loader.py", "."),
 ]
 
 # Main entry point
@@ -206,6 +207,9 @@ def run_pyinstaller():
     hidden_imports = [
         "customtkinter",
         "PIL",
+        "PIL.Image",
+        "PIL.ImageDraw",
+        "PIL.ImageFont",
         "sqlite3",
         "flask",
         "werkzeug",
@@ -215,6 +219,8 @@ def run_pyinstaller():
         "license_manager",
         "security",
         "database",
+        "teacher_comments",
+        "fpdf",  # Required for PDF generation in reportforms
     ]
     
     for imp in hidden_imports:
@@ -260,6 +266,9 @@ def build_simple():
     hidden_imports = [
         "customtkinter",
         "PIL",
+        "PIL.Image",
+        "PIL.ImageDraw",
+        "PIL.ImageFont",
         "sqlite3",
         "flask",
         "werkzeug",
@@ -269,6 +278,8 @@ def build_simple():
         "license_manager",
         "security",
         "database",
+        "teacher_comments",
+        "fpdf",  # Required for PDF generation in reportforms
     ]
     
     for imp in hidden_imports:

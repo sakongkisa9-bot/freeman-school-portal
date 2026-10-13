@@ -3,10 +3,10 @@
 
 a = Analysis(
     ['main.py'],
-    pathex=[],
+    pathex=['C:/Users/sakon/Documents/FreemanTech_Project (2)/FreemanTech_Project/dist_obfuscated'],
     binaries=[],
     datas=[('assets', 'assets'), ('templates', 'templates'), ('static', 'static'), ('school_config.json', '.'), ('notification_config.json', '.'), ('update_config.json', '.'), ('version.json', '.'), ('mpesa_config.json', '.'), ('tesseract', 'tesseract')],
-    hiddenimports=['customtkinter', 'PIL', 'sqlite3', 'flask', 'werkzeug', 'requests', 'firebase_admin', 'grading_logic', 'license_manager', 'security', 'database', 'pytesseract', 'cv2', 'ocr_student_dialog', 'ocr_service', 'cloud_service', 'cloud_portal_v2', 'notification_service', 'fcm_service', 'mpesa_service', 'update_manager', 'newsletter', 'network_manager', 'hotspot_server', 'teachers_linked', 'reportforms', 'wizard', 'splash', 'ui_marksheet_playgroup', 'ui_marksheet_pp1', 'ui_marksheet_pp2', 'ui_marksheet_lower', 'ui_marksheet_primary', 'ui_marksheet_junior', 'ui_summary'],
+    hiddenimports=['customtkinter', 'PIL', 'PIL.Image', 'PIL.ImageDraw', 'PIL.ImageFont', 'sqlite3', 'flask', 'werkzeug', 'requests', 'firebase_admin', 'grading_logic', 'license_manager', 'security', 'database', 'pytesseract', 'cv2', 'ocr_student_dialog', 'ocr_service', 'cloud_service', 'cloud_portal_v2', 'notification_service', 'fcm_service', 'mpesa_service', 'mpesa_callback_server', 'update_manager', 'newsletter', 'network_manager', 'hotspot_server', 'teachers_linked', 'reportforms', 'teacher_comments', 'wizard', 'splash', 'file_loader', 'ui_marksheet_playgroup', 'ui_marksheet_pp1', 'ui_marksheet_pp2', 'ui_marksheet_lower', 'ui_marksheet_primary', 'ui_marksheet_junior', 'ui_summary', 'fpdf'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

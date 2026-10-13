@@ -8,7 +8,7 @@ app = Flask(__name__)
 # --- PATH CONFIGURATION ---
 # We use the same absolute path logic as the desktop app to ensure they share the file
 PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))
-DB_PATH = os.path.join(PROJECT_DIR, "freeman_data.db")
+DB_PATH = os.path.join(PROJECT_DIR, "freeman_school.db")
 JSON_PATH = os.path.join(PROJECT_DIR, "school_config.json")
 GRADE_OPTIONS = [
     "Play group", "Pre-Primary 1", "Pre-Primary 2",

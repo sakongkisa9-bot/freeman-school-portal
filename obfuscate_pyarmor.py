@@ -8,12 +8,13 @@ import sys
 import subprocess
 import shutil
 from pathlib import Path
+import time
 
 # Configuration
 PROJECT_DIR = Path(__file__).parent
 OBFUSCATED_DIR = PROJECT_DIR / "dist_obfuscated"
 PYARMOR_PATH = Path(
-    "C:/Users/HomePC/AppData/Local/Python/pythoncore-3.14-64/Scripts/pyarmor.exe"
+    "C:/Users/sakon/AppData/Local/Python/pythoncore-3.14-64/Scripts/pyarmor.exe"
 )
 
 # Files to obfuscate - ALL Python files in the project
@@ -36,16 +37,19 @@ FILES_TO_OBFUSCATE = [
     "notification_service.py",
     "fcm_service.py",
     "mpesa_service.py",
+    "mpesa_callback_server.py",  # CRITICAL: Missing in original
     "update_manager.py",
     "newsletter.py",
     "network_manager.py",
     "hotspot_server.py",
     "teachers_linked.py",
     "reportforms.py",
+    "teacher_comments.py",
     "wizard.py",
     "splash.py",
     "ocr_student_dialog.py",
     "ocr_service.py",
+    "file_loader.py",
     # Additional utility files
     "pyarmor_config.py",
 ]
@@ -119,7 +123,7 @@ def run_pyarmor_obfuscation():
         # Use PyArmor project-based obfuscation to handle dependencies
         print("Initializing PyArmor project...")
         result = subprocess.run(
-            [str(PYARMOR_PATH), "init", "--src", ".", "main.py"],
+            [str(PYARMOR_PATH), "init", "--src", "."],
             capture_output=True,
             text=True,
         )
@@ -169,12 +173,14 @@ def simple_obfuscation():
         simple_files = [
             "license_manager.py",
             "security.py",
+            "file_loader.py",
             # 'database.py',  # EXCLUDED - imports notification_service, PyArmor breaks import handling
             # 'grading_logic.py',  # EXCLUDED - used by marksheet files, PyArmor breaks import handling
             # 'cloud_service.py',  # EXCLUDED - used by marksheet files, PyArmor breaks import handling
             # 'notification_service.py',  # EXCLUDED - PyArmor breaks path handling
             "fcm_service.py",
             "mpesa_service.py",
+            "mpesa_callback_server.py",  # CRITICAL: Missing in original
             "update_manager.py",
             "network_manager.py",
             "hotspot_server.py",
@@ -237,6 +243,18 @@ def create_obfuscated_executable():
     os.chdir(OBFUSCATED_DIR)
 
     try:
+        source_reportforms = PROJECT_DIR / "reportforms.py"
+        packaged_reportforms = OBFUSCATED_DIR / "reportforms.py"
+        if (
+            not source_reportforms.is_file()
+            or not packaged_reportforms.is_file()
+            or source_reportforms.read_bytes() != packaged_reportforms.read_bytes()
+        ):
+            print("ERROR: Staged reportforms.py does not match the project source.")
+            return False
+
+        print(f"Packaging report form from: {packaged_reportforms.resolve()}")
+
         # PyInstaller command for obfuscated files
         pyinstaller_cmd = [
             sys.executable,
@@ -244,6 +262,9 @@ def create_obfuscated_executable():
             "PyInstaller",
             "--onefile",
             "--windowed",
+            "--noconfirm",
+            "--paths",
+            str(OBFUSCATED_DIR),
             "--name",
             "FreemanSchoolPortal_Secure",
             "--icon",
@@ -273,6 +294,9 @@ def create_obfuscated_executable():
         hidden_imports = [
             "customtkinter",
             "PIL",
+            "PIL.Image",
+            "PIL.ImageDraw",
+            "PIL.ImageFont",
             "sqlite3",
             "flask",
             "werkzeug",
@@ -291,14 +315,17 @@ def create_obfuscated_executable():
             "notification_service",
             "fcm_service",
             "mpesa_service",
+            "mpesa_callback_server",  # CRITICAL: Missing in original
             "update_manager",
             "newsletter",
             "network_manager",
             "hotspot_server",
             "teachers_linked",
             "reportforms",
+            "teacher_comments",
             "wizard",
             "splash",
+            "file_loader",
             "ui_marksheet_playgroup",
             "ui_marksheet_pp1",
             "ui_marksheet_pp2",
@@ -306,6 +333,7 @@ def create_obfuscated_executable():
             "ui_marksheet_primary",
             "ui_marksheet_junior",
             "ui_summary",
+            "fpdf",  # Required for PDF generation in reportforms
         ]
 
         for imp in hidden_imports:
@@ -315,14 +343,20 @@ def create_obfuscated_executable():
         pyinstaller_cmd.append("main.py")
 
         print("Running PyInstaller on obfuscated files...")
+        build_started = time.time()
         result = subprocess.run(pyinstaller_cmd, capture_output=True, text=True)
 
         if result.returncode != 0:
             print(f"PyInstaller failed: {result.stderr}")
             return False
 
-        print("Executable created successfully!")
-        print(f"Location: {OBFUSCATED_DIR / 'dist' / 'FreemanSchoolPortal_Secure.exe'}")
+        executable_path = OBFUSCATED_DIR / "dist" / "FreemanSchoolPortal_Secure.exe"
+        if not executable_path.is_file() or executable_path.stat().st_mtime < build_started:
+            print(f"ERROR: PyInstaller did not produce a fresh executable at {executable_path}")
+            return False
+
+        print("Executable created and verified successfully!")
+        print(f"Location: {executable_path.resolve()}")
         return True
 
     except Exception as e:
@@ -349,7 +383,9 @@ def main():
 
     if success:
         # Create executable
-        create_obfuscated_executable()
+        if not create_obfuscated_executable():
+            print("Executable build failed. See the errors above.")
+            sys.exit(1)
         print("\n" + "=" * 60)
         print("Secure obfuscated build complete!")
         print("=" * 60)
