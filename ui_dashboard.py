@@ -2482,7 +2482,7 @@ class Dashboard(ctk.CTk):
     def get_local_student_list(self):
         try:
             self.db.cursor().execute(
-                "SELECT adm_no, name, grade, gender, phone, photo, stream FROM students ORDER BY grade, adm_no"
+                "SELECT adm_no, name, grade, gender, phone, photo, stream, assessment_number FROM students ORDER BY grade, adm_no"
             )
             rows = self.db.cursor().fetchall()
             return [
@@ -2494,6 +2494,7 @@ class Dashboard(ctk.CTk):
                     "phone": row[4] or "",
                     "photo": row[5] if len(row) > 5 else None,
                     "stream": row[6] if len(row) > 6 else "None",
+                    "assessment_number": row[7] if len(row) > 7 else "",
                 }
                 for row in rows
                 if row[0] and row[1]

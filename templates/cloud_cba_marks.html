@@ -42,6 +42,12 @@
         .message { padding: 10px 12px; border-left: 4px solid #d69c48; background: #26312b; }
         .message.success { border-color: #4daf86; }
         .message.danger { border-color: #d26060; }
+        .roster-tools { display: flex; align-items: center; gap: 12px; margin: 16px 0; }
+        .search-input {
+            width: min(100%, 420px); padding: 11px 13px;
+            background: #0d1513; color: white; border: 1px solid #52665f; border-radius: 5px;
+        }
+        .roster-count { color: #a9beb5; font-size: 13px; }
         .table-wrap { overflow-x: auto; border: 1px solid #354943; background: #17221f; }
         table { width: 100%; min-width: 850px; border-collapse: collapse; }
         th, td { border-bottom: 1px solid #354943; padding: 10px; text-align: left; }
@@ -50,12 +56,17 @@
         th:first-child { background: #20332d; }
         .student-name { min-width: 190px; font-weight: 650; }
         .adm { color: #93c9b2; white-space: nowrap; }
-        .task-col { min-width: 150px; }
-        .range { display: block; margin-top: 4px; color: #9fb7ad; font-size: 11px; line-height: 1.5; }
+        .task-col { min-width: 135px; }
+        .range { display: block; margin-top: 4px; color: #9fb7ad; font-size: 11px; line-height: 1.4; }
         input[type=number] {
             width: 100%; min-width: 80px; padding: 9px;
             background: #0d1513; color: white; border: 1px solid #52665f; border-radius: 4px;
         }
+        input.score-input {
+            width: 100%; min-width: 80px; padding: 9px;
+            background: #0d1513; color: white; border: 1px solid #52665f; border-radius: 4px;
+        }
+        input.score-input:focus, .search-input:focus { outline: 2px solid #62b58f; border-color: transparent; }
         .save-row { display: flex; justify-content: flex-end; padding: 16px 0; }
         button.save { border-color: #5c9c83; background: #28735b; min-width: 190px; }
         @media (max-width: 650px) {
@@ -87,6 +98,11 @@
         {% endwith %}
     </div>
 
+    <div class="roster-tools">
+        <input id="studentSearch" class="search-input" type="search" placeholder="Search learner, assessment number, or ADM">
+        <span class="roster-count" id="rosterCount"></span>
+    </div>
+
     <form method="post" action="{{ url_for('enter_cba_marks', grade=grade, subject=subject) }}">
         <div class="table-wrap">
             <table>
@@ -97,28 +113,24 @@
                         {% for task in tasks %}
                         <th class="task-col">
                             {{ task.name }}
-                            <span class="range">
-                                {% for level, criterion in task.ranges.items() %}
-                                {{ level }}: {{ describe_criterion(criterion, task.unit) }}{% if not loop.last %}<br>{% endif %}
-                                {% endfor %}
-                            </span>
+                            {% set bounds = task_bounds[task.name] %}
+                            <span class="range">Min {{ bounds[0] }} · Max {% if bounds[1] is none %}No limit{% else %}{{ bounds[1] }}{% endif %}{% if task.unit %} {{ task.unit }}{% endif %}</span>
                         </th>
                         {% endfor %}
                     </tr>
                 </thead>
                 <tbody>
                     {% for student in students %}
-                    <tr>
+                    <tr class="student-row" data-search="{{ student.student_name }} {{ student.adm_no }} {{ student.assessment_number or '' }}">
                         <td class="adm">{{ student.adm_no }}</td>
                         <td class="student-name">{{ student.student_name }}</td>
                         {% for task in tasks %}
-                        {% set bounds = task_bounds[task.name] %}
                         <td>
-                            <input type="number"
+                            <input type="text" inputmode="numeric" autocomplete="off" class="score-input"
                                    name="score_{{ student.id }}_{{ loop.index0 }}"
-                                   min="{{ bounds[0] }}"{% if bounds[1] is not none %} max="{{ bounds[1] }}"{% endif %} step="1"
+                                   data-min="{{ task_bounds[task.name][0] }}" data-max="{{ task_bounds[task.name][1] if task_bounds[task.name][1] is not none else '' }}"
                                    value="{{ saved_scores.get(student.adm_no, {}).get(task.name, '') }}"
-                                   aria-label="{{ student.student_name }} {{ task.name }} raw score">
+                                   placeholder="Score / AB" aria-label="{{ student.student_name }} {{ task.name }} raw score">
                         </td>
                         {% endfor %}
                     </tr>
@@ -129,5 +141,43 @@
         <div class="save-row"><button class="save" type="submit">Save CBA Scores</button></div>
     </form>
 </main>
+<script>
+    const searchInput = document.getElementById("studentSearch");
+    const studentRows = Array.from(document.querySelectorAll(".student-row"));
+    const rosterCount = document.getElementById("rosterCount");
+
+    function filterRoster() {
+        const query = searchInput.value.trim().toLocaleLowerCase();
+        let visibleCount = 0;
+        for (const row of studentRows) {
+            const matches = row.dataset.search.toLocaleLowerCase().includes(query);
+            row.hidden = !matches;
+            if (matches) visibleCount += 1;
+        }
+        rosterCount.textContent = `${visibleCount} of ${studentRows.length} learners`;
+    }
+
+    searchInput.addEventListener("input", filterRoster);
+    filterRoster();
+
+    document.querySelector("form").addEventListener("submit", event => {
+        for (const input of document.querySelectorAll(".score-input")) {
+            const value = input.value.trim().toUpperCase();
+            if (!value || value === "AB") continue;
+            const score = Number(value);
+            const minimum = Number(input.dataset.min);
+            const maximum = input.dataset.max === "" ? null : Number(input.dataset.max);
+            if (!Number.isInteger(score) || score < minimum || (maximum !== null && score > maximum)) {
+                event.preventDefault();
+                input.focus();
+                input.setCustomValidity(`Enter a whole number from ${minimum}${maximum === null ? " and above" : ` to ${maximum}`}, or AB.`);
+                input.reportValidity();
+                return;
+            }
+            input.setCustomValidity("");
+            input.value = value;
+        }
+    });
+</script>
 </body>
 </html>

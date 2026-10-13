@@ -61,6 +61,12 @@ class CBALogicTests(unittest.TestCase):
             {"level": "Level 4", "points": 4},
         )
 
+    def test_preserves_absent_marker_for_printout(self):
+        self.assertEqual(
+            convert_raw_score(self.task, "AB"),
+            {"level": "AB", "points": None},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

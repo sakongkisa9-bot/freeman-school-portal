@@ -73,6 +73,8 @@ def validate_tasks(tasks):
 
 
 def convert_raw_score(task, raw_score):
+    if isinstance(raw_score, str) and raw_score.strip().upper() == "AB":
+        return {"level": "AB", "points": None}
     try:
         score = int(raw_score)
     except (TypeError, ValueError):
