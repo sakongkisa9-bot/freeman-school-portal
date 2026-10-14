@@ -86,6 +86,7 @@ class FreemanDB:
             migrations = [
                 ("1.0.0", self.migration_1_0_0),
                 ("1.0.1", self.migration_1_0_1),
+                ("1.0.2", self.migration_1_0_2),
             ]
             
             # Run pending migrations
@@ -130,6 +131,14 @@ class FreemanDB:
         except:
             pass  # Column might already exist
 
+    def migration_1_0_2(self):
+        """Add KNEC assessment numbers to student records."""
+        try:
+            self._cursor.execute("ALTER TABLE students ADD COLUMN assessment_number TEXT")
+            self.conn.commit()
+        except:
+            pass  # Column might already exist
+
     def cursor(self):
         """This allows self.db.cursor() to work in your other files!"""
         # Return the internal cursor to avoid creating new cursors that might not see committed data
@@ -145,7 +154,8 @@ class FreemanDB:
                 gender TEXT,
                 phone TEXT,
                 photo TEXT,
-                stream TEXT
+                stream TEXT,
+                assessment_number TEXT
             )
         ''')
         # Add photo column if it doesn't exist (for existing databases)
@@ -162,7 +172,7 @@ class FreemanDB:
             pass
         self.conn.commit()
 
-    def add_student(self, adm, name, grade, gender, phone, photo=None, stream=None, check_footprint=True):
+    def add_student(self, adm, name, grade, gender, phone, photo=None, stream=None, check_footprint=True, assessment_number=None):
         """Add student with optional footprint check for anti-cheating"""
         try:
             # Get school name for alert
@@ -217,9 +227,9 @@ class FreemanDB:
             
             # Use public cursor method for consistency
             self._cursor.execute('''
-                INSERT OR REPLACE INTO students (adm_no, name, grade, gender, phone, photo, stream)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (adm, name, grade, gender, phone, photo, stream or "None"))
+                INSERT OR REPLACE INTO students (adm_no, name, grade, gender, phone, photo, stream, assessment_number)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (adm, name, grade, gender, phone, photo, stream or "None", assessment_number or None))
 
             self.conn.commit()
             print(f"Successfully committed {name} to {grade} (Database: {DB_PATH})")
@@ -228,6 +238,20 @@ class FreemanDB:
             print(f"Database Error: {e}")
             self.conn.rollback()
             return False
+
+    def next_admission_number(self):
+        """Return the next numeric admission number while preserving existing padding."""
+        self._cursor.execute("SELECT adm_no FROM students")
+        numeric_admissions = [
+            str(row[0]).strip()
+            for row in self._cursor.fetchall()
+            if row[0] is not None and str(row[0]).strip().isdigit()
+        ]
+        if not numeric_admissions:
+            return "1"
+        next_number = max(int(admission) for admission in numeric_admissions) + 1
+        width = max(len(admission) for admission in numeric_admissions)
+        return str(next_number).zfill(width)
 
     def delete_student(self, adm_no, record_footprint=True):
         """Delete student and optionally record in footprint for anti-cheating"""

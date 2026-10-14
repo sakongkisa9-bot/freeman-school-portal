@@ -5,9 +5,12 @@ from ui_marksheet_pp1 import PP1MarkSheetView
 from ui_marksheet_pp2 import PP2MarkSheetView
 from ui_marksheet_lower import LowerMarkSheetView
 from ui_summary import ClassSummaryView
-from teachers_linked import TeachersLinkedView
+from teachers_linked import TeachersLinkedView, get_subjects_for_class
+from cba_task_manager import CBATaskManager
+from cba_results_view import CBAResultsView
 from reportforms import ReportFormsView, ask_opening_closing_dates
 from ocr_student_dialog import show_ocr_dialog
+from excel_student_import import read_student_rows
 import os
 import sys
 import json
@@ -190,6 +193,15 @@ class Dashboard(ctk.CTk):
         )
         self.btn_mark_sheets.pack(pady=btn_pady)
 
+        self.btn_knec_cba = ctk.CTkButton(
+            self.menu_panel,
+            text="KNEC CBA",
+            width=btn_width,
+            height=btn_height,
+            command=lambda: self.require_auth(self.open_cba_menu),
+        )
+        self.btn_knec_cba.pack(pady=btn_pady)
+
         self.btn_previous_exams = ctk.CTkButton(
             self.menu_panel,
             text="Previous Exams",
@@ -265,6 +277,7 @@ class Dashboard(ctk.CTk):
         self.sidebar_buttons = [
             self.btn_register,
             self.btn_mark_sheets,
+            self.btn_knec_cba,
             self.btn_previous_exams,
             self.btn_summary,
             self.btn_teachers,
@@ -2470,7 +2483,7 @@ class Dashboard(ctk.CTk):
     def get_local_student_list(self):
         try:
             self.db.cursor().execute(
-                "SELECT adm_no, name, grade, gender, phone, photo, stream FROM students ORDER BY grade, adm_no"
+                "SELECT adm_no, name, grade, gender, phone, photo, stream, assessment_number FROM students ORDER BY grade, adm_no"
             )
             rows = self.db.cursor().fetchall()
             return [
@@ -2482,6 +2495,7 @@ class Dashboard(ctk.CTk):
                     "phone": row[4] or "",
                     "photo": row[5] if len(row) > 5 else None,
                     "stream": row[6] if len(row) > 6 else "None",
+                    "assessment_number": row[7] if len(row) > 7 else "",
                 }
                 for row in rows
                 if row[0] and row[1]
@@ -2782,10 +2796,10 @@ class Dashboard(ctk.CTk):
 
         self.all_student_rows.append(row_frame)
 
-        # Configure grid columns for 7 columns (5 entries + photo + stream + actions)
-        for i in range(7):
+        # Configure columns for student details, photo, and actions
+        for i in range(8):
             row_frame.grid_columnconfigure(i, weight=1, uniform="column_group")
-        row_frame.grid_columnconfigure(7, weight=0, minsize=150)
+        row_frame.grid_columnconfigure(8, weight=0, minsize=150)
 
         # 3. Entry Boxes (White Background & Black Text for Clarity)
         entry_style = {"fg_color": "white", "text_color": "black", "height": 30}
@@ -2793,21 +2807,26 @@ class Dashboard(ctk.CTk):
         adm = ctk.CTkEntry(row_frame, placeholder_text="ADM", **entry_style)
         adm.grid(row=0, column=0, padx=2, pady=5, sticky="ew")
 
+        assessment_number = ctk.CTkEntry(
+            row_frame, placeholder_text="Assessment No.", **entry_style
+        )
+        assessment_number.grid(row=0, column=1, padx=2, pady=5, sticky="ew")
+
         name = ctk.CTkEntry(row_frame, placeholder_text="Full Name", **entry_style)
-        name.grid(row=0, column=1, padx=2, pady=5, sticky="ew")
+        name.grid(row=0, column=2, padx=2, pady=5, sticky="ew")
 
         grade = ctk.CTkEntry(row_frame, placeholder_text="Grade", **entry_style)
-        grade.grid(row=0, column=2, padx=2, pady=5, sticky="ew")
+        grade.grid(row=0, column=3, padx=2, pady=5, sticky="ew")
 
         gender = ctk.CTkEntry(row_frame, placeholder_text="Gender", **entry_style)
-        gender.grid(row=0, column=3, padx=2, pady=5, sticky="ew")
+        gender.grid(row=0, column=4, padx=2, pady=5, sticky="ew")
 
         phone = ctk.CTkEntry(row_frame, placeholder_text="Phone", **entry_style)
-        phone.grid(row=0, column=4, padx=2, pady=5, sticky="ew")
+        phone.grid(row=0, column=5, padx=2, pady=5, sticky="ew")
 
         # Stream field
         stream = ctk.CTkEntry(row_frame, placeholder_text="Stream", **entry_style)
-        stream.grid(row=0, column=5, padx=2, pady=5, sticky="ew")
+        stream.grid(row=0, column=6, padx=2, pady=5, sticky="ew")
 
         # Photo upload button
         photo_path = ctk.StringVar()
@@ -2818,11 +2837,11 @@ class Dashboard(ctk.CTk):
             height=30,
             command=lambda: self.upload_student_photo(photo_path, photo_btn),
         )
-        photo_btn.grid(row=0, column=6, padx=2, pady=5, sticky="ew")
+        photo_btn.grid(row=0, column=7, padx=2, pady=5, sticky="ew")
 
         # 4. The Button Actions Frame (This holds Save, Edit, Delete together)
         actions_frame = ctk.CTkFrame(row_frame, fg_color="transparent")
-        actions_frame.grid(row=0, column=7, padx=5)
+        actions_frame.grid(row=0, column=8, padx=5)
 
         # SAVE (Green)
         save_btn = ctk.CTkButton(
@@ -2831,7 +2850,8 @@ class Dashboard(ctk.CTk):
             width=30,
             fg_color="green",
             command=lambda: self.save_to_db(
-                adm, name, grade, gender, phone, stream, photo_path, save_btn
+                adm, name, grade, gender, phone, stream, photo_path, save_btn,
+                assessment_number,
             ),
         )
         save_btn.pack(side="left", padx=2)
@@ -2845,6 +2865,7 @@ class Dashboard(ctk.CTk):
             fg_color="#1f538d",
             command=lambda e=[
                 adm,
+                assessment_number,
                 name,
                 grade,
                 gender,
@@ -2880,9 +2901,9 @@ class Dashboard(ctk.CTk):
 
     def unlock_row_for_edit(self, entries, save_button, photo_btn=None):
         """Unlocks a row and RE-LINKS the save button to the database function"""
-        # Unlock all entry fields (first 6 are CTkEntry, last is StringVar for photo)
+        # Unlock all entry fields; the final item is the photo-path variable.
         for i, entry in enumerate(entries):
-            if i < 6 and isinstance(entry, ctk.CTkEntry):
+            if i < 7 and isinstance(entry, ctk.CTkEntry):
                 entry.configure(state="normal", fg_color="white", text_color="black")
 
         # Enable photo button if it exists
@@ -2890,7 +2911,7 @@ class Dashboard(ctk.CTk):
             photo_btn.configure(
                 state="normal",
                 fg_color="#1f538d",
-                command=lambda: self.upload_student_photo(entries[6], photo_btn),
+                command=lambda: self.upload_student_photo(entries[7], photo_btn),
             )
 
         # We must re-configure the command so it knows to save again when clicked
@@ -2900,13 +2921,14 @@ class Dashboard(ctk.CTk):
             fg_color="green",
             command=lambda: self.save_to_db(
                 entries[0],
-                entries[1],
                 entries[2],
                 entries[3],
                 entries[4],
                 entries[5],
                 entries[6],
+                entries[7],
                 save_button,
+                entries[1],
             ),
         )
 
@@ -2920,9 +2942,11 @@ class Dashboard(ctk.CTk):
         stream_entry,
         photo_path_var,
         btn,
+        assessment_entry=None,
     ):
         adm = adm_entry.get()
         name = name_entry.get()
+        assessment_number = assessment_entry.get() if assessment_entry else ""
         gender = gender_entry.get()
         phone = phone_entry.get()
         stream = stream_entry.get() if stream_entry else "None"
@@ -2944,15 +2968,31 @@ class Dashboard(ctk.CTk):
         }
         grade = grade_mapping.get(current_class, current_class)
 
-        if not adm or not name:
-            messagebox.showwarning("Input Error", "ADM and Name are required!")
+        if not adm:
+            adm = self.next_registry_admission_number()
+            adm_entry.delete(0, "end")
+            adm_entry.insert(0, adm)
+
+        if not name:
+            messagebox.showwarning("Input Error", "Student name is required!")
             return
 
         try:
             # 1. Save to Database
-            self.db.add_student(
-                adm, name, grade, gender, phone, photo, stream, check_footprint=True
+            saved = self.db.add_student(
+                adm,
+                name,
+                grade,
+                gender,
+                phone,
+                photo,
+                stream,
+                check_footprint=True,
+                assessment_number=assessment_number,
             )
+            if not saved:
+                messagebox.showerror("Database Error", "The student could not be saved.")
+                return
 
             # 2. Lock the Row visually
             for entry in [
@@ -2962,6 +3002,7 @@ class Dashboard(ctk.CTk):
                 gender_entry,
                 phone_entry,
                 stream_entry,
+                assessment_entry,
             ]:
                 if entry:
                     entry.configure(
@@ -3010,7 +3051,7 @@ class Dashboard(ctk.CTk):
                                 save_btn = sub_widget
 
             # 2. Re-link the Save button so it works after being unlocked
-            if save_btn and len(row_entries) >= 6:
+            if save_btn and len(row_entries) >= 7:
                 # Create a StringVar for photo path if not exists
                 photo_path = ctk.StringVar()
                 save_btn.configure(
@@ -3018,7 +3059,7 @@ class Dashboard(ctk.CTk):
                     text="✓",
                     fg_color="green",
                     command=lambda r=row_entries, p=photo_path, pb=photo_btn, b=save_btn: self.save_to_db(
-                        r[0], r[1], r[2], r[3], r[4], r[5], p, b
+                        r[0], r[2], r[3], r[4], r[5], r[6], p, b, r[1]
                     ),
                 )
         print("All rows unlocked for editing.")
@@ -3202,13 +3243,14 @@ class Dashboard(ctk.CTk):
             fill="x", pady=(0, 10)
         )  # pady adds space before the first student
 
-        # Match the column logic of your rows (7 columns + actions)
-        for i in range(7):
+        # Match the column logic of your rows (8 columns + actions)
+        for i in range(8):
             header_frame.grid_columnconfigure(i, weight=1, uniform="column_group")
-        header_frame.grid_columnconfigure(7, weight=0, minsize=150)
+        header_frame.grid_columnconfigure(8, weight=0, minsize=150)
 
         cols = [
             "ADM NO",
+            "ASSESSMENT NO",
             "STUDENT NAME",
             "GRADE",
             "GENDER",
@@ -3221,10 +3263,10 @@ class Dashboard(ctk.CTk):
             lbl = ctk.CTkLabel(
                 header_frame, text=text, font=("Arial Bold", 12), text_color="white"
             )
-            if i < 7:
+            if i < 8:
                 lbl.grid(row=0, column=i, padx=10, pady=5, sticky="w")
             else:
-                lbl.grid(row=0, column=7, padx=10, pady=5)
+                lbl.grid(row=0, column=8, padx=10, pady=5)
 
     def show_student_registry(self, class_name):
         # 1. Layout: Hide sidebar and expand content
@@ -3300,6 +3342,16 @@ class Dashboard(ctk.CTk):
         )
         self.btn_add.pack(pady=10)
 
+        self.btn_import_excel = ctk.CTkButton(
+            self.control_panel,
+            text="Import from Excel",
+            fg_color="#247a74",
+            hover_color="#1d625d",
+            **btn_style,
+            command=lambda: self.import_students_from_excel(class_name),
+        )
+        self.btn_import_excel.pack(pady=10)
+
         self.btn_ocr = ctk.CTkButton(
             self.control_panel,
             text="📷 OCR Register",
@@ -3339,6 +3391,109 @@ class Dashboard(ctk.CTk):
 
         self.btn_remove.configure(command=self.clear_all_students)
 
+    def next_registry_admission_number(self):
+        """Allocate an admission number after saved and currently staged rows."""
+        next_admission_text = self.db.next_admission_number()
+        next_admission = int(next_admission_text)
+        pending_admissions = []
+        for row_frame in self.all_student_rows:
+            for widget in row_frame.winfo_children():
+                if not isinstance(widget, ctk.CTkEntry):
+                    continue
+                try:
+                    column = int(widget.grid_info().get("column", -1))
+                except (TypeError, ValueError):
+                    continue
+                value = widget.get().strip()
+                if column == 0 and value.isdigit():
+                    pending_admissions.append(int(value))
+        if pending_admissions:
+            next_admission = max(next_admission, max(pending_admissions) + 1)
+        width = max(len(str(next_admission)), len(next_admission_text))
+        return str(next_admission).zfill(width)
+
+    def import_students_from_excel(self, class_name):
+        """Load KNEC nominal-roll rows into the editable student registry."""
+        from tkinter import filedialog
+
+        file_path = filedialog.askopenfilename(
+            title="Select KNEC Nominal Roll",
+            filetypes=[("Excel workbooks", "*.xlsx *.xlsm")],
+        )
+        if not file_path:
+            return
+
+        try:
+            imported_students = read_student_rows(file_path)
+            self.db.cursor().execute(
+                "SELECT assessment_number FROM students WHERE assessment_number IS NOT NULL"
+            )
+            seen_assessment_numbers = {
+                str(row[0]).strip() for row in self.db.cursor().fetchall() if row[0]
+            }
+            for row_frame in self.all_student_rows:
+                for widget in row_frame.winfo_children():
+                    if not isinstance(widget, ctk.CTkEntry):
+                        continue
+                    try:
+                        column = int(widget.grid_info().get("column", -1))
+                    except (TypeError, ValueError):
+                        continue
+                    if column == 1 and widget.get().strip():
+                        seen_assessment_numbers.add(widget.get().strip())
+
+            students_to_add = []
+            skipped_duplicates = 0
+            for student in imported_students:
+                assessment_number = student["assessment_number"].strip()
+                if assessment_number in seen_assessment_numbers:
+                    skipped_duplicates += 1
+                    continue
+                seen_assessment_numbers.add(assessment_number)
+                students_to_add.append(student)
+
+            if not students_to_add:
+                messagebox.showinfo(
+                    "Excel Import",
+                    "No new students were found. Existing assessment numbers were skipped.",
+                )
+                return
+
+            grade_mapping = {
+                "Play group": "playgroup",
+                "Pre-Primary 1": "pp1",
+                "Pre-Primary 2": "pp2",
+            }
+            grade = grade_mapping.get(class_name, class_name)
+            for student in students_to_add:
+                self.add_empty_row()
+                row_frame = self.all_student_rows[-1]
+                entries = {
+                    int(widget.grid_info()["column"]): widget
+                    for widget in row_frame.winfo_children()
+                    if isinstance(widget, ctk.CTkEntry)
+                }
+                values = {
+                    0: self.next_registry_admission_number(),
+                    1: student["assessment_number"],
+                    2: student["name"],
+                    3: grade,
+                    4: student.get("gender", ""),
+                    5: student.get("phone", ""),
+                    6: student.get("stream", ""),
+                }
+                for column, value in values.items():
+                    entries[column].insert(0, value)
+
+            messagebox.showinfo(
+                "Excel Import",
+                f"Loaded {len(students_to_add)} students for review. "
+                f"{skipped_duplicates} duplicate assessment number(s) skipped. "
+                "Save each row to register it.",
+            )
+        except Exception as error:
+            messagebox.showerror("Excel Import", f"Could not read this workbook:\n{error}")
+
     def open_ocr_dialog(self, class_name):
         """Open the OCR student registration dialog"""
 
@@ -3347,6 +3502,323 @@ class Dashboard(ctk.CTk):
             self.show_student_registry(class_name)
 
         show_ocr_dialog(self, refresh_registry, self.db)
+
+    def open_cba_menu(self):
+        self.highlight_button(self.btn_knec_cba)
+        for widget in self.content_panel.winfo_children():
+            if widget != self.header_frame and widget != self.theme_frame:
+                widget.destroy()
+
+        menu = ctk.CTkFrame(self.content_panel, fg_color="transparent")
+        menu.pack(expand=True)
+        ctk.CTkLabel(menu, text="KNEC CBA", font=("Arial Bold", 26)).pack(pady=20)
+        ctk.CTkButton(
+            menu,
+            text="Add Tasks",
+            width=260,
+            height=48,
+            command=lambda: self.show_class_selection(
+                "KNEC CBA Tasks", self.btn_knec_cba
+            ),
+        ).pack(pady=10)
+        ctk.CTkButton(
+            menu,
+            text="Add Tasks for Several Classes",
+            width=260,
+            height=48,
+            command=self.show_cba_bulk_class_selection,
+        ).pack(pady=10)
+        ctk.CTkButton(
+            menu,
+            text="Fetch Converted CBA",
+            width=260,
+            height=48,
+            command=lambda: self.show_class_selection(
+                "KNEC CBA Fetch", self.btn_knec_cba
+            ),
+        ).pack(pady=10)
+
+    def show_cba_bulk_class_selection(self):
+        for widget in self.content_panel.winfo_children():
+            if widget != self.header_frame and widget != self.theme_frame:
+                widget.destroy()
+
+        frame = ctk.CTkScrollableFrame(
+            self.content_panel,
+            label_text="SELECT CLASSES FOR SHARED TASKS",
+            label_font=("Arial Bold", 20),
+            width=520,
+            height=520,
+        )
+        frame.pack(expand=True, fill="both", padx=30, pady=30)
+        classes = [
+            "playgroup", "pp1", "pp2", "Grade 1", "Grade 2", "Grade 3",
+            "Grade 4", "Grade 5", "Grade 6", "Grade 7", "Grade 8", "Grade 9",
+        ]
+        self.cba_class_vars = {}
+        for class_name in classes:
+            selected = ctk.BooleanVar(value=False)
+            self.cba_class_vars[class_name] = selected
+            ctk.CTkCheckBox(frame, text=class_name, variable=selected).pack(
+                anchor="w", padx=12, pady=5
+            )
+        ctk.CTkButton(
+            frame,
+            text="OK",
+            command=self.show_cba_bulk_subject_selection,
+        ).pack(pady=16)
+
+    def show_cba_bulk_subject_selection(self):
+        selected_classes = [
+            class_name
+            for class_name, variable in self.cba_class_vars.items()
+            if variable.get()
+        ]
+        if not selected_classes:
+            messagebox.showwarning("Select Classes", "Select at least one class.")
+            return
+
+        for widget in self.content_panel.winfo_children():
+            if widget != self.header_frame and widget != self.theme_frame:
+                widget.destroy()
+        frame = ctk.CTkFrame(self.content_panel, fg_color="transparent")
+        frame.pack(expand=True)
+        ctk.CTkLabel(
+            frame,
+            text=f"Shared tasks for {len(selected_classes)} selected class(es)",
+            font=("Arial Bold", 20),
+        ).pack(pady=14)
+
+        subject_sets = [set(get_subjects_for_class(name)) for name in selected_classes]
+        common_subjects = sorted(set.intersection(*subject_sets)) if subject_sets else []
+        subject_mode = ctk.StringVar(value="Same subject")
+        mode = ctk.CTkSegmentedButton(
+            frame,
+            values=["Same subject", "All subjects"],
+            variable=subject_mode,
+            command=lambda _: update_subject_control(),
+        )
+        mode.pack(pady=12)
+
+        if not common_subjects:
+            mode.configure(values=["All subjects"])
+            subject_mode.set("All subjects")
+        subject_menu = ctk.CTkOptionMenu(
+            frame,
+            values=common_subjects or ["No common subject"],
+            width=250,
+        )
+        subject_menu.pack(pady=12)
+
+        def update_subject_control():
+            if subject_mode.get() == "Same subject" and common_subjects:
+                subject_menu.configure(state="normal")
+            else:
+                subject_menu.configure(state="disabled")
+
+        def open_shared_editor():
+            if subject_mode.get() == "Same subject":
+                subject = subject_menu.get()
+                targets = [(class_name, subject) for class_name in selected_classes]
+            else:
+                targets = [
+                    (class_name, subject)
+                    for class_name in selected_classes
+                    for subject in get_subjects_for_class(class_name)
+                ]
+            if not targets:
+                messagebox.showwarning(
+                    "No Subjects", "No configured subjects were found for the selected classes."
+                )
+                return
+            first_class, first_subject = targets[0]
+            self.open_cba_task_manager(
+                first_class, first_subject, targets=targets
+            )
+
+        ctk.CTkButton(frame, text="OK", command=open_shared_editor).pack(pady=16)
+        ctk.CTkButton(
+            frame,
+            text="Back to Classes",
+            command=self.show_cba_bulk_class_selection,
+        ).pack(pady=5)
+
+    def show_cba_fetch_subject_selection(self, class_name):
+        for widget in self.content_panel.winfo_children():
+            if widget != self.header_frame and widget != self.theme_frame:
+                widget.destroy()
+
+        subjects = get_subjects_for_class(class_name)
+        if not subjects:
+            messagebox.showwarning("No Subjects", f"No subjects are configured for {class_name}.")
+            return
+
+        frame = ctk.CTkFrame(self.content_panel, fg_color="transparent")
+        frame.pack(expand=True)
+        ctk.CTkLabel(
+            frame,
+            text=f"Fetch converted CBA results · {class_name}",
+            font=("Arial Bold", 21),
+        ).pack(pady=14)
+
+        subject_menu = ctk.CTkOptionMenu(frame, values=subjects, width=260)
+        subject_menu.pack(pady=10)
+        term_menu = ctk.CTkOptionMenu(
+            frame, values=["Term 1", "Term 2", "Term 3"], width=180
+        )
+        term_menu.pack(pady=10)
+
+        def update_terms(selected_subject):
+            class_tasks = (
+                self.load_school_config()
+                .get("cba_tasks", {})
+                .get(class_name, {})
+                .get(selected_subject, {})
+            )
+            available_terms = (
+                list(class_tasks.keys())
+                if isinstance(class_tasks, dict)
+                else ["Term 1"]
+            )
+            if not available_terms:
+                available_terms = ["Term 1", "Term 2", "Term 3"]
+            term_menu.configure(values=available_terms)
+            active_term = (
+                self.load_school_config()
+                .get("cba_active_terms", {})
+                .get(class_name, {})
+                .get(selected_subject)
+            )
+            term_menu.set(active_term if active_term in available_terms else available_terms[0])
+
+        subject_menu.configure(command=update_terms)
+        update_terms(subject_menu.get())
+
+        def fetch_results():
+            credentials = ask_cloud_credentials(self)
+            if not credentials:
+                return
+            result = CloudService().fetch_cba_results(
+                class_name, subject_menu.get(), term_menu.get(), credentials
+            )
+            if not result.get("success"):
+                messagebox.showerror(
+                    "CBA Fetch Failed",
+                    result.get("message", "Could not fetch converted CBA results."),
+                )
+                return
+            for widget in self.content_panel.winfo_children():
+                if widget != self.header_frame and widget != self.theme_frame:
+                    widget.destroy()
+            self.current_view = CBAResultsView(
+                self.content_panel,
+                result,
+                return_callback=lambda: self.show_cba_fetch_subject_selection(class_name),
+            )
+            self.current_view.pack(fill="both", expand=True)
+
+        ctk.CTkButton(
+            frame,
+            text="Fetch Converted CBA",
+            width=240,
+            height=44,
+            command=fetch_results,
+        ).pack(pady=18)
+
+        ctk.CTkButton(
+            frame,
+            text="Back to Classes",
+            command=lambda: self.show_class_selection(
+                "KNEC CBA Fetch", self.btn_knec_cba
+            ),
+        ).pack(pady=6)
+
+    def show_cba_subject_selection(self, class_name):
+        for widget in self.content_panel.winfo_children():
+            if widget != self.header_frame and widget != self.theme_frame:
+                widget.destroy()
+
+        frame = ctk.CTkScrollableFrame(
+            self.content_panel,
+            label_text=f"SELECT SUBJECT FOR: {class_name.upper()}",
+            label_font=("Arial Bold", 20),
+            width=520,
+            height=520,
+        )
+        frame.pack(expand=True, fill="both", padx=30, pady=30)
+        subjects = get_subjects_for_class(class_name)
+        if not subjects:
+            ctk.CTkLabel(frame, text="No subjects are configured for this class.").pack(
+                pady=20
+            )
+        for subject in subjects:
+            ctk.CTkButton(
+                frame,
+                text=subject,
+                width=300,
+                height=42,
+                command=lambda selected=subject: self.open_cba_task_manager(
+                    class_name, selected
+                ),
+            ).pack(pady=7)
+        ctk.CTkButton(
+            frame,
+            text="Back to Classes",
+            command=lambda: self.show_class_selection(
+                "KNEC CBA Tasks", self.btn_knec_cba
+            ),
+        ).pack(pady=18)
+
+    def open_cba_task_manager(self, class_name, subject, targets=None):
+        targets = targets or [(class_name, subject)]
+        config = self.load_school_config()
+        subject_tasks = (
+            config.get("cba_tasks", {}).get(class_name, {}).get(subject, {})
+        )
+        if isinstance(subject_tasks, list):
+            tasks_by_term = {"Term 1": subject_tasks}
+        elif isinstance(subject_tasks, dict):
+            tasks_by_term = subject_tasks
+        else:
+            tasks_by_term = {}
+        active_term = (
+            config.get("cba_active_terms", {}).get(class_name, {}).get(subject)
+        )
+        if active_term not in ("Term 1", "Term 2", "Term 3"):
+            active_term = next(
+                (
+                    term
+                    for term in reversed(("Term 1", "Term 2", "Term 3"))
+                    if tasks_by_term.get(term)
+                ),
+                "Term 1",
+            )
+
+        def save_tasks_for_term(term, saved_tasks):
+            current_config = self.load_school_config()
+            cba_tasks = current_config.get("cba_tasks", {})
+            active_terms = current_config.get("cba_active_terms", {})
+            for target_class, target_subject in targets:
+                class_tasks = cba_tasks.setdefault(target_class, {})
+                current = class_tasks.get(target_subject, {})
+                if isinstance(current, list):
+                    current = {"Term 1": current}
+                current[term] = saved_tasks
+                class_tasks[target_subject] = current
+                active_terms.setdefault(target_class, {})[target_subject] = term
+            self.save_school_config(
+                {"cba_tasks": cba_tasks, "cba_active_terms": active_terms}
+            )
+
+        CBATaskManager(
+            self,
+            class_name,
+            subject,
+            tasks_by_term=tasks_by_term,
+            term=active_term,
+            targets=targets,
+            on_change=save_tasks_for_term,
+        )
 
     def load_students_from_db(self, class_name):
         try:
@@ -3373,7 +3845,7 @@ class Dashboard(ctk.CTk):
             print(f"DEBUG: Total students in database: {total_count}")
 
             self.db.cursor().execute(
-                "SELECT adm_no, name, grade, gender, phone, photo, stream FROM students WHERE UPPER(grade) = UPPER(?)",
+                "SELECT adm_no, assessment_number, name, grade, gender, phone, photo, stream FROM students WHERE UPPER(grade) = UPPER(?)",
                 (class_name,),
             )
             records = self.db.cursor().fetchall()
@@ -3401,38 +3873,34 @@ class Dashboard(ctk.CTk):
         self.all_student_rows.append(row_frame)
 
         # --- THE ALIGNMENT FIX ---
-        # Force the first 7 columns to be exactly equal in size (5 entries + stream + photo)
-        for i in range(7):
+        # Keep all student fields aligned with the registry headers.
+        for i in range(8):
             row_frame.grid_columnconfigure(i, weight=1, uniform="column_group")
         # Keep the actions column fixed
-        row_frame.grid_columnconfigure(7, weight=0, minsize=150)
+        row_frame.grid_columnconfigure(8, weight=0, minsize=150)
 
         entries = []
-        # Create 5 main entry fields (adm, name, grade, gender, phone)
-        # Handle old records that might not have all columns
-        for i in range(5):
-            # Use sticky="ew" so the entry stretches to fill the uniform column
-            e = ctk.CTkEntry(
+        values = [
+            data[0] if len(data) > 0 else "",
+            data[1] if len(data) > 1 else "",
+            data[2] if len(data) > 2 else "",
+            data[3] if len(data) > 3 else "",
+            data[4] if len(data) > 4 else "",
+            data[5] if len(data) > 5 else "",
+            data[7] if len(data) > 7 else "None",
+        ]
+        for column, value in enumerate(values):
+            entry = ctk.CTkEntry(
                 row_frame, fg_color="gray20", text_color="white", height=30
             )
-            value = str(data[i]) if i < len(data) and data[i] is not None else ""
-            e.insert(0, value)
-            e.configure(state="disabled")
-            e.grid(row=0, column=i, padx=2, pady=5, sticky="ew")
-            entries.append(e)
+            if value is not None:
+                entry.insert(0, str(value))
+            entry.configure(state="disabled")
+            entry.grid(row=0, column=column, padx=2, pady=5, sticky="ew")
+            entries.append(entry)
 
-        # Stream field (column 5)
-        stream_value = str(data[6]) if len(data) > 6 and data[6] is not None else "None"
-        stream = ctk.CTkEntry(
-            row_frame, fg_color="gray20", text_color="white", height=30
-        )
-        stream.insert(0, stream_value)
-        stream.configure(state="disabled")
-        stream.grid(row=0, column=5, padx=2, pady=5, sticky="ew")
-        entries.append(stream)
-
-        # Photo field (column 6)
-        photo_value = data[5] if len(data) > 5 else None
+        # Photo field (column 7)
+        photo_value = data[6] if len(data) > 6 else None
         photo_path = ctk.StringVar(value=photo_value or "")
         photo_btn = ctk.CTkButton(
             row_frame,
@@ -3442,11 +3910,11 @@ class Dashboard(ctk.CTk):
             state="disabled",
             fg_color="gray",
         )
-        photo_btn.grid(row=0, column=6, padx=2, pady=5, sticky="ew")
+        photo_btn.grid(row=0, column=7, padx=2, pady=5, sticky="ew")
         entries.append(photo_path)  # Store the StringVar in entries list
 
         actions = ctk.CTkFrame(row_frame, fg_color="transparent")
-        actions.grid(row=0, column=7, padx=5)
+        actions.grid(row=0, column=8, padx=5)
 
         # DELETE (Red)
         # We use entries[0] because that's the ADM NO box we just created in the loop above
@@ -3460,7 +3928,15 @@ class Dashboard(ctk.CTk):
         del_btn.pack(side="left", padx=2)
 
         save_btn = ctk.CTkButton(
-            actions, text="Saved", width=40, state="disabled", fg_color="gray"
+            actions,
+            text="Saved",
+            width=40,
+            state="disabled",
+            fg_color="gray",
+            command=lambda: self.save_to_db(
+                entries[0], entries[2], entries[3], entries[4], entries[5],
+                entries[6], entries[7], save_btn, entries[1]
+            ),
         )
         save_btn.pack(side="left", padx=2)
 
@@ -3502,7 +3978,7 @@ class Dashboard(ctk.CTk):
 
             if row_widgets:
                 adm_text = row_widgets[0].get().lower()
-                name_text = row_widgets[1].get().lower()
+                name_text = row_widgets[2].get().lower()
 
                 # If the search matches either the ADM or the Name, show the row
                 if search_query in adm_text or search_query in name_text:
@@ -3755,6 +4231,12 @@ class Dashboard(ctk.CTk):
                 self.content_panel, self.db, class_selected
             )
             self.current_view.pack(fill="both", expand=True)
+
+        elif action_type == "KNEC CBA Tasks":
+            self.show_cba_subject_selection(class_selected)
+
+        elif action_type == "KNEC CBA Fetch":
+            self.show_cba_fetch_subject_selection(class_selected)
 
         # This handles the Register button
         elif action_type == "Registering" or action_type == "Registration":

@@ -199,20 +199,19 @@ class CBACloudFlowTests(unittest.TestCase):
         workbook = load_workbook(io.BytesIO(excel_response.data), data_only=True)
         worksheet = workbook.active
         self.assertIn("Term 3", worksheet.cell(1, 1).value)
-        self.assertEqual(worksheet.cell(2, 1).value, "Column A")
-        self.assertEqual(worksheet.cell(3, 1).value, "Assessment Number")
-        self.assertEqual(worksheet.cell(3, 2).value, "Learner's Name")
-        self.assertEqual(worksheet.cell(3, 3).value, "Gender")
-        self.assertEqual(worksheet.cell(3, 4).value, "Task 1")
-        self.assertEqual(worksheet.cell(3, 5).value, "Total Score")
-        self.assertEqual(worksheet.cell(4, 1).value, "K0010203001")
-        self.assertEqual(worksheet.cell(4, 3).value, "F")
-        self.assertEqual(worksheet.cell(4, 4).value, 1)
-        self.assertEqual(worksheet.cell(4, 5).value, 1)
-        self.assertEqual(worksheet.cell(5, 4).value, 3)
-        self.assertEqual(worksheet.cell(5, 5).value, 3)
-        self.assertEqual(worksheet.cell(6, 4).value, "A")
-        self.assertEqual(worksheet.cell(6, 5).value, "A")
+        self.assertEqual(worksheet.cell(2, 1).value, "Assessment Number")
+        self.assertEqual(worksheet.cell(2, 2).value, "Learner's Name")
+        self.assertEqual(worksheet.cell(2, 3).value, "Gender")
+        self.assertEqual(worksheet.cell(2, 4).value, "Task 1")
+        self.assertEqual(worksheet.cell(2, 5).value, "Total Score")
+        self.assertEqual(worksheet.cell(3, 1).value, "K0010203001")
+        self.assertEqual(worksheet.cell(3, 3).value, "F")
+        self.assertEqual(worksheet.cell(3, 4).value, 1)
+        self.assertEqual(worksheet.cell(3, 5).value, 1)
+        self.assertEqual(worksheet.cell(4, 4).value, 3)
+        self.assertEqual(worksheet.cell(4, 5).value, 3)
+        self.assertEqual(worksheet.cell(5, 4).value, "A")
+        self.assertEqual(worksheet.cell(5, 5).value, "A")
 
         excel_without_total = self.client.get(
             "/cba/export/Grade%203/xlsx?subject=ENG&term=Term%203&include_total=0"
@@ -221,7 +220,7 @@ class CBACloudFlowTests(unittest.TestCase):
         without_total_sheet = load_workbook(
             io.BytesIO(excel_without_total.data), data_only=True
         ).active
-        self.assertEqual(without_total_sheet.cell(3, 4).value, "Task 1")
+        self.assertEqual(without_total_sheet.cell(2, 4).value, "Task 1")
         self.assertEqual(without_total_sheet.max_column, 4)
 
         pdf_response = self.client.get(

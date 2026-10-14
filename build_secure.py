@@ -81,6 +81,9 @@ def run_pyarmor():
         'network_manager.py',
         'hotspot_server.py',
         'teachers_linked.py',
+        'cba_logic.py',
+        'cba_task_manager.py',
+        'cba_results_view.py',
         'reportforms.py',
         'wizard.py',
         'splash.py',
@@ -158,6 +161,9 @@ def run_cython():
         'network_manager.py',
         'hotspot_server.py',
         'teachers_linked.py',
+        'cba_logic.py',
+        'cba_task_manager.py',
+        'cba_results_view.py',
         'reportforms.py',
         'wizard.py',
         'splash.py',
@@ -220,6 +226,9 @@ def run_pyinstaller():
         "security",
         "database",
         "teacher_comments",
+        "cba_logic",
+        "cba_task_manager",
+        "cba_results_view",
         "fpdf",  # Required for PDF generation in reportforms
     ]
     
@@ -279,6 +288,9 @@ def build_simple():
         "security",
         "database",
         "teacher_comments",
+        "cba_logic",
+        "cba_task_manager",
+        "cba_results_view",
         "fpdf",  # Required for PDF generation in reportforms
     ]
     

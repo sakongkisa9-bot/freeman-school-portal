@@ -107,21 +107,13 @@ class CBAResultsView(ctk.CTkFrame):
     def _print_data(self, include_total):
         columns = self.columns if include_total else self.columns[:-1]
         records = [row if include_total else row[:-1] for row in self.records]
-        labels = []
-        for index in range(len(columns)):
-            number = index + 1
-            label = ""
-            while number:
-                number, remainder = divmod(number - 1, 26)
-                label = chr(65 + remainder) + label
-            labels.append(f"Column {label}")
-        return columns, records, labels
+        return columns, records
 
     def export_excel(self):
         path, include_total = self._ask_export_path("xlsx")
         if not path:
             return
-        columns, records, labels = self._print_data(include_total)
+        columns, records = self._print_data(include_total)
         try:
             from openpyxl import Workbook
             from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -136,36 +128,32 @@ class CBAResultsView(ctk.CTkFrame):
             worksheet.merge_cells(
                 start_row=1, start_column=1, end_row=1, end_column=len(columns)
             )
-            worksheet.append(labels)
             worksheet.append(columns)
             for record in records:
                 worksheet.append(record)
-            worksheet.freeze_panes = "A4"
+            worksheet.freeze_panes = "A3"
             worksheet.auto_filter.ref = (
-                f"A3:{get_column_letter(len(columns))}{worksheet.max_row}"
+                f"A2:{get_column_letter(len(columns))}{worksheet.max_row}"
             )
             worksheet.sheet_properties.pageSetUpPr.fitToPage = True
             worksheet.page_setup.orientation = "landscape"
             worksheet.page_setup.paperSize = worksheet.PAPERSIZE_A4
             worksheet.page_setup.fitToWidth = 1
             worksheet.page_setup.fitToHeight = 0
-            worksheet.print_title_rows = "2:3"
+            worksheet.print_title_rows = "2:2"
             thin_border = Side(style="thin", color="B7C9C0")
             for cell in worksheet[1]:
                 cell.font = Font(bold=True, color="FFFFFF", size=13)
                 cell.fill = PatternFill("solid", fgColor="245B4B")
                 cell.alignment = Alignment(horizontal="center")
             for cell in worksheet[2]:
-                cell.font = Font(bold=True, color="344A41")
-                cell.fill = PatternFill("solid", fgColor="EAF0EC")
-            for cell in worksheet[3]:
                 cell.font = Font(bold=True, color="FFFFFF")
-                cell.fill = PatternFill("solid", fgColor="36755F")
+                cell.fill = PatternFill("solid", fgColor="245B4B")
                 cell.alignment = Alignment(wrap_text=True, vertical="center")
             for row in worksheet.iter_rows(min_row=1):
                 for cell in row:
                     cell.border = Border(bottom=thin_border)
-                    if cell.row > 3:
+                    if cell.row > 2:
                         cell.alignment = Alignment(vertical="center", wrap_text=True)
             for index in range(1, len(columns) + 1):
                 worksheet.column_dimensions[get_column_letter(index)].width = (
@@ -181,7 +169,7 @@ class CBAResultsView(ctk.CTkFrame):
         path, include_total = self._ask_export_path("pdf")
         if not path:
             return
-        columns, records, labels = self._print_data(include_total)
+        columns, records = self._print_data(include_total)
         try:
             from reportlab.lib import colors
             from reportlab.lib.pagesizes import A4, landscape
@@ -206,18 +194,16 @@ class CBAResultsView(ctk.CTkFrame):
                 __import__("reportlab.lib.styles", fromlist=["getSampleStyleSheet"])
                 .getSampleStyleSheet()["Title"],
             )
-            table = Table([labels, columns] + records, colWidths=column_widths, repeatRows=2)
+            table = Table([columns] + records, colWidths=column_widths, repeatRows=1)
             table.setStyle(
                 TableStyle(
                     [
-                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EAF0EC")),
-                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#344A41")),
-                        ("BACKGROUND", (0, 1), (-1, 1), colors.HexColor("#245B4B")),
-                        ("TEXTCOLOR", (0, 1), (-1, 1), colors.white),
-                        ("FONTNAME", (0, 0), (-1, 1), "Helvetica-Bold"),
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#245B4B")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                         ("FONTSIZE", (0, 0), (-1, -1), 8),
                         ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#AEBBB5")),
-                        ("ROWBACKGROUNDS", (0, 2), (-1, -1), [colors.white, colors.HexColor("#EDF3EF")]),
+                        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#EDF3EF")]),
                         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                     ]
                 )
