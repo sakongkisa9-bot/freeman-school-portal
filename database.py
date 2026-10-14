@@ -170,6 +170,12 @@ class FreemanDB:
             self.conn.commit()
         except:
             pass
+        # Existing databases may predate KNEC assessment numbers
+        try:
+            self._cursor.execute("ALTER TABLE students ADD COLUMN assessment_number TEXT")
+            self.conn.commit()
+        except:
+            pass
         self.conn.commit()
 
     def add_student(self, adm, name, grade, gender, phone, photo=None, stream=None, check_footprint=True, assessment_number=None):

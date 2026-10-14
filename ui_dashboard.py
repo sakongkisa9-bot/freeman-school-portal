@@ -3396,6 +3396,7 @@ class Dashboard(ctk.CTk):
         next_admission_text = self.db.next_admission_number()
         next_admission = int(next_admission_text)
         pending_admissions = []
+        self.prune_dead_student_rows()
         for row_frame in self.all_student_rows:
             for widget in row_frame.winfo_children():
                 if not isinstance(widget, ctk.CTkEntry):
@@ -3412,6 +3413,17 @@ class Dashboard(ctk.CTk):
         width = max(len(str(next_admission)), len(next_admission_text))
         return str(next_admission).zfill(width)
 
+    def prune_dead_student_rows(self):
+        """Forget row frames whose Tk widgets were destroyed."""
+        live_rows = []
+        for row in self.all_student_rows:
+            try:
+                if row.winfo_exists():
+                    live_rows.append(row)
+            except Exception:
+                pass
+        self.all_student_rows = live_rows
+
     def import_students_from_excel(self, class_name):
         """Load KNEC nominal-roll rows into the editable student registry."""
         from tkinter import filedialog
@@ -3425,6 +3437,7 @@ class Dashboard(ctk.CTk):
 
         try:
             imported_students = read_student_rows(file_path)
+            self.prune_dead_student_rows()
             self.db.cursor().execute(
                 "SELECT assessment_number FROM students WHERE assessment_number IS NOT NULL"
             )

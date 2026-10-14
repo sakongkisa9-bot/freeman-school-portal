@@ -183,7 +183,12 @@
     });
 
     for (const input of document.querySelectorAll(".score-input")) {
-        input.addEventListener("input", () => input.setCustomValidity(""));
+        const clearScoreError = () => {
+            input.setCustomValidity("");
+            input.reportValidity();
+        };
+        input.addEventListener("input", clearScoreError);
+        input.addEventListener("change", clearScoreError);
     }
 
     document.querySelector("form").addEventListener("submit", event => {
