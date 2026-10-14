@@ -52,10 +52,9 @@
         table { width: 100%; min-width: 850px; border-collapse: collapse; }
         th, td { border-bottom: 1px solid #354943; padding: 10px; text-align: left; }
         th { position: sticky; top: 0; background: #20332d; color: #cde9dc; }
-        th:first-child, td:first-child { position: sticky; left: 0; background: #17221f; }
-        th:first-child { background: #20332d; }
+        th.student-name { position: sticky; top: 0; left: 0; z-index: 3; background: #20332d; }
+        td.student-name { position: sticky; left: 0; z-index: 1; background: #17221f; }
         .student-name { min-width: 190px; font-weight: 650; }
-        .adm { color: #93c9b2; white-space: nowrap; }
         .task-col { min-width: 135px; }
         .range { display: block; margin-top: 4px; color: #9fb7ad; font-size: 11px; line-height: 1.4; }
         input[type=number] {
@@ -114,8 +113,7 @@
             <table>
                 <thead>
                     <tr>
-                        <th>Admission No.</th>
-                        <th>Learner</th>
+                        <th class="student-name">Learner</th>
                         {% for task in tasks %}
                         <th class="task-col">
                             {{ task.name }}
@@ -128,7 +126,6 @@
                 <tbody>
                     {% for student in students %}
                     <tr class="student-row" data-search="{{ student.student_name }} {{ student.adm_no }} {{ student.assessment_number or '' }}">
-                        <td class="adm">{{ student.adm_no }}</td>
                         <td class="student-name">{{ student.student_name }}</td>
                         {% for task in tasks %}
                         <td>

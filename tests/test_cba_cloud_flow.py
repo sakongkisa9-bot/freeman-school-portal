@@ -105,6 +105,8 @@ class CBACloudFlowTests(unittest.TestCase):
 
         page_response = self.client.get("/cba/marks/Grade%203?subject=ENG&term=Term%203")
         self.assertEqual(page_response.status_code, 200)
+        self.assertIn(b'<th class="student-name">Learner</th>', page_response.data)
+        self.assertNotIn(b"Admission No.", page_response.data)
         self.assertIn(b"Term 3", page_response.data)
         self.assertIn(b"Task 1", page_response.data)
         self.assertIn(b"Min 0", page_response.data)
