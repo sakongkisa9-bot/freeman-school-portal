@@ -43,6 +43,9 @@ FILES_TO_OBFUSCATE = [
     "network_manager.py",
     "hotspot_server.py",
     "teachers_linked.py",
+    "cba_logic.py",
+    "cba_task_manager.py",
+    "cba_results_view.py",
     "reportforms.py",
     "teacher_comments.py",
     "wizard.py",
@@ -215,6 +218,9 @@ def simple_obfuscation():
             "ui_marksheet_primary.py",
             "ui_marksheet_junior.py",
             "ui_summary.py",
+            "cba_logic.py",
+            "cba_task_manager.py",
+            "cba_results_view.py",
             "cloud_portal_v2.py",
             "newsletter.py",
             "reportforms.py",
@@ -333,6 +339,9 @@ def create_obfuscated_executable():
             "ui_marksheet_primary",
             "ui_marksheet_junior",
             "ui_summary",
+            "cba_logic",
+            "cba_task_manager",
+            "cba_results_view",
             "fpdf",  # Required for PDF generation in reportforms
         ]
 

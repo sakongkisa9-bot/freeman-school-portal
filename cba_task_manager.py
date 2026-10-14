@@ -1,3 +1,6 @@
+import queue
+import threading
+
 import customtkinter as ctk
 from tkinter import messagebox
 
@@ -146,13 +149,16 @@ class CBATaskManager(ctk.CTkToplevel):
 
         footer = ctk.CTkFrame(self, fg_color="transparent")
         footer.grid(row=2, column=0, sticky="ew", padx=20, pady=(0, 18))
-        ctk.CTkButton(
+        self.publish_status = ctk.CTkLabel(footer, text="")
+        self.publish_status.pack(side="left")
+        self.publish_button = ctk.CTkButton(
             footer,
             text="Publish Tasks to Cloud",
             fg_color="#247a74",
             hover_color="#1d625d",
             command=self._publish,
-        ).pack(side="right")
+        )
+        self.publish_button.pack(side="right")
 
     def _task_from_form(self):
         ranges = {}
@@ -304,30 +310,92 @@ class CBATaskManager(ctk.CTkToplevel):
         if not credentials:
             return
         self._persist_current_tasks()
-        service = CloudService()
-        for grade, subject in self.targets:
-            result = service.upload_cba_tasks(
-                grade, subject, tasks, credentials, term=self.term
-            )
-            if not result.get("success"):
-                error_message = result.get(
-                    "message", "Could not publish task configuration."
-                )
-                if "Status: 404" in error_message:
-                    error_message = (
-                        "The live cloud portal has not been updated with KNEC CBA yet. "
-                        "Deploy the latest cloud_portal_v2.py to Railway, then try publishing again."
+        term = self.term
+        targets = list(self.targets)
+        self._publishing_tasks = tasks
+        self._publishing_term = term
+        self._publish_result = queue.Queue()
+        self.publish_button.configure(state="disabled")
+        self.publish_status.configure(text="Publishing tasks to cloud...")
+        threading.Thread(
+            target=self._upload_tasks,
+            args=(tasks, credentials, term, targets),
+            daemon=True,
+        ).start()
+        self.after(100, self._check_publish_result)
+
+    def _upload_tasks(self, tasks, credentials, term, targets):
+        try:
+            service = CloudService()
+            for grade, subject in targets:
+                upload_tasks = getattr(service, "upload_cba_tasks", None)
+                if callable(upload_tasks):
+                    result = upload_tasks(
+                        grade, subject, tasks, credentials, term=term
                     )
-                messagebox.showerror(
-                    "CBA Publish Failed",
-                    f"Could not publish for {grade} / {subject}:\n{error_message}",
-                    parent=self,
-                )
-                return
+                else:
+                    post_json = getattr(service, "_post_json", None)
+                    if not callable(post_json):
+                        raise RuntimeError(
+                            "The installed cloud service is outdated and cannot publish CBA tasks."
+                        )
+                    result = post_json(
+                        "/api/upload_cba_tasks",
+                        {
+                            "school_code": credentials["school_code"],
+                            "username": credentials["username"],
+                            "password": credentials["password"],
+                            "grade": grade,
+                            "subject": subject,
+                            "term": term,
+                            "tasks": tasks,
+                        },
+                    )
+                if not result.get("success"):
+                    error_message = result.get(
+                        "message", "Could not publish task configuration."
+                    )
+                    if "Status: 404" in error_message:
+                        error_message = (
+                            "The live cloud portal has not been updated with KNEC CBA yet. "
+                            "Deploy the latest cloud_portal_v2.py to Railway, then try publishing again."
+                        )
+                    self._publish_result.put(
+                        (
+                            False,
+                            f"Could not publish for {grade} / {subject}:\n{error_message}",
+                        )
+                    )
+                    return
+        except Exception as error:
+            self._publish_result.put(
+                (False, f"Cloud publishing failed: {error}")
+            )
+            return
+
+        self._publish_result.put(
+            (True, f"{term} task configuration published to the cloud.")
+        )
+
+    def _check_publish_result(self):
+        try:
+            succeeded, message = self._publish_result.get_nowait()
+        except queue.Empty:
+            self.after(100, self._check_publish_result)
+            return
+
+        self.publish_button.configure(state="normal")
+        self.publish_status.configure(
+            text="Published successfully." if succeeded else "Publishing failed."
+        )
+        if not succeeded:
+            messagebox.showerror("CBA Publish Failed", message, parent=self)
+            return
+
         if self.on_publish:
-            self.on_publish(self.term, tasks)
+            self.on_publish(self._publishing_term, self._publishing_tasks)
         messagebox.showinfo(
             "KNEC CBA",
-            f"{self.term} task configuration published to the cloud.",
+            message,
             parent=self,
         )

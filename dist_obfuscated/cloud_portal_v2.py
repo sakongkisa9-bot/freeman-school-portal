@@ -1824,15 +1824,6 @@ def export_cba_marks(grade, export_format):
     headers.extend(task["name"] for task in tasks)
     if include_total:
         headers.append("Total Score")
-    column_labels = []
-    for column_index in range(len(headers)):
-        label_number = column_index + 1
-        label = ""
-        while label_number:
-            label_number, remainder = divmod(label_number - 1, 26)
-            label = chr(65 + remainder) + label
-        column_labels.append(f"Column {label}")
-
     output_rows = []
     for student in students:
         row = [
@@ -1877,18 +1868,17 @@ def export_cba_marks(grade, export_format):
         report_title = f"{school['school_name'] if school else 'CBA Results'} | {grade} | {subject} | {term}"
         worksheet.append([report_title])
         worksheet.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
-        worksheet.append(column_labels)
         worksheet.append(headers)
         for row in output_rows:
             worksheet.append(row)
-        worksheet.freeze_panes = "A4"
-        worksheet.auto_filter.ref = f"A3:{get_column_letter(len(headers))}{worksheet.max_row}"
+        worksheet.freeze_panes = "A3"
+        worksheet.auto_filter.ref = f"A2:{get_column_letter(len(headers))}{worksheet.max_row}"
         worksheet.sheet_properties.pageSetUpPr.fitToPage = True
         worksheet.page_setup.orientation = "landscape"
         worksheet.page_setup.paperSize = worksheet.PAPERSIZE_A4
         worksheet.page_setup.fitToWidth = 1
         worksheet.page_setup.fitToHeight = 0
-        worksheet.print_title_rows = "2:3"
+        worksheet.print_title_rows = "2:2"
         thin_green = Side(style="thin", color="B7C9C0")
         for cell in worksheet[1]:
             cell.font = Font(name="Calibri", size=13, bold=True, color="FFFFFF")
@@ -1896,22 +1886,17 @@ def export_cba_marks(grade, export_format):
             cell.alignment = Alignment(horizontal="center", vertical="center")
         worksheet.row_dimensions[1].height = 28
         for cell in worksheet[2]:
-            cell.font = Font(name="Calibri", size=10, bold=True, color="344A41")
-            cell.fill = PatternFill("solid", fgColor="EAF0EC")
-            cell.alignment = Alignment(vertical="center", wrap_text=True)
-        for cell in worksheet[3]:
             cell.font = Font(name="Calibri", size=10, bold=True, color="FFFFFF")
             cell.fill = PatternFill("solid", fgColor="245B4B")
             cell.alignment = Alignment(vertical="center", wrap_text=True)
         for row in worksheet.iter_rows(min_row=1, max_row=worksheet.max_row):
             for cell in row:
                 cell.border = Border(bottom=thin_green)
-                if cell.row > 3:
+                if cell.row > 2:
                     cell.alignment = Alignment(vertical="center", wrap_text=True)
                     if cell.row % 2:
                         cell.fill = PatternFill("solid", fgColor="F0F5F2")
         worksheet.row_dimensions[2].height = 24
-        worksheet.row_dimensions[3].height = 34
         worksheet.column_dimensions["A"].width = 23
         worksheet.column_dimensions["B"].width = 29
         worksheet.column_dimensions["C"].width = 12
@@ -1948,23 +1933,23 @@ def export_cba_marks(grade, export_format):
         f"{school['school_name'] if school else 'CBA Results'} - {grade} - {subject} - {term}",
         styles["Title"],
     )
-    table_data = [column_labels, headers] + output_rows
+    table_data = [headers] + output_rows
     usable_width = landscape(A4)[0] - 24 * mm
-    column_weights = [1.55, 2.4, 0.85] + [1.0] * len(tasks) + [1.0]
+    column_weights = [1.55, 2.4, 0.85] + [1.0] * len(tasks)
+    if include_total:
+        column_weights.append(1.0)
     weight_total = sum(column_weights)
     column_widths = [usable_width * weight / weight_total for weight in column_weights]
-    table = Table(table_data, colWidths=column_widths, repeatRows=2)
+    table = Table(table_data, colWidths=column_widths, repeatRows=1)
     table.setStyle(
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#245b4b")),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("BACKGROUND", (0, 1), (-1, 1), colors.HexColor("#36755f")),
-                ("TEXTCOLOR", (0, 1), (-1, 1), colors.white),
-                ("FONTNAME", (0, 0), (-1, 1), "Helvetica-Bold"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("FONTSIZE", (0, 0), (-1, -1), 8),
                 ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#aebbb5")),
-                ("ROWBACKGROUNDS", (0, 2), (-1, -1), [colors.white, colors.HexColor("#edf3ef")]),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#edf3ef")]),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 4),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 4),

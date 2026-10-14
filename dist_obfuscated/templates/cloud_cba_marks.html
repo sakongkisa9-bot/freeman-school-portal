@@ -182,6 +182,10 @@
         });
     });
 
+    for (const input of document.querySelectorAll(".score-input")) {
+        input.addEventListener("input", () => input.setCustomValidity(""));
+    }
+
     document.querySelector("form").addEventListener("submit", event => {
         // Clear all previous custom validity messages before validation
         for (const input of document.querySelectorAll(".score-input")) {
