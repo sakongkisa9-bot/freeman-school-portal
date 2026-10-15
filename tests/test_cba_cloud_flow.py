@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import sqlite3
 import tempfile
@@ -6,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 import cloud_portal_v2
+from openpyxl import load_workbook
 from werkzeug.security import generate_password_hash
 
 
@@ -151,7 +153,8 @@ class CBACloudFlowTests(unittest.TestCase):
             [row[1] for row in fetched_data["records"]],
             ["Amina Wanjiku", "Brian Otieno", "Carol Njeri"],
         )
-        self.assertEqual(fetched_data["records"][2][-2:], ["A", "A"])
+        self.assertEqual(fetched_data["records"][2][-1:], ["A"])
+        self.assertNotIn("Total Score", fetched_data["columns"])
 
         new_term_response = self.client.post(
             "/api/upload_cba_tasks",
@@ -205,22 +208,19 @@ class CBACloudFlowTests(unittest.TestCase):
         self.assertEqual(worksheet.cell(2, 2).value, "Learner's Name")
         self.assertEqual(worksheet.cell(2, 3).value, "Gender")
         self.assertEqual(worksheet.cell(2, 4).value, "Task 1")
-        self.assertEqual(worksheet.cell(2, 5).value, "Total Score")
+        self.assertEqual(worksheet.max_column, 4)
         self.assertEqual(worksheet.cell(3, 1).value, "K0010203001")
         self.assertEqual(worksheet.cell(3, 3).value, "F")
         self.assertEqual(worksheet.cell(3, 4).value, 1)
-        self.assertEqual(worksheet.cell(3, 5).value, 1)
         self.assertEqual(worksheet.cell(4, 4).value, 3)
-        self.assertEqual(worksheet.cell(4, 5).value, 3)
         self.assertEqual(worksheet.cell(5, 4).value, "A")
-        self.assertEqual(worksheet.cell(5, 5).value, "A")
 
-        excel_without_total = self.client.get(
-            "/cba/export/Grade%203/xlsx?subject=ENG&term=Term%203&include_total=0"
+        excel_with_legacy_total_flag = self.client.get(
+            "/cba/export/Grade%203/xlsx?subject=ENG&term=Term%203&include_total=1"
         )
-        self.assertEqual(excel_without_total.status_code, 200)
+        self.assertEqual(excel_with_legacy_total_flag.status_code, 200)
         without_total_sheet = load_workbook(
-            io.BytesIO(excel_without_total.data), data_only=True
+            io.BytesIO(excel_with_legacy_total_flag.data), data_only=True
         ).active
         self.assertEqual(without_total_sheet.cell(2, 4).value, "Task 1")
         self.assertEqual(without_total_sheet.max_column, 4)
@@ -230,6 +230,35 @@ class CBACloudFlowTests(unittest.TestCase):
         )
         self.assertEqual(pdf_response.status_code, 200)
         self.assertTrue(pdf_response.data.startswith(b"%PDF"))
+
+    def test_excel_export_contains_no_aggregate_total(self):
+        tasks = [{
+            "name": "Task 1",
+            "ranges": {
+                "Level 1": {"min": 0, "max": 2},
+                "Level 2": {"min": 3, "max": 5},
+                "Level 3": {"min": 6, "max": 8},
+                "Level 4": {"min": 9, "max": 10},
+            },
+        }]
+        connection = sqlite3.connect(self.db_path)
+        connection.execute(
+            "INSERT INTO cba_term_task_configs (school_id, grade, subject, term, tasks_json, updated_at) VALUES (?, 'Grade 3', 'ENG', 'Term 1', ?, 'now')",
+            (self.school_id, json.dumps(tasks)),
+        )
+        connection.execute(
+            "INSERT INTO cba_term_scores (school_id, grade, subject, term, adm_no, student_name, task_name, raw_score, teacher_code, updated_at) VALUES (?, 'Grade 3', 'ENG', 'Term 1', 'A001', 'Amina Wanjiku', 'Task 1', '4', 'T001', 'now')",
+            (self.school_id,),
+        )
+        connection.commit()
+        connection.close()
+        response = self.client.get("/cba/export/Grade%203/xlsx?subject=ENG&term=Term%201")
+        self.assertEqual(response.status_code, 200)
+        worksheet = load_workbook(io.BytesIO(response.data), data_only=True).active
+        self.assertEqual(
+            [worksheet.cell(2, column).value for column in range(1, worksheet.max_column + 1)],
+            ["Assessment Number", "Learner's Name", "Gender", "Task 1"],
+        )
 
 
 if __name__ == "__main__":

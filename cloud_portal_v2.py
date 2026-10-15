@@ -14,6 +14,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import os
 import json
+import csv
+import io
 import uuid
 from datetime import datetime, timezone
 import logging
@@ -30,6 +32,16 @@ from cba_logic import (
     describe_criterion,
     task_score_bounds,
     validate_tasks,
+)
+from cbc_engine import (
+    RUBRIC_DESCRIPTORS,
+    aggregate_competency,
+    aggregate_term_competency,
+    calculate_milestone_result,
+    reporting_bands_for_rating,
+    validate_assessment_number,
+    validate_curriculum,
+    validate_rubric_rating,
 )
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -310,6 +322,9 @@ GRADE_OPTIONS = [
     "Grade 7",
     "Grade 8",
     "Grade 9",
+    "Grade 10",
+    "Grade 11",
+    "Grade 12",
 ]
 
 GRADE_SUBJECTS = {
@@ -358,6 +373,9 @@ GRADE_SUBJECTS = {
         "AGRI",
         "C/A",
     ],
+    "Grade 10": [],
+    "Grade 11": [],
+    "Grade 12": [],
 }
 SYSTEM_ADMIN_KEY = "16592@FREE man"
 
@@ -688,6 +706,50 @@ def init_db():
         )
     """)
 
+    with open(os.path.join(PROJECT_DIR, "001_cbc_assessment.sql"), encoding="utf-8") as migration:
+        conn.executescript(migration.read())
+    rubric_columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(cbc_rubric_scores)")
+    }
+    if "assessment_type" not in rubric_columns:
+        conn.executescript(
+            """
+            BEGIN;
+            ALTER TABLE cbc_rubric_scores RENAME TO cbc_rubric_scores_legacy;
+            CREATE TABLE cbc_rubric_scores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                school_id INTEGER NOT NULL,
+                grade TEXT NOT NULL,
+                assessment_number TEXT NOT NULL,
+                academic_year INTEGER NOT NULL,
+                term TEXT NOT NULL,
+                assessment_type TEXT NOT NULL CHECK (assessment_type IN ('Formative', 'Localized Summative')),
+                sub_strand_id INTEGER NOT NULL,
+                rating TEXT NOT NULL CHECK (rating IN ('1', '2', '3', '4', 'AB')),
+                evidence TEXT,
+                teacher_code TEXT,
+                updated_at TEXT NOT NULL,
+                UNIQUE (school_id, grade, assessment_number, academic_year, term, assessment_type, sub_strand_id),
+                FOREIGN KEY (sub_strand_id) REFERENCES cbc_sub_strands(id)
+            );
+            INSERT INTO cbc_rubric_scores
+                (id, school_id, grade, assessment_number, academic_year, term, assessment_type,
+                 sub_strand_id, rating, evidence, teacher_code, updated_at)
+            SELECT id, school_id, grade, assessment_number, academic_year, term, 'Formative',
+                   sub_strand_id, rating, evidence, teacher_code, updated_at
+            FROM cbc_rubric_scores_legacy;
+            DROP TABLE cbc_rubric_scores_legacy;
+            CREATE INDEX IF NOT EXISTS idx_cbc_rubric_assessment
+            ON cbc_rubric_scores (school_id, grade, assessment_number, academic_year, term);
+            COMMIT;
+            """
+        )
+    milestone_columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(cbc_milestone_results)")
+    }
+    for column in ("grade7_sba_percent", "grade8_sba_percent"):
+        if column not in milestone_columns:
+            conn.execute(f"ALTER TABLE cbc_milestone_results ADD COLUMN {column} REAL")
     conn.commit()
     conn.close()
 
@@ -1077,6 +1139,7 @@ def dashboard():
         portal_open=portal_open,
         school_name=school_name,
         teacher_name=teacher_name,
+        is_admin=is_admin(),
     )
 
 
@@ -1777,7 +1840,6 @@ def export_cba_marks(grade, export_format):
 
     subject = request.args.get("subject", "").strip()
     term = request.args.get("term", "").strip()
-    include_total = request.args.get("include_total", "1") != "0"
     teacher_code = session.get("teacher_code")
     if not subject or not teacher_code:
         return "Subject is required", 400
@@ -1822,8 +1884,6 @@ def export_cba_marks(grade, export_format):
 
     headers = ["Assessment Number", "Learner's Name", "Gender"]
     headers.extend(task["name"] for task in tasks)
-    if include_total:
-        headers.append("Total Score")
     output_rows = []
     for student in students:
         row = [
@@ -1831,28 +1891,16 @@ def export_cba_marks(grade, export_format):
             student["student_name"],
             student["gender"] or "",
         ]
-        total_points = 0
-        all_scores_present = True
-        has_absence = False
         for task in tasks:
             raw_score = scores_by_student.get(student["adm_no"], {}).get(task["name"])
             if raw_score is None:
                 row.append("")
-                all_scores_present = False
                 continue
             converted = convert_raw_score(task, raw_score)
             if converted["points"] is None:
                 row.append(absence_mark_for_grade(grade))
-                has_absence = True
             else:
                 row.append(converted["points"])
-                total_points += converted["points"]
-        if include_total:
-            row.append(
-                absence_mark_for_grade(grade)
-                if has_absence
-                else total_points if all_scores_present else ""
-            )
         output_rows.append(row)
 
     filename = secure_filename(f"{grade}_{subject}_{term}_cba_results.{export_format}")
@@ -1936,8 +1984,6 @@ def export_cba_marks(grade, export_format):
     table_data = [headers] + output_rows
     usable_width = landscape(A4)[0] - 24 * mm
     column_weights = [1.55, 2.4, 0.85] + [1.0] * len(tasks)
-    if include_total:
-        column_weights.append(1.0)
     weight_total = sum(column_weights)
     column_widths = [usable_width * weight / weight_total for weight in column_weights]
     table = Table(table_data, colWidths=column_widths, repeatRows=1)
@@ -1959,6 +2005,477 @@ def export_cba_marks(grade, export_format):
     document.build([title, table])
     buffer.seek(0)
     return send_file(buffer, as_attachment=True, download_name=filename, mimetype="application/pdf")
+
+
+def _curriculum_tree(conn, school_id, grade):
+    tree = []
+    areas = conn.execute(
+        "SELECT id, name FROM cbc_learning_areas WHERE school_id = ? AND grade = ? ORDER BY name",
+        (school_id, grade),
+    ).fetchall()
+    for area in areas:
+        strands = conn.execute(
+            "SELECT id, name FROM cbc_strands WHERE learning_area_id = ? ORDER BY name",
+            (area["id"],),
+        ).fetchall()
+        area_data = {"name": area["name"], "strands": []}
+        for strand in strands:
+            sub_strands = conn.execute(
+                "SELECT name FROM cbc_sub_strands WHERE strand_id = ? ORDER BY name",
+                (strand["id"],),
+            ).fetchall()
+            area_data["strands"].append(
+                {"name": strand["name"], "sub_strands": [row["name"] for row in sub_strands]}
+            )
+        tree.append(area_data)
+    return tree
+
+
+@app.route("/cbc/curriculum/<grade>", methods=["GET", "POST"])
+def manage_cbc_curriculum(grade):
+    if "school_id" not in session:
+        return redirect(url_for("teacher_login"))
+    if not is_admin():
+        return "Administrator access required", 403
+
+    conn = get_db()
+    if request.method == "POST":
+        try:
+            submitted = json.loads(request.form.get("curriculum_json", "[]"))
+            areas = validate_curriculum(submitted, grade)
+            conn.execute("BEGIN")
+            for area in areas:
+                conn.execute(
+                    "INSERT INTO cbc_learning_areas (school_id, grade, name) VALUES (?, ?, ?) ON CONFLICT(school_id, grade, name) DO NOTHING",
+                    (session["school_id"], grade, area["name"]),
+                )
+                area_id = conn.execute(
+                    "SELECT id FROM cbc_learning_areas WHERE school_id = ? AND grade = ? AND name = ?",
+                    (session["school_id"], grade, area["name"]),
+                ).fetchone()["id"]
+                for strand in area["strands"]:
+                    conn.execute(
+                        "INSERT INTO cbc_strands (learning_area_id, name) VALUES (?, ?) ON CONFLICT(learning_area_id, name) DO NOTHING",
+                        (area_id, strand["name"]),
+                    )
+                    strand_id = conn.execute(
+                        "SELECT id FROM cbc_strands WHERE learning_area_id = ? AND name = ?",
+                        (area_id, strand["name"]),
+                    ).fetchone()["id"]
+                    for sub_strand in strand["sub_strands"]:
+                        conn.execute(
+                            "INSERT INTO cbc_sub_strands (strand_id, name) VALUES (?, ?) ON CONFLICT(strand_id, name) DO NOTHING",
+                            (strand_id, sub_strand),
+                        )
+            conn.commit()
+            flash("Curriculum structure saved.", "success")
+        except (ValueError, TypeError, json.JSONDecodeError, sqlite3.Error) as error:
+            conn.rollback()
+            flash(str(error), "danger")
+
+    current = _curriculum_tree(conn, session["school_id"], grade)
+    conn.close()
+    return render_template(
+        "cbc_curriculum.html",
+        grade=grade,
+        curriculum_json=json.dumps(current, indent=2),
+        max_learning_areas=9 if grade in {"Grade 7", "Grade 8", "Grade 9"} else None,
+    )
+
+
+SUBJECT_TO_LEARNING_AREA = {
+    "MATH": "Mathematics",
+    "MAT": "Mathematics",
+    "ENG": "English",
+    "KISW": "Kiswahili",
+    "INT SCIE": "Integrated Science",
+    "PRE-TECH": "Pre-Technical Studies",
+    "SST": "Social Studies",
+    "AGRI": "Agriculture",
+    "C/A": "Creative Arts",
+    "CRE": "CRE",
+    "IRE": "IRE",
+    "HRE": "HRE",
+}
+
+
+@app.route("/cbc/gradebook/<grade>", methods=["GET", "POST"])
+def cbc_rubric_gradebook(grade):
+    if "school_id" not in session:
+        return redirect(url_for("teacher_login"))
+    teacher_code = session.get("teacher_code")
+    if not teacher_code:
+        return redirect(url_for("teacher_login"))
+
+    conn = get_db()
+    school = conn.execute(
+        "SELECT portal_open FROM schools WHERE id = ?", (session["school_id"],)
+    ).fetchone()
+    if not school or school["portal_open"] == 0:
+        conn.close()
+        return "The teachers portal is currently closed", 403
+    assignments = conn.execute(
+        "SELECT subject FROM teacher_assignments WHERE school_id = ? AND class_name = ? AND teacher_code = ? ORDER BY subject",
+        (session["school_id"], grade, teacher_code),
+    ).fetchall()
+    assigned_areas = [
+        SUBJECT_TO_LEARNING_AREA.get(row["subject"].strip().upper(), row["subject"].strip())
+        for row in assignments
+    ]
+    configured_areas = conn.execute(
+        "SELECT id, name FROM cbc_learning_areas WHERE school_id = ? AND grade = ? ORDER BY name",
+        (session["school_id"], grade),
+    ).fetchall()
+    available_areas = [area for area in configured_areas if area["name"] in assigned_areas]
+    area_name = request.values.get("area", "").strip()
+    if not area_name and available_areas:
+        area_name = available_areas[0]["name"]
+    selected_area = next((area for area in available_areas if area["name"] == area_name), None)
+    if not selected_area:
+        conn.close()
+        return "No configured learning area matches your class assignment", 404
+
+    term = request.values.get("term", "Term 1").strip()
+    if term not in {"Term 1", "Term 2", "Term 3"}:
+        conn.close()
+        return "Invalid term", 400
+    assessment_type = request.values.get("assessment_type", "Formative").strip()
+    if assessment_type not in {"Formative", "Localized Summative"}:
+        conn.close()
+        return "Invalid assessment type", 400
+    try:
+        academic_year = int(request.values.get("academic_year", datetime.now().year))
+        if academic_year < 2000 or academic_year > 2200:
+            raise ValueError
+    except (TypeError, ValueError):
+        conn.close()
+        return "Invalid academic year", 400
+
+    sub_strands = conn.execute(
+        "SELECT ss.id, st.name AS strand_name, ss.name AS sub_strand_name FROM cbc_strands st JOIN cbc_sub_strands ss ON ss.strand_id = st.id WHERE st.learning_area_id = ? ORDER BY st.name, ss.name",
+        (selected_area["id"],),
+    ).fetchall()
+    if not sub_strands:
+        conn.close()
+        return "This learning area has no configured sub-strands", 400
+    students = conn.execute(
+        "SELECT id, assessment_number, student_name, gender FROM students WHERE school_id = ? AND grade = ? ORDER BY assessment_number COLLATE NOCASE, student_name COLLATE NOCASE",
+        (session["school_id"], grade),
+    ).fetchall()
+
+    if request.method == "POST":
+        assessment_numbers = []
+        ratings_to_save = []
+        try:
+            for student in students:
+                assessment_number = validate_assessment_number(student["assessment_number"])
+                assessment_numbers.append(assessment_number.casefold())
+                for sub_strand in sub_strands:
+                    raw_rating = request.form.get(f"rating_{student['id']}_{sub_strand['id']}", "").strip()
+                    if not raw_rating:
+                        continue
+                    rating = validate_rubric_rating(raw_rating)
+                    ratings_to_save.append((assessment_number, sub_strand["id"], str(rating)))
+            if len(assessment_numbers) != len(set(assessment_numbers)):
+                raise ValueError("Assessment Numbers must be unique within this class.")
+        except ValueError as error:
+            conn.close()
+            flash(str(error), "danger")
+            return redirect(url_for("cbc_rubric_gradebook", grade=grade, area=area_name, term=term, academic_year=academic_year))
+
+        sub_strand_ids = [row["id"] for row in sub_strands]
+        placeholders = ",".join("?" for _ in sub_strand_ids)
+        conn.execute(
+            f"DELETE FROM cbc_rubric_scores WHERE school_id = ? AND grade = ? AND academic_year = ? AND term = ? AND assessment_type = ? AND sub_strand_id IN ({placeholders})",
+            (session["school_id"], grade, academic_year, term, assessment_type, *sub_strand_ids),
+        )
+        updated_at = datetime.now(timezone.utc).isoformat()
+        for assessment_number, sub_strand_id, rating in ratings_to_save:
+            conn.execute(
+                "INSERT INTO cbc_rubric_scores (school_id, grade, assessment_number, academic_year, term, assessment_type, sub_strand_id, rating, teacher_code, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (session["school_id"], grade, assessment_number, academic_year, term, assessment_type, sub_strand_id, rating, teacher_code, updated_at),
+            )
+        conn.commit()
+        conn.close()
+        flash("Competency ratings saved.", "success")
+        return redirect(url_for("cbc_rubric_gradebook", grade=grade, area=area_name, term=term, academic_year=academic_year, assessment_type=assessment_type))
+
+    saved = conn.execute(
+        "SELECT assessment_number, sub_strand_id, assessment_type, rating FROM cbc_rubric_scores WHERE school_id = ? AND grade = ? AND academic_year = ? AND term = ? AND sub_strand_id IN (SELECT ss.id FROM cbc_sub_strands ss JOIN cbc_strands st ON st.id = ss.strand_id WHERE st.learning_area_id = ?)",
+        (session["school_id"], grade, academic_year, term, selected_area["id"]),
+    ).fetchall()
+    rating_map = {(row["assessment_number"], row["sub_strand_id"], row["assessment_type"]): row["rating"] for row in saved}
+    term_ratings = {}
+    for row in saved:
+        term_ratings.setdefault((row["assessment_number"], row["assessment_type"]), []).append(row["rating"])
+    aggregates = {}
+    for student in students:
+        try:
+            assessment_number = validate_assessment_number(student["assessment_number"])
+            formative = term_ratings.get((assessment_number, "Formative"), [])
+            summative = term_ratings.get((assessment_number, "Localized Summative"), [])
+            aggregates[student["id"]] = aggregate_term_competency(formative, summative)
+        except ValueError:
+            aggregates[student["id"]] = "Missing Assessment Number"
+    conn.close()
+    return render_template(
+        "cbc_gradebook.html",
+        grade=grade,
+        area=area_name,
+        areas=available_areas,
+        term=term,
+        assessment_type=assessment_type,
+        academic_year=academic_year,
+        students=students,
+        sub_strands=sub_strands,
+        rating_map=rating_map,
+        aggregates=aggregates,
+        assessment_number_validator=validate_assessment_number,
+    )
+
+
+@app.route("/cbc/profile/<grade>/<assessment_number>")
+def cbc_progress_profile(grade, assessment_number):
+    if "school_id" not in session:
+        return redirect(url_for("teacher_login"))
+    teacher_code = session.get("teacher_code")
+    if not teacher_code and not is_admin():
+        return redirect(url_for("teacher_login"))
+    try:
+        assessment_number = validate_assessment_number(assessment_number)
+    except ValueError as error:
+        return str(error), 400
+
+    term = request.args.get("term", "Term 1").strip()
+    try:
+        academic_year = int(request.args.get("academic_year", datetime.now().year))
+    except (TypeError, ValueError):
+        return "Invalid academic year", 400
+    conn = get_db()
+    if teacher_code and not is_admin():
+        assignment = conn.execute(
+            "SELECT 1 FROM teacher_assignments WHERE school_id = ? AND class_name = ? AND teacher_code = ? LIMIT 1",
+            (session["school_id"], grade, teacher_code),
+        ).fetchone()
+        if not assignment:
+            conn.close()
+            return "You are not assigned to this class", 403
+    learner = conn.execute(
+        "SELECT student_name, gender, assessment_number FROM students WHERE school_id = ? AND grade = ? AND assessment_number = ?",
+        (session["school_id"], grade, assessment_number),
+    ).fetchone()
+    if not learner:
+        conn.close()
+        return "Learner not found", 404
+    if conn.execute(
+        "SELECT COUNT(*) FROM students WHERE school_id = ? AND assessment_number = ?",
+        (session["school_id"], assessment_number),
+    ).fetchone()[0] != 1:
+        conn.close()
+        return "Assessment Number is not unique in this school", 409
+    school = conn.execute(
+        "SELECT school_name FROM schools WHERE id = ?", (session["school_id"],)
+    ).fetchone()
+    rows = conn.execute(
+        "SELECT la.name AS learning_area, st.name AS strand, ss.name AS sub_strand, rs.assessment_type, rs.rating FROM cbc_rubric_scores rs JOIN cbc_sub_strands ss ON ss.id = rs.sub_strand_id JOIN cbc_strands st ON st.id = ss.strand_id JOIN cbc_learning_areas la ON la.id = st.learning_area_id WHERE rs.school_id = ? AND rs.grade = ? AND rs.assessment_number = ? AND rs.academic_year = ? AND rs.term = ? ORDER BY la.name, st.name, ss.name",
+        (session["school_id"], grade, assessment_number, academic_year, term),
+    ).fetchall()
+    conn.close()
+
+    grouped = {}
+    for row in rows:
+        area = grouped.setdefault(row["learning_area"], {})
+        strand = area.setdefault(row["strand"], {})
+        item = strand.setdefault(
+            row["sub_strand"], {"Formative": None, "Localized Summative": None}
+        )
+        item[row["assessment_type"]] = row["rating"]
+    profile_areas = []
+    for area_name, strands in grouped.items():
+        area_formative = []
+        area_summative = []
+        profile_strands = []
+        for strand_name, sub_strands in strands.items():
+            profile_sub_strands = []
+            for sub_name, ratings in sub_strands.items():
+                for assessment_type, key in (("Formative", area_formative), ("Localized Summative", area_summative)):
+                    rating = ratings[assessment_type]
+                    if rating is not None:
+                        key.append(rating)
+                profile_sub_strands.append({
+                    "name": sub_name,
+                    "formative": ratings["Formative"],
+                    "summative": ratings["Localized Summative"],
+                })
+            profile_strands.append({"name": strand_name, "sub_strands": profile_sub_strands})
+        profile_areas.append({
+            "name": area_name,
+            "strands": profile_strands,
+            "descriptor": aggregate_term_competency(area_formative, area_summative),
+        })
+    return render_template(
+        "cbc_profile.html",
+        school_name=school["school_name"] if school else "",
+        learner=learner,
+        grade=grade,
+        term=term,
+        academic_year=academic_year,
+        areas=profile_areas,
+        rubric_descriptors=RUBRIC_DESCRIPTORS,
+        reporting_bands_for_rating=reporting_bands_for_rating,
+    )
+
+
+@app.route("/api/cbc/milestone-results", methods=["POST"])
+def save_cbc_milestone_result():
+    if "school_id" not in session:
+        return jsonify({"success": False, "message": "Login required."}), 401
+    if not is_admin():
+        return jsonify({"success": False, "message": "Administrator access required."}), 403
+    data = request.get_json(silent=True) or {}
+    grade = str(data.get("grade", "")).strip()
+    try:
+        assessment_number = validate_assessment_number(data.get("assessment_number"))
+        academic_year = int(data.get("academic_year"))
+        national_percent = float(data.get("national_percent"))
+        if grade == "Grade 6":
+            sba_percent = float(data.get("sba_percent"))
+            grade7_sba_percent = None
+            grade8_sba_percent = None
+        else:
+            grade7_sba_percent = float(data.get("grade7_sba_percent"))
+            grade8_sba_percent = float(data.get("grade8_sba_percent"))
+            sba_percent = (grade7_sba_percent + grade8_sba_percent) / 2
+        weighted_result = calculate_milestone_result(
+            grade,
+            national_percent,
+            sba_percent=sba_percent,
+            grade7_sba_percent=grade7_sba_percent,
+            grade8_sba_percent=grade8_sba_percent,
+        )
+    except (TypeError, ValueError) as error:
+        return jsonify({"success": False, "message": str(error)}), 400
+
+    conn = get_db()
+    enrolled = conn.execute(
+        "SELECT 1 FROM students WHERE school_id = ? AND grade = ? AND assessment_number = ?",
+        (session["school_id"], grade, assessment_number),
+    ).fetchone()
+    if not enrolled:
+        conn.close()
+        return jsonify({"success": False, "message": "Learner is not enrolled in this school and milestone grade."}), 404
+    conn.execute(
+        "INSERT INTO cbc_milestone_results (school_id, grade, assessment_number, academic_year, sba_percent, grade7_sba_percent, grade8_sba_percent, national_percent, weighted_result, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(school_id, grade, assessment_number, academic_year) DO UPDATE SET sba_percent = excluded.sba_percent, grade7_sba_percent = excluded.grade7_sba_percent, grade8_sba_percent = excluded.grade8_sba_percent, national_percent = excluded.national_percent, weighted_result = excluded.weighted_result, updated_at = excluded.updated_at",
+        (session["school_id"], grade, assessment_number, academic_year, sba_percent, grade7_sba_percent, grade8_sba_percent, national_percent, weighted_result, datetime.now(timezone.utc).isoformat()),
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "weighted_result": weighted_result})
+
+
+def _get_cba_staging_data(grade):
+    if "school_id" not in session:
+        return None, redirect(url_for("teacher_login"))
+    subject = request.args.get("subject", "").strip()
+    term = request.args.get("term", "").strip()
+    teacher_code = session.get("teacher_code")
+    if not subject or not teacher_code:
+        return None, ("Subject and teacher assignment are required", 400)
+
+    conn = get_db()
+    assignment = conn.execute(
+        "SELECT 1 FROM teacher_assignments WHERE school_id = ? AND class_name = ? AND subject = ? AND teacher_code = ?",
+        (session["school_id"], grade, subject, teacher_code),
+    ).fetchone()
+    if not assignment:
+        conn.close()
+        return None, ("You are not assigned to this class and subject", 403)
+    if not term:
+        latest = conn.execute(
+            "SELECT term FROM cba_term_task_configs WHERE school_id = ? AND grade = ? AND subject = ? ORDER BY updated_at DESC LIMIT 1",
+            (session["school_id"], grade, subject),
+        ).fetchone()
+        term = latest["term"] if latest else ""
+    config = conn.execute(
+        "SELECT tasks_json FROM cba_term_task_configs WHERE school_id = ? AND grade = ? AND subject = ? AND term = ?",
+        (session["school_id"], grade, subject, term),
+    ).fetchone()
+    if not config:
+        conn.close()
+        return None, ("No CBA task configuration exists for this term", 404)
+    tasks = validate_tasks(json.loads(config["tasks_json"]))
+    students = conn.execute(
+        "SELECT adm_no, assessment_number, student_name, gender FROM students WHERE school_id = ? AND grade = ? ORDER BY assessment_number COLLATE NOCASE, student_name COLLATE NOCASE",
+        (session["school_id"], grade),
+    ).fetchall()
+    scores = conn.execute(
+        "SELECT adm_no, task_name, raw_score FROM cba_term_scores WHERE school_id = ? AND grade = ? AND subject = ? AND term = ?",
+        (session["school_id"], grade, subject, term),
+    ).fetchall()
+    conn.close()
+    missing = []
+    assessment_counts = {}
+    for student in students:
+        try:
+            assessment_number = validate_assessment_number(student["assessment_number"])
+            assessment_counts[assessment_number.casefold()] = assessment_counts.get(assessment_number.casefold(), 0) + 1
+        except ValueError:
+            missing.append(student["student_name"])
+    duplicate_numbers = {
+        number for number, count in assessment_counts.items() if count > 1
+    }
+    if duplicate_numbers:
+        for student in students:
+            assessment_number = str(student["assessment_number"] or "").strip().casefold()
+            if assessment_number in duplicate_numbers:
+                missing.append(f"{student['student_name']} (duplicate Assessment Number)")
+    scores_by_student = {}
+    for row in scores:
+        scores_by_student.setdefault(row["adm_no"], {})[row["task_name"]] = row["raw_score"]
+    return {
+        "grade": grade,
+        "subject": subject,
+        "term": term,
+        "tasks": tasks,
+        "students": students,
+        "missing": missing,
+        "scores_by_student": scores_by_student,
+    }, None
+
+
+@app.route("/cba/staging/<grade>")
+def cba_staging_area(grade):
+    context, error = _get_cba_staging_data(grade)
+    if error:
+        return error
+    return render_template("cbc_staging.html", **context)
+
+
+@app.route("/cba/staging/<grade>/download")
+def download_cba_staging_csv(grade):
+    context, error = _get_cba_staging_data(grade)
+    if error:
+        return error
+    if context.get("missing"):
+        return jsonify({"success": False, "missing_assessment_numbers": context["missing"]}), 400
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(["Assessment Number", "Learner's Name", "Gender", *[task["name"] for task in context["tasks"]]])
+    for student in context["students"]:
+        try:
+            assessment_number = validate_assessment_number(student["assessment_number"])
+        except ValueError:
+            return jsonify({"success": False, "message": "A learner is missing a valid Assessment Number."}), 400
+        student_scores = context["scores_by_student"].get(student["adm_no"], {})
+        writer.writerow([
+            assessment_number,
+            student["student_name"],
+            student["gender"] or "",
+            *[student_scores.get(task["name"], "") for task in context["tasks"]],
+        ])
+    file_buffer = io.BytesIO(output.getvalue().encode("utf-8-sig"))
+    filename = secure_filename(f"{grade}_{context['subject']}_{context['term']}_knec_cba.csv")
+    return send_file(file_buffer, as_attachment=True, download_name=filename, mimetype="text/csv; charset=utf-8")
 
 
 @app.route("/api/fetch_cba_results", methods=["POST"])
@@ -1996,9 +2513,14 @@ def api_fetch_cba_results():
 
         tasks = validate_tasks(json.loads(config["tasks_json"]))
         students = conn.execute(
-            "SELECT adm_no, assessment_number, student_name, gender FROM students WHERE school_id = ? AND grade = ? ORDER BY student_name COLLATE NOCASE, adm_no",
+            "SELECT adm_no, assessment_number, student_name, gender FROM students WHERE school_id = ? AND grade = ? ORDER BY assessment_number COLLATE NOCASE, student_name COLLATE NOCASE",
             (school["id"], grade),
         ).fetchall()
+        assessment_numbers = []
+        for student in students:
+            assessment_numbers.append(validate_assessment_number(student["assessment_number"]))
+        if len({number.casefold() for number in assessment_numbers}) != len(assessment_numbers):
+            return jsonify({"success": False, "message": "Learner Assessment Numbers must be unique."}), 400
         scores = conn.execute(
             "SELECT adm_no, task_name, raw_score FROM cba_term_scores WHERE school_id = ? AND grade = ? AND subject = ? AND term = ?",
             (school["id"], grade, subject, term),
@@ -2010,36 +2532,24 @@ def api_fetch_cba_results():
 
         columns = ["Assessment Number", "Learner's Name", "Gender"]
         columns.extend(task["name"] for task in tasks)
-        columns.append("Total Score")
         absence_mark = absence_mark_for_grade(grade)
         records = []
-        for student in students:
+        for student, assessment_number in zip(students, assessment_numbers):
             row = [
-                student["assessment_number"] or "",
+                assessment_number,
                 student["student_name"],
                 student["gender"] or "",
             ]
-            total_points = 0
-            all_scores_present = True
-            has_absence = False
             for task in tasks:
                 raw_score = scores_by_student.get(student["adm_no"], {}).get(task["name"])
                 if raw_score is None:
                     row.append("")
-                    all_scores_present = False
                     continue
                 converted = convert_raw_score(task, raw_score)
                 if converted["points"] is None:
                     row.append(absence_mark)
-                    has_absence = True
                 else:
                     row.append(converted["points"])
-                    total_points += converted["points"]
-            row.append(
-                absence_mark
-                if has_absence
-                else total_points if all_scores_present else ""
-            )
             records.append(row)
 
         return jsonify(

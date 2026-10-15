@@ -1306,7 +1306,7 @@ class Dashboard(ctk.CTk):
         ).pack(pady=5)
         ctk.CTkLabel(
             scrollable_frame,
-            text="Grade 9 students will be removed from the system.",
+            text="Grade 9 students will continue to Grade 10; Grade 12 records will be retained.",
             font=("Arial", 12),
             text_color="red",
         ).pack(pady=5)
@@ -1345,7 +1345,10 @@ class Dashboard(ctk.CTk):
                 f"- Move Grade 6 → Grade 7\n"
                 f"- Move Grade 7 → Grade 8\n"
                 f"- Move Grade 8 → Grade 9\n"
-                f"- Remove Grade 9 students from system\n\n"
+                f"- Move Grade 9 → Grade 10\n"
+                f"- Move Grade 10 → Grade 11\n"
+                f"- Move Grade 11 → Grade 12\n"
+                f"- Retain Grade 12 learners in the system\n\n"
                 f"All current exam data will be archived under year: {year}",
             ):
                 result["confirmed"] = True
@@ -1392,7 +1395,9 @@ class Dashboard(ctk.CTk):
                 "Grade 6": "Grade 7",
                 "Grade 7": "Grade 8",
                 "Grade 8": "Grade 9",
-                "Grade 9": None,  # Will be removed
+                "Grade 9": "Grade 10",
+                "Grade 10": "Grade 11",
+                "Grade 11": "Grade 12",
             }
 
             print(f"[PROMOTION] Promotion map: {promotion_map}")
@@ -1406,7 +1411,6 @@ class Dashboard(ctk.CTk):
             print(f"[PROMOTION] Found {len(students)} students")
 
             promoted_count = 0
-            removed_count = 0
 
             # Archive all exam data for this year BEFORE promotion
             print(f"[PROMOTION] Starting archiving process...")
@@ -1436,21 +1440,12 @@ class Dashboard(ctk.CTk):
                         f"[PROMOTION] Student {name} will move from {current_grade} ({current_grade_normalized}) to {new_grade}"
                     )
 
-                    if new_grade is None:
-                        # Remove Grade 9 students
-                        print(f"[PROMOTION] Removing Grade 9 student: {name}")
-                        self.db.cursor().execute(
-                            "DELETE FROM students WHERE adm_no = ?", (adm_no,)
-                        )
-                        removed_count += 1
-                    else:
-                        # Promote to next grade
-                        print(f"[PROMOTION] Promoting student {name} to {new_grade}")
-                        self.db.cursor().execute(
-                            "UPDATE students SET grade = ? WHERE adm_no = ?",
-                            (new_grade, adm_no),
-                        )
-                        promoted_count += 1
+                    print(f"[PROMOTION] Promoting student {name} to {new_grade}")
+                    self.db.cursor().execute(
+                        "UPDATE students SET grade = ? WHERE adm_no = ?",
+                        (new_grade, adm_no),
+                    )
+                    promoted_count += 1
                 else:
                     print(
                         f"[PROMOTION] WARNING: Student {name} has unrecognized grade: {current_grade} (normalized: {current_grade_normalized})"
@@ -1464,7 +1459,7 @@ class Dashboard(ctk.CTk):
                 "Promotion Complete",
                 f"Student promotion completed successfully!\n\n"
                 f"Promoted: {promoted_count} students\n"
-                f"Removed: {removed_count} students (Grade 9)\n"
+                f"Grade 12 learners were retained in the system.\n"
                 f"All exam data archived under year: {year}",
             )
 
@@ -4158,6 +4153,9 @@ class Dashboard(ctk.CTk):
             "Grade 7",
             "Grade 8",
             "Grade 9",
+            "Grade 10",
+            "Grade 11",
+            "Grade 12",
         ]
         for class_name in classes:
             btn = ctk.CTkButton(

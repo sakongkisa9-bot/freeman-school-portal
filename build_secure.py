@@ -26,6 +26,7 @@ DATA_FILES = [
     ("version.json", "."),
     ("mpesa_config.json", "."),
     ("file_loader.py", "."),
+    ("001_cbc_assessment.sql", "."),
 ]
 
 # Main entry point
@@ -227,6 +228,7 @@ def run_pyinstaller():
         "database",
         "teacher_comments",
         "cba_logic",
+        "cbc_engine",
         "cba_task_manager",
         "cba_results_view",
         "fpdf",  # Required for PDF generation in reportforms
@@ -289,6 +291,7 @@ def build_simple():
         "database",
         "teacher_comments",
         "cba_logic",
+        "cbc_engine",
         "cba_task_manager",
         "cba_results_view",
         "fpdf",  # Required for PDF generation in reportforms

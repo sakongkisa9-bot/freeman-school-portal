@@ -326,6 +326,8 @@
                     <a href="{{ url_for('manage_students', grade=grade) }}" class="btn-card btn-primary">👥 Students</a>
                     <a href="{{ url_for('select_subject', grade=grade) }}" class="btn-card btn-secondary">✏️ Percentage Marks</a>
                     <a href="{{ url_for('select_cba_subject', grade=grade) }}" class="btn-card btn-secondary">📋 KNEC CBA</a>
+                    <a href="{{ url_for('cbc_rubric_gradebook', grade=grade) }}" class="btn-card btn-secondary">✓ Competency Gradebook</a>
+                    {% if is_admin %}<a href="{{ url_for('manage_cbc_curriculum', grade=grade) }}" class="btn-card btn-secondary">Curriculum Setup</a>{% endif %}
                 </div>
             </div>
             {% endfor %}

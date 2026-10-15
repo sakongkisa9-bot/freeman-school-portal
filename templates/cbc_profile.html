@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Learner Progress Profile | Freeman Portal</title>
+    <style>
+        :root { color-scheme: light; --page: #f3f5f1; --surface: #fff; --line: #d4ddd5; --text: #1e302a; --muted: #5d7167; --accent: #32765b; --soft: #e7efe9; }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: linear-gradient(130deg, #edf4ec, #f7f5ef); color: var(--text); font: 15px "Segoe UI", sans-serif; }
+        main { width: min(100% - 32px, 1050px); margin: auto; padding: 28px 0 52px; }
+        header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; border-bottom: 2px solid #9cb9a5; padding-bottom: 16px; }
+        h1 { margin: 0 0 7px; font-size: 25px; } h2 { font-size: 18px; margin: 0; } p { margin: 5px 0; color: var(--muted); }
+        a { color: var(--accent); font-weight: 650; }
+        .meta { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 7px 24px; margin: 18px 0 24px; }
+        .area { border-top: 1px solid var(--line); padding: 17px 0; }
+        .area-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-bottom: 8px; }
+        .descriptor { font-weight: 750; color: var(--accent); }
+        table { width: 100%; border-collapse: collapse; background: rgba(255,255,255,.78); }
+        th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+        th { background: var(--soft); font-size: 13px; }
+        td:first-child { width: 40%; }
+        .sub { color: var(--muted); font-size: 12px; display: block; margin-top: 3px; }
+        .empty { padding: 20px 0; color: var(--muted); }
+        @media (max-width: 640px) { header { flex-direction: column; } .meta { grid-template-columns: 1fr; } table { min-width: 600px; } .table-wrap { overflow-x: auto; } }
+    </style>
+</head>
+<body>
+<main>
+    <header>
+        <div><h1>Learner Progress Profile</h1><p>{{ school_name }} · {{ grade }}</p></div>
+        <a href="{{ url_for('cbc_rubric_gradebook', grade=grade, term=term, academic_year=academic_year) }}">Back to gradebook</a>
+    </header>
+    <section class="meta">
+        <p><strong>Learner:</strong> {{ learner.student_name }}</p>
+        <p><strong>Assessment Number:</strong> {{ learner.assessment_number }}</p>
+        <p><strong>Term:</strong> {{ term }}</p>
+        <p><strong>Year:</strong> {{ academic_year }}</p>
+    </section>
+    {% if not areas %}<p class="empty">No competency evidence has been recorded for this term.</p>{% endif %}
+    {% for area in areas %}
+    <section class="area">
+        <div class="area-head"><h2>{{ area.name }}</h2><span class="descriptor">{{ area.descriptor }}</span></div>
+        {% for strand in area.strands %}
+        <div class="table-wrap"><table>
+            <thead><tr><th>{{ strand.name }} / Sub-strand</th><th>Formative</th><th>Localized Summative</th></tr></thead>
+            <tbody>
+            {% for sub in strand.sub_strands %}
+            <tr>
+                <td>{{ sub.name }}</td>
+                {% for rating in [sub.formative, sub.summative] %}
+                <td>{% if rating == "AB" %}AB{% elif rating %}{{ rubric_descriptors[rating|int] }} ({{ rating }})<span class="sub">{{ reporting_bands_for_rating(rating|int)|join(" / ") }}</span>{% else %}Not assessed{% endif %}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table></div>
+        {% endfor %}
+    </section>
+    {% endfor %}
+</main>
+</body>
+</html>

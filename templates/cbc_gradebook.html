@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ grade }} Competency Gradebook | Freeman Portal</title>
+    <style>
+        :root { color-scheme: dark; --page: #10221f; --surface: #192f2a; --line: #3b5b51; --text: #f1f7f3; --muted: #b6c9c0; --accent: #83c7a8; --danger: #e28a80; }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: linear-gradient(145deg, #132b26, #101b1b 65%); color: var(--text); font: 15px "Segoe UI", sans-serif; min-height: 100vh; }
+        main { width: min(100% - 32px, 1500px); margin: 0 auto; padding: 24px 0 50px; }
+        header { display: flex; justify-content: space-between; align-items: center; gap: 16px; border-bottom: 1px solid var(--line); padding-bottom: 16px; }
+        h1 { margin: 0; font-size: 24px; } p { color: var(--muted); }
+        a, button { color: var(--text); background: #24483d; border: 1px solid #5d907a; border-radius: 4px; padding: 10px 14px; text-decoration: none; font: inherit; cursor: pointer; }
+        button.save { background: #39775c; }
+        .toolbar { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; padding: 16px 0; }
+        label { display: grid; gap: 5px; color: var(--muted); font-size: 13px; }
+        select, input[type=number] { min-height: 38px; background: #0e1917; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 7px 9px; }
+        .table-wrap { overflow: auto; max-height: 70vh; border: 1px solid var(--line); background: #172622; }
+        table { border-collapse: collapse; min-width: 900px; width: 100%; }
+        th, td { padding: 9px; border-bottom: 1px solid #31473f; text-align: left; }
+        th { position: sticky; top: 0; z-index: 2; background: #244239; color: #e1f2e9; }
+        .student { position: sticky; left: 0; z-index: 1; background: #172622; min-width: 245px; }
+        th.student { z-index: 3; background: #244239; }
+        .sub { display: block; color: #b6c9c0; font-size: 11px; margin-top: 4px; }
+        .rating { min-width: 115px; width: 100%; }
+        .missing { color: var(--danger); font-weight: 650; }
+        .message { margin: 12px 0; padding: 10px 12px; background: var(--surface); border-left: 3px solid var(--accent); }
+        .message.danger { border-color: var(--danger); }
+        .save-row { display: flex; justify-content: flex-end; margin-top: 14px; }
+        @media (max-width: 640px) { header { align-items: flex-start; flex-direction: column; } }
+    </style>
+</head>
+<body>
+<main>
+    <header>
+        <div><h1>{{ grade }} Competency Gradebook</h1><p>{{ area }} · ratings are recorded per sub-strand</p></div>
+        <a href="{{ url_for('dashboard') }}">Dashboard</a>
+    </header>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}<div class="message {{ category }}">{{ message }}</div>{% endfor %}
+    {% endwith %}
+    <form method="get" class="toolbar">
+        <label>Learning Area<select name="area" onchange="this.form.submit()">{% for item in areas %}<option value="{{ item.name }}"{% if item.name == area %} selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></label>
+        <label>Term<select name="term">{% for item in ["Term 1", "Term 2", "Term 3"] %}<option{% if item == term %} selected{% endif %}>{{ item }}</option>{% endfor %}</select></label>
+        <label>Assessment Type<select name="assessment_type">{% for item in ["Formative", "Localized Summative"] %}<option{% if item == assessment_type %} selected{% endif %}>{{ item }}</option>{% endfor %}</select></label>
+        <label>Year<input type="number" name="academic_year" min="2000" max="2200" value="{{ academic_year }}"></label>
+        <button type="submit">Load</button>
+    </form>
+    <form method="post" action="{{ url_for('cbc_rubric_gradebook', grade=grade, area=area, term=term, academic_year=academic_year) }}">
+        <input type="hidden" name="term" value="{{ term }}"><input type="hidden" name="academic_year" value="{{ academic_year }}"><input type="hidden" name="assessment_type" value="{{ assessment_type }}">
+        <div class="table-wrap"><table>
+            <thead><tr><th class="student">Learner / Assessment Number</th>{% for item in sub_strands %}<th>{{ item.strand_name }}<span class="sub">{{ item.sub_strand_name }}</span></th>{% endfor %}<th>Area Descriptor</th></tr></thead>
+            <tbody>
+            {% for student in students %}
+            <tr>
+                <td class="student">{{ student.student_name }}<span class="sub">{% if student.assessment_number %}<a href="{{ url_for('cbc_progress_profile', grade=grade, assessment_number=student.assessment_number, term=term, academic_year=academic_year) }}">{{ student.assessment_number }}</a>{% else %}<span class="missing">Missing Assessment Number</span>{% endif %}</span></td>
+                {% for item in sub_strands %}
+                <td><select class="rating" name="rating_{{ student.id }}_{{ item.id }}" aria-label="{{ student.student_name }} {{ item.sub_strand_name }}"{% if not student.assessment_number %} disabled{% endif %}>
+                    <option value="">Not assessed</option>
+                    {% for value, label in [(4, "EE (4)"), (3, "ME (3)"), (2, "AE (2)"), (1, "BE (1)"), ("AB", "Absent (AB)")] %}
+                    <option value="{{ value }}"{% if rating_map.get((student.assessment_number, item.id, assessment_type))|string == value|string %} selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select></td>
+                {% endfor %}
+                <td>{{ aggregates.get(student.id, "AB") }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table></div>
+        <div class="save-row"><button class="save" type="submit">Save Competency Ratings</button></div>
+    </form>
+</main>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>KNEC CSV Staging | Freeman Portal</title>
+    <style>
+        :root { color-scheme: dark; --page: #10221f; --surface: #192f2a; --line: #3b5b51; --text: #f1f7f3; --muted: #b6c9c0; --accent: #83c7a8; --danger: #e28a80; }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: linear-gradient(145deg, #132b26, #101b1b 65%); color: var(--text); font: 15px "Segoe UI", sans-serif; min-height: 100vh; }
+        main { width: min(100% - 32px, 1050px); margin: 0 auto; padding: 28px 0 55px; }
+        header { display: flex; justify-content: space-between; gap: 16px; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 16px; }
+        h1 { margin: 0; font-size: 24px; } p { color: var(--muted); line-height: 1.5; }
+        a, button { color: var(--text); background: #24483d; border: 1px solid #5d907a; border-radius: 4px; padding: 10px 14px; text-decoration: none; font: inherit; }
+        .download { display: inline-block; margin: 16px 0; background: #39775c; }
+        .download.disabled { opacity: .45; pointer-events: none; }
+        .warning { background: #302b24; border-left: 3px solid #e7b867; padding: 12px; margin-top: 18px; }
+        .ready { background: #1c332b; border-left: 3px solid var(--accent); padding: 12px; margin-top: 18px; }
+        .table-wrap { overflow-x: auto; border: 1px solid var(--line); margin-top: 20px; }
+        table { border-collapse: collapse; width: 100%; min-width: 600px; }
+        th, td { padding: 9px 11px; text-align: left; border-bottom: 1px solid #31473f; }
+        th { background: #244239; }
+        @media (max-width: 640px) { header { align-items: flex-start; flex-direction: column; } }
+    </style>
+</head>
+<body>
+<main>
+    <header><div><h1>KNEC CSV Staging</h1><p>{{ grade }} · {{ subject }} · {{ term }}</p></div><a href="{{ url_for('dashboard') }}">Dashboard</a></header>
+    {% if missing %}
+    <div class="warning"><strong>Export blocked:</strong> {{ missing|length }} learner(s) need a valid Assessment Number.</div>
+    {% for name in missing %}<p>{{ name }}</p>{% endfor %}
+    {% else %}
+    <div class="ready">Roster preflight passed for {{ students|length }} learners.</div>
+    {% endif %}
+    <a class="download{% if missing %} disabled{% endif %}" href="{{ url_for('download_cba_staging_csv', grade=grade, subject=subject, term=term) }}">Download CSV</a>
+    <p>The CSV contains Assessment Number, learner name, gender, then one column per configured task. No totals or rankings are included.</p>
+    <div class="table-wrap"><table><thead><tr><th>Assessment Number</th><th>Learner's Name</th><th>Gender</th>{% for task in tasks %}<th>{{ task.name }}</th>{% endfor %}</tr></thead><tbody>
+    {% for student in students %}<tr><td>{{ student.assessment_number or "Missing" }}</td><td>{{ student.student_name }}</td><td>{{ student.gender or "" }}</td>{% for task in tasks %}<td>{{ scores_by_student.get(student.adm_no, {}).get(task.name, "") }}</td>{% endfor %}</tr>{% endfor %}
+    </tbody></table></div>
+</main>
+</body>
+</html>
