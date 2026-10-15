@@ -5,6 +5,7 @@ from cbc_engine import (
     aggregate_competency,
     aggregate_term_competency,
     calculate_milestone_result,
+    rating_from_percentage,
     reporting_bands_for_rating,
     validate_assessment_number,
     validate_curriculum,
@@ -13,6 +14,13 @@ from cbc_engine import (
 
 
 class CBCEngineTests(unittest.TestCase):
+    def test_percentage_bands_map_to_levels(self):
+        cases = [(100, 4), (80, 4), (79, 3), (50, 3), (49, 2), (30, 2), (29, 1), (0, 1)]
+        for percent, level in cases:
+            self.assertEqual(rating_from_percentage(percent), level)
+        for invalid in (-1, 101, "AB", None, ""):
+            self.assertIsNone(rating_from_percentage(invalid))
+
     def test_primary_subject_codes_map_to_curriculum_learning_areas(self):
         self.assertEqual(SUBJECT_TO_LEARNING_AREA["AGRI"], "Agriculture")
         self.assertEqual(SUBJECT_TO_LEARNING_AREA["SCIE"], "Science & Technology")

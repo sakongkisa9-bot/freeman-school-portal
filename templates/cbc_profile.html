@@ -43,12 +43,12 @@
         <div class="area-head"><h2>{{ area.name }}</h2><span class="descriptor">{{ area.descriptor }}</span></div>
         {% for strand in area.strands %}
         <div class="table-wrap"><table>
-            <thead><tr><th>{{ strand.name }} / Sub-strand</th><th>Formative</th><th>Localized Summative</th></tr></thead>
+            <thead><tr><th>{{ strand.name }} / Sub-strand</th><th>Formative</th></tr></thead>
             <tbody>
             {% for sub in strand.sub_strands %}
             <tr>
                 <td>{{ sub.name }}</td>
-                {% for rating in [sub.formative, sub.summative] %}
+                {% for rating in [sub.formative] %}
                 <td>{% if rating == "AB" %}AB{% elif rating %}{{ rubric_descriptors[rating|int] }} ({{ rating }})<span class="sub">{{ reporting_bands_for_rating(rating|int)|join(" / ") }}</span>{% else %}Not assessed{% endif %}</td>
                 {% endfor %}
             </tr>

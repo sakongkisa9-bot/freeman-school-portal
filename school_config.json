@@ -1713,5 +1713,49 @@
             "AGRI": "Term 1",
             "C/A": "Term 1"
         }
+    },
+    "cbc_curriculum": {
+        "Grade 4": {
+            "Agriculture": [
+                {
+                    "name": "Agriculture",
+                    "strands": [
+                        {
+                            "name": "1.0 Conservation of Resources",
+                            "sub_strands": [
+                                "1.1 Soil Conservation",
+                                "1.2 Water Conservation",
+                                "1.3 Fuel Conservation",
+                                "1.4 Conserving Wild Animals"
+                            ]
+                        },
+                        {
+                            "name": "2.0 Food Production Processes",
+                            "sub_strands": [
+                                "2.1 Direct Sowing of Tiny Seeds",
+                                "2.2 Growing Fruits",
+                                "2.3 Uses of Domestic Animals",
+                                "2.4 Balanced Meal",
+                                "2.5 Cooking Food"
+                            ]
+                        },
+                        {
+                            "name": "3.0 Hygiene Practices",
+                            "sub_strands": [
+                                "3.1 Personal Hygiene",
+                                "3.2 Domestic Hygiene",
+                                "3.3 Cleaning Personal Protective Equipment"
+                            ]
+                        },
+                        {
+                            "name": "4.0 Production Techniques",
+                            "sub_strands": [
+                                "4.1 Making Tacking Stitches"
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
     }
 }

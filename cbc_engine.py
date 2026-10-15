@@ -79,6 +79,23 @@ def validate_curriculum(learning_areas, grade, max_junior_areas=9):
     return normalized
 
 
+def rating_from_percentage(percent):
+    """Map a percentage mark to rubric level 4-1, or None if it is not a valid percentage."""
+    try:
+        value = float(percent)
+    except (TypeError, ValueError):
+        return None
+    if not 0 <= value <= 100:
+        return None
+    if value >= 80:
+        return 4
+    if value >= 50:
+        return 3
+    if value >= 30:
+        return 2
+    return 1
+
+
 def validate_rubric_rating(value):
     if isinstance(value, str) and value.strip().upper() == "AB":
         return "AB"

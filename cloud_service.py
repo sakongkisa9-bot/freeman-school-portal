@@ -163,9 +163,7 @@ class CloudService:
         }
         return self._post_json("/api/cbc/upload_curriculum", payload)
 
-    def fetch_cbc_ratings(
-        self, grade, area, term, academic_year, credentials, assessment_type=""
-    ):
+    def fetch_cbc_ratings(self, grade, area, term, academic_year, credentials):
         payload = {
             "school_code": credentials["school_code"],
             "username": credentials["username"],
@@ -174,7 +172,6 @@ class CloudService:
             "area": area,
             "term": term,
             "academic_year": academic_year,
-            "assessment_type": assessment_type,
         }
         return self._post_json("/api/cbc/fetch_ratings", payload)
 

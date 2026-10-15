@@ -27,7 +27,6 @@ class CBCCurriculumManager(ctk.CTkToplevel):
         current_year = datetime.now().year
         self.subject_var = ctk.StringVar(value=subjects[0] if subjects else "")
         self.term_var = ctk.StringVar(value="Term 1")
-        self.type_var = ctk.StringVar(value="All")
         self.year_var = ctk.StringVar(value=str(current_year))
         self._build_widgets()
         self._load_area()
@@ -69,8 +68,6 @@ class CBCCurriculumManager(ctk.CTkToplevel):
         fetch.grid(row=4, column=0, sticky="ew", padx=20, pady=(4, 18))
         ctk.CTkLabel(fetch, text="Term").pack(side="left", padx=(0, 5))
         ctk.CTkOptionMenu(fetch, values=["Term 1", "Term 2", "Term 3"], variable=self.term_var, width=110).pack(side="left", padx=5)
-        ctk.CTkLabel(fetch, text="Assessment").pack(side="left", padx=(10, 5))
-        ctk.CTkOptionMenu(fetch, values=["All", "Formative", "Localized Summative"], variable=self.type_var, width=180).pack(side="left", padx=5)
         ctk.CTkLabel(fetch, text="Year").pack(side="left", padx=(10, 5))
         ctk.CTkEntry(fetch, textvariable=self.year_var, width=90).pack(side="left", padx=5)
         ctk.CTkButton(fetch, text="Fetch Portal Ratings", command=self._fetch_ratings).pack(side="right")
@@ -166,14 +163,12 @@ class CBCCurriculumManager(ctk.CTkToplevel):
         credentials = ask_cloud_credentials(self)
         if not credentials:
             return
-        assessment_type = "" if self.type_var.get() == "All" else self.type_var.get()
         result = CloudService().fetch_cbc_ratings(
             self.grade,
             self.area_name,
             self.term_var.get(),
             academic_year,
             credentials,
-            assessment_type,
         )
         if not result.get("success"):
             messagebox.showerror(

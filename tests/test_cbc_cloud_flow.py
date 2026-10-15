@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 import os
 import sqlite3
 import tempfile
@@ -135,6 +136,71 @@ class CBCCloudFlowTests(unittest.TestCase):
         self.assertEqual(len(payload["records"]), 2)
         self.assertEqual({row[4] for row in payload["records"]}, {"Decimals", "Fractions"})
 
+    def _publish_math_curriculum(self):
+        self.client.post(
+            "/api/cbc/upload_curriculum",
+            json={
+                "school_code": "cbc-test",
+                "password": "pw",
+                "grade": "Grade 3",
+                "areas": [
+                    {"name": "Mathematics", "strands": [{"name": "Number", "sub_strands": ["Fractions", "Decimals"]}]}
+                ],
+            },
+        )
+        connection = sqlite3.connect(self.db_path)
+        ids = [row[0] for row in connection.execute("SELECT id FROM cbc_sub_strands ORDER BY id")]
+        connection.close()
+        return ids
+
+    def test_autofill_levels_from_current_exam_percentages(self):
+        sub_strand_ids = self._publish_math_curriculum()
+        connection = sqlite3.connect(self.db_path)
+        connection.execute(
+            "INSERT INTO students (school_id, grade, adm_no, student_name, gender, assessment_number) VALUES (?, 'Grade 3', 'A002', 'Second Learner', 'M', 'K0010203003')",
+            (self.school_id,),
+        )
+        for adm_no, name, score in (("A001", "A Learner", "80"), ("A002", "Second Learner", "49")):
+            connection.execute(
+                "INSERT INTO marks (school_id, grade, adm_no, student_name, exam_title, subject_scores_json, updated_at) VALUES (?, 'Grade 3', ?, ?, 'TERM 1 EXAM', ?, '2026-03-01T00:00:00')",
+                (self.school_id, adm_no, name, json.dumps({"MATH": {"score": score}})),
+            )
+        connection.commit()
+        connection.close()
+
+        page = self.client.get("/cbc/gradebook/Grade%203?area=Mathematics")
+        self.assertIn(b"TERM 1 EXAM", page.data)
+
+        response = self.client.post(
+            "/cbc/gradebook/Grade%203?area=Mathematics&term=Term%201&academic_year=2026",
+            data={"action": "autofill", "covered_sub_strand_ids": [str(item) for item in sub_strand_ids]},
+        )
+        self.assertEqual(response.status_code, 302)
+        connection = sqlite3.connect(self.db_path)
+        saved = connection.execute(
+            "SELECT assessment_number, sub_strand_id, assessment_type, rating FROM cbc_rubric_scores"
+        ).fetchall()
+        connection.close()
+        expected = {
+            (number, sub_id, "Formative", rating)
+            for number, rating in (("K0010203002", "4"), ("K0010203003", "2"))
+            for sub_id in sub_strand_ids
+        }
+        self.assertEqual(set(saved), expected)
+
+    def test_autofill_without_current_exam_changes_nothing(self):
+        sub_strand_ids = self._publish_math_curriculum()
+        page = self.client.get("/cbc/gradebook/Grade%203?area=Mathematics")
+        self.assertIn(b"No current exam", page.data)
+        self.client.post(
+            "/cbc/gradebook/Grade%203?area=Mathematics",
+            data={"action": "autofill", "covered_sub_strand_ids": [str(sub_strand_ids[0])]},
+        )
+        connection = sqlite3.connect(self.db_path)
+        count = connection.execute("SELECT COUNT(*) FROM cbc_rubric_scores").fetchone()[0]
+        connection.close()
+        self.assertEqual(count, 0)
+
     def test_curriculum_sync_rejects_invalid_school_password(self):
         response = self.client.post(
             "/api/cbc/upload_curriculum",
@@ -165,19 +231,17 @@ class CBCCloudFlowTests(unittest.TestCase):
         student_id = connection.execute("SELECT id FROM students WHERE adm_no='A001'").fetchone()[0]
         sub_strand_id = connection.execute("SELECT id FROM cbc_sub_strands WHERE name='Fractions'").fetchone()[0]
         connection.close()
-        for assessment_type, value in (("Formative", "4"), ("Localized Summative", "1")):
+        for value in ("4",):
             response = self.client.post(
                 "/cbc/gradebook/Grade%203?area=Mathematics&term=Term%201&academic_year=2026",
-                data={
-                    "assessment_type": assessment_type,
-                    "rating_{}_{}".format(student_id, sub_strand_id): value,
-                },
+                data={"rating_{}_{}".format(student_id, sub_strand_id): value},
             )
             self.assertEqual(response.status_code, 302)
 
         progress = self.client.get(
-            "/cbc/gradebook/Grade%203?area=Mathematics&term=Term%201&academic_year=2026&assessment_type=Formative"
+            "/cbc/gradebook/Grade%203?area=Mathematics&term=Term%201&academic_year=2026"
         )
+        self.assertNotIn(b"Localized Summative", progress.data)
         self.assertIn(b"EE", progress.data)
         profile = self.client.get(
             "/cbc/profile/Grade%203/K0010203002?term=Term%201&academic_year=2026"
@@ -200,7 +264,7 @@ class CBCCloudFlowTests(unittest.TestCase):
         )
         connection.commit()
         connection.close()
-        self.assertEqual(ratings, [("K0010203002", "Formative", "4"), ("K0010203002", "Localized Summative", "1")])
+        self.assertEqual(ratings, [("K0010203002", "Formative", "4")])
 
         staging = self.client.get("/cba/staging/Grade%203?subject=MATH&term=Term%201")
         self.assertEqual(staging.status_code, 200)

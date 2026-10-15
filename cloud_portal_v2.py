@@ -37,6 +37,7 @@ from cbc_engine import (
     RUBRIC_DESCRIPTORS,
     SUBJECT_TO_LEARNING_AREA,
     aggregate_competency,
+    rating_from_percentage,
     aggregate_term_competency,
     calculate_milestone_result,
     reporting_bands_for_rating,
@@ -1440,7 +1441,6 @@ def api_fetch_cbc_ratings():
     grade = str(data.get("grade", "")).strip()
     area = str(data.get("area", "")).strip()
     term = str(data.get("term", "Term 1")).strip()
-    assessment_type = str(data.get("assessment_type", "")).strip()
     try:
         academic_year = int(data.get("academic_year"))
     except (TypeError, ValueError):
@@ -1451,8 +1451,6 @@ def api_fetch_cbc_ratings():
         return jsonify({"success": False, "message": "Invalid term."}), 400
     if academic_year < 2000 or academic_year > 2200:
         return jsonify({"success": False, "message": "Invalid academic year."}), 400
-    if assessment_type and assessment_type not in {"Formative", "Localized Summative"}:
-        return jsonify({"success": False, "message": "Invalid assessment type."}), 400
 
     conn = get_db()
     try:
@@ -1464,7 +1462,7 @@ def api_fetch_cbc_ratings():
             return jsonify({"success": False, "message": "Invalid school credentials."}), 401
         query = """
             SELECT rs.assessment_number, COALESCE(students.student_name, ''),
-                   la.name, st.name, ss.name, rs.assessment_type, rs.rating
+                   la.name, st.name, ss.name, rs.rating
             FROM cbc_rubric_scores rs
             JOIN cbc_sub_strands ss ON ss.id = rs.sub_strand_id
             JOIN cbc_strands st ON st.id = ss.strand_id
@@ -1474,13 +1472,17 @@ def api_fetch_cbc_ratings():
                 AND students.assessment_number = rs.assessment_number
             WHERE rs.school_id = ? AND rs.grade = ? AND la.name = ?
                 AND rs.term = ? AND rs.academic_year = ?
+                AND rs.assessment_type = 'Formative'
         """
         parameters = [school["id"], grade, area, term, academic_year]
-        if assessment_type:
-            query += " AND rs.assessment_type = ?"
-            parameters.append(assessment_type)
-        query += " ORDER BY students.student_name COLLATE NOCASE, st.name, ss.name, rs.assessment_type"
+        query += " ORDER BY students.student_name COLLATE NOCASE, st.name, ss.name"
         rows = conn.execute(query, parameters).fetchall()
+        records = []
+        for row in rows:
+            level = row[5]
+            if level.isdigit():
+                level = RUBRIC_DESCRIPTORS.get(int(level), level)
+            records.append([*row[:5], level])
         return jsonify(
             {
                 "success": True,
@@ -1490,10 +1492,9 @@ def api_fetch_cbc_ratings():
                     "Learning Area",
                     "Strand",
                     "Sub-strand",
-                    "Assessment Type",
                     "Level",
                 ],
-                "records": [list(row) for row in rows],
+                "records": records,
                 "grade": grade,
                 "area": area,
                 "term": term,
@@ -2211,6 +2212,34 @@ SUBJECT_TO_LEARNING_AREA = {
 }
 
 
+def _current_exam_percentages(conn, school_id, grade, subject_codes):
+    """Return the most recently updated exam title with scores for these subjects and {adm_no: percent}."""
+    rows = conn.execute(
+        "SELECT adm_no, exam_title, subject_scores_json, updated_at FROM marks WHERE school_id = ? AND grade = ?",
+        (school_id, grade),
+    ).fetchall()
+    exams = {}
+    for row in rows:
+        try:
+            scores = json.loads(row["subject_scores_json"])
+        except (TypeError, ValueError):
+            continue
+        for code in subject_codes:
+            raw = (scores.get(code) or {}).get("score")
+            try:
+                percent = float(raw)
+            except (TypeError, ValueError):
+                continue
+            exam = exams.setdefault(row["exam_title"], {"updated_at": "", "scores": {}})
+            exam["updated_at"] = max(exam["updated_at"], row["updated_at"] or "")
+            exam["scores"][row["adm_no"]] = percent
+            break
+    if not exams:
+        return None, {}
+    title = max(exams, key=lambda name: exams[name]["updated_at"])
+    return title, exams[title]["scores"]
+
+
 @app.route("/cbc/gradebook/<grade>", methods=["GET", "POST"])
 def cbc_rubric_gradebook(grade):
     if "school_id" not in session:
@@ -2251,10 +2280,7 @@ def cbc_rubric_gradebook(grade):
     if term not in {"Term 1", "Term 2", "Term 3"}:
         conn.close()
         return "Invalid term", 400
-    assessment_type = request.values.get("assessment_type", "Formative").strip()
-    if assessment_type not in {"Formative", "Localized Summative"}:
-        conn.close()
-        return "Invalid assessment type", 400
+    assessment_type = "Formative"
     try:
         academic_year = int(request.values.get("academic_year", datetime.now().year))
         if academic_year < 2000 or academic_year > 2200:
@@ -2298,9 +2324,61 @@ def cbc_rubric_gradebook(grade):
         selected_strand_sub_strands[0],
     )
     students = conn.execute(
-        "SELECT id, assessment_number, student_name, gender FROM students WHERE school_id = ? AND grade = ? ORDER BY assessment_number COLLATE NOCASE, student_name COLLATE NOCASE",
+        "SELECT id, adm_no, assessment_number, student_name, gender FROM students WHERE school_id = ? AND grade = ? ORDER BY student_name COLLATE NOCASE",
         (session["school_id"], grade),
     ).fetchall()
+
+    area_subject_codes = [
+        row["subject"].strip()
+        for row in assignments
+        if SUBJECT_TO_LEARNING_AREA.get(row["subject"].strip().upper(), row["subject"].strip()) == area_name
+    ]
+    current_exam, exam_percentages = _current_exam_percentages(
+        conn, session["school_id"], grade, area_subject_codes
+    )
+    gradebook_redirect = dict(
+        grade=grade, area=area_name, term=term, academic_year=academic_year,
+        strand_id=selected_strand["id"], sub_strand_id=selected_sub_strand["id"],
+    )
+
+    if request.method == "POST" and request.form.get("action") == "autofill":
+        covered_ids = set()
+        for value in request.form.getlist("covered_sub_strand_ids"):
+            try:
+                covered_ids.add(int(value))
+            except ValueError:
+                continue
+        covered_ids &= {item["id"] for item in sub_strands}
+        if not current_exam:
+            flash("No current exam marks were found for this subject.", "warning")
+        elif not covered_ids:
+            flash("Select at least one sub-strand covered in the exam.", "warning")
+        else:
+            updated_at = datetime.now(timezone.utc).isoformat()
+            filled = 0
+            skipped = 0
+            for student in students:
+                level = rating_from_percentage(exam_percentages.get(student["adm_no"]))
+                try:
+                    assessment_number = validate_assessment_number(student["assessment_number"])
+                except ValueError:
+                    assessment_number = None
+                if level is None or assessment_number is None:
+                    skipped += 1
+                    continue
+                filled += 1
+                for sub_strand_id in covered_ids:
+                    conn.execute(
+                        "INSERT INTO cbc_rubric_scores (school_id, grade, assessment_number, academic_year, term, assessment_type, sub_strand_id, rating, teacher_code, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(school_id, grade, assessment_number, academic_year, term, assessment_type, sub_strand_id) DO UPDATE SET rating = excluded.rating, teacher_code = excluded.teacher_code, updated_at = excluded.updated_at",
+                        (session["school_id"], grade, assessment_number, academic_year, term, assessment_type, sub_strand_id, str(level), teacher_code, updated_at),
+                    )
+            conn.commit()
+            message = f"Filled {len(covered_ids)} sub-strand(s) for {filled} learner(s) from {current_exam}."
+            if skipped:
+                message += f" {skipped} learner(s) skipped (no score or no Assessment Number)."
+            flash(message, "success")
+        conn.close()
+        return redirect(url_for("cbc_rubric_gradebook", **gradebook_redirect))
 
     if request.method == "POST":
         assessment_numbers = []
@@ -2322,7 +2400,7 @@ def cbc_rubric_gradebook(grade):
         except ValueError as error:
             conn.close()
             flash(str(error), "danger")
-            return redirect(url_for("cbc_rubric_gradebook", grade=grade, area=area_name, term=term, academic_year=academic_year))
+            return redirect(url_for("cbc_rubric_gradebook", **gradebook_redirect))
 
         conn.execute(
             "DELETE FROM cbc_rubric_scores WHERE school_id = ? AND grade = ? AND academic_year = ? AND term = ? AND assessment_type = ? AND sub_strand_id = ?",
@@ -2337,29 +2415,13 @@ def cbc_rubric_gradebook(grade):
         conn.commit()
         conn.close()
         flash("Competency ratings saved.", "success")
-        return redirect(url_for(
-            "cbc_rubric_gradebook", grade=grade, area=area_name, term=term,
-            academic_year=academic_year, assessment_type=assessment_type,
-            strand_id=selected_strand["id"], sub_strand_id=selected_sub_strand["id"],
-        ))
+        return redirect(url_for("cbc_rubric_gradebook", **gradebook_redirect))
 
     saved = conn.execute(
-        "SELECT assessment_number, sub_strand_id, assessment_type, rating FROM cbc_rubric_scores WHERE school_id = ? AND grade = ? AND academic_year = ? AND term = ? AND sub_strand_id IN (SELECT ss.id FROM cbc_sub_strands ss JOIN cbc_strands st ON st.id = ss.strand_id WHERE st.learning_area_id = ?)",
-        (session["school_id"], grade, academic_year, term, selected_area["id"]),
+        "SELECT assessment_number, rating FROM cbc_rubric_scores WHERE school_id = ? AND grade = ? AND academic_year = ? AND term = ? AND assessment_type = ? AND sub_strand_id = ?",
+        (session["school_id"], grade, academic_year, term, assessment_type, selected_sub_strand["id"]),
     ).fetchall()
-    rating_map = {(row["assessment_number"], row["sub_strand_id"], row["assessment_type"]): row["rating"] for row in saved}
-    term_ratings = {}
-    for row in saved:
-        term_ratings.setdefault((row["assessment_number"], row["assessment_type"]), []).append(row["rating"])
-    aggregates = {}
-    for student in students:
-        try:
-            assessment_number = validate_assessment_number(student["assessment_number"])
-            formative = term_ratings.get((assessment_number, "Formative"), [])
-            summative = term_ratings.get((assessment_number, "Localized Summative"), [])
-            aggregates[student["id"]] = aggregate_term_competency(formative, summative)
-        except ValueError:
-            aggregates[student["id"]] = "Missing Assessment Number"
+    rating_map = {row["assessment_number"]: row["rating"] for row in saved}
     conn.close()
     return render_template(
         "cbc_gradebook.html",
@@ -2367,7 +2429,6 @@ def cbc_rubric_gradebook(grade):
         area=area_name,
         areas=available_areas,
         term=term,
-        assessment_type=assessment_type,
         academic_year=academic_year,
         students=students,
         sub_strands=sub_strands,
@@ -2376,8 +2437,7 @@ def cbc_rubric_gradebook(grade):
         selected_sub_strand=selected_sub_strand,
         selected_strand_sub_strands=selected_strand_sub_strands,
         rating_map=rating_map,
-        aggregates=aggregates,
-        assessment_number_validator=validate_assessment_number,
+        current_exam=current_exam,
     )
 
 
@@ -2433,32 +2493,26 @@ def cbc_progress_profile(grade, assessment_number):
     for row in rows:
         area = grouped.setdefault(row["learning_area"], {})
         strand = area.setdefault(row["strand"], {})
-        item = strand.setdefault(
-            row["sub_strand"], {"Formative": None, "Localized Summative": None}
-        )
+        item = strand.setdefault(row["sub_strand"], {"Formative": None})
         item[row["assessment_type"]] = row["rating"]
     profile_areas = []
     for area_name, strands in grouped.items():
         area_formative = []
-        area_summative = []
         profile_strands = []
         for strand_name, sub_strands in strands.items():
             profile_sub_strands = []
             for sub_name, ratings in sub_strands.items():
-                for assessment_type, key in (("Formative", area_formative), ("Localized Summative", area_summative)):
-                    rating = ratings[assessment_type]
-                    if rating is not None:
-                        key.append(rating)
+                if ratings["Formative"] is not None:
+                    area_formative.append(ratings["Formative"])
                 profile_sub_strands.append({
                     "name": sub_name,
                     "formative": ratings["Formative"],
-                    "summative": ratings["Localized Summative"],
                 })
             profile_strands.append({"name": strand_name, "sub_strands": profile_sub_strands})
         profile_areas.append({
             "name": area_name,
             "strands": profile_strands,
-            "descriptor": aggregate_term_competency(area_formative, area_summative),
+            "descriptor": aggregate_competency(area_formative),
         })
     return render_template(
         "cbc_profile.html",
