@@ -17,7 +17,7 @@
         label { display: grid; gap: 5px; color: var(--muted); font-size: 13px; }
         select, input[type=number] { min-height: 38px; background: #0e1917; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 7px 9px; }
         .table-wrap { overflow: auto; max-height: 70vh; border: 1px solid var(--line); background: #172622; }
-        table { border-collapse: collapse; min-width: 900px; width: 100%; }
+        table { border-collapse: collapse; width: auto; max-width: 100%; }
         th, td { padding: 9px; border-bottom: 1px solid #31473f; text-align: left; }
         th { position: sticky; top: 0; z-index: 2; background: #244239; color: #e1f2e9; }
         .student { position: sticky; left: 0; z-index: 1; background: #172622; min-width: 245px; }
@@ -33,7 +33,15 @@
         input[type=search] { min-height: 38px; width: min(100%, 360px); background: #0e1917; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 7px 9px; font: inherit; }
         .roster-count { color: var(--muted); font-size: 13px; }
         .student-name { font-weight: 650; }
-        td select.rating { max-width: 220px; }
+        td select.rating { width: 120px; }
+        .coverage { border: 1px solid var(--line); background: #172622; border-radius: 6px; margin: 4px 0 12px; padding: 10px 14px; }
+        .coverage summary { cursor: pointer; font-weight: 650; }
+        .coverage .covered-total { color: var(--accent); }
+        .coverage ul { list-style: none; margin: 8px 0 0; padding: 0; }
+        .coverage li { padding: 3px 0; color: var(--muted); }
+        .coverage li.done { color: #e1f2e9; }
+        .coverage .strand-line { margin-top: 10px; font-weight: 650; color: #e1f2e9; }
+        .coverage .strand-done { color: var(--accent); }
         dialog { background: #172622; color: var(--text); border: 1px solid #5d907a; border-radius: 8px; padding: 20px; width: min(560px, 92vw); }
         dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
         dialog h2 { margin: 0 0 8px; font-size: 20px; }
@@ -41,7 +49,7 @@
         .strand-group strong { display: block; color: #e1f2e9; margin-bottom: 4px; }
         .check { display: flex; flex-direction: row; gap: 8px; align-items: center; color: var(--text); font-size: 15px; padding: 3px 0; }
         .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-        @media (max-width: 640px) { header { align-items: flex-start; flex-direction: column; } }
+        @media (max-width: 640px) { header { align-items: flex-start; flex-direction: column; } main { width: calc(100% - 20px); } th, td { padding: 8px 6px; } }
     </style>
 </head>
 <body>
@@ -58,12 +66,20 @@
     {% endwith %}
     <form method="get" class="toolbar">
         <label>Learning Area<select name="area" onchange="this.form.submit()">{% for item in areas %}<option value="{{ item.name }}"{% if item.name == area %} selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></label>
-        <label>Strand<select name="strand_id" onchange="this.form.elements.sub_strand_id.disabled = true; this.form.submit()">{% for item in strands %}<option value="{{ item.id }}"{% if item.id == selected_strand.id %} selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></label>
-        <label>Sub-strand<select name="sub_strand_id" onchange="this.form.submit()">{% for item in selected_strand_sub_strands %}<option value="{{ item.id }}"{% if item.id == selected_sub_strand.id %} selected{% endif %}>{{ item.sub_strand_name }}</option>{% endfor %}</select></label>
+        <label>Strand<select name="strand_id" onchange="this.form.elements.sub_strand_id.disabled = true; this.form.submit()">{% for item in strand_progress %}<option value="{{ item.id }}"{% if item.id == selected_strand.id %} selected{% endif %}>{{ item.name }} ({{ item.covered_count }}/{{ item.sub_strands|length }})</option>{% endfor %}</select></label>
+        <label>Sub-strand<select name="sub_strand_id" onchange="this.form.submit()">{% for item in selected_strand_sub_strands %}<option value="{{ item.id }}"{% if item.id == selected_sub_strand.id %} selected{% endif %}>{% if item.id in covered_ids %}✓ {% endif %}{{ item.sub_strand_name }}</option>{% endfor %}</select></label>
         <label>Term<select name="term" onchange="this.form.submit()">{% for item in ["Term 1", "Term 2", "Term 3"] %}<option{% if item == term %} selected{% endif %}>{{ item }}</option>{% endfor %}</select></label>
-        <label>Year<input type="number" name="academic_year" min="2000" max="2200" value="{{ academic_year }}"></label>
-        <button type="submit">Load</button>
+        <label>Year<input type="number" name="academic_year" min="2000" max="2200" value="{{ academic_year }}" onchange="this.form.submit()"></label>
     </form>
+    {% set total_sub = namespace(count=0, covered=0, strands_done=0) %}
+    {% for strand in strand_progress %}{% set total_sub.count = total_sub.count + strand.sub_strands|length %}{% set total_sub.covered = total_sub.covered + strand.covered_count %}{% if strand.covered_count == strand.sub_strands|length %}{% set total_sub.strands_done = total_sub.strands_done + 1 %}{% endif %}{% endfor %}
+    <details class="coverage">
+        <summary>Coverage ({{ term }}): <span class="covered-total">{{ total_sub.strands_done }} of {{ strand_progress|length }} strands</span> · {{ total_sub.covered }} of {{ total_sub.count }} sub-strands covered</summary>
+        {% for strand in strand_progress %}
+        <div class="strand-line{% if strand.covered_count == strand.sub_strands|length %} strand-done{% endif %}">{% if strand.covered_count == strand.sub_strands|length %}✓ {% endif %}{{ strand.name }} ({{ strand.covered_count }}/{{ strand.sub_strands|length }})</div>
+        <ul>{% for item in strand.sub_strands %}<li class="{% if item.covered %}done{% endif %}">{% if item.covered %}✓ Covered{% else %}○ Not covered{% endif %} – {{ item.name }}</li>{% endfor %}</ul>
+        {% endfor %}
+    </details>
     <div class="toolbar">
         <input id="studentSearch" type="search" placeholder="Search learner">
         <span class="roster-count" id="rosterCount"></span>
@@ -98,7 +114,7 @@
         <div class="strand-group">
             <strong>{{ strand.name }}</strong>
             {% for item in sub_strands if item.strand_name == strand.name %}
-            <label class="check"><input type="checkbox" name="covered_sub_strand_ids" value="{{ item.id }}"> {{ item.sub_strand_name }}</label>
+            <label class="check"><input type="checkbox" name="covered_sub_strand_ids" value="{{ item.id }}"> {{ item.sub_strand_name }}{% if item.id in covered_ids %} ✓{% endif %}</label>
             {% endfor %}
         </div>
         {% endfor %}

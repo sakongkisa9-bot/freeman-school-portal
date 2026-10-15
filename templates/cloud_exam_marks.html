@@ -31,6 +31,13 @@
         .actions { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 0; }
         button.save { border-color: #5c9c83; background: #28735b; min-width: 170px; }
         button.finish { border-color: #b06a3b; background: #8a4b22; min-width: 170px; }
+        input[type=search] { width: min(100%, 340px); }
+        .roster-count { color: #a9beb5; font-size: 13px; }
+        dialog { background: #17221f; color: #f4f7f5; border: 1px solid #53776d; border-left: 4px solid #d69c48; border-radius: 8px; padding: 22px; width: min(440px, 92vw); }
+        dialog::backdrop { background: rgba(0, 0, 0, 0.65); }
+        dialog h2 { margin: 0 0 10px; font-size: 20px; }
+        dialog p { margin: 0; color: #cdd9d4; line-height: 1.5; }
+        .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
     </style>
 </head>
 <body>
@@ -53,12 +60,16 @@
             <label for="outOf">Out of</label>
             <input id="outOf" class="out-of" name="out_of" type="number" min="1" max="1000" step="1" required value="{{ out_of_value }}">
         </div>
+        <div class="toolbar">
+            <input id="studentSearch" type="search" placeholder="Search learner" aria-label="Search learner">
+            <span class="roster-count" id="rosterCount"></span>
+        </div>
         <div class="table-wrap">
             <table>
                 <thead><tr><th>Learner</th><th>Marks</th><th>Percentage</th></tr></thead>
                 <tbody>
                     {% for student in students %}
-                    <tr>
+                    <tr class="student-row" data-search="{{ student.student_name }} {{ student.adm_no }}">
                         <td class="student-name">{{ student.student_name }}</td>
                         <td><input class="mark" type="text" inputmode="decimal" autocomplete="off" name="score_{{ student.adm_no }}" value="{{ raw_values.get(student.adm_no, '') }}" aria-label="{{ student.student_name }} marks"></td>
                         <td class="percent"></td>
@@ -77,9 +88,32 @@
         </div>
     </form>
 </main>
+<dialog id="finishDialog">
+    <h2>Finish these marks?</h2>
+    <p>After you click Finish you cannot edit these scores again.</p>
+    <div class="dialog-actions">
+        <button type="button" id="cancelFinish">Cancel</button>
+        <button type="button" class="finish" id="confirmFinish">Yes, Finish</button>
+    </div>
+</dialog>
 <script>
     const outOf = document.getElementById("outOf");
     const rows = Array.from(document.querySelectorAll("tbody tr"));
+    const searchInput = document.getElementById("studentSearch");
+    const rosterCount = document.getElementById("rosterCount");
+
+    function filterRoster() {
+        const query = searchInput.value.trim().toLocaleLowerCase();
+        let visible = 0;
+        for (const row of rows) {
+            const matches = row.dataset.search.toLocaleLowerCase().includes(query);
+            row.hidden = !matches;
+            if (matches) visible += 1;
+        }
+        rosterCount.textContent = `${visible} of ${rows.length} learners`;
+    }
+    searchInput.addEventListener("input", filterRoster);
+    filterRoster();
 
     function updatePercentages() {
         const total = Number(outOf.value);
@@ -94,11 +128,22 @@
     updatePercentages();
 
     const finishButton = document.getElementById("finishButton");
+    const finishDialog = document.getElementById("finishDialog");
+    const marksForm = document.getElementById("marksForm");
     if (finishButton) {
         finishButton.addEventListener("click", event => {
-            if (!confirm("After you click Finish you cannot edit these scores again. Do you want to finish?")) {
-                event.preventDefault();
-            }
+            event.preventDefault();
+            if (!marksForm.reportValidity()) return;
+            finishDialog.showModal();
+        });
+        document.getElementById("cancelFinish").addEventListener("click", () => finishDialog.close());
+        document.getElementById("confirmFinish").addEventListener("click", () => {
+            const action = document.createElement("input");
+            action.type = "hidden";
+            action.name = "action";
+            action.value = "finish";
+            marksForm.appendChild(action);
+            marksForm.submit();
         });
     }
 </script>

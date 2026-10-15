@@ -288,6 +288,32 @@ class CBCCloudFlowTests(unittest.TestCase):
         self.assertEqual(marks, 0)
         self.assertEqual(titles, ["SECOND EXAM"])
 
+    def test_saving_levels_marks_sub_strand_as_covered(self):
+        sub_strand_ids = self._publish_math_curriculum()
+        url = "/cbc/gradebook/Grade%203?area=Mathematics&term=Term%201&academic_year=2026"
+        before = self.client.get(url)
+        self.assertIn(b"0 of 1 strands", before.data)
+        self.assertIn(b"0 of 2 sub-strands covered", before.data)
+
+        connection = sqlite3.connect(self.db_path)
+        student_id = connection.execute("SELECT id FROM students WHERE adm_no = 'A001'").fetchone()[0]
+        connection.close()
+        self.client.post(
+            url + f"&sub_strand_id={sub_strand_ids[0]}",
+            data={f"rating_{student_id}_{sub_strand_ids[0]}": "3"},
+        )
+        partial = self.client.get(url)
+        self.assertIn(b"1 of 2 sub-strands covered", partial.data)
+        self.assertIn(b"0 of 1 strands", partial.data)
+
+        self.client.post(
+            url + f"&sub_strand_id={sub_strand_ids[1]}",
+            data={f"rating_{student_id}_{sub_strand_ids[1]}": "2"},
+        )
+        done = self.client.get(url)
+        self.assertIn(b"1 of 1 strands", done.data)
+        self.assertIn(b"2 of 2 sub-strands covered", done.data)
+
     def test_curriculum_sync_rejects_invalid_school_password(self):
         response = self.client.post(
             "/api/cbc/upload_curriculum",

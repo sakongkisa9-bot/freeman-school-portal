@@ -2741,6 +2741,26 @@ def cbc_rubric_gradebook(grade):
         (session["school_id"], grade, academic_year, term, assessment_type, selected_sub_strand["id"]),
     ).fetchall()
     rating_map = {row["assessment_number"]: row["rating"] for row in saved}
+    covered_ids = {
+        row["sub_strand_id"]
+        for row in conn.execute(
+            "SELECT DISTINCT sub_strand_id FROM cbc_rubric_scores WHERE school_id = ? AND grade = ? AND academic_year = ? AND term = ? AND assessment_type = ?",
+            (session["school_id"], grade, academic_year, term, assessment_type),
+        ).fetchall()
+    }
+    strand_progress = []
+    for strand in strands:
+        items = [
+            {"id": item["id"], "name": item["sub_strand_name"], "covered": item["id"] in covered_ids}
+            for item in sub_strands
+            if item["strand_name"] == strand["name"]
+        ]
+        strand_progress.append({
+            "id": strand["id"],
+            "name": strand["name"],
+            "sub_strands": items,
+            "covered_count": sum(item["covered"] for item in items),
+        })
     conn.close()
     return render_template(
         "cbc_gradebook.html",
@@ -2756,6 +2776,8 @@ def cbc_rubric_gradebook(grade):
         selected_sub_strand=selected_sub_strand,
         selected_strand_sub_strands=selected_strand_sub_strands,
         rating_map=rating_map,
+        strand_progress=strand_progress,
+        covered_ids=covered_ids,
         current_exam=current_exam,
     )
 
