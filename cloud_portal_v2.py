@@ -920,7 +920,18 @@ def serve_firebase_sw():
     return send_from_directory("static", "firebase-messaging-sw.js")
 
 
+def developer_required(view):
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        if not session.get("developer"):
+            return redirect(url_for("home"))
+        return view(*args, **kwargs)
+
+    return wrapper
+
+
 @app.route("/register", methods=["GET", "POST"])
+@developer_required
 def register():
     if request.method == "POST":
         # Check the Master Key first
@@ -977,6 +988,7 @@ def delete_school(school_code):
 
 
 @app.route("/admin/schools")
+@developer_required
 def admin_schools():
     # Admin page to view and manage all registered schools
     conn = get_db()
@@ -986,6 +998,7 @@ def admin_schools():
 
 
 @app.route("/admin/schools/<school_code>/delete", methods=["POST"])
+@developer_required
 def admin_delete_school(school_code):
     # Delete a school and all its data
     conn = get_db()
@@ -1020,6 +1033,7 @@ def admin_delete_school(school_code):
 
 
 @app.route("/admin/schools/<school_code>/edit", methods=["GET", "POST"])
+@developer_required
 def admin_edit_school(school_code):
     # Edit school details
     conn = get_db()
@@ -1653,7 +1667,7 @@ def _parse_exam_marks(out_of_text, raw_values):
         raise ValueError("Enter the total marks (out of) as a whole number from 1 to 1000.")
     percents = {}
     for adm_no, raw in raw_values.items():
-        if raw == "":
+        if raw == "" or raw.upper() == "AB":
             percents[adm_no] = None
             continue
         try:
@@ -1821,6 +1835,16 @@ def enter_exam_marks(grade):
             out_of, percents = _parse_exam_marks(out_of_value, raw_values)
             if action == "finish" and all(value is None for value in percents.values()):
                 raise ValueError("Enter at least one mark before finishing.")
+            zero_names = [
+                student["student_name"] for student in students
+                if percents[student["adm_no"]] is not None
+                and float(raw_values[student["adm_no"]]) == 0
+            ]
+            if zero_names and request.form.get("confirm_zero") != "1":
+                raise ValueError(
+                    f"Confirm the zero marks for {', '.join(zero_names)}. "
+                    "If they did not sit the exam, leave the field blank (AB)."
+                )
         except ValueError as error:
             flash(str(error), "danger")
         else:
@@ -1829,8 +1853,8 @@ def enter_exam_marks(grade):
                 percent = percents[student["adm_no"]]
                 _store_student_subject_score(
                     conn, session["school_id"], grade, subject, exam["title"], student,
-                    "" if percent is None else str(percent), now,
-                    {"raw": raw_values[student["adm_no"]], "out_of": out_of},
+                    "AB" if percent is None else str(percent), now,
+                    {"raw": "AB" if percent is None else raw_values[student["adm_no"]], "out_of": out_of},
                 )
             conn.execute(
                 """
@@ -2735,10 +2759,13 @@ def _current_exam_percentages(conn, school_id, grade, subject_codes):
             continue
         for code in subject_codes:
             raw = (scores.get(code) or {}).get("score")
-            try:
-                percent = float(raw)
-            except (TypeError, ValueError):
-                continue
+            if str(raw).strip().upper() == "AB":
+                percent = "AB"
+            else:
+                try:
+                    percent = float(raw)
+                except (TypeError, ValueError):
+                    continue
             exam = exams.setdefault(row["exam_title"], {"updated_at": "", "scores": {}})
             exam["updated_at"] = max(exam["updated_at"], row["updated_at"] or "")
             exam["scores"][row["adm_no"]] = percent
@@ -2846,6 +2873,10 @@ def cbc_rubric_gradebook(grade):
     current_exam, exam_percentages = _current_exam_percentages(
         conn, session["school_id"], grade, area_subject_codes
     )
+    absent_names = [
+        student["student_name"] for student in students
+        if exam_percentages.get(student["adm_no"]) == "AB"
+    ]
     gradebook_redirect = dict(
         grade=grade, area=area_name, term=term, academic_year=academic_year,
         strand_id=selected_strand["id"], sub_strand_id=selected_sub_strand["id"],
@@ -2869,7 +2900,8 @@ def cbc_rubric_gradebook(grade):
             kept = 0
             skipped = 0
             for student in students:
-                level = rating_from_percentage(exam_percentages.get(student["adm_no"]))
+                score = exam_percentages.get(student["adm_no"])
+                level = "AB" if score == "AB" else rating_from_percentage(score)
                 try:
                     assessment_number = validate_assessment_number(student["assessment_number"])
                 except ValueError:
@@ -2888,6 +2920,8 @@ def cbc_rubric_gradebook(grade):
                         kept += 1
             conn.commit()
             message = f"Filled {filled} level(s) from {current_exam}."
+            if absent_names:
+                message += f" Absent (AB) was written for all selected sub-strands of: {', '.join(absent_names)}."
             if kept:
                 message += f" {kept} existing level(s) were kept."
             if skipped:
@@ -2975,6 +3009,7 @@ def cbc_rubric_gradebook(grade):
         rating_map=rating_map,
         strand_progress=strand_progress,
         covered_ids=covered_ids,
+        absent_names=absent_names,
         current_exam=current_exam,
     )
 

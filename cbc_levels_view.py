@@ -7,7 +7,7 @@ from cbc_engine import SUBJECT_TO_LEARNING_AREA
 from cloud_service import CloudService, ask_cloud_credentials
 
 TERMS = ("Term 1", "Term 2", "Term 3")
-LEVELS = ("EE", "ME", "AE", "BE")
+LEVELS = ("EE", "ME", "AE", "BE", "AB")
 
 
 class CBCLevelsView(ctk.CTkFrame):

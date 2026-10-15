@@ -56,6 +56,7 @@
 
     <form method="post" id="marksForm" action="{{ url_for('enter_exam_marks', grade=grade, subject=subject) }}">
         <input type="hidden" name="review" value="{{ '1' if review else '' }}">
+        <input type="hidden" name="confirm_zero" id="confirmZero" value="">
         <div class="toolbar">
             <label for="outOf">Out of</label>
             <input id="outOf" class="out-of" name="out_of" type="number" min="1" max="1000" step="1" required value="{{ out_of_value }}">
@@ -71,7 +72,7 @@
                     {% for student in students %}
                     <tr class="student-row" data-search="{{ student.student_name }} {{ student.adm_no }}">
                         <td class="student-name">{{ student.student_name }}</td>
-                        <td><input class="mark" type="text" inputmode="decimal" autocomplete="off" name="score_{{ student.adm_no }}" value="{{ raw_values.get(student.adm_no, '') }}" aria-label="{{ student.student_name }} marks"></td>
+                        <td><input class="mark" type="text" inputmode="decimal" autocomplete="off" name="score_{{ student.adm_no }}" value="{{ raw_values.get(student.adm_no, '') }}" placeholder="AB" aria-label="{{ student.student_name }} marks"></td>
                         <td class="percent"></td>
                     </tr>
                     {% endfor %}
@@ -88,6 +89,14 @@
         </div>
     </form>
 </main>
+<dialog id="zeroDialog">
+    <h2>Confirm zero marks</h2>
+    <p id="zeroText"></p>
+    <div class="dialog-actions">
+        <button type="button" id="cancelZero">Go Back</button>
+        <button type="button" class="save" id="confirmZeroButton">Yes, They Scored 0</button>
+    </div>
+</dialog>
 <dialog id="finishDialog">
     <h2>Finish these marks?</h2>
     <p>After you click Finish you cannot edit these scores again.</p>
@@ -121,7 +130,8 @@
             const raw = row.querySelector(".mark").value.trim();
             const cell = row.querySelector(".percent");
             const value = Number(raw);
-            cell.textContent = raw !== "" && total > 0 && Number.isFinite(value) ? `${Math.floor(value * 100 / total + 0.5)}%` : "";
+            const absent = raw === "" || raw.toUpperCase() === "AB";
+            cell.textContent = absent ? "AB" : (total > 0 && Number.isFinite(value) ? `${Math.floor(value * 100 / total + 0.5)}%` : "");
         }
     }
     document.getElementById("marksForm").addEventListener("input", updatePercentages);
@@ -129,22 +139,61 @@
 
     const finishButton = document.getElementById("finishButton");
     const finishDialog = document.getElementById("finishDialog");
+    const zeroDialog = document.getElementById("zeroDialog");
     const marksForm = document.getElementById("marksForm");
+
+    function zeroLearners() {
+        return rows
+            .filter(row => {
+                const raw = row.querySelector(".mark").value.trim();
+                return raw !== "" && Number(raw) === 0;
+            })
+            .map(row => row.querySelector(".student-name").textContent.trim());
+    }
+
+    function submitWith(action) {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = "action";
+        input.value = action;
+        marksForm.appendChild(input);
+        marksForm.submit();
+    }
+
+    // Runs `proceed` once any zero marks are confirmed.
+    function confirmZeros(proceed) {
+        const names = zeroLearners();
+        if (names.length === 0) {
+            proceed();
+            return;
+        }
+        document.getElementById("zeroText").textContent =
+            `Are you sure ${names.join(", ")} scored 0? If the learner did not sit the exam, leave the field blank so it is recorded as AB.`;
+        const confirmButton = document.getElementById("confirmZeroButton");
+        confirmButton.onclick = () => {
+            document.getElementById("confirmZero").value = "1";
+            zeroDialog.close();
+            proceed();
+        };
+        zeroDialog.showModal();
+    }
+    document.getElementById("cancelZero").addEventListener("click", () => zeroDialog.close());
+
+    marksForm.addEventListener("submit", event => {
+        const action = event.submitter ? event.submitter.value : "save";
+        if (action === "finish" || zeroLearners().length === 0 || document.getElementById("confirmZero").value === "1") return;
+        event.preventDefault();
+        confirmZeros(() => submitWith(action));
+    });
+
     if (finishButton) {
         finishButton.addEventListener("click", event => {
             event.preventDefault();
             if (!marksForm.reportValidity()) return;
-            finishDialog.showModal();
+            confirmZeros(() => finishDialog.showModal());
         });
         document.getElementById("cancelFinish").addEventListener("click", () => finishDialog.close());
-        document.getElementById("confirmFinish").addEventListener("click", () => {
-            const action = document.createElement("input");
-            action.type = "hidden";
-            action.name = "action";
-            action.value = "finish";
-            marksForm.appendChild(action);
-            marksForm.submit();
-        });
+        document.getElementById("confirmFinish").addEventListener("click", () => submitWith("finish"));
     }
 </script>
 </body>

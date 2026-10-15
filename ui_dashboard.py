@@ -214,6 +214,15 @@ class Dashboard(ctk.CTk):
         )
         self.btn_competency_gradebook.pack(pady=btn_pady)
 
+        self.btn_performance_dashboard = ctk.CTkButton(
+            self.menu_panel,
+            text="Performance\nDashboard",
+            width=btn_width,
+            height=btn_height + 8,
+            command=lambda: self.require_auth(self.open_performance_dashboard),
+        )
+        self.btn_performance_dashboard.pack(pady=btn_pady)
+
         self.btn_previous_exams = ctk.CTkButton(
             self.menu_panel,
             text="Previous Exams",
@@ -291,6 +300,7 @@ class Dashboard(ctk.CTk):
             self.btn_mark_sheets,
             self.btn_knec_cba,
             self.btn_competency_gradebook,
+            self.btn_performance_dashboard,
             self.btn_previous_exams,
             self.btn_summary,
             self.btn_teachers,
@@ -3588,9 +3598,14 @@ class Dashboard(ctk.CTk):
         self.show_dashboard_workspace()
         self.open_competency_gradebook()
 
-    def return_to_strand_import(self):
+    def open_performance_dashboard(self):
+        self.show_class_selection(
+            "Performance Dashboard", self.btn_performance_dashboard
+        )
+
+    def return_to_performance(self):
         self.show_dashboard_workspace()
-        self.show_class_selection("Import Strands", self.btn_competency_gradebook)
+        self.open_performance_dashboard()
 
     def show_cba_bulk_class_selection(self):
         for widget in self.content_panel.winfo_children():
@@ -4137,28 +4152,7 @@ class Dashboard(ctk.CTk):
         self.class_frame.pack(pady=40, expand=True)
         self.class_selection_buttons = []
 
-        if action_type == "Strands":
-            ctk.CTkButton(
-                self.class_frame,
-                text="Fetch Strands",
-                fg_color="#10b981",
-                text_color="white",
-                width=300,
-                height=45,
-                command=lambda: self.show_class_selection(
-                    "Import Strands", self.btn_competency_gradebook
-                ),
-            ).pack(pady=(0, 10))
-
-        if action_type in ("Strands", "Import Strands"):
-            if action_type == "Import Strands":
-                ctk.CTkButton(
-                    self.class_frame,
-                    text="← Back to Strands",
-                    width=300,
-                    height=45,
-                    command=self.open_competency_gradebook,
-                ).pack(pady=(0, 10))
+        if action_type in ("Strands", "Performance Dashboard"):
             ctk.CTkButton(
                 self.class_frame,
                 text="← Back to Dashboard",
@@ -4327,7 +4321,7 @@ class Dashboard(ctk.CTk):
         elif action_type == "KNEC CBA Fetch":
             self.show_cba_fetch_subject_selection(class_selected)
 
-        elif action_type == "Strands":
+        elif action_type == "Performance Dashboard":
             self.menu_panel.grid_forget()
             self.grid_columnconfigure(0, weight=0, minsize=0)
             self.content_panel.grid(row=0, column=0, columnspan=2, sticky="nsew")
@@ -4337,12 +4331,12 @@ class Dashboard(ctk.CTk):
                 get_subjects_for_class(class_selected),
                 self.load_school_config(),
                 self.save_school_config,
-                self.return_to_strands,
+                self.return_to_performance,
                 self.show_dashboard_workspace,
             )
             self.current_view.pack(fill="both", expand=True)
 
-        elif action_type == "Import Strands":
+        elif action_type == "Strands":
             self.menu_panel.grid_forget()
             self.grid_columnconfigure(0, weight=0, minsize=0)
             self.content_panel.grid(row=0, column=0, columnspan=2, sticky="nsew")
@@ -4352,7 +4346,7 @@ class Dashboard(ctk.CTk):
                 get_subjects_for_class(class_selected),
                 self.load_school_config(),
                 self.save_school_config,
-                self.return_to_strand_import,
+                self.return_to_strands,
                 self.show_dashboard_workspace,
             )
             self.current_view.pack(fill="both", expand=True)
@@ -5738,6 +5732,8 @@ class Dashboard(ctk.CTk):
     def disable_system_buttons(self):
         """Disable all buttons except exit"""
         buttons_to_disable = [
+            "btn_performance_dashboard",
+            "btn_competency_gradebook",
             "btn_create_exam",
             "btn_register",
             "btn_mark_sheets",
@@ -5763,6 +5759,8 @@ class Dashboard(ctk.CTk):
     def enable_system_buttons(self):
         """Enable all system buttons"""
         buttons_to_enable = [
+            "btn_performance_dashboard",
+            "btn_competency_gradebook",
             "btn_create_exam",
             "btn_register",
             "btn_mark_sheets",

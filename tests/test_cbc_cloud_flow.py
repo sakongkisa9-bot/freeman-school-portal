@@ -352,6 +352,73 @@ class CBCCloudFlowTests(unittest.TestCase):
         connection.close()
         self.assertEqual(count, 1)
 
+    def _add_second_learner(self):
+        connection = sqlite3.connect(self.db_path)
+        connection.execute(
+            "INSERT INTO students (school_id, grade, adm_no, student_name, gender, assessment_number) VALUES (?, 'Grade 3', 'A002', 'Second Learner', 'M', 'K0010203003')",
+            (self.school_id,),
+        )
+        connection.commit()
+        connection.close()
+
+    def test_blank_exam_marks_become_ab_and_zero_needs_confirmation(self):
+        self._add_second_learner()
+        self._create_exam("MID TERM", all_classes=False, classes=["Grade 3"])
+        url = "/exam/marks/Grade%203?subject=MATH"
+        base = {"out_of": "50", "action": "save"}
+
+        unconfirmed = self.client.post(url, data={**base, "score_A001": "0", "score_A002": "30"})
+        self.assertIn(b"Confirm the zero marks for A Learner", unconfirmed.data)
+        connection = sqlite3.connect(self.db_path)
+        self.assertEqual(connection.execute("SELECT COUNT(*) FROM marks").fetchone()[0], 0)
+        connection.close()
+
+        self.client.post(url, data={**base, "score_A001": "0", "score_A002": "30", "confirm_zero": "1"})
+        self.client.post(url, data={**base, "score_A001": "40", "score_A002": ""})
+        connection = sqlite3.connect(self.db_path)
+        scores = {
+            row[0]: json.loads(row[1])["MATH"]
+            for row in connection.execute("SELECT adm_no, subject_scores_json FROM marks")
+        }
+        connection.close()
+        self.assertEqual(scores["A001"]["score"], "80")
+        self.assertEqual((scores["A002"]["score"], scores["A002"]["raw"]), ("AB", "AB"))
+        review = self.client.get(url + "&review=1")
+        self.assertIn(b'value="AB"', review.data)
+
+    def test_autofill_writes_ab_for_absent_learners_and_warns(self):
+        sub_strand_ids = self._publish_math_curriculum()
+        self._add_second_learner()
+        connection = sqlite3.connect(self.db_path)
+        for adm_no, name, score in (("A001", "A Learner", "85"), ("A002", "Second Learner", "AB")):
+            connection.execute(
+                "INSERT INTO marks (school_id, grade, adm_no, student_name, exam_title, subject_scores_json, updated_at) VALUES (?, 'Grade 3', ?, ?, 'TERM 1 EXAM', ?, '2026-03-01T00:00:00')",
+                (self.school_id, adm_no, name, json.dumps({"MATH": {"score": score}})),
+            )
+        connection.commit()
+        connection.close()
+
+        page = self.client.get("/cbc/gradebook/Grade%203?area=Mathematics")
+        self.assertIn(b"Absent (AB) in this exam", page.data)
+        self.assertIn(b"Second Learner", page.data)
+        self.assertIn(b'<option value="AB">AB</option>', page.data)
+
+        response = self.client.post(
+            "/cbc/gradebook/Grade%203?area=Mathematics&term=Term%201&academic_year=2026",
+            data={"action": "autofill", "covered_sub_strand_ids": [str(item) for item in sub_strand_ids]},
+            follow_redirects=True,
+        )
+        self.assertIn(b"Absent (AB) was written for all selected sub-strands of: Second Learner", response.data)
+        connection = sqlite3.connect(self.db_path)
+        saved = {
+            (number, rating)
+            for number, rating in connection.execute(
+                "SELECT assessment_number, rating FROM cbc_rubric_scores"
+            )
+        }
+        connection.close()
+        self.assertEqual(saved, {("K0010203002", "4"), ("K0010203003", "AB")})
+
     def test_developer_page_is_password_protected_and_stores_shared_strands(self):
         strands = json.dumps([{"name": "1.0 Conservation", "sub_strands": ["1.1 Soil"]}])
         form = {"grade": "Grade 4", "area": "Agriculture", "strands_json": strands}
@@ -413,6 +480,10 @@ class CBCCloudFlowTests(unittest.TestCase):
         key = cloud_portal_v2.SYSTEM_ADMIN_KEY
         for url in ("/", "/register"):
             self.assertNotIn(key.encode(), self.client.get(url).data)
+        for url in ("/register", "/admin/schools", "/admin/schools/x/edit"):
+            self.assertEqual(self.client.get(url).status_code, 302)
+        self.assertEqual(self.client.post("/admin/schools/x/delete").status_code, 302)
+        self.assertEqual(self.client.post("/register", data={"master_key": key}).status_code, 302)
         wrong = self.client.post("/developer/unlock", json={"password": "nope"})
         self.assertEqual(wrong.status_code, 401)
         right = self.client.post("/developer/unlock", json={"password": key})
@@ -420,6 +491,9 @@ class CBCCloudFlowTests(unittest.TestCase):
         unlocked = self.client.get("/").data
         self.assertIn(b'<div id="dev-options" style="display: block', unlocked)
         self.assertIn(b'type="password" id="dev-password"', unlocked)
+        self.assertEqual(self.client.get("/register").status_code, 200)
+        self.assertEqual(self.client.get("/admin/schools").status_code, 200)
+        self.assertNotIn(key.encode(), self.client.get("/register").data)
 
     def test_strands_api_requires_shared_curriculum_and_valid_login(self):
         request = {"school_code": "cbc-test", "password": "pw", "grade": "Grade 3", "area": "Mathematics", "academic_year": 2026}
