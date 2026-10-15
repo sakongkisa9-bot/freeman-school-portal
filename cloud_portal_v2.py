@@ -15,8 +15,10 @@ import sqlite3
 import os
 import json
 import csv
+import hmac
 import io
 import math
+import tempfile
 import uuid
 from datetime import datetime, timezone
 import logging
@@ -539,6 +541,16 @@ def init_db():
             status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'final')),
             updated_at TEXT NOT NULL,
             UNIQUE (school_id, exam_id, grade, subject)
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS global_curriculum (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            grade TEXT NOT NULL,
+            area TEXT NOT NULL,
+            strands_json TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE (grade, area)
         )
     """)
     cursor.execute("""
@@ -1445,38 +1457,6 @@ def api_upload_cba_tasks():
         conn.close()
 
 
-@app.route("/api/cbc/upload_curriculum", methods=["POST"])
-def api_upload_cbc_curriculum():
-    data = request.get_json(silent=True) or {}
-    school_code = str(data.get("school_code", "")).strip().lower()
-    password = data.get("password", "")
-    grade = str(data.get("grade", "")).strip()
-    try:
-        areas = validate_curriculum(data.get("areas"), grade)
-    except ValueError as error:
-        return jsonify({"success": False, "message": str(error)}), 400
-    if not school_code or not password or not grade:
-        return jsonify({"success": False, "message": "Missing school credentials or class."}), 400
-
-    conn = get_db()
-    try:
-        school = conn.execute(
-            "SELECT id, password_hash FROM schools WHERE school_code = ?",
-            (school_code,),
-        ).fetchone()
-        if not school or not check_password_hash(school["password_hash"], password):
-            return jsonify({"success": False, "message": "Invalid school credentials."}), 401
-        _upsert_cbc_curriculum(conn, school["id"], grade, areas)
-        conn.commit()
-        return jsonify({"success": True, "message": "Competency curriculum published."})
-    except Exception as error:
-        conn.rollback()
-        logging.exception("CBC curriculum upload failed")
-        return jsonify({"success": False, "message": str(error)}), 500
-    finally:
-        conn.close()
-
-
 @app.route("/api/cbc/fetch_covered_strands", methods=["POST"])
 def api_fetch_cbc_covered_strands():
     data = request.get_json(silent=True) or {}
@@ -1500,41 +1480,46 @@ def api_fetch_cbc_covered_strands():
         ).fetchone()
         if not school or not check_password_hash(school["password_hash"], password):
             return jsonify({"success": False, "message": "Invalid school credentials."}), 401
-        area = conn.execute(
-            "SELECT id FROM cbc_learning_areas WHERE school_id = ? AND grade = ? AND name = ?",
-            (school["id"], grade, area_name),
+        curriculum = conn.execute(
+            "SELECT strands_json FROM global_curriculum WHERE grade = ? AND area = ?",
+            (grade, area_name),
         ).fetchone()
-        if not area:
+        if not curriculum:
             return jsonify({
                 "success": False,
-                "message": f"{area_name} has no strands on the portal for {grade}. Publish its curriculum first.",
+                "message": f"No strands have been uploaded to the portal for {area_name} in {grade} yet.",
             })
-        rows = conn.execute(
+        covered = {}
+        for row in conn.execute(
             """
-            SELECT st.id AS strand_id, st.name AS strand, ss.name AS sub_strand,
-                   (SELECT GROUP_CONCAT(DISTINCT rs.term) FROM cbc_rubric_scores rs
-                    WHERE rs.school_id = ? AND rs.grade = ? AND rs.academic_year = ?
-                      AND rs.assessment_type = 'Formative' AND rs.sub_strand_id = ss.id) AS terms
-            FROM cbc_strands st
-            JOIN cbc_sub_strands ss ON ss.strand_id = st.id
-            WHERE st.learning_area_id = ?
-            ORDER BY st.id, ss.id
+            SELECT st.name AS strand, ss.name AS sub_strand, GROUP_CONCAT(DISTINCT rs.term) AS terms
+            FROM cbc_rubric_scores rs
+            JOIN cbc_sub_strands ss ON ss.id = rs.sub_strand_id
+            JOIN cbc_strands st ON st.id = ss.strand_id
+            JOIN cbc_learning_areas la ON la.id = st.learning_area_id
+            WHERE rs.school_id = ? AND rs.grade = ? AND rs.academic_year = ?
+              AND rs.assessment_type = 'Formative' AND la.name = ?
+            GROUP BY st.name, ss.name
             """,
-            (school["id"], grade, academic_year, area["id"]),
-        ).fetchall()
-        strands = {}
-        for row in rows:
-            strand = strands.setdefault(row["strand_id"], {"name": row["strand"], "sub_strands": []})
-            strand["sub_strands"].append({
-                "name": row["sub_strand"],
-                "terms": sorted(row["terms"].split(",")) if row["terms"] else [],
-            })
+            (school["id"], grade, academic_year, area_name),
+        ).fetchall():
+            covered[(row["strand"], row["sub_strand"])] = sorted(row["terms"].split(","))
+        strands = [
+            {
+                "name": strand["name"],
+                "sub_strands": [
+                    {"name": name, "terms": covered.get((strand["name"], name), [])}
+                    for name in strand["sub_strands"]
+                ],
+            }
+            for strand in json.loads(curriculum["strands_json"])
+        ]
         return jsonify({
             "success": True,
             "grade": grade,
             "area": area_name,
             "academic_year": academic_year,
-            "strands": list(strands.values()),
+            "strands": strands,
         })
     except Exception as error:
         logging.exception("CBC covered strands fetch failed")
@@ -1585,7 +1570,7 @@ def api_fetch_cbc_ratings():
                 AND rs.assessment_type = 'Formative'
         """
         parameters = [school["id"], grade, area, term, academic_year]
-        query += " ORDER BY students.student_name COLLATE NOCASE, st.name, ss.name"
+        query += " ORDER BY st.id, ss.id, students.student_name COLLATE NOCASE"
         rows = conn.execute(query, parameters).fetchall()
         records = []
         for row in rows:
@@ -2591,6 +2576,140 @@ SUBJECT_TO_LEARNING_AREA = {
 }
 
 
+def _sync_global_curriculum(conn, school_id, grade):
+    """Copy the shared strands for this class into the school's own curriculum tables."""
+    rows = conn.execute(
+        "SELECT area, strands_json FROM global_curriculum WHERE grade = ?", (grade,)
+    ).fetchall()
+    for row in rows:
+        try:
+            strands = [
+                {"name": item["name"], "sub_strands": list(item["sub_strands"])}
+                for item in json.loads(row["strands_json"])
+            ]
+        except (TypeError, ValueError, KeyError):
+            continue
+        _upsert_cbc_curriculum(conn, school_id, grade, [{"name": row["area"], "strands": strands}])
+    if rows:
+        conn.commit()
+
+
+def _developer_redirect():
+    return redirect(url_for("developer_strands"))
+
+
+@app.route("/developer/strands", methods=["GET", "POST"])
+def developer_strands():
+    expected = os.environ.get("DEVELOPER_PASSWORD", "")
+    if request.method == "POST" and request.form.get("action") == "login":
+        supplied = request.form.get("password", "")
+        if expected and hmac.compare_digest(supplied.encode(), expected.encode()):
+            session["developer"] = True
+        else:
+            flash("Incorrect developer password.", "danger")
+        return _developer_redirect()
+    if not session.get("developer"):
+        return render_template("cloud_developer.html", authed=False, configured=bool(expected))
+    conn = get_db()
+    stored = []
+    for row in conn.execute(
+        "SELECT id, grade, area, strands_json, updated_at FROM global_curriculum"
+    ).fetchall():
+        strands = json.loads(row["strands_json"])
+        stored.append({
+            "id": row["id"], "grade": row["grade"], "area": row["area"],
+            "strands": len(strands), "sub_strands": sum(len(item["sub_strands"]) for item in strands),
+            "updated_at": row["updated_at"][:10],
+        })
+    conn.close()
+    stored.sort(key=lambda item: (GRADE_OPTIONS.index(item["grade"]) if item["grade"] in GRADE_OPTIONS else 99, item["area"]))
+    return render_template(
+        "cloud_developer.html", authed=True, configured=True, stored=stored, preview=None,
+        grades=GRADE_OPTIONS, areas=sorted(set(SUBJECT_TO_LEARNING_AREA.values())),
+    )
+
+
+@app.route("/developer/strands/preview", methods=["POST"])
+def developer_strands_preview():
+    if not session.get("developer"):
+        return _developer_redirect()
+    grade = request.form.get("grade", "").strip()
+    area = request.form.get("area", "").strip()
+    upload = request.files.get("pdf")
+    if grade not in GRADE_OPTIONS or not area or not upload or not upload.filename.lower().endswith(".pdf"):
+        flash("Choose a class, a learning area and a PDF file.", "danger")
+        return _developer_redirect()
+    try:
+        from cbc_curriculum_import import extract_curriculum_pdf
+
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as handle:
+            upload.save(handle)
+        try:
+            strands = extract_curriculum_pdf(handle.name)
+        finally:
+            os.remove(handle.name)
+        areas = validate_curriculum([{"name": area, "strands": strands}], grade)
+    except Exception as error:
+        logging.exception("Developer curriculum preview failed")
+        flash(f"Could not read strands from this PDF: {error}", "danger")
+        return _developer_redirect()
+    return render_template(
+        "cloud_developer.html", authed=True, configured=True, stored=[], grades=GRADE_OPTIONS,
+        areas=[], preview={
+            "grade": grade, "area": area, "strands": areas[0]["strands"],
+            "json": json.dumps(areas[0]["strands"]),
+        },
+    )
+
+
+@app.route("/developer/strands/save", methods=["POST"])
+def developer_strands_save():
+    if not session.get("developer"):
+        return _developer_redirect()
+    grade = request.form.get("grade", "").strip()
+    area = request.form.get("area", "").strip()
+    try:
+        if grade not in GRADE_OPTIONS:
+            raise ValueError("Choose a valid class.")
+        areas = validate_curriculum(
+            [{"name": area, "strands": json.loads(request.form.get("strands_json", "[]"))}], grade
+        )
+    except (TypeError, ValueError) as error:
+        flash(str(error), "danger")
+        return _developer_redirect()
+    conn = get_db()
+    conn.execute(
+        """
+        INSERT INTO global_curriculum (grade, area, strands_json, updated_at) VALUES (?, ?, ?, ?)
+        ON CONFLICT(grade, area) DO UPDATE SET
+        strands_json = excluded.strands_json, updated_at = excluded.updated_at
+        """,
+        (grade, area, json.dumps(areas[0]["strands"]), datetime.now(timezone.utc).isoformat()),
+    )
+    conn.commit()
+    conn.close()
+    flash(f"Saved {area} strands for {grade}. All schools now use them.", "success")
+    return _developer_redirect()
+
+
+@app.route("/developer/strands/delete", methods=["POST"])
+def developer_strands_delete():
+    if not session.get("developer"):
+        return _developer_redirect()
+    conn = get_db()
+    conn.execute("DELETE FROM global_curriculum WHERE id = ?", (request.form.get("id", ""),))
+    conn.commit()
+    conn.close()
+    flash("Strands removed from the portal.", "success")
+    return _developer_redirect()
+
+
+@app.route("/developer/logout", methods=["POST"])
+def developer_logout():
+    session.pop("developer", None)
+    return redirect(url_for("home"))
+
+
 def _current_exam_percentages(conn, school_id, grade, subject_codes):
     """Return the most recently updated exam title with scores for these subjects and {adm_no: percent}."""
     rows = conn.execute(
@@ -2642,6 +2761,7 @@ def cbc_rubric_gradebook(grade):
         SUBJECT_TO_LEARNING_AREA.get(row["subject"].strip().upper(), row["subject"].strip())
         for row in assignments
     ]
+    _sync_global_curriculum(conn, session["school_id"], grade)
     configured_areas = conn.execute(
         "SELECT id, name FROM cbc_learning_areas WHERE school_id = ? AND grade = ? ORDER BY name",
         (session["school_id"], grade),

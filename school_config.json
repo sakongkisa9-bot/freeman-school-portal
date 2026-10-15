@@ -1757,5 +1757,101 @@
                 }
             ]
         }
+    },
+    "cbc_covered_strands": {
+        "Grade 4": {
+            "Agriculture": {
+                "academic_year": 2026,
+                "fetched_at": "2026-10-15 20:27",
+                "strands": [
+                    {
+                        "name": "1.0 Conservation of Resources",
+                        "sub_strands": [
+                            {
+                                "name": "1.1 Soil Conservation",
+                                "terms": [
+                                    "Term 1"
+                                ]
+                            },
+                            {
+                                "name": "1.2 Water Conservation",
+                                "terms": [
+                                    "Term 1"
+                                ]
+                            },
+                            {
+                                "name": "1.3 Fuel Conservation",
+                                "terms": [
+                                    "Term 1"
+                                ]
+                            },
+                            {
+                                "name": "1.4 Conserving Wild Animals",
+                                "terms": [
+                                    "Term 1"
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "2.0 Food Production Processes",
+                        "sub_strands": [
+                            {
+                                "name": "2.1 Direct Sowing of Tiny Seeds",
+                                "terms": [
+                                    "Term 1"
+                                ]
+                            },
+                            {
+                                "name": "2.2 Growing Fruits",
+                                "terms": [
+                                    "Term 1"
+                                ]
+                            },
+                            {
+                                "name": "2.3 Uses of Domestic Animals",
+                                "terms": [
+                                    "Term 1"
+                                ]
+                            },
+                            {
+                                "name": "2.4 Balanced Meal",
+                                "terms": []
+                            },
+                            {
+                                "name": "2.5 Cooking Food",
+                                "terms": []
+                            }
+                        ]
+                    },
+                    {
+                        "name": "3.0 Hygiene Practices",
+                        "sub_strands": [
+                            {
+                                "name": "3.1 Personal Hygiene",
+                                "terms": []
+                            },
+                            {
+                                "name": "3.2 Domestic Hygiene",
+                                "terms": []
+                            },
+                            {
+                                "name": "3.3 Cleaning Personal Protective Equipment",
+                                "terms": []
+                            }
+                        ]
+                    },
+                    {
+                        "name": "4.0 Production Techniques",
+                        "sub_strands": [
+                            {
+                                "name": "4.1 Making Tacking Stitches",
+                                "terms": []
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
     }
 }

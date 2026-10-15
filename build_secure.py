@@ -28,7 +28,6 @@ DATA_FILES = [
     ("file_loader.py", "."),
     ("001_cbc_assessment.sql", "."),
         ('cbc_curriculum_import.py', '.'),  # New hidden import
-        ('cbc_curriculum_manager.py', '.'),  # New hidden import
 ]
 
 # Main entry point
@@ -88,7 +87,6 @@ def run_pyarmor():
         'cba_task_manager.py',
         'cba_results_view.py',
         'cbc_curriculum_import.py',
-        'cbc_curriculum_manager.py',
         'create_exam_dialog.py',
         'cbc_strands_view.py',
         'reportforms.py',
@@ -172,7 +170,6 @@ def run_cython():
         'cba_task_manager.py',
         'cba_results_view.py',
         'cbc_curriculum_import.py',
-        'cbc_curriculum_manager.py',
         'create_exam_dialog.py',
         'cbc_strands_view.py',
         'reportforms.py',
@@ -242,8 +239,8 @@ def run_pyinstaller():
         "cba_task_manager",
         "cba_results_view",
         "cbc_curriculum_import",  # New hidden import
-        "cbc_curriculum_manager",  # New hidden import
         "create_exam_dialog",  # New hidden import
+        "cbc_levels_view",
         "cbc_strands_view",
         "pdfplumber",  # New hidden import
         "fpdf",  # Required for PDF generation in reportforms
@@ -310,8 +307,8 @@ def build_simple():
         "cba_task_manager",
         "cba_results_view",
         "cbc_curriculum_import",
-        "cbc_curriculum_manager",
         "create_exam_dialog",
+        "cbc_levels_view",
         "cbc_strands_view",
         "pdfplumber",
         "fpdf",  # Required for PDF generation in reportforms

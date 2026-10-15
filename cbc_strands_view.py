@@ -49,7 +49,7 @@ class CBCStrandsView(ctk.CTkFrame):
             command=lambda _: self._render(), width=200,
         ).pack(side="left")
         ctk.CTkButton(
-            controls, text="Fetch Marked Strands from Portal", height=36, command=self._fetch,
+            controls, text="Fetch Strands from Portal", height=36, command=self._fetch,
         ).pack(side="left", padx=16)
 
         self.status = ctk.CTkLabel(self, text="", anchor="w", text_color="gray60")
@@ -99,7 +99,7 @@ class CBCStrandsView(ctk.CTkFrame):
             self.status.configure(text="")
             ctk.CTkLabel(
                 self.list_frame,
-                text="Nothing fetched for this subject yet. Click \"Fetch Marked Strands from Portal\".",
+                text="Nothing fetched for this subject yet. Click \"Fetch Strands from Portal\".",
                 text_color="gray60",
             ).pack(pady=40)
             return

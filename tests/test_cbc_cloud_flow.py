@@ -52,6 +52,17 @@ class CBCCloudFlowTests(unittest.TestCase):
             },
         )
 
+    def _seed_global(self, grade, area, strands):
+        connection = sqlite3.connect(self.db_path)
+        connection.execute(
+            "INSERT INTO global_curriculum (grade, area, strands_json, updated_at) VALUES (?, ?, ?, 'now') ON CONFLICT(grade, area) DO UPDATE SET strands_json = excluded.strands_json",
+            (grade, area, json.dumps(strands)),
+        )
+        connection.commit()
+        connection.close()
+        # Opening the gradebook copies the shared strands into the school's tables.
+        self.client.get(f"/cbc/gradebook/{grade.replace(' ', '%20')}?area={area}")
+
     def test_desktop_curriculum_sync_and_selected_sub_strand_ratings(self):
         curriculum = [
             {
@@ -61,16 +72,7 @@ class CBCCloudFlowTests(unittest.TestCase):
                 ],
             }
         ]
-        publish = self.client.post(
-            "/api/cbc/upload_curriculum",
-            json={
-                "school_code": "cbc-test",
-                "password": "pw",
-                "grade": "Grade 3",
-                "areas": curriculum,
-            },
-        )
-        self.assertEqual(publish.status_code, 200)
+        self._seed_global("Grade 3", "Mathematics", curriculum[0]["strands"])
 
         connection = sqlite3.connect(self.db_path)
         student_id = connection.execute(
@@ -137,16 +139,9 @@ class CBCCloudFlowTests(unittest.TestCase):
         self.assertEqual({row[4] for row in payload["records"]}, {"Decimals", "Fractions"})
 
     def _publish_math_curriculum(self):
-        self.client.post(
-            "/api/cbc/upload_curriculum",
-            json={
-                "school_code": "cbc-test",
-                "password": "pw",
-                "grade": "Grade 3",
-                "areas": [
-                    {"name": "Mathematics", "strands": [{"name": "Number", "sub_strands": ["Fractions", "Decimals"]}]}
-                ],
-            },
+        self._seed_global(
+            "Grade 3", "Mathematics",
+            [{"name": "Number", "sub_strands": ["Fractions", "Decimals"]}],
         )
         connection = sqlite3.connect(self.db_path)
         ids = [row[0] for row in connection.execute("SELECT id FROM cbc_sub_strands ORDER BY id")]
@@ -357,19 +352,67 @@ class CBCCloudFlowTests(unittest.TestCase):
         connection.close()
         self.assertEqual(count, 1)
 
-    def test_curriculum_sync_rejects_invalid_school_password(self):
-        response = self.client.post(
-            "/api/cbc/upload_curriculum",
-            json={
-                "school_code": "cbc-test",
-                "password": "wrong",
-                "grade": "Grade 3",
-                "areas": [
-                    {"name": "Mathematics", "strands": [{"name": "Number", "sub_strands": ["Fractions"]}]}
-                ],
-            },
-        )
-        self.assertEqual(response.status_code, 401)
+    def test_developer_page_is_password_protected_and_stores_shared_strands(self):
+        strands = json.dumps([{"name": "1.0 Conservation", "sub_strands": ["1.1 Soil"]}])
+        form = {"grade": "Grade 4", "area": "Agriculture", "strands_json": strands}
+        with patch.dict(os.environ, {"DEVELOPER_PASSWORD": "secret"}):
+            locked = self.client.get("/developer/strands")
+            self.assertIn(b"Developer password", locked.data)
+            self.client.post("/developer/strands/save", data=form)
+            self.client.post("/developer/strands", data={"action": "login", "password": "wrong"})
+            self.assertIn(b"Developer password", self.client.get("/developer/strands").data)
+
+            connection = sqlite3.connect(self.db_path)
+            self.assertEqual(connection.execute("SELECT COUNT(*) FROM global_curriculum").fetchone()[0], 0)
+            connection.close()
+
+            self.client.post("/developer/strands", data={"action": "login", "password": "secret"})
+            self.client.post("/developer/strands/save", data=form)
+            page = self.client.get("/developer/strands")
+            self.assertIn(b"Agriculture", page.data)
+
+            connection = sqlite3.connect(self.db_path)
+            row = connection.execute("SELECT id, strands_json FROM global_curriculum").fetchone()
+            connection.close()
+            self.assertEqual(json.loads(row[1])[0]["sub_strands"], ["1.1 Soil"])
+
+            self.client.post("/developer/strands/delete", data={"id": str(row[0])})
+            connection = sqlite3.connect(self.db_path)
+            self.assertEqual(connection.execute("SELECT COUNT(*) FROM global_curriculum").fetchone()[0], 0)
+            connection.close()
+
+    def test_developer_upload_reads_strands_from_curriculum_pdf(self):
+        from reportlab.lib.pagesizes import A4
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
+        from reportlab.lib import colors
+
+        buffer = io.BytesIO()
+        table = Table([
+            ["Strands", "Sub Strands", "Suggested Number of Lessons"],
+            ["1.0 Conservation of Resources", "1.1 Soil Conservation", "7"],
+            ["", "1.2 Water Conservation", "7"],
+            ["2.0 Food Production", "2.1 Growing Fruits", "16"],
+        ])
+        table.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 0.5, colors.black)]))
+        SimpleDocTemplate(buffer, pagesize=A4).build([table])
+        buffer.seek(0)
+
+        with patch.dict(os.environ, {"DEVELOPER_PASSWORD": "secret"}):
+            self.client.post("/developer/strands", data={"action": "login", "password": "secret"})
+            response = self.client.post(
+                "/developer/strands/preview",
+                data={"grade": "Grade 4", "area": "Agriculture", "pdf": (buffer, "agri.pdf")},
+                content_type="multipart/form-data",
+            )
+        self.assertEqual(response.status_code, 200)
+        for text in (b"1.0 Conservation of Resources", b"1.2 Water Conservation", b"2.1 Growing Fruits", b"Save to Portal"):
+            self.assertIn(text, response.data)
+
+    def test_strands_api_requires_shared_curriculum_and_valid_login(self):
+        request = {"school_code": "cbc-test", "password": "pw", "grade": "Grade 3", "area": "Mathematics", "academic_year": 2026}
+        self.assertFalse(self.client.post("/api/cbc/fetch_covered_strands", json=request).get_json()["success"])
+        bad = self.client.post("/api/cbc/fetch_covered_strands", json={**request, "password": "wrong"})
+        self.assertEqual(bad.status_code, 401)
 
     def test_curriculum_gradebook_and_csv_staging_use_assessment_number(self):
         curriculum_response = self._save_curriculum()

@@ -8,7 +8,7 @@ from ui_summary import ClassSummaryView
 from teachers_linked import TeachersLinkedView, get_subjects_for_class
 from cba_task_manager import CBATaskManager
 from cba_results_view import CBAResultsView
-from cbc_curriculum_manager import CBCCurriculumManager
+from cbc_levels_view import CBCLevelsView
 from cbc_strands_view import CBCStrandsView
 from create_exam_dialog import CreateExamDialog
 from reportforms import ReportFormsView, ask_opening_closing_dates
@@ -3587,6 +3587,10 @@ class Dashboard(ctk.CTk):
         self.show_dashboard_workspace()
         self.open_competency_gradebook()
 
+    def return_to_strand_import(self):
+        self.show_dashboard_workspace()
+        self.show_class_selection("Import Strands", self.btn_competency_gradebook)
+
     def show_cba_bulk_class_selection(self):
         for widget in self.content_panel.winfo_children():
             if widget != self.header_frame and widget != self.theme_frame:
@@ -4326,7 +4330,7 @@ class Dashboard(ctk.CTk):
             self.menu_panel.grid_forget()
             self.grid_columnconfigure(0, weight=0, minsize=0)
             self.content_panel.grid(row=0, column=0, columnspan=2, sticky="nsew")
-            self.current_view = CBCStrandsView(
+            self.current_view = CBCLevelsView(
                 self.content_panel,
                 class_selected,
                 get_subjects_for_class(class_selected),
@@ -4338,16 +4342,19 @@ class Dashboard(ctk.CTk):
             self.current_view.pack(fill="both", expand=True)
 
         elif action_type == "Import Strands":
-            CBCCurriculumManager(
-                self,
+            self.menu_panel.grid_forget()
+            self.grid_columnconfigure(0, weight=0, minsize=0)
+            self.content_panel.grid(row=0, column=0, columnspan=2, sticky="nsew")
+            self.current_view = CBCStrandsView(
+                self.content_panel,
                 class_selected,
                 get_subjects_for_class(class_selected),
                 self.load_school_config(),
                 self.save_school_config,
-                on_close=lambda: self.show_class_selection(
-                    "Import Strands", self.btn_competency_gradebook
-                ),
+                self.return_to_strand_import,
+                self.show_dashboard_workspace,
             )
+            self.current_view.pack(fill="both", expand=True)
 
         # This handles the Register button
         elif action_type == "Registering" or action_type == "Registration":
