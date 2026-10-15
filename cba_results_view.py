@@ -12,6 +12,11 @@ class CBAResultsView(ctk.CTkFrame):
         self.term = result["term"]
         self.columns = list(result["columns"])
         self.records = [list(row) for row in result["records"]]
+        self.has_total_score = bool(
+            self.columns and self.columns[-1].casefold() == "total score"
+        )
+        self.report_title = result.get("report_title", "Converted CBA Results")
+        self.filename_suffix = result.get("filename_suffix", "converted_cba")
         self.return_callback = return_callback
         self._build_widgets()
 
@@ -24,7 +29,7 @@ class CBAResultsView(ctk.CTkFrame):
         header.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
             header,
-            text=f"Converted CBA Results  |  {self.grade} / {self.subject} / {self.term}",
+            text=f"{self.report_title}  |  {self.grade} / {self.subject} / {self.term}",
             font=("Arial Bold", 20),
             anchor="w",
         ).grid(row=0, column=0, sticky="w")
@@ -83,17 +88,19 @@ class CBAResultsView(ctk.CTkFrame):
             self.tree.insert("", "end", values=record)
 
     def _ask_export_path(self, extension):
-        include_total = messagebox.askyesno(
-            "Include Total Score",
-            "Include the Total Score column in this printout?",
-            parent=self,
-        )
+        include_total = True
+        if self.has_total_score:
+            include_total = messagebox.askyesno(
+                "Include Total Score",
+                "Include the Total Score column in this printout?",
+                parent=self,
+            )
         filename = self._safe_filename(
-            f"{self.grade}_{self.subject}_{self.term}_converted_cba.{extension}"
+            f"{self.grade}_{self.subject}_{self.term}_{self.filename_suffix}.{extension}"
         )
         path = filedialog.asksaveasfilename(
             parent=self,
-            title=f"Save converted CBA {extension.upper()}",
+            title=f"Save {self.report_title} {extension.upper()}",
             defaultextension=f".{extension}",
             initialfile=filename,
             filetypes=[(f"{extension.upper()} files", f"*.{extension}")],
@@ -105,8 +112,10 @@ class CBAResultsView(ctk.CTkFrame):
         return re.sub(r"[^A-Za-z0-9._-]+", "_", filename)
 
     def _print_data(self, include_total):
-        columns = self.columns if include_total else self.columns[:-1]
-        records = [row if include_total else row[:-1] for row in self.records]
+        if include_total or not self.has_total_score:
+            return self.columns, self.records
+        columns = self.columns[:-1]
+        records = [row[:-1] for row in self.records]
         return columns, records
 
     def export_excel(self):
@@ -121,9 +130,9 @@ class CBAResultsView(ctk.CTkFrame):
 
             workbook = Workbook()
             worksheet = workbook.active
-            worksheet.title = "Converted CBA"
+            worksheet.title = self.report_title[:31]
             worksheet.append(
-                [f"{self.grade} | {self.subject} | {self.term}"]
+                [f"{self.report_title} | {self.grade} | {self.subject} | {self.term}"]
             )
             worksheet.merge_cells(
                 start_row=1, start_column=1, end_row=1, end_column=len(columns)
@@ -190,7 +199,7 @@ class CBAResultsView(ctk.CTkFrame):
                 bottomMargin=12 * mm,
             )
             title = Paragraph(
-                f"{self.grade} | {self.subject} | {self.term}",
+                f"{self.report_title} | {self.grade} | {self.subject} | {self.term}",
                 __import__("reportlab.lib.styles", fromlist=["getSampleStyleSheet"])
                 .getSampleStyleSheet()["Title"],
             )

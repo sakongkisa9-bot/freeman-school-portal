@@ -8,6 +8,7 @@ from ui_summary import ClassSummaryView
 from teachers_linked import TeachersLinkedView, get_subjects_for_class
 from cba_task_manager import CBATaskManager
 from cba_results_view import CBAResultsView
+from cbc_curriculum_manager import CBCCurriculumManager
 from reportforms import ReportFormsView, ask_opening_closing_dates
 from ocr_student_dialog import show_ocr_dialog
 from excel_student_import import read_student_rows
@@ -201,6 +202,15 @@ class Dashboard(ctk.CTk):
             command=lambda: self.require_auth(self.open_cba_menu),
         )
         self.btn_knec_cba.pack(pady=btn_pady)
+
+        self.btn_competency_gradebook = ctk.CTkButton(
+            self.menu_panel,
+            text="Competency Gradebook",
+            width=200,
+            height=btn_height,
+            command=lambda: self.require_auth(self.open_competency_gradebook),
+        )
+        self.btn_competency_gradebook.pack(pady=btn_pady)
 
         self.btn_previous_exams = ctk.CTkButton(
             self.menu_panel,
@@ -3546,6 +3556,11 @@ class Dashboard(ctk.CTk):
             ),
         ).pack(pady=10)
 
+    def open_competency_gradebook(self):
+        self.show_class_selection(
+            "Competency Gradebook", self.btn_competency_gradebook
+        )
+
     def show_cba_bulk_class_selection(self):
         for widget in self.content_panel.winfo_children():
             if widget != self.header_frame and widget != self.theme_frame:
@@ -4248,6 +4263,18 @@ class Dashboard(ctk.CTk):
 
         elif action_type == "KNEC CBA Fetch":
             self.show_cba_fetch_subject_selection(class_selected)
+
+        elif action_type == "Competency Gradebook":
+            CBCCurriculumManager(
+                self,
+                class_selected,
+                get_subjects_for_class(class_selected),
+                self.load_school_config(),
+                self.save_school_config,
+                on_close=lambda: self.show_class_selection(
+                    "Competency Gradebook", self.btn_competency_gradebook
+                ),
+            )
 
         # This handles the Register button
         elif action_type == "Registering" or action_type == "Registration":

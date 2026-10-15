@@ -11,6 +11,22 @@ REPORTING_BANDS = {
 }
 MILESTONE_GRADES = {"Grade 6", "Grade 9"}
 JUNIOR_GRADES = {"Grade 7", "Grade 8", "Grade 9"}
+SUBJECT_TO_LEARNING_AREA = {
+    "MATH": "Mathematics",
+    "MAT": "Mathematics",
+    "ENG": "English",
+    "KISW": "Kiswahili",
+    "SCIE": "Science & Technology",
+    "INT SCIE": "Integrated Science",
+    "PRE-TECH": "Pre-Technical Studies",
+    "SST": "Social Studies",
+    "AGRI": "Agriculture",
+    "C/A": "Creative Arts",
+    "CRE": "CRE",
+    "REL": "Religious Education",
+    "IRE": "IRE",
+    "HRE": "HRE",
+}
 
 
 def validate_assessment_number(value):

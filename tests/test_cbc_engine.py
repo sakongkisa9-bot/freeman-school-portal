@@ -1,6 +1,7 @@
 import unittest
 
 from cbc_engine import (
+    SUBJECT_TO_LEARNING_AREA,
     aggregate_competency,
     aggregate_term_competency,
     calculate_milestone_result,
@@ -12,6 +13,11 @@ from cbc_engine import (
 
 
 class CBCEngineTests(unittest.TestCase):
+    def test_primary_subject_codes_map_to_curriculum_learning_areas(self):
+        self.assertEqual(SUBJECT_TO_LEARNING_AREA["AGRI"], "Agriculture")
+        self.assertEqual(SUBJECT_TO_LEARNING_AREA["SCIE"], "Science & Technology")
+        self.assertEqual(SUBJECT_TO_LEARNING_AREA["REL"], "Religious Education")
+
     def test_assessment_number_is_preserved_as_alphanumeric_text(self):
         self.assertEqual(validate_assessment_number(" K0010203002 "), "K0010203002")
         with self.assertRaises(ValueError):

@@ -153,7 +153,7 @@ class CBACloudFlowTests(unittest.TestCase):
             [row[1] for row in fetched_data["records"]],
             ["Amina Wanjiku", "Brian Otieno", "Carol Njeri"],
         )
-        self.assertEqual(fetched_data["records"][2][-1:], ["A"])
+        self.assertEqual(fetched_data["records"][2][-1:], ["AB"])
         self.assertNotIn("Total Score", fetched_data["columns"])
 
         new_term_response = self.client.post(
@@ -213,7 +213,7 @@ class CBACloudFlowTests(unittest.TestCase):
         self.assertEqual(worksheet.cell(3, 3).value, "F")
         self.assertEqual(worksheet.cell(3, 4).value, 1)
         self.assertEqual(worksheet.cell(4, 4).value, 3)
-        self.assertEqual(worksheet.cell(5, 4).value, "A")
+        self.assertEqual(worksheet.cell(5, 4).value, "AB")
 
         excel_with_legacy_total_flag = self.client.get(
             "/cba/export/Grade%203/xlsx?subject=ENG&term=Term%203&include_total=1"

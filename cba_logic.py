@@ -2,9 +2,6 @@ LEVEL_NAMES = ("Level 1", "Level 2", "Level 3", "Level 4")
 
 
 def absence_mark_for_grade(grade):
-    normalized = " ".join(str(grade or "").casefold().split())
-    if normalized in {"grade 3", "grade3", "grade 4", "grade4"}:
-        return "A"
     return "AB"
 
 

@@ -35,6 +35,7 @@ from cba_logic import (
 )
 from cbc_engine import (
     RUBRIC_DESCRIPTORS,
+    SUBJECT_TO_LEARNING_AREA,
     aggregate_competency,
     aggregate_term_competency,
     calculate_milestone_result,
@@ -1399,6 +1400,113 @@ def api_upload_cba_tasks():
         conn.close()
 
 
+@app.route("/api/cbc/upload_curriculum", methods=["POST"])
+def api_upload_cbc_curriculum():
+    data = request.get_json(silent=True) or {}
+    school_code = str(data.get("school_code", "")).strip().lower()
+    password = data.get("password", "")
+    grade = str(data.get("grade", "")).strip()
+    try:
+        areas = validate_curriculum(data.get("areas"), grade)
+    except ValueError as error:
+        return jsonify({"success": False, "message": str(error)}), 400
+    if not school_code or not password or not grade:
+        return jsonify({"success": False, "message": "Missing school credentials or class."}), 400
+
+    conn = get_db()
+    try:
+        school = conn.execute(
+            "SELECT id, password_hash FROM schools WHERE school_code = ?",
+            (school_code,),
+        ).fetchone()
+        if not school or not check_password_hash(school["password_hash"], password):
+            return jsonify({"success": False, "message": "Invalid school credentials."}), 401
+        _upsert_cbc_curriculum(conn, school["id"], grade, areas)
+        conn.commit()
+        return jsonify({"success": True, "message": "Competency curriculum published."})
+    except Exception as error:
+        conn.rollback()
+        logging.exception("CBC curriculum upload failed")
+        return jsonify({"success": False, "message": str(error)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/cbc/fetch_ratings", methods=["POST"])
+def api_fetch_cbc_ratings():
+    data = request.get_json(silent=True) or {}
+    school_code = str(data.get("school_code", "")).strip().lower()
+    password = data.get("password", "")
+    grade = str(data.get("grade", "")).strip()
+    area = str(data.get("area", "")).strip()
+    term = str(data.get("term", "Term 1")).strip()
+    assessment_type = str(data.get("assessment_type", "")).strip()
+    try:
+        academic_year = int(data.get("academic_year"))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "message": "Enter a valid academic year."}), 400
+    if not school_code or not password or not grade or not area:
+        return jsonify({"success": False, "message": "Missing school credentials, class, or learning area."}), 400
+    if term not in {"Term 1", "Term 2", "Term 3"}:
+        return jsonify({"success": False, "message": "Invalid term."}), 400
+    if academic_year < 2000 or academic_year > 2200:
+        return jsonify({"success": False, "message": "Invalid academic year."}), 400
+    if assessment_type and assessment_type not in {"Formative", "Localized Summative"}:
+        return jsonify({"success": False, "message": "Invalid assessment type."}), 400
+
+    conn = get_db()
+    try:
+        school = conn.execute(
+            "SELECT id, password_hash FROM schools WHERE school_code = ?",
+            (school_code,),
+        ).fetchone()
+        if not school or not check_password_hash(school["password_hash"], password):
+            return jsonify({"success": False, "message": "Invalid school credentials."}), 401
+        query = """
+            SELECT rs.assessment_number, COALESCE(students.student_name, ''),
+                   la.name, st.name, ss.name, rs.assessment_type, rs.rating
+            FROM cbc_rubric_scores rs
+            JOIN cbc_sub_strands ss ON ss.id = rs.sub_strand_id
+            JOIN cbc_strands st ON st.id = ss.strand_id
+            JOIN cbc_learning_areas la ON la.id = st.learning_area_id
+            LEFT JOIN students ON students.school_id = rs.school_id
+                AND students.grade = rs.grade
+                AND students.assessment_number = rs.assessment_number
+            WHERE rs.school_id = ? AND rs.grade = ? AND la.name = ?
+                AND rs.term = ? AND rs.academic_year = ?
+        """
+        parameters = [school["id"], grade, area, term, academic_year]
+        if assessment_type:
+            query += " AND rs.assessment_type = ?"
+            parameters.append(assessment_type)
+        query += " ORDER BY students.student_name COLLATE NOCASE, st.name, ss.name, rs.assessment_type"
+        rows = conn.execute(query, parameters).fetchall()
+        return jsonify(
+            {
+                "success": True,
+                "columns": [
+                    "Assessment Number",
+                    "Learner",
+                    "Learning Area",
+                    "Strand",
+                    "Sub-strand",
+                    "Assessment Type",
+                    "Level",
+                ],
+                "records": [list(row) for row in rows],
+                "grade": grade,
+                "area": area,
+                "term": term,
+                "academic_year": academic_year,
+            }
+        )
+    except Exception as error:
+        logging.exception("CBC ratings fetch failed")
+        return jsonify({"success": False, "message": str(error)}), 500
+    finally:
+        conn.close()
+
+
 @app.route("/marks/<grade>", methods=["GET", "POST"])
 def enter_marks(grade):
     subject = request.args.get("subject")
@@ -2031,6 +2139,32 @@ def _curriculum_tree(conn, school_id, grade):
     return tree
 
 
+def _upsert_cbc_curriculum(conn, school_id, grade, areas):
+    for area in areas:
+        conn.execute(
+            "INSERT INTO cbc_learning_areas (school_id, grade, name) VALUES (?, ?, ?) ON CONFLICT(school_id, grade, name) DO NOTHING",
+            (school_id, grade, area["name"]),
+        )
+        area_id = conn.execute(
+            "SELECT id FROM cbc_learning_areas WHERE school_id = ? AND grade = ? AND name = ?",
+            (school_id, grade, area["name"]),
+        ).fetchone()["id"]
+        for strand in area["strands"]:
+            conn.execute(
+                "INSERT INTO cbc_strands (learning_area_id, name) VALUES (?, ?) ON CONFLICT(learning_area_id, name) DO NOTHING",
+                (area_id, strand["name"]),
+            )
+            strand_id = conn.execute(
+                "SELECT id FROM cbc_strands WHERE learning_area_id = ? AND name = ?",
+                (area_id, strand["name"]),
+            ).fetchone()["id"]
+            for sub_strand in strand["sub_strands"]:
+                conn.execute(
+                    "INSERT INTO cbc_sub_strands (strand_id, name) VALUES (?, ?) ON CONFLICT(strand_id, name) DO NOTHING",
+                    (strand_id, sub_strand),
+                )
+
+
 @app.route("/cbc/curriculum/<grade>", methods=["GET", "POST"])
 def manage_cbc_curriculum(grade):
     if "school_id" not in session:
@@ -2044,29 +2178,7 @@ def manage_cbc_curriculum(grade):
             submitted = json.loads(request.form.get("curriculum_json", "[]"))
             areas = validate_curriculum(submitted, grade)
             conn.execute("BEGIN")
-            for area in areas:
-                conn.execute(
-                    "INSERT INTO cbc_learning_areas (school_id, grade, name) VALUES (?, ?, ?) ON CONFLICT(school_id, grade, name) DO NOTHING",
-                    (session["school_id"], grade, area["name"]),
-                )
-                area_id = conn.execute(
-                    "SELECT id FROM cbc_learning_areas WHERE school_id = ? AND grade = ? AND name = ?",
-                    (session["school_id"], grade, area["name"]),
-                ).fetchone()["id"]
-                for strand in area["strands"]:
-                    conn.execute(
-                        "INSERT INTO cbc_strands (learning_area_id, name) VALUES (?, ?) ON CONFLICT(learning_area_id, name) DO NOTHING",
-                        (area_id, strand["name"]),
-                    )
-                    strand_id = conn.execute(
-                        "SELECT id FROM cbc_strands WHERE learning_area_id = ? AND name = ?",
-                        (area_id, strand["name"]),
-                    ).fetchone()["id"]
-                    for sub_strand in strand["sub_strands"]:
-                        conn.execute(
-                            "INSERT INTO cbc_sub_strands (strand_id, name) VALUES (?, ?) ON CONFLICT(strand_id, name) DO NOTHING",
-                            (strand_id, sub_strand),
-                        )
+            _upsert_cbc_curriculum(conn, session["school_id"], grade, areas)
             conn.commit()
             flash("Curriculum structure saved.", "success")
         except (ValueError, TypeError, json.JSONDecodeError, sqlite3.Error) as error:
@@ -2158,6 +2270,33 @@ def cbc_rubric_gradebook(grade):
     if not sub_strands:
         conn.close()
         return "This learning area has no configured sub-strands", 400
+    strands = conn.execute(
+        "SELECT id, name FROM cbc_strands WHERE learning_area_id = ? ORDER BY name",
+        (selected_area["id"],),
+    ).fetchall()
+    try:
+        requested_strand_id = int(request.values.get("strand_id", ""))
+    except (TypeError, ValueError):
+        requested_strand_id = None
+    selected_strand = next(
+        (strand for strand in strands if strand["id"] == requested_strand_id),
+        strands[0],
+    )
+    selected_strand_sub_strands = [
+        item for item in sub_strands if item["strand_name"] == selected_strand["name"]
+    ]
+    try:
+        requested_sub_strand_id = int(request.values.get("sub_strand_id", ""))
+    except (TypeError, ValueError):
+        requested_sub_strand_id = None
+    selected_sub_strand = next(
+        (
+            item
+            for item in selected_strand_sub_strands
+            if item["id"] == requested_sub_strand_id
+        ),
+        selected_strand_sub_strands[0],
+    )
     students = conn.execute(
         "SELECT id, assessment_number, student_name, gender FROM students WHERE school_id = ? AND grade = ? ORDER BY assessment_number COLLATE NOCASE, student_name COLLATE NOCASE",
         (session["school_id"], grade),
@@ -2170,12 +2309,14 @@ def cbc_rubric_gradebook(grade):
             for student in students:
                 assessment_number = validate_assessment_number(student["assessment_number"])
                 assessment_numbers.append(assessment_number.casefold())
-                for sub_strand in sub_strands:
-                    raw_rating = request.form.get(f"rating_{student['id']}_{sub_strand['id']}", "").strip()
-                    if not raw_rating:
-                        continue
+                raw_rating = request.form.get(
+                    f"rating_{student['id']}_{selected_sub_strand['id']}", ""
+                ).strip()
+                if raw_rating:
                     rating = validate_rubric_rating(raw_rating)
-                    ratings_to_save.append((assessment_number, sub_strand["id"], str(rating)))
+                    ratings_to_save.append(
+                        (assessment_number, selected_sub_strand["id"], str(rating))
+                    )
             if len(assessment_numbers) != len(set(assessment_numbers)):
                 raise ValueError("Assessment Numbers must be unique within this class.")
         except ValueError as error:
@@ -2183,11 +2324,9 @@ def cbc_rubric_gradebook(grade):
             flash(str(error), "danger")
             return redirect(url_for("cbc_rubric_gradebook", grade=grade, area=area_name, term=term, academic_year=academic_year))
 
-        sub_strand_ids = [row["id"] for row in sub_strands]
-        placeholders = ",".join("?" for _ in sub_strand_ids)
         conn.execute(
-            f"DELETE FROM cbc_rubric_scores WHERE school_id = ? AND grade = ? AND academic_year = ? AND term = ? AND assessment_type = ? AND sub_strand_id IN ({placeholders})",
-            (session["school_id"], grade, academic_year, term, assessment_type, *sub_strand_ids),
+            "DELETE FROM cbc_rubric_scores WHERE school_id = ? AND grade = ? AND academic_year = ? AND term = ? AND assessment_type = ? AND sub_strand_id = ?",
+            (session["school_id"], grade, academic_year, term, assessment_type, selected_sub_strand["id"]),
         )
         updated_at = datetime.now(timezone.utc).isoformat()
         for assessment_number, sub_strand_id, rating in ratings_to_save:
@@ -2198,7 +2337,11 @@ def cbc_rubric_gradebook(grade):
         conn.commit()
         conn.close()
         flash("Competency ratings saved.", "success")
-        return redirect(url_for("cbc_rubric_gradebook", grade=grade, area=area_name, term=term, academic_year=academic_year, assessment_type=assessment_type))
+        return redirect(url_for(
+            "cbc_rubric_gradebook", grade=grade, area=area_name, term=term,
+            academic_year=academic_year, assessment_type=assessment_type,
+            strand_id=selected_strand["id"], sub_strand_id=selected_sub_strand["id"],
+        ))
 
     saved = conn.execute(
         "SELECT assessment_number, sub_strand_id, assessment_type, rating FROM cbc_rubric_scores WHERE school_id = ? AND grade = ? AND academic_year = ? AND term = ? AND sub_strand_id IN (SELECT ss.id FROM cbc_sub_strands ss JOIN cbc_strands st ON st.id = ss.strand_id WHERE st.learning_area_id = ?)",
@@ -2228,6 +2371,10 @@ def cbc_rubric_gradebook(grade):
         academic_year=academic_year,
         students=students,
         sub_strands=sub_strands,
+        strands=strands,
+        selected_strand=selected_strand,
+        selected_sub_strand=selected_sub_strand,
+        selected_strand_sub_strands=selected_strand_sub_strands,
         rating_map=rating_map,
         aggregates=aggregates,
         assessment_number_validator=validate_assessment_number,

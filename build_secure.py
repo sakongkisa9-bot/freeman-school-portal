@@ -27,6 +27,8 @@ DATA_FILES = [
     ("mpesa_config.json", "."),
     ("file_loader.py", "."),
     ("001_cbc_assessment.sql", "."),
+        ('cbc_curriculum_import.py', '.'),  # New hidden import
+        ('cbc_curriculum_manager.py', '.'),  # New hidden import
 ]
 
 # Main entry point
@@ -85,6 +87,8 @@ def run_pyarmor():
         'cba_logic.py',
         'cba_task_manager.py',
         'cba_results_view.py',
+        'cbc_curriculum_import.py',
+        'cbc_curriculum_manager.py',
         'reportforms.py',
         'wizard.py',
         'splash.py',
@@ -165,6 +169,8 @@ def run_cython():
         'cba_logic.py',
         'cba_task_manager.py',
         'cba_results_view.py',
+        'cbc_curriculum_import.py',
+        'cbc_curriculum_manager.py',
         'reportforms.py',
         'wizard.py',
         'splash.py',
@@ -231,6 +237,9 @@ def run_pyinstaller():
         "cbc_engine",
         "cba_task_manager",
         "cba_results_view",
+        "cbc_curriculum_import",  # New hidden import
+        "cbc_curriculum_manager",  # New hidden import
+        "pdfplumber",  # New hidden import
         "fpdf",  # Required for PDF generation in reportforms
     ]
     
@@ -294,6 +303,9 @@ def build_simple():
         "cbc_engine",
         "cba_task_manager",
         "cba_results_view",
+        "cbc_curriculum_import",
+        "cbc_curriculum_manager",
+        "pdfplumber",
         "fpdf",  # Required for PDF generation in reportforms
     ]
     

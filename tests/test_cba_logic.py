@@ -73,10 +73,9 @@ class CBALogicTests(unittest.TestCase):
             {"level": "AB", "points": None},
         )
 
-    def test_absence_marker_depends_on_grade(self):
-        self.assertEqual(absence_mark_for_grade("Grade 3"), "A")
-        self.assertEqual(absence_mark_for_grade("grade 4"), "A")
-        self.assertEqual(absence_mark_for_grade("Grade 5"), "AB")
+    def test_absence_marker_is_ab_for_every_grade(self):
+        for grade in ("Grade 3", "grade 4", "Grade 5", "PP1"):
+            self.assertEqual(absence_mark_for_grade(grade), "AB")
 
     def test_max_score_task_reports_raw_score_and_enforces_maximum(self):
         task = validate_tasks([{"name": "Task 1", "mode": "max", "max_score": "8"}])[0]

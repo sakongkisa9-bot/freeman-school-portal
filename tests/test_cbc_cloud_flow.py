@@ -51,6 +51,104 @@ class CBCCloudFlowTests(unittest.TestCase):
             },
         )
 
+    def test_desktop_curriculum_sync_and_selected_sub_strand_ratings(self):
+        curriculum = [
+            {
+                "name": "Mathematics",
+                "strands": [
+                    {"name": "Number", "sub_strands": ["Fractions", "Decimals"]}
+                ],
+            }
+        ]
+        publish = self.client.post(
+            "/api/cbc/upload_curriculum",
+            json={
+                "school_code": "cbc-test",
+                "password": "pw",
+                "grade": "Grade 3",
+                "areas": curriculum,
+            },
+        )
+        self.assertEqual(publish.status_code, 200)
+
+        connection = sqlite3.connect(self.db_path)
+        student_id = connection.execute(
+            "SELECT id FROM students WHERE adm_no = 'A001'"
+        ).fetchone()[0]
+        strand_id = connection.execute(
+            "SELECT id FROM cbc_strands WHERE name = 'Number'"
+        ).fetchone()[0]
+        sub_strands = connection.execute(
+            "SELECT id, name FROM cbc_sub_strands WHERE strand_id = ? ORDER BY name",
+            (strand_id,),
+        ).fetchall()
+        connection.close()
+        self.assertEqual([row[1] for row in sub_strands], ["Decimals", "Fractions"])
+
+        page = self.client.get(
+            f"/cbc/gradebook/Grade%203?area=Mathematics&strand_id={strand_id}"
+        )
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b"Sub-strand", page.data)
+        self.assertIn(b"Fractions", page.data)
+        self.assertIn(b"Decimals", page.data)
+
+        with self.client.session_transaction() as session:
+            session["role"] = "teacher"
+        for sub_strand_id, rating in ((sub_strands[0][0], "2"), (sub_strands[1][0], "4")):
+            response = self.client.post(
+                f"/cbc/gradebook/Grade%203?area=Mathematics&term=Term%201&academic_year=2026&assessment_type=Formative&strand_id={strand_id}&sub_strand_id={sub_strand_id}",
+                data={
+                    f"rating_{student_id}_{sub_strand_id}": rating,
+                    "strand_id": str(strand_id),
+                    "sub_strand_id": str(sub_strand_id),
+                    "term": "Term 1",
+                    "academic_year": "2026",
+                    "assessment_type": "Formative",
+                },
+            )
+            self.assertEqual(response.status_code, 302)
+
+        connection = sqlite3.connect(self.db_path)
+        saved = connection.execute(
+            "SELECT sub_strand_id, rating FROM cbc_rubric_scores ORDER BY sub_strand_id"
+        ).fetchall()
+        connection.close()
+        self.assertEqual(
+            dict(saved), {sub_strands[0][0]: "2", sub_strands[1][0]: "4"}
+        )
+
+        fetched = self.client.post(
+            "/api/cbc/fetch_ratings",
+            json={
+                "school_code": "cbc-test",
+                "password": "pw",
+                "grade": "Grade 3",
+                "area": "Mathematics",
+                "term": "Term 1",
+                "academic_year": 2026,
+            },
+        )
+        self.assertEqual(fetched.status_code, 200)
+        payload = fetched.get_json()
+        self.assertEqual(payload["columns"][-1], "Level")
+        self.assertEqual(len(payload["records"]), 2)
+        self.assertEqual({row[4] for row in payload["records"]}, {"Decimals", "Fractions"})
+
+    def test_curriculum_sync_rejects_invalid_school_password(self):
+        response = self.client.post(
+            "/api/cbc/upload_curriculum",
+            json={
+                "school_code": "cbc-test",
+                "password": "wrong",
+                "grade": "Grade 3",
+                "areas": [
+                    {"name": "Mathematics", "strands": [{"name": "Number", "sub_strands": ["Fractions"]}]}
+                ],
+            },
+        )
+        self.assertEqual(response.status_code, 401)
+
     def test_curriculum_gradebook_and_csv_staging_use_assessment_number(self):
         curriculum_response = self._save_curriculum()
         self.assertEqual(curriculum_response.status_code, 200)
