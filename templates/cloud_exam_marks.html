@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ exam_title }} - {{ subject }} - Freeman Portal</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #101a19; color: #f4f7f5; font-family: "Segoe UI", Tahoma, sans-serif; }
+        main { max-width: 900px; margin: 0 auto; padding: 24px; }
+        header { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; border-bottom: 1px solid #41524d; padding-bottom: 18px; margin-bottom: 20px; }
+        h1 { margin: 0; font-size: 25px; }
+        .subtitle { color: #b7c8c1; margin: 7px 0 0; }
+        a.button, button { display: inline-block; padding: 10px 14px; border: 1px solid #53776d; border-radius: 5px; background: #19332d; color: #effff8; text-decoration: none; font: inherit; font-weight: 650; cursor: pointer; }
+        a.button:hover, button:hover { background: #285347; }
+        .message { padding: 10px 12px; margin: 8px 0; border-left: 4px solid #d69c48; background: #26312b; }
+        .message.success { border-color: #4daf86; }
+        .message.danger { border-color: #d26060; }
+        .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 16px 0; }
+        label { font-weight: 650; }
+        input { padding: 10px; background: #0d1513; color: white; border: 1px solid #52665f; border-radius: 4px; font: inherit; }
+        input:focus { outline: 2px solid #62b58f; border-color: transparent; }
+        input.out-of { width: 110px; }
+        input.mark { width: 130px; }
+        .table-wrap { border: 1px solid #354943; background: #17221f; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border-bottom: 1px solid #354943; padding: 10px; text-align: left; }
+        th { background: #20332d; color: #cde9dc; }
+        .student-name { font-weight: 650; }
+        .percent { color: #a9beb5; }
+        .actions { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 0; }
+        button.save { border-color: #5c9c83; background: #28735b; min-width: 170px; }
+        button.finish { border-color: #b06a3b; background: #8a4b22; min-width: 170px; }
+    </style>
+</head>
+<body>
+<main>
+    <header>
+        <div>
+            <h1>{{ exam_title }}: {{ subject }}</h1>
+            <p class="subtitle">{{ grade }} · {% if review %}Review the marks, edit if needed, then click Finish.{% else %}Enter each learner's marks.{% endif %}</p>
+        </div>
+        <a class="button" href="{{ url_for('dashboard') }}">Dashboard</a>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}<div class="message {{ category }}">{{ message }}</div>{% endfor %}
+    {% endwith %}
+
+    <form method="post" id="marksForm" action="{{ url_for('enter_exam_marks', grade=grade, subject=subject) }}">
+        <input type="hidden" name="review" value="{{ '1' if review else '' }}">
+        <div class="toolbar">
+            <label for="outOf">Out of</label>
+            <input id="outOf" class="out-of" name="out_of" type="number" min="1" max="1000" step="1" required value="{{ out_of_value }}">
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Learner</th><th>Marks</th><th>Percentage</th></tr></thead>
+                <tbody>
+                    {% for student in students %}
+                    <tr>
+                        <td class="student-name">{{ student.student_name }}</td>
+                        <td><input class="mark" type="text" inputmode="decimal" autocomplete="off" name="score_{{ student.adm_no }}" value="{{ raw_values.get(student.adm_no, '') }}" aria-label="{{ student.student_name }} marks"></td>
+                        <td class="percent"></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="actions">
+            {% if review %}
+            <button type="submit" name="action" value="save" class="save">Save Changes</button>
+            <button type="submit" name="action" value="finish" class="finish" id="finishButton">Finish</button>
+            {% else %}
+            <button type="submit" name="action" value="save" class="save">Save Marks</button>
+            {% endif %}
+        </div>
+    </form>
+</main>
+<script>
+    const outOf = document.getElementById("outOf");
+    const rows = Array.from(document.querySelectorAll("tbody tr"));
+
+    function updatePercentages() {
+        const total = Number(outOf.value);
+        for (const row of rows) {
+            const raw = row.querySelector(".mark").value.trim();
+            const cell = row.querySelector(".percent");
+            const value = Number(raw);
+            cell.textContent = raw !== "" && total > 0 && Number.isFinite(value) ? `${Math.floor(value * 100 / total + 0.5)}%` : "";
+        }
+    }
+    document.getElementById("marksForm").addEventListener("input", updatePercentages);
+    updatePercentages();
+
+    const finishButton = document.getElementById("finishButton");
+    if (finishButton) {
+        finishButton.addEventListener("click", event => {
+            if (!confirm("After you click Finish you cannot edit these scores again. Do you want to finish?")) {
+                event.preventDefault();
+            }
+        });
+    }
+</script>
+</body>
+</html>

@@ -203,7 +203,7 @@
     <div class="container">
         <div class="header-section">
             <h1 class="page-title">Select Subject for <span class="highlight">{{ grade }}</span></h1>
-            <p class="subtitle">{% if mode == 'cba' %}Select an assigned subject to enter KNEC CBA raw scores.{% else %}Which subject's percentage marks would you like to enter?{% endif %}</p>
+            <p class="subtitle">{% if mode == 'cba' %}Select an assigned subject to enter KNEC CBA raw scores.{% elif mode == 'exam' %}Select a subject to enter marks for {{ exam_title }}.{% else %}Which subject's percentage marks would you like to enter?{% endif %}</p>
 
             {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -218,7 +218,7 @@
 
         <div class="subjects-grid">
             {% for sub in subjects %}
-            <a href="{% if mode == 'cba' %}{{ url_for('enter_cba_marks', grade=grade, subject=sub) }}{% else %}{{ url_for('enter_marks', grade=grade, subject=sub) }}{% endif %}" class="subject-card">
+            <a href="{% if mode == 'cba' %}{{ url_for('enter_cba_marks', grade=grade, subject=sub) }}{% elif mode == 'exam' %}{{ url_for('enter_exam_marks', grade=grade, subject=sub) }}{% else %}{{ url_for('enter_marks', grade=grade, subject=sub) }}{% endif %}" class="subject-card">
                 <div class="subject-icon">📖</div>
                 <div class="subject-name">{{ sub }}</div>
             </a>

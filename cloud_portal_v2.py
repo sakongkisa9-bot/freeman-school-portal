@@ -16,6 +16,7 @@ import os
 import json
 import csv
 import io
+import math
 import uuid
 from datetime import datetime, timezone
 import logging
@@ -515,6 +516,29 @@ def init_db():
             updated_at TEXT NOT NULL,
             UNIQUE(school_id, grade, adm_no, exam_title),
             FOREIGN KEY(school_id) REFERENCES schools(id)
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS exams (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            school_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            scope_json TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS exam_submissions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            school_id INTEGER NOT NULL,
+            exam_id INTEGER NOT NULL,
+            grade TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            teacher_code TEXT,
+            out_of INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'final')),
+            updated_at TEXT NOT NULL,
+            UNIQUE (school_id, exam_id, grade, subject)
         )
     """)
     cursor.execute("""
@@ -1129,6 +1153,23 @@ def dashboard():
         if teacher:
             teacher_name = teacher["teacher_name"]
 
+    teacher_code = session.get("teacher_code")
+    visible_grades = list(GRADE_OPTIONS)
+    exam = _current_exam(conn, session["school_id"])
+    exam_grades = set()
+    if teacher_code:
+        assigned_classes = {
+            row["class_name"]
+            for row in conn.execute(
+                "SELECT DISTINCT class_name FROM teacher_assignments WHERE school_id = ? AND teacher_code = ?",
+                (session["school_id"], teacher_code),
+            ).fetchall()
+        }
+        visible_grades = [grade for grade in GRADE_OPTIONS if grade in assigned_classes]
+        for grade in visible_grades:
+            if _open_exam_subjects(conn, session["school_id"], grade, teacher_code)[1]:
+                exam_grades.add(grade)
+
     conn.close()
 
     portal_open = school["portal_open"] if school else 1
@@ -1137,11 +1178,14 @@ def dashboard():
     )
     return render_template(
         "cloud_dashboard.html",
-        grades=GRADE_OPTIONS,
+        grades=visible_grades,
         portal_open=portal_open,
         school_name=school_name,
         teacher_name=teacher_name,
         is_admin=is_admin(),
+        is_teacher=bool(teacher_code),
+        exam=exam,
+        exam_grades=exam_grades,
     )
 
 
@@ -1506,6 +1550,275 @@ def api_fetch_cbc_ratings():
         return jsonify({"success": False, "message": str(error)}), 500
     finally:
         conn.close()
+
+
+RATING_POINTS = {"EE1": 8, "EE2": 7, "ME1": 6, "ME2": 5, "AE1": 4, "AE2": 3, "BE1": 2, "BE2": 1}
+
+
+def _current_exam(conn, school_id):
+    return conn.execute(
+        "SELECT id, title, scope_json FROM exams WHERE school_id = ? ORDER BY id DESC LIMIT 1",
+        (school_id,),
+    ).fetchone()
+
+
+def _exam_covers_grade(exam, grade):
+    try:
+        scope = json.loads(exam["scope_json"])
+    except (TypeError, ValueError):
+        return False
+    return bool(scope.get("all")) or grade in scope.get("classes", [])
+
+
+def _open_exam_subjects(conn, school_id, grade, teacher_code):
+    """Return the current exam and the teacher's subjects in this class that are not finished."""
+    exam = _current_exam(conn, school_id)
+    if not exam or not teacher_code or not _exam_covers_grade(exam, grade):
+        return exam, []
+    assigned = [
+        row["subject"]
+        for row in conn.execute(
+            "SELECT DISTINCT subject FROM teacher_assignments WHERE school_id = ? AND class_name = ? AND teacher_code = ? ORDER BY subject",
+            (school_id, grade, teacher_code),
+        ).fetchall()
+    ]
+    finished = {
+        row["subject"]
+        for row in conn.execute(
+            "SELECT subject FROM exam_submissions WHERE school_id = ? AND exam_id = ? AND grade = ? AND status = 'final'",
+            (school_id, exam["id"], grade),
+        ).fetchall()
+    }
+    return exam, [subject for subject in assigned if subject not in finished]
+
+
+def _parse_exam_marks(out_of_text, raw_values):
+    """Validate the out-of total and raw marks; return (out_of, {adm_no: percent or None})."""
+    try:
+        out_of = int(out_of_text)
+        if not 1 <= out_of <= 1000:
+            raise ValueError
+    except (TypeError, ValueError):
+        raise ValueError("Enter the total marks (out of) as a whole number from 1 to 1000.")
+    percents = {}
+    for adm_no, raw in raw_values.items():
+        if raw == "":
+            percents[adm_no] = None
+            continue
+        try:
+            value = float(raw)
+        except ValueError:
+            raise ValueError(f"Marks must be numbers. Check the entry for ADM {adm_no}.")
+        if not math.isfinite(value) or not 0 <= value <= out_of:
+            raise ValueError(f"Marks must be between 0 and {out_of}. Check the entry for ADM {adm_no}.")
+        percents[adm_no] = int(math.floor(value * 100 / out_of + 0.5))
+    return out_of, percents
+
+
+def _store_student_subject_score(conn, school_id, grade, subject, exam_title, student, score, now, extra=None):
+    """Save one learner's subject score in the marks table, keeping other subjects intact."""
+    is_jss = any(g in grade.lower() for g in ["grade 7", "grade 8", "grade 9"])
+    rating = ""
+    points = 0
+    if score and score.strip():
+        try:
+            score_int = int(score)
+            if is_jss:
+                rating, points = get_grade_7_8_rating(score_int)
+            else:
+                rating = get_grade_4_6_rating(score_int)
+                points = RATING_POINTS.get(rating, 0)
+        except ValueError:
+            rating = ""
+            points = 0
+
+    existing = conn.execute(
+        "SELECT subject_scores_json FROM marks WHERE school_id=? AND grade=? AND adm_no=? AND exam_title=?",
+        (school_id, grade, student["adm_no"], exam_title),
+    ).fetchone()
+    scores = json.loads(existing["subject_scores_json"]) if existing else {}
+    scores[subject] = {"score": score, "rating": rating, "points": points, **(extra or {})}
+
+    total_points = 0
+    for data in scores.values():
+        if is_jss:
+            total_points += int(data.get("points") or 0)
+        elif data.get("score"):
+            try:
+                total_points += int(data["score"])
+            except ValueError:
+                pass
+    avg_level = calculate_final_level(
+        total_points, is_primary=not is_jss, num_subjects=len(scores)
+    )
+    conn.execute(
+        """
+        INSERT INTO marks (school_id, grade, adm_no, student_name, exam_title, subject_scores_json, total_points, average_level, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(school_id, grade, adm_no, exam_title) DO UPDATE SET
+        subject_scores_json = excluded.subject_scores_json,
+        total_points = excluded.total_points,
+        average_level = excluded.average_level,
+        updated_at = excluded.updated_at
+        """,
+        (school_id, grade, student["adm_no"], student["student_name"], exam_title,
+         json.dumps(scores), str(total_points), avg_level, now),
+    )
+
+
+@app.route("/api/create_exam", methods=["POST"])
+def api_create_exam():
+    data = request.get_json(silent=True) or {}
+    school_code = str(data.get("school_code", "")).strip().lower()
+    password = data.get("password", "")
+    title = str(data.get("title", "")).strip()
+    all_classes = bool(data.get("all_classes"))
+    classes = list(dict.fromkeys(str(item).strip() for item in data.get("classes") or [] if str(item).strip()))
+    if not school_code or not password:
+        return jsonify({"success": False, "message": "Missing school credentials."}), 400
+    if not title or len(title) > 120:
+        return jsonify({"success": False, "message": "Enter an exam title of up to 120 characters."}), 400
+    if not all_classes and (not classes or any(item not in GRADE_OPTIONS for item in classes)):
+        return jsonify({"success": False, "message": "Choose all classes or at least one valid class."}), 400
+
+    conn = get_db()
+    try:
+        school = conn.execute(
+            "SELECT id, password_hash FROM schools WHERE school_code = ?", (school_code,)
+        ).fetchone()
+        if not school or not check_password_hash(school["password_hash"], password):
+            return jsonify({"success": False, "message": "Invalid school credentials."}), 401
+        # A new exam replaces the previous one and clears its marks from the portal.
+        conn.execute("DELETE FROM exam_submissions WHERE school_id = ?", (school["id"],))
+        conn.execute("DELETE FROM exams WHERE school_id = ?", (school["id"],))
+        conn.execute("DELETE FROM marks WHERE school_id = ?", (school["id"],))
+        conn.execute(
+            "INSERT INTO exams (school_id, title, scope_json, created_at) VALUES (?, ?, ?, ?)",
+            (school["id"], title, json.dumps({"all": all_classes, "classes": [] if all_classes else classes}),
+             datetime.now(timezone.utc).isoformat()),
+        )
+        conn.commit()
+        return jsonify({"success": True, "message": f"Exam '{title}' is now live on the portal."})
+    except Exception as error:
+        conn.rollback()
+        logging.exception("Exam creation failed")
+        return jsonify({"success": False, "message": str(error)}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/exam/select_subject/<grade>")
+def select_exam_subject(grade):
+    if "school_id" not in session:
+        return redirect(url_for("teacher_login"))
+    conn = get_db()
+    exam, subjects = _open_exam_subjects(
+        conn, session["school_id"], grade, session.get("teacher_code")
+    )
+    conn.close()
+    if not subjects:
+        flash("No exam marks are open for you in this class.", "warning")
+        return redirect(url_for("dashboard"))
+    return render_template(
+        "cloud_select_subject.html", grade=grade, subjects=subjects, mode="exam",
+        exam_title=exam["title"],
+    )
+
+
+@app.route("/exam/marks/<grade>", methods=["GET", "POST"])
+def enter_exam_marks(grade):
+    if "school_id" not in session:
+        return redirect(url_for("teacher_login"))
+    subject = request.args.get("subject", "").strip()
+    conn = get_db()
+    school = conn.execute(
+        "SELECT portal_open FROM schools WHERE id = ?", (session["school_id"],)
+    ).fetchone()
+    if not school or school["portal_open"] == 0:
+        conn.close()
+        flash("The teachers portal is currently closed. Please contact your administrator.", "danger")
+        return redirect(url_for("dashboard"))
+    exam, open_subjects = _open_exam_subjects(
+        conn, session["school_id"], grade, session.get("teacher_code")
+    )
+    if subject not in open_subjects:
+        conn.close()
+        flash("This exam is not open for you in this class and subject, or it is already finished.", "warning")
+        return redirect(url_for("dashboard"))
+
+    students = conn.execute(
+        "SELECT adm_no, student_name FROM students WHERE school_id = ? AND grade = ? ORDER BY student_name COLLATE NOCASE",
+        (session["school_id"], grade),
+    ).fetchall()
+    submission = conn.execute(
+        "SELECT out_of FROM exam_submissions WHERE school_id = ? AND exam_id = ? AND grade = ? AND subject = ?",
+        (session["school_id"], exam["id"], grade, subject),
+    ).fetchone()
+    review = request.args.get("review") == "1" and submission is not None
+    out_of_value = str(submission["out_of"]) if submission else ""
+    raw_values = {}
+
+    if request.method == "POST":
+        action = request.form.get("action")
+        review = request.form.get("review") == "1"
+        out_of_value = request.form.get("out_of", "").strip()
+        raw_values = {
+            student["adm_no"]: request.form.get(f"score_{student['adm_no']}", "").strip()
+            for student in students
+        }
+        try:
+            out_of, percents = _parse_exam_marks(out_of_value, raw_values)
+            if action == "finish" and all(value is None for value in percents.values()):
+                raise ValueError("Enter at least one mark before finishing.")
+        except ValueError as error:
+            flash(str(error), "danger")
+        else:
+            now = datetime.utcnow().isoformat()
+            for student in students:
+                percent = percents[student["adm_no"]]
+                _store_student_subject_score(
+                    conn, session["school_id"], grade, subject, exam["title"], student,
+                    "" if percent is None else str(percent), now,
+                    {"raw": raw_values[student["adm_no"]], "out_of": out_of},
+                )
+            conn.execute(
+                """
+                INSERT INTO exam_submissions (school_id, exam_id, grade, subject, teacher_code, out_of, status, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(school_id, exam_id, grade, subject) DO UPDATE SET
+                teacher_code = excluded.teacher_code, out_of = excluded.out_of,
+                status = excluded.status, updated_at = excluded.updated_at
+                """,
+                (session["school_id"], exam["id"], grade, subject, session.get("teacher_code"),
+                 out_of, "final" if action == "finish" else "draft", now),
+            )
+            conn.commit()
+            conn.close()
+            if action == "finish":
+                flash(f"{subject} marks for {grade} are finished and locked.", "success")
+                return redirect(url_for("dashboard"))
+            flash("Marks saved. Review them, edit if needed, then click Finish.", "success")
+            return redirect(url_for("enter_exam_marks", grade=grade, subject=subject, review=1))
+
+    if not raw_values:
+        for row in conn.execute(
+            "SELECT adm_no, subject_scores_json FROM marks WHERE school_id = ? AND grade = ? AND exam_title = ?",
+            (session["school_id"], grade, exam["title"]),
+        ).fetchall():
+            entry = json.loads(row["subject_scores_json"]).get(subject)
+            if isinstance(entry, dict):
+                raw_values[row["adm_no"]] = entry.get("raw", entry.get("score", "")) or ""
+    conn.close()
+    return render_template(
+        "cloud_exam_marks.html",
+        grade=grade,
+        subject=subject,
+        exam_title=exam["title"],
+        students=students,
+        raw_values=raw_values,
+        out_of_value=out_of_value,
+        review=review,
+    )
 
 
 @app.route("/marks/<grade>", methods=["GET", "POST"])
@@ -2356,6 +2669,7 @@ def cbc_rubric_gradebook(grade):
         else:
             updated_at = datetime.now(timezone.utc).isoformat()
             filled = 0
+            kept = 0
             skipped = 0
             for student in students:
                 level = rating_from_percentage(exam_percentages.get(student["adm_no"]))
@@ -2366,14 +2680,19 @@ def cbc_rubric_gradebook(grade):
                 if level is None or assessment_number is None:
                     skipped += 1
                     continue
-                filled += 1
                 for sub_strand_id in covered_ids:
-                    conn.execute(
-                        "INSERT INTO cbc_rubric_scores (school_id, grade, assessment_number, academic_year, term, assessment_type, sub_strand_id, rating, teacher_code, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(school_id, grade, assessment_number, academic_year, term, assessment_type, sub_strand_id) DO UPDATE SET rating = excluded.rating, teacher_code = excluded.teacher_code, updated_at = excluded.updated_at",
+                    cursor = conn.execute(
+                        "INSERT INTO cbc_rubric_scores (school_id, grade, assessment_number, academic_year, term, assessment_type, sub_strand_id, rating, teacher_code, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(school_id, grade, assessment_number, academic_year, term, assessment_type, sub_strand_id) DO NOTHING",
                         (session["school_id"], grade, assessment_number, academic_year, term, assessment_type, sub_strand_id, str(level), teacher_code, updated_at),
                     )
+                    if cursor.rowcount:
+                        filled += 1
+                    else:
+                        kept += 1
             conn.commit()
-            message = f"Filled {len(covered_ids)} sub-strand(s) for {filled} learner(s) from {current_exam}."
+            message = f"Filled {filled} level(s) from {current_exam}."
+            if kept:
+                message += f" {kept} existing level(s) were kept."
             if skipped:
                 message += f" {skipped} learner(s) skipped (no score or no Assessment Number)."
             flash(message, "success")

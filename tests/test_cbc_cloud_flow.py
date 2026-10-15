@@ -201,6 +201,93 @@ class CBCCloudFlowTests(unittest.TestCase):
         connection.close()
         self.assertEqual(count, 0)
 
+    def test_autofill_keeps_existing_ratings(self):
+        sub_strand_ids = self._publish_math_curriculum()
+        connection = sqlite3.connect(self.db_path)
+        connection.execute(
+            "INSERT INTO marks (school_id, grade, adm_no, student_name, exam_title, subject_scores_json, updated_at) VALUES (?, 'Grade 3', 'A001', 'A Learner', 'TERM 1 EXAM', ?, '2026-03-01T00:00:00')",
+            (self.school_id, json.dumps({"MATH": {"score": "85"}})),
+        )
+        connection.execute(
+            "INSERT INTO cbc_rubric_scores (school_id, grade, assessment_number, academic_year, term, assessment_type, sub_strand_id, rating, updated_at) VALUES (?, 'Grade 3', 'K0010203002', 2026, 'Term 1', 'Formative', ?, '1', 'now')",
+            (self.school_id, sub_strand_ids[0]),
+        )
+        connection.commit()
+        connection.close()
+        self.client.post(
+            "/cbc/gradebook/Grade%203?area=Mathematics&term=Term%201&academic_year=2026",
+            data={"action": "autofill", "covered_sub_strand_ids": [str(item) for item in sub_strand_ids]},
+        )
+        connection = sqlite3.connect(self.db_path)
+        saved = dict(connection.execute("SELECT sub_strand_id, rating FROM cbc_rubric_scores").fetchall())
+        connection.close()
+        self.assertEqual(saved, {sub_strand_ids[0]: "1", sub_strand_ids[1]: "4"})
+
+    def _create_exam(self, title="TERM 1 EXAM", **scope):
+        payload = {"school_code": "cbc-test", "password": "pw", "title": title}
+        payload.update(scope or {"all_classes": True})
+        return self.client.post("/api/create_exam", json=payload)
+
+    def test_dashboard_shows_only_assigned_classes_and_exam_button(self):
+        page = self.client.get("/dashboard")
+        self.assertIn(b"Grade 3", page.data)
+        self.assertNotIn(b"Grade 4", page.data)
+        self.assertNotIn(b"Percentage Marks", page.data)
+        self.assertIn(b"KNEC CBA", page.data)
+        self.assertIn(b"Competency Gradebook", page.data)
+        self.assertNotIn(b"/exam/select_subject/", page.data)
+
+        self.assertEqual(self._create_exam("MID TERM").status_code, 200)
+        self.assertIn(b"MID TERM", self.client.get("/dashboard").data)
+
+        self._create_exam("OTHER CLASS EXAM", all_classes=False, classes=["Grade 4"])
+        self.assertNotIn(b"OTHER CLASS EXAM", self.client.get("/dashboard").data)
+
+    def test_exam_marks_save_review_finish_and_lock(self):
+        self._create_exam("MID TERM", all_classes=False, classes=["Grade 3"])
+        url = "/exam/marks/Grade%203?subject=MATH"
+        self.assertIn(b"/exam/marks/Grade%203?subject=MATH", self.client.get("/exam/select_subject/Grade%203").data)
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+        too_high = self.client.post(url, data={"out_of": "50", "score_A001": "51", "action": "save"})
+        self.assertIn(b"Marks must be between 0 and 50", too_high.data)
+
+        saved = self.client.post(url, data={"out_of": "50", "score_A001": "40", "action": "save"})
+        self.assertEqual(saved.status_code, 302)
+        review = self.client.get(url + "&review=1")
+        self.assertIn(b"Finish", review.data)
+        self.assertIn(b'value="40"', review.data)
+
+        connection = sqlite3.connect(self.db_path)
+        entry = json.loads(connection.execute("SELECT subject_scores_json FROM marks WHERE adm_no = 'A001'").fetchone()[0])["MATH"]
+        connection.close()
+        self.assertEqual((entry["score"], entry["raw"], entry["out_of"]), ("80", "40", 50))
+
+        edited = self.client.post(url, data={"out_of": "50", "score_A001": "25", "action": "finish"})
+        self.assertEqual(edited.status_code, 302)
+        locked = self.client.post(url, data={"out_of": "50", "score_A001": "50", "action": "save"})
+        self.assertEqual(locked.status_code, 302)
+        self.assertNotIn(b"MID TERM", self.client.get("/dashboard").data)
+
+        connection = sqlite3.connect(self.db_path)
+        score = json.loads(connection.execute("SELECT subject_scores_json FROM marks WHERE adm_no = 'A001'").fetchone()[0])["MATH"]["score"]
+        connection.close()
+        self.assertEqual(score, "50")
+
+    def test_new_exam_replaces_previous_marks(self):
+        self._create_exam("FIRST EXAM")
+        self.client.post(
+            "/exam/marks/Grade%203?subject=MATH",
+            data={"out_of": "100", "score_A001": "70", "action": "save"},
+        )
+        self._create_exam("SECOND EXAM")
+        connection = sqlite3.connect(self.db_path)
+        marks = connection.execute("SELECT COUNT(*) FROM marks").fetchone()[0]
+        titles = [row[0] for row in connection.execute("SELECT title FROM exams")]
+        connection.close()
+        self.assertEqual(marks, 0)
+        self.assertEqual(titles, ["SECOND EXAM"])
+
     def test_curriculum_sync_rejects_invalid_school_password(self):
         response = self.client.post(
             "/api/cbc/upload_curriculum",

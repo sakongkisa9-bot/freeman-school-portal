@@ -9,6 +9,7 @@ from teachers_linked import TeachersLinkedView, get_subjects_for_class
 from cba_task_manager import CBATaskManager
 from cba_results_view import CBAResultsView
 from cbc_curriculum_manager import CBCCurriculumManager
+from create_exam_dialog import CreateExamDialog
 from reportforms import ReportFormsView, ask_opening_closing_dates
 from ocr_student_dialog import show_ocr_dialog
 from excel_student_import import read_student_rows
@@ -406,6 +407,18 @@ class Dashboard(ctk.CTk):
             height=35,
             font=("Arial Bold", 12),
         )
+        self.btn_create_exam = ctk.CTkButton(
+            self.content_panel,
+            text="📝 Create Exam",
+            command=lambda: self.run_draggable_button_command(
+                "dashboard_create_exam_button",
+                lambda: self.require_auth(self.open_create_exam_dialog),
+            ),
+            fg_color="#8e44ad",
+            hover_color="#732d91",
+            height=35,
+            font=("Arial Bold", 12),
+        )
         self.btn_check_updates = ctk.CTkButton(
             self.content_panel,
             text="🔄 Update Available",
@@ -424,7 +437,9 @@ class Dashboard(ctk.CTk):
         )
         self.layout_dashboard_control_group("dashboard_promote_button")
         self.layout_dashboard_control_group("dashboard_system_settings_button")
-        self.btn_check_updates.place(relx=1, rely=0, anchor="ne", x=-12, y=160)
+        self.bind_control_drag_events(self.btn_create_exam, "dashboard_create_exam_button")
+        self.layout_dashboard_control_group("dashboard_create_exam_button")
+        self.btn_check_updates.place(relx=1, rely=0, anchor="ne", x=-12, y=204)
         self.btn_check_updates.lift()
 
     def bind_control_drag_events(self, widget, group_name):
@@ -456,6 +471,7 @@ class Dashboard(ctk.CTk):
         defaults = {
             "dashboard_promote_button": {"x": -12, "y": 64},
             "dashboard_system_settings_button": {"x": -12, "y": 108},
+            "dashboard_create_exam_button": {"x": -12, "y": 152},
         }
         position = self.dashboard_control_positions.get(
             group_name, defaults[group_name]
@@ -473,6 +489,8 @@ class Dashboard(ctk.CTk):
             button = self.btn_promote
         elif group_name == "dashboard_system_settings_button":
             button = self.btn_system_settings
+        elif group_name == "dashboard_create_exam_button":
+            button = self.btn_create_exam
         else:
             return
 
@@ -3556,6 +3574,9 @@ class Dashboard(ctk.CTk):
             ),
         ).pack(pady=10)
 
+    def open_create_exam_dialog(self):
+        CreateExamDialog(self)
+
     def open_competency_gradebook(self):
         self.show_class_selection(
             "Competency Gradebook", self.btn_competency_gradebook
@@ -5657,6 +5678,7 @@ class Dashboard(ctk.CTk):
     def disable_system_buttons(self):
         """Disable all buttons except exit"""
         buttons_to_disable = [
+            "btn_create_exam",
             "btn_register",
             "btn_mark_sheets",
             "btn_summary",
@@ -5681,6 +5703,7 @@ class Dashboard(ctk.CTk):
     def enable_system_buttons(self):
         """Enable all system buttons"""
         buttons_to_enable = [
+            "btn_create_exam",
             "btn_register",
             "btn_mark_sheets",
             "btn_summary",

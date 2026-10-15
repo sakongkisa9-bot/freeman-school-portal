@@ -153,6 +153,17 @@ class CloudService:
         }
         return self._post_json("/api/upload_cba_tasks", payload)
 
+    def create_exam(self, title, all_classes, classes, credentials):
+        payload = {
+            "school_code": credentials["school_code"],
+            "username": credentials["username"],
+            "password": credentials["password"],
+            "title": title,
+            "all_classes": all_classes,
+            "classes": classes,
+        }
+        return self._post_json("/api/create_exam", payload)
+
     def upload_cbc_curriculum(self, grade, areas, credentials):
         payload = {
             "school_code": credentials["school_code"],
