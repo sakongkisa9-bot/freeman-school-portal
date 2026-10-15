@@ -290,6 +290,7 @@ class Dashboard(ctk.CTk):
             self.btn_register,
             self.btn_mark_sheets,
             self.btn_knec_cba,
+            self.btn_competency_gradebook,
             self.btn_previous_exams,
             self.btn_summary,
             self.btn_teachers,

@@ -355,7 +355,8 @@ class CBCCloudFlowTests(unittest.TestCase):
     def test_developer_page_is_password_protected_and_stores_shared_strands(self):
         strands = json.dumps([{"name": "1.0 Conservation", "sub_strands": ["1.1 Soil"]}])
         form = {"grade": "Grade 4", "area": "Agriculture", "strands_json": strands}
-        with patch.dict(os.environ, {"DEVELOPER_PASSWORD": "secret"}):
+        with patch.dict(os.environ, {}):
+            key = cloud_portal_v2.SYSTEM_ADMIN_KEY
             locked = self.client.get("/developer/strands")
             self.assertIn(b"Developer password", locked.data)
             self.client.post("/developer/strands/save", data=form)
@@ -366,7 +367,7 @@ class CBCCloudFlowTests(unittest.TestCase):
             self.assertEqual(connection.execute("SELECT COUNT(*) FROM global_curriculum").fetchone()[0], 0)
             connection.close()
 
-            self.client.post("/developer/strands", data={"action": "login", "password": "secret"})
+            self.client.post("/developer/strands", data={"action": "login", "password": key})
             self.client.post("/developer/strands/save", data=form)
             page = self.client.get("/developer/strands")
             self.assertIn(b"Agriculture", page.data)
@@ -397,8 +398,8 @@ class CBCCloudFlowTests(unittest.TestCase):
         SimpleDocTemplate(buffer, pagesize=A4).build([table])
         buffer.seek(0)
 
-        with patch.dict(os.environ, {"DEVELOPER_PASSWORD": "secret"}):
-            self.client.post("/developer/strands", data={"action": "login", "password": "secret"})
+        with patch.dict(os.environ, {}):
+            self.client.post("/developer/strands", data={"action": "login", "password": cloud_portal_v2.SYSTEM_ADMIN_KEY})
             response = self.client.post(
                 "/developer/strands/preview",
                 data={"grade": "Grade 4", "area": "Agriculture", "pdf": (buffer, "agri.pdf")},
@@ -407,6 +408,18 @@ class CBCCloudFlowTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         for text in (b"1.0 Conservation of Resources", b"1.2 Water Conservation", b"2.1 Growing Fruits", b"Save to Portal"):
             self.assertIn(text, response.data)
+
+    def test_developer_unlock_is_checked_on_the_server_and_key_is_not_in_pages(self):
+        key = cloud_portal_v2.SYSTEM_ADMIN_KEY
+        for url in ("/", "/register"):
+            self.assertNotIn(key.encode(), self.client.get(url).data)
+        wrong = self.client.post("/developer/unlock", json={"password": "nope"})
+        self.assertEqual(wrong.status_code, 401)
+        right = self.client.post("/developer/unlock", json={"password": key})
+        self.assertTrue(right.get_json()["success"])
+        unlocked = self.client.get("/").data
+        self.assertIn(b'<div id="dev-options" style="display: block', unlocked)
+        self.assertIn(b'type="password" id="dev-password"', unlocked)
 
     def test_strands_api_requires_shared_curriculum_and_valid_login(self):
         request = {"school_code": "cbc-test", "password": "pw", "grade": "Grade 3", "area": "Mathematics", "academic_year": 2026}

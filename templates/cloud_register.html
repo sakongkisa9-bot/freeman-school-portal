@@ -300,14 +300,15 @@
     </div>
 
     <script>
-        function unlockForm() {
+        async function unlockForm() {
             const keyInput = document.getElementById('dev_key').value.trim();
-            const correctKey = "{{ admin_key }}";
+            const response = await fetch("{{ url_for('developer_unlock') }}", {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({password: keyInput})
+            });
 
-            console.log("Input:", keyInput);
-            console.log("Expected:", correctKey);
-
-            if (keyInput === correctKey) {
+            if (response.ok) {
                 document.getElementById('dev-auth-section').style.display = 'none';
                 document.getElementById('registration-form').style.display = 'block';
                 document.getElementById('hidden_master_key').value = keyInput;

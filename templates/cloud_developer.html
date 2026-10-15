@@ -46,15 +46,11 @@
     {% endwith %}
 
     {% if not authed %}
-        {% if not configured %}
-        <p>Developer access is not configured. Set the <strong>DEVELOPER_PASSWORD</strong> variable on the server.</p>
-        {% else %}
         <form method="post" class="panel">
             <input type="hidden" name="action" value="login">
-            <label>Developer password<input type="password" name="password" required autofocus></label>
+            <label>Developer password<input type="password" name="password" required autofocus autocomplete="off"></label>
             <button type="submit" class="save">Unlock</button>
         </form>
-        {% endif %}
     {% elif preview %}
         <h2>Review: {{ preview.area }} · {{ preview.grade }}</h2>
         <p>Check the strands below. Saving replaces the strands for this class and learning area for every school.</p>

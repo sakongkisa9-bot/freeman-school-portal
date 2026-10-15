@@ -960,7 +960,7 @@ def register():
             flash("School code already exists.", "danger")
         finally:
             conn.close()
-    return render_template("cloud_register.html", admin_key=SYSTEM_ADMIN_KEY)
+    return render_template("cloud_register.html")
 
 
 @app.route("/delete_school/<school_code>", methods=["POST"])
@@ -2598,18 +2598,29 @@ def _developer_redirect():
     return redirect(url_for("developer_strands"))
 
 
+def _developer_password_ok(supplied):
+    return hmac.compare_digest(str(supplied).encode(), SYSTEM_ADMIN_KEY.encode())
+
+
+@app.route("/developer/unlock", methods=["POST"])
+def developer_unlock():
+    data = request.get_json(silent=True) or {}
+    if _developer_password_ok(data.get("password", "")):
+        session["developer"] = True
+        return jsonify({"success": True})
+    return jsonify({"success": False}), 401
+
+
 @app.route("/developer/strands", methods=["GET", "POST"])
 def developer_strands():
-    expected = os.environ.get("DEVELOPER_PASSWORD", "")
     if request.method == "POST" and request.form.get("action") == "login":
-        supplied = request.form.get("password", "")
-        if expected and hmac.compare_digest(supplied.encode(), expected.encode()):
+        if _developer_password_ok(request.form.get("password", "")):
             session["developer"] = True
         else:
             flash("Incorrect developer password.", "danger")
         return _developer_redirect()
     if not session.get("developer"):
-        return render_template("cloud_developer.html", authed=False, configured=bool(expected))
+        return render_template("cloud_developer.html", authed=False)
     conn = get_db()
     stored = []
     for row in conn.execute(
@@ -2624,7 +2635,7 @@ def developer_strands():
     conn.close()
     stored.sort(key=lambda item: (GRADE_OPTIONS.index(item["grade"]) if item["grade"] in GRADE_OPTIONS else 99, item["area"]))
     return render_template(
-        "cloud_developer.html", authed=True, configured=True, stored=stored, preview=None,
+        "cloud_developer.html", authed=True, stored=stored, preview=None,
         grades=GRADE_OPTIONS, areas=sorted(set(SUBJECT_TO_LEARNING_AREA.values())),
     )
 
@@ -2654,7 +2665,7 @@ def developer_strands_preview():
         flash(f"Could not read strands from this PDF: {error}", "danger")
         return _developer_redirect()
     return render_template(
-        "cloud_developer.html", authed=True, configured=True, stored=[], grades=GRADE_OPTIONS,
+        "cloud_developer.html", authed=True, stored=[], grades=GRADE_OPTIONS,
         areas=[], preview={
             "grade": grade, "area": area, "strands": areas[0]["strands"],
             "json": json.dumps(areas[0]["strands"]),
