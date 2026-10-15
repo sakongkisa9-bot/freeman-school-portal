@@ -78,6 +78,20 @@ class CBALogicTests(unittest.TestCase):
         self.assertEqual(absence_mark_for_grade("grade 4"), "A")
         self.assertEqual(absence_mark_for_grade("Grade 5"), "AB")
 
+    def test_max_score_task_reports_raw_score_and_enforces_maximum(self):
+        task = validate_tasks([{"name": "Task 1", "mode": "max", "max_score": "8"}])[0]
+        self.assertEqual(task["max_score"], 8)
+        self.assertEqual(convert_raw_score(task, "6")["points"], 6)
+        self.assertEqual(convert_raw_score(task, "AB"), {"level": "AB", "points": None})
+        self.assertEqual(task_score_bounds(task), (0, 8))
+        with self.assertRaises(ValueError):
+            convert_raw_score(task, "9")
+        with self.assertRaises(ValueError):
+            validate_tasks([{"name": "Bad", "mode": "max", "max_score": "0"}])
+
+    def test_tasks_without_mode_remain_level_tasks(self):
+        self.assertEqual(validate_tasks([self.task])[0]["mode"], "levels")
+
 
 if __name__ == "__main__":
     unittest.main()

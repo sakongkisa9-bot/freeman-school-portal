@@ -2429,9 +2429,20 @@ def _get_cba_staging_data(grade):
             assessment_number = str(student["assessment_number"] or "").strip().casefold()
             if assessment_number in duplicate_numbers:
                 missing.append(f"{student['student_name']} (duplicate Assessment Number)")
+    # Level tasks report levels 4-1; max-score tasks report the raw score.
+    tasks_by_name = {task["name"]: task for task in tasks}
     scores_by_student = {}
     for row in scores:
-        scores_by_student.setdefault(row["adm_no"], {})[row["task_name"]] = row["raw_score"]
+        task = tasks_by_name.get(row["task_name"])
+        if task is None:
+            continue
+        converted = convert_raw_score(task, row["raw_score"])
+        reported = (
+            absence_mark_for_grade(grade)
+            if converted["points"] is None
+            else converted["points"]
+        )
+        scores_by_student.setdefault(row["adm_no"], {})[row["task_name"]] = reported
     return {
         "grade": grade,
         "subject": subject,

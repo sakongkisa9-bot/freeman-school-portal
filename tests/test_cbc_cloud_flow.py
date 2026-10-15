@@ -176,6 +176,72 @@ class CBCCloudFlowTests(unittest.TestCase):
         self.assertEqual(payload["columns"], ["Assessment Number", "Learner's Name", "Gender", "Task 1"])
         self.assertEqual(payload["records"][0], ["K0010203002", "A Learner", "F", 2])
 
+    def test_mixed_level_and_max_tasks_export_levels_and_raw_scores(self):
+        tasks = [
+            {
+                "name": "Task 1",
+                "ranges": {
+                    "Level 1": {"min": 0, "max": 2},
+                    "Level 2": {"min": 3, "max": 5},
+                    "Level 3": {"min": 6, "max": 8},
+                    "Level 4": {"min": 9, "max": 10},
+                },
+            },
+            {"name": "Task 2", "mode": "max", "max_score": 8},
+        ]
+        publish = self.client.post(
+            "/api/upload_cba_tasks",
+            json={
+                "school_code": "cbc-test",
+                "username": "admin",
+                "password": "pw",
+                "grade": "Grade 3",
+                "subject": "MATH",
+                "term": "Term 1",
+                "tasks": tasks,
+            },
+        )
+        self.assertEqual(publish.status_code, 200)
+        with self.client.session_transaction() as session:
+            session["role"] = "teacher"
+        page = self.client.get("/cba/marks/Grade%203?subject=MATH&term=Term%201")
+        self.assertIn(b'id="taskSelect"', page.data)
+        self.assertIn(b"max 8", page.data)
+
+        student_id = sqlite3.connect(self.db_path).execute(
+            "SELECT id FROM students WHERE adm_no='A001'"
+        ).fetchone()[0]
+        too_high = self.client.post(
+            "/cba/marks/Grade%203?subject=MATH&term=Term%201",
+            data={f"score_{student_id}_0": "4", f"score_{student_id}_1": "9"},
+        )
+        self.assertEqual(too_high.status_code, 302)
+        connection = sqlite3.connect(self.db_path)
+        self.assertEqual(connection.execute("SELECT COUNT(*) FROM cba_term_scores").fetchone()[0], 0)
+        connection.close()
+
+        self.client.post(
+            "/cba/marks/Grade%203?subject=MATH&term=Term%201",
+            data={f"score_{student_id}_0": "4", f"score_{student_id}_1": "7"},
+        )
+        csv_response = self.client.get(
+            "/cba/staging/Grade%203/download?subject=MATH&term=Term%201"
+        )
+        rows = list(csv.reader(io.StringIO(csv_response.data.decode("utf-8-sig"))))
+        self.assertEqual(rows[1], ["K0010203002", "A Learner", "F", "2", "7"])
+
+        excel = self.client.get("/cba/export/Grade%203/xlsx?subject=MATH&term=Term%201")
+        from openpyxl import load_workbook
+
+        sheet = load_workbook(io.BytesIO(excel.data), data_only=True).active
+        self.assertEqual([sheet.cell(3, c).value for c in (4, 5)], [2, 7])
+
+        fetched = self.client.post(
+            "/api/fetch_cba_results",
+            json={"school_code": "cbc-test", "password": "pw", "grade": "Grade 3", "subject": "MATH", "term": "Term 1"},
+        )
+        self.assertEqual(fetched.get_json()["records"][0][3:], [2, 7])
+
     def test_milestone_route_applies_requested_weighting(self):
         connection = sqlite3.connect(self.db_path)
         connection.execute(

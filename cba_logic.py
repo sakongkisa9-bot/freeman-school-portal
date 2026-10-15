@@ -23,6 +23,23 @@ def validate_tasks(tasks):
             raise ValueError(f"Task names must be unique: {name}")
         task_names.add(normalized_name)
 
+        if task.get("mode", "levels") == "max":
+            try:
+                max_score = int(task["max_score"])
+            except (KeyError, TypeError, ValueError):
+                raise ValueError(f"Enter a numeric maximum score for {name}.")
+            if max_score < 1:
+                raise ValueError(f"Maximum score for {name} must be at least 1.")
+            validated.append(
+                {
+                    "name": name,
+                    "unit": str(task.get("unit", "")).strip(),
+                    "mode": "max",
+                    "max_score": max_score,
+                }
+            )
+            continue
+
         ranges = task.get("ranges", {})
         validated_ranges = {}
         occupied = []
@@ -73,6 +90,7 @@ def validate_tasks(tasks):
             {
                 "name": name,
                 "unit": str(task.get("unit", "")).strip(),
+                "mode": "levels",
                 "ranges": validated_ranges,
             }
         )
@@ -88,6 +106,14 @@ def convert_raw_score(task, raw_score):
         raise ValueError("Raw score must be a whole number.")
     if score < 0:
         raise ValueError("Raw score cannot be negative.")
+
+    if task.get("mode") == "max":
+        if score > int(task["max_score"]):
+            raise ValueError(
+                f"Raw score {score} is above the maximum of {task['max_score']}."
+            )
+        # Max-score tasks are reported as the raw score itself.
+        return {"level": "Score", "points": score}
 
     for level in reversed(LEVEL_NAMES):
         criterion = task.get("ranges", {}).get(level, {})
@@ -110,6 +136,8 @@ def convert_raw_score(task, raw_score):
 
 
 def task_score_bounds(task):
+    if task.get("mode") == "max":
+        return 0, int(task["max_score"])
     ranges = task.get("ranges", {}).values()
     minima = []
     maxima = []

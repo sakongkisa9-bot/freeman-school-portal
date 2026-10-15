@@ -8,6 +8,8 @@ from cba_logic import LEVEL_NAMES, validate_tasks
 from cloud_service import CloudService, ask_cloud_credentials
 
 TERMS = ("Term 1", "Term 2", "Term 3")
+SCORING_LEVELS = "Level 4-1 rubric"
+SCORING_MAX = "Max score only"
 
 
 class CBATaskManager(ctk.CTkToplevel):
@@ -107,14 +109,29 @@ class CBATaskManager(ctk.CTkToplevel):
         self.unit_entry = ctk.CTkEntry(editor, placeholder_text="e.g. words")
         self.unit_entry.grid(row=1, column=1, sticky="ew", padx=(0, 14), pady=8)
 
-        ctk.CTkLabel(editor, text="Level").grid(row=2, column=0, padx=10, pady=8)
-        ctk.CTkLabel(editor, text="Rule").grid(row=2, column=1, padx=8, pady=8)
-        ctk.CTkLabel(editor, text="Value / minimum").grid(row=2, column=2, padx=8, pady=8)
-        ctk.CTkLabel(editor, text="Maximum").grid(row=2, column=3, padx=8, pady=8)
+        ctk.CTkLabel(editor, text="Scoring").grid(
+            row=2, column=0, sticky="w", padx=14, pady=8
+        )
+        self.scoring_menu = ctk.CTkOptionMenu(
+            editor,
+            values=[SCORING_LEVELS, SCORING_MAX],
+            command=self._update_scoring_mode,
+        )
+        self.scoring_menu.set(SCORING_LEVELS)
+        self.scoring_menu.grid(row=2, column=1, sticky="ew", padx=(0, 6), pady=8)
+        self.max_entry = ctk.CTkEntry(
+            editor, placeholder_text="Max score e.g. 8", state="disabled"
+        )
+        self.max_entry.grid(row=2, column=2, sticky="ew", padx=6, pady=8)
+
+        ctk.CTkLabel(editor, text="Level").grid(row=3, column=0, padx=10, pady=8)
+        ctk.CTkLabel(editor, text="Rule").grid(row=3, column=1, padx=8, pady=8)
+        ctk.CTkLabel(editor, text="Value / minimum").grid(row=3, column=2, padx=8, pady=8)
+        ctk.CTkLabel(editor, text="Maximum").grid(row=3, column=3, padx=8, pady=8)
         editor.grid_columnconfigure(2, weight=1)
         editor.grid_columnconfigure(3, weight=1)
 
-        for row_number, level in enumerate(reversed(LEVEL_NAMES), start=3):
+        for row_number, level in enumerate(reversed(LEVEL_NAMES), start=4):
             ctk.CTkLabel(editor, text=level).grid(
                 row=row_number, column=0, sticky="w", padx=10, pady=8
             )
@@ -135,7 +152,7 @@ class CBATaskManager(ctk.CTkToplevel):
             self.second_value_entries[level] = second_value
 
         actions = ctk.CTkFrame(editor, fg_color="transparent")
-        actions.grid(row=7, column=0, columnspan=4, sticky="ew", padx=10, pady=18)
+        actions.grid(row=8, column=0, columnspan=4, sticky="ew", padx=10, pady=18)
         ctk.CTkButton(
             actions, text="Add Task", command=self._add_task
         ).pack(side="left", padx=4)
@@ -161,6 +178,13 @@ class CBATaskManager(ctk.CTkToplevel):
         self.publish_button.pack(side="right")
 
     def _task_from_form(self):
+        if self.scoring_menu.get() == SCORING_MAX:
+            return {
+                "name": self.name_entry.get().strip(),
+                "unit": self.unit_entry.get().strip(),
+                "mode": "max",
+                "max_score": self.max_entry.get().strip(),
+            }
         ranges = {}
         for level in LEVEL_NAMES:
             mode = self.rule_menus[level].get()
@@ -211,6 +235,11 @@ class CBATaskManager(ctk.CTkToplevel):
         self.selected_index = index
         self.name_entry.insert(0, task["name"])
         self.unit_entry.insert(0, task.get("unit", ""))
+        if task.get("mode") == "max":
+            self.scoring_menu.set(SCORING_MAX)
+            self._update_scoring_mode(SCORING_MAX)
+            self.max_entry.insert(0, str(task["max_score"]))
+            return
         for level, criterion in task["ranges"].items():
             rule_type = criterion.get("type", "range")
             mode = {
@@ -263,16 +292,35 @@ class CBATaskManager(ctk.CTkToplevel):
             second_entry.delete(0, "end")
             second_entry.configure(state="disabled", placeholder_text="Not used")
 
+    def _update_scoring_mode(self, mode):
+        uses_levels = mode == SCORING_LEVELS
+        self.max_entry.configure(state="disabled" if uses_levels else "normal")
+        for level in LEVEL_NAMES:
+            state = "normal" if uses_levels else "disabled"
+            self.rule_menus[level].configure(state=state)
+            self.first_value_entries[level].configure(state=state)
+            if uses_levels:
+                self._update_rule_fields(level, self.rule_menus[level].get())
+            else:
+                self.second_value_entries[level].configure(state="disabled")
+
     def _clear_form(self):
         self.selected_index = None
         self.name_entry.delete(0, "end")
         self.unit_entry.delete(0, "end")
+        self.max_entry.configure(state="normal")
+        self.max_entry.delete(0, "end")
+        self.scoring_menu.set(SCORING_LEVELS)
+        for level in LEVEL_NAMES:
+            self.rule_menus[level].configure(state="normal")
+            self.first_value_entries[level].configure(state="normal")
         for level in LEVEL_NAMES:
             self.rule_menus[level].set("Range")
             self.first_value_entries[level].delete(0, "end")
             self.second_value_entries[level].configure(state="normal")
             self.second_value_entries[level].delete(0, "end")
             self._update_rule_fields(level, "Range")
+        self._update_scoring_mode(SCORING_LEVELS)
 
     def _refresh_task_list(self):
         for child in self.task_list.winfo_children():
@@ -282,7 +330,9 @@ class CBATaskManager(ctk.CTkToplevel):
             task_row.pack(fill="x", padx=6, pady=4)
             ctk.CTkLabel(
                 task_row,
-                text=f"{task['name']}" + (f" ({task['unit']})" if task.get("unit") else ""),
+                text=f"{task['name']}"
+                + (f" ({task['unit']})" if task.get("unit") else "")
+                + (f" · max {task['max_score']}" if task.get("mode") == "max" else " · levels 4-1"),
                 anchor="w",
             ).pack(side="left", fill="x", expand=True, padx=8, pady=8)
             ctk.CTkButton(

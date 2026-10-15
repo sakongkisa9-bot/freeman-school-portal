@@ -42,14 +42,17 @@
         .message { padding: 10px 12px; border-left: 4px solid #d69c48; background: #26312b; }
         .message.success { border-color: #4daf86; }
         .message.danger { border-color: #d26060; }
-        .roster-tools { display: flex; align-items: center; gap: 12px; margin: 16px 0; }
+        .roster-tools { display: flex; align-items: center; gap: 12px; margin: 16px 0; flex-wrap: wrap; }
+        .task-picker { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
+        .task-picker label { font-weight: 650; }
+        .task-picker select { flex: 1; max-width: 420px; }
         .search-input {
             width: min(100%, 420px); padding: 11px 13px;
             background: #0d1513; color: white; border: 1px solid #52665f; border-radius: 5px;
         }
         .roster-count { color: #a9beb5; font-size: 13px; }
         .table-wrap { overflow-x: auto; border: 1px solid #354943; background: #17221f; }
-        table { width: 100%; min-width: 850px; border-collapse: collapse; }
+        table { width: 100%; border-collapse: collapse; }
         th, td { border-bottom: 1px solid #354943; padding: 10px; text-align: left; }
         th { position: sticky; top: 0; background: #20332d; color: #cde9dc; }
         th.student-name { position: sticky; top: 0; left: 0; z-index: 3; background: #20332d; }
@@ -110,13 +113,21 @@
     </div>
 
     <form method="post" action="{{ url_for('enter_cba_marks', grade=grade, subject=subject) }}">
+        <div class="task-picker">
+            <label for="taskSelect">Task</label>
+            <select id="taskSelect" class="search-input" aria-label="Task to enter">
+                {% for task in tasks %}
+                <option value="{{ loop.index0 }}">{{ task.name }} · {% if task.mode == 'max' %}max {{ task.max_score }}{% else %}levels 4-1{% endif %}</option>
+                {% endfor %}
+            </select>
+        </div>
         <div class="table-wrap">
             <table>
                 <thead>
                     <tr>
                         <th class="student-name">Learner</th>
                         {% for task in tasks %}
-                        <th class="task-col">
+                        <th class="task-col" data-task="{{ loop.index0 }}">
                             {{ task.name }}
                             {% set bounds = task_bounds[task.name] %}
                             <span class="range">Min {{ bounds[0] }} · Max {% if bounds[1] is none %}No limit{% else %}{{ bounds[1] }}{% endif %}{% if task.unit %} {{ task.unit }}{% endif %}</span>
@@ -129,9 +140,9 @@
                     <tr class="student-row" data-search="{{ student.student_name }} {{ student.adm_no }} {{ student.assessment_number or '' }}">
                         <td class="student-name">{{ student.student_name }}</td>
                         {% for task in tasks %}
-                        <td>
+                        <td data-task="{{ loop.index0 }}">
                             <input type="text" inputmode="numeric" autocomplete="off" class="score-input"
-                                   name="score_{{ student.id }}_{{ loop.index0 }}"
+                                   name="score_{{ student.id }}_{{ loop.index0 }}" data-task="{{ loop.index0 }}"
                                    data-min="{{ task_bounds[task.name][0] }}" data-max="{{ task_bounds[task.name][1] if task_bounds[task.name][1] is not none else '' }}"
                                    value="{{ saved_scores.get(student.adm_no, {}).get(task.name, '') }}"
                                    placeholder="Score / {{ absence_mark }}" aria-label="{{ student.student_name }} {{ task.name }} raw score">
@@ -164,6 +175,24 @@
     searchInput.addEventListener("input", filterRoster);
     filterRoster();
 
+    const taskSelect = document.getElementById("taskSelect");
+    const taskStorageKey = `cbaTask:{{ grade }}:{{ subject }}:{{ term }}`;
+
+    // Show only the selected task's column beside the learner names.
+    function applyTask() {
+        for (const cell of document.querySelectorAll("[data-task]:not(.score-input)")) {
+            cell.hidden = cell.dataset.task !== taskSelect.value;
+        }
+        sessionStorage.setItem(taskStorageKey, taskSelect.value);
+    }
+
+    const savedTask = sessionStorage.getItem(taskStorageKey);
+    if (savedTask !== null && taskSelect.querySelector(`option[value="${savedTask}"]`)) {
+        taskSelect.value = savedTask;
+    }
+    taskSelect.addEventListener("change", applyTask);
+    applyTask();
+
     document.getElementById("termSelect").addEventListener("change", event => {
         const url = new URL(window.location.href);
         url.searchParams.set("term", event.target.value);
@@ -192,6 +221,9 @@
             const maximum = input.dataset.max === "" ? null : Number(input.dataset.max);
             if (!Number.isInteger(score) || score < minimum || (maximum !== null && score > maximum)) {
                 event.preventDefault();
+                // A hidden field cannot show its error, so reveal its task first.
+                taskSelect.value = input.dataset.task;
+                applyTask();
                 input.focus();
                 input.setCustomValidity(`Enter a whole number from ${minimum}${maximum === null ? " and above" : ` to ${maximum}`}, or AB.`);
                 input.reportValidity();
