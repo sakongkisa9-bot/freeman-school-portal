@@ -174,17 +174,16 @@ class CloudService:
         }
         return self._post_json("/api/cbc/upload_curriculum", payload)
 
-    def fetch_cbc_ratings(self, grade, area, term, academic_year, credentials):
+    def fetch_cbc_covered_strands(self, grade, area, academic_year, credentials):
         payload = {
             "school_code": credentials["school_code"],
             "username": credentials["username"],
             "password": credentials["password"],
             "grade": grade,
             "area": area,
-            "term": term,
             "academic_year": academic_year,
         }
-        return self._post_json("/api/cbc/fetch_ratings", payload)
+        return self._post_json("/api/cbc/fetch_covered_strands", payload)
 
     def fetch_cba_results(self, grade, subject, term, credentials):
         payload = {

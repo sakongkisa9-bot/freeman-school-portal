@@ -1477,6 +1477,72 @@ def api_upload_cbc_curriculum():
         conn.close()
 
 
+@app.route("/api/cbc/fetch_covered_strands", methods=["POST"])
+def api_fetch_cbc_covered_strands():
+    data = request.get_json(silent=True) or {}
+    school_code = str(data.get("school_code", "")).strip().lower()
+    password = data.get("password", "")
+    grade = str(data.get("grade", "")).strip()
+    area_name = str(data.get("area", "")).strip()
+    try:
+        academic_year = int(data.get("academic_year"))
+        if not 2000 <= academic_year <= 2200:
+            raise ValueError
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "message": "Invalid academic year."}), 400
+    if not school_code or not password or not grade or not area_name:
+        return jsonify({"success": False, "message": "Missing school credentials or class."}), 400
+
+    conn = get_db()
+    try:
+        school = conn.execute(
+            "SELECT id, password_hash FROM schools WHERE school_code = ?", (school_code,)
+        ).fetchone()
+        if not school or not check_password_hash(school["password_hash"], password):
+            return jsonify({"success": False, "message": "Invalid school credentials."}), 401
+        area = conn.execute(
+            "SELECT id FROM cbc_learning_areas WHERE school_id = ? AND grade = ? AND name = ?",
+            (school["id"], grade, area_name),
+        ).fetchone()
+        if not area:
+            return jsonify({
+                "success": False,
+                "message": f"{area_name} has no strands on the portal for {grade}. Publish its curriculum first.",
+            })
+        rows = conn.execute(
+            """
+            SELECT st.id AS strand_id, st.name AS strand, ss.name AS sub_strand,
+                   (SELECT GROUP_CONCAT(DISTINCT rs.term) FROM cbc_rubric_scores rs
+                    WHERE rs.school_id = ? AND rs.grade = ? AND rs.academic_year = ?
+                      AND rs.assessment_type = 'Formative' AND rs.sub_strand_id = ss.id) AS terms
+            FROM cbc_strands st
+            JOIN cbc_sub_strands ss ON ss.strand_id = st.id
+            WHERE st.learning_area_id = ?
+            ORDER BY st.id, ss.id
+            """,
+            (school["id"], grade, academic_year, area["id"]),
+        ).fetchall()
+        strands = {}
+        for row in rows:
+            strand = strands.setdefault(row["strand_id"], {"name": row["strand"], "sub_strands": []})
+            strand["sub_strands"].append({
+                "name": row["sub_strand"],
+                "terms": sorted(row["terms"].split(",")) if row["terms"] else [],
+            })
+        return jsonify({
+            "success": True,
+            "grade": grade,
+            "area": area_name,
+            "academic_year": academic_year,
+            "strands": list(strands.values()),
+        })
+    except Exception as error:
+        logging.exception("CBC covered strands fetch failed")
+        return jsonify({"success": False, "message": str(error)}), 500
+    finally:
+        conn.close()
+
+
 @app.route("/api/cbc/fetch_ratings", methods=["POST"])
 def api_fetch_cbc_ratings():
     data = request.get_json(silent=True) or {}
@@ -3358,7 +3424,7 @@ def api_get_marks():
 
 @app.route("/api/consume_marks", methods=["POST"])
 def api_consume_marks():
-    """Delete marks from cloud after they've been fetched (consume operation)"""
+    """Kept for older desktop versions; marks now stay until a new exam replaces them."""
     data = request.json
     sc = data.get("school_code", "").strip().lower()
     gr = data.get("grade")
@@ -3373,19 +3439,7 @@ def api_consume_marks():
         if not school:
             return jsonify({"success": False, "message": "School not found"}), 404
 
-        # 2. Delete marks for that grade
-        cursor = conn.execute(
-            "DELETE FROM marks WHERE school_id = ? AND grade = ?", (school["id"], gr)
-        )
-        deleted_count = cursor.rowcount
-        conn.commit()
-
-        print(
-            f"DEBUG: Consumed {deleted_count} marks from cloud for school {sc} grade {gr}"
-        )
-        return jsonify(
-            {"success": True, "message": f"Consumed {deleted_count} marks from cloud"}
-        )
+        return jsonify({"success": True, "message": "Marks kept on the portal"})
 
     except Exception as e:
         logging.error(f"Consume marks error: {e}")

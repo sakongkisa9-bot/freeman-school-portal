@@ -420,19 +420,11 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
             self.save_primary_marks(skip_reload=True)
 
-            # 6. Consume marks from cloud (delete them after successful fetch)
-
-            consume_result = service.consume_marks(self.class_name, credentials)
-            if not consume_result.get("success"):
-                print(
-                    f"WARNING: Failed to consume marks from cloud: {consume_result.get('message')}"
-                )
-
             # 7. Success Message
 
             messagebox.showinfo(
                 "Cloud Fetch",
-                f"Successfully synchronized {len(marks_data)} student records. Marks have been removed from cloud.",
+                f"Successfully synchronized {len(marks_data)} student records.",
             )
 
         else:

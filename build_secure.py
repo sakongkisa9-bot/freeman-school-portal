@@ -90,6 +90,7 @@ def run_pyarmor():
         'cbc_curriculum_import.py',
         'cbc_curriculum_manager.py',
         'create_exam_dialog.py',
+        'cbc_strands_view.py',
         'reportforms.py',
         'wizard.py',
         'splash.py',
@@ -173,6 +174,7 @@ def run_cython():
         'cbc_curriculum_import.py',
         'cbc_curriculum_manager.py',
         'create_exam_dialog.py',
+        'cbc_strands_view.py',
         'reportforms.py',
         'wizard.py',
         'splash.py',
@@ -241,7 +243,8 @@ def run_pyinstaller():
         "cba_results_view",
         "cbc_curriculum_import",  # New hidden import
         "cbc_curriculum_manager",  # New hidden import
-        "create_exam_dialog",
+        "create_exam_dialog",  # New hidden import
+        "cbc_strands_view",
         "pdfplumber",  # New hidden import
         "fpdf",  # Required for PDF generation in reportforms
     ]
@@ -309,6 +312,7 @@ def build_simple():
         "cbc_curriculum_import",
         "cbc_curriculum_manager",
         "create_exam_dialog",
+        "cbc_strands_view",
         "pdfplumber",
         "fpdf",  # Required for PDF generation in reportforms
     ]

@@ -9,6 +9,7 @@ from teachers_linked import TeachersLinkedView, get_subjects_for_class
 from cba_task_manager import CBATaskManager
 from cba_results_view import CBAResultsView
 from cbc_curriculum_manager import CBCCurriculumManager
+from cbc_strands_view import CBCStrandsView
 from create_exam_dialog import CreateExamDialog
 from reportforms import ReportFormsView, ask_opening_closing_dates
 from ocr_student_dialog import show_ocr_dialog
@@ -206,8 +207,8 @@ class Dashboard(ctk.CTk):
 
         self.btn_competency_gradebook = ctk.CTkButton(
             self.menu_panel,
-            text="Competency Gradebook",
-            width=200,
+            text="Strands",
+            width=btn_width,
             height=btn_height,
             command=lambda: self.require_auth(self.open_competency_gradebook),
         )
@@ -3579,8 +3580,12 @@ class Dashboard(ctk.CTk):
 
     def open_competency_gradebook(self):
         self.show_class_selection(
-            "Competency Gradebook", self.btn_competency_gradebook
+            "Strands", self.btn_competency_gradebook
         )
+
+    def return_to_strands(self):
+        self.show_dashboard_workspace()
+        self.open_competency_gradebook()
 
     def show_cba_bulk_class_selection(self):
         for widget in self.content_panel.winfo_children():
@@ -4127,7 +4132,39 @@ class Dashboard(ctk.CTk):
         self.class_frame.pack(pady=40, expand=True)
         self.class_selection_buttons = []
 
-        # Add Create New Exam button at the top if viewing marks
+        if action_type == "Strands":
+            ctk.CTkButton(
+                self.class_frame,
+                text="Fetch Strands",
+                fg_color="#10b981",
+                text_color="white",
+                width=300,
+                height=45,
+                command=lambda: self.show_class_selection(
+                    "Import Strands", self.btn_competency_gradebook
+                ),
+            ).pack(pady=(0, 10))
+
+        if action_type in ("Strands", "Import Strands"):
+            if action_type == "Import Strands":
+                ctk.CTkButton(
+                    self.class_frame,
+                    text="← Back to Strands",
+                    width=300,
+                    height=45,
+                    command=self.open_competency_gradebook,
+                ).pack(pady=(0, 10))
+            ctk.CTkButton(
+                self.class_frame,
+                text="← Back to Dashboard",
+                fg_color="#e74c3c",
+                hover_color="#c0392b",
+                text_color="white",
+                width=300,
+                height=45,
+                command=self.show_dashboard_workspace,
+            ).pack(pady=(0, 20))
+
         if action_type == "Viewing Marks":
             create_exam_btn = ctk.CTkButton(
                 self.class_frame,
@@ -4285,7 +4322,22 @@ class Dashboard(ctk.CTk):
         elif action_type == "KNEC CBA Fetch":
             self.show_cba_fetch_subject_selection(class_selected)
 
-        elif action_type == "Competency Gradebook":
+        elif action_type == "Strands":
+            self.menu_panel.grid_forget()
+            self.grid_columnconfigure(0, weight=0, minsize=0)
+            self.content_panel.grid(row=0, column=0, columnspan=2, sticky="nsew")
+            self.current_view = CBCStrandsView(
+                self.content_panel,
+                class_selected,
+                get_subjects_for_class(class_selected),
+                self.load_school_config(),
+                self.save_school_config,
+                self.return_to_strands,
+                self.show_dashboard_workspace,
+            )
+            self.current_view.pack(fill="both", expand=True)
+
+        elif action_type == "Import Strands":
             CBCCurriculumManager(
                 self,
                 class_selected,
@@ -4293,7 +4345,7 @@ class Dashboard(ctk.CTk):
                 self.load_school_config(),
                 self.save_school_config,
                 on_close=lambda: self.show_class_selection(
-                    "Competency Gradebook", self.btn_competency_gradebook
+                    "Import Strands", self.btn_competency_gradebook
                 ),
             )
 

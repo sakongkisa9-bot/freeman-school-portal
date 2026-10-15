@@ -1,10 +1,8 @@
-import json
-from datetime import datetime
+import copy
 from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
 
-from cba_results_view import CBAResultsView
 from cbc_curriculum_import import extract_curriculum_pdf
 from cbc_engine import SUBJECT_TO_LEARNING_AREA, validate_curriculum
 from cloud_service import CloudService, ask_cloud_credentials
@@ -18,18 +16,18 @@ class CBCCurriculumManager(ctk.CTkToplevel):
         self.school_config = school_config
         self.save_config = save_config
         self.on_close = on_close
-        self.title(f"Competency Gradebook - {grade}")
+        self.title(f"Strands - {grade}")
         self.geometry("900x700")
         self.minsize(760, 560)
         self.transient(parent)
         self.protocol("WM_DELETE_WINDOW", self._close)
 
-        current_year = datetime.now().year
         self.subject_var = ctk.StringVar(value=subjects[0] if subjects else "")
-        self.term_var = ctk.StringVar(value="Term 1")
-        self.year_var = ctk.StringVar(value=str(current_year))
+        self.strands = []
+        self.strand_entries = []
         self._build_widgets()
         self._load_area()
+        self.after(150, self.focus_force)
 
     def _build_widgets(self):
         self.grid_columnconfigure(0, weight=1)
@@ -39,7 +37,7 @@ class CBCCurriculumManager(ctk.CTkToplevel):
         header.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(
             header,
-            text=f"{self.grade} Competency Gradebook",
+            text=f"{self.grade} Strands",
             font=("Arial Bold", 22),
         ).grid(row=0, column=0, sticky="w")
         self.subject_menu = ctk.CTkOptionMenu(
@@ -53,24 +51,20 @@ class CBCCurriculumManager(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             self,
-            text="Review the extracted strand and sub-strand names below before saving or publishing.",
+            text="Edit the strand and sub-strand names, add or remove entries, then save or publish.",
             anchor="w",
         ).grid(row=1, column=0, sticky="ew", padx=20, pady=(0, 6))
-        self.editor = ctk.CTkTextbox(self, wrap="none", font=("Consolas", 12))
+        self.editor = ctk.CTkScrollableFrame(self)
         self.editor.grid(row=2, column=0, sticky="nsew", padx=20, pady=8)
 
         actions = ctk.CTkFrame(self, fg_color="transparent")
-        actions.grid(row=3, column=0, sticky="ew", padx=20, pady=8)
+        actions.grid(row=3, column=0, sticky="ew", padx=20, pady=(8, 18))
         ctk.CTkButton(actions, text="Save on This Computer", command=self._save_local).pack(side="left", padx=(0, 8))
         ctk.CTkButton(actions, text="Publish Curriculum to Portal", command=self._publish).pack(side="left", padx=8)
-
-        fetch = ctk.CTkFrame(self, fg_color="transparent")
-        fetch.grid(row=4, column=0, sticky="ew", padx=20, pady=(4, 18))
-        ctk.CTkLabel(fetch, text="Term").pack(side="left", padx=(0, 5))
-        ctk.CTkOptionMenu(fetch, values=["Term 1", "Term 2", "Term 3"], variable=self.term_var, width=110).pack(side="left", padx=5)
-        ctk.CTkLabel(fetch, text="Year").pack(side="left", padx=(10, 5))
-        ctk.CTkEntry(fetch, textvariable=self.year_var, width=90).pack(side="left", padx=5)
-        ctk.CTkButton(fetch, text="Fetch Portal Ratings", command=self._fetch_ratings).pack(side="right")
+        ctk.CTkButton(
+            actions, text="Close", width=100, fg_color="#e74c3c", hover_color="#c0392b",
+            command=self._close,
+        ).pack(side="right")
 
     @property
     def area_name(self):
@@ -78,25 +72,95 @@ class CBCCurriculumManager(ctk.CTkToplevel):
         return SUBJECT_TO_LEARNING_AREA.get(subject.upper(), subject)
 
     def _load_area(self):
-        self.editor.delete("1.0", "end")
         areas = (
             self.school_config.get("cbc_curriculum", {})
             .get(self.grade, {})
             .get(self.area_name, [])
         )
-        if not areas:
-            areas = [{"name": self.area_name, "strands": []}]
-        self.editor.insert("1.0", json.dumps(areas, indent=2, ensure_ascii=True))
+        self.strands = copy.deepcopy(areas[0]["strands"]) if areas else []
+        self._render_editor()
+
+    def _render_editor(self):
+        for widget in self.editor.winfo_children():
+            widget.destroy()
+        self.strand_entries = []
+        if not self.strands:
+            ctk.CTkLabel(
+                self.editor,
+                text="No strands yet. Import a curriculum PDF or add a strand.",
+                text_color="gray60",
+            ).pack(pady=24)
+        for strand in self.strands:
+            card = ctk.CTkFrame(self.editor)
+            card.pack(fill="x", padx=6, pady=8)
+            top = ctk.CTkFrame(card, fg_color="transparent")
+            top.pack(fill="x", padx=10, pady=(10, 4))
+            name_entry = ctk.CTkEntry(top, font=("Arial Bold", 14), placeholder_text="Strand name")
+            name_entry.insert(0, strand["name"])
+            name_entry.pack(side="left", fill="x", expand=True)
+            ctk.CTkButton(
+                top, text="Remove Strand", width=120, fg_color="#c0392b", hover_color="#962d22",
+                command=lambda item=strand: self._remove_strand(item),
+            ).pack(side="left", padx=(8, 0))
+            sub_entries = []
+            for index, sub_strand in enumerate(strand["sub_strands"]):
+                row = ctk.CTkFrame(card, fg_color="transparent")
+                row.pack(fill="x", padx=(34, 10), pady=2)
+                entry = ctk.CTkEntry(row, placeholder_text="Sub-strand name")
+                entry.insert(0, sub_strand)
+                entry.pack(side="left", fill="x", expand=True)
+                ctk.CTkButton(
+                    row, text="Remove", width=80, fg_color="#7f8c8d", hover_color="#626c6d",
+                    command=lambda item=strand, position=index: self._remove_sub_strand(item, position),
+                ).pack(side="left", padx=(8, 0))
+                sub_entries.append(entry)
+            ctk.CTkButton(
+                card, text="+ Add Sub-strand", width=140,
+                command=lambda item=strand: self._add_sub_strand(item),
+            ).pack(anchor="w", padx=34, pady=(6, 10))
+            self.strand_entries.append((strand, name_entry, sub_entries))
+        ctk.CTkButton(self.editor, text="+ Add Strand", command=self._add_strand).pack(
+            anchor="w", padx=6, pady=12
+        )
+
+    def _collect(self):
+        for strand, name_entry, sub_entries in self.strand_entries:
+            strand["name"] = name_entry.get().strip()
+            strand["sub_strands"] = [entry.get().strip() for entry in sub_entries]
+
+    def _remove_strand(self, strand):
+        self._collect()
+        self.strands = [item for item in self.strands if item is not strand]
+        self._render_editor()
+
+    def _remove_sub_strand(self, strand, position):
+        self._collect()
+        del strand["sub_strands"][position]
+        self._render_editor()
+
+    def _add_strand(self):
+        self._collect()
+        self.strands.append({"name": "", "sub_strands": [""]})
+        self._render_editor()
+
+    def _add_sub_strand(self, strand):
+        self._collect()
+        strand["sub_strands"].append("")
+        self._render_editor()
 
     def _read_area(self):
+        self._collect()
+        strands = []
+        for strand in self.strands:
+            sub_strands = [name for name in strand["sub_strands"] if name]
+            if strand["name"] or sub_strands:
+                strands.append({"name": strand["name"], "sub_strands": sub_strands})
         try:
-            submitted = json.loads(self.editor.get("1.0", "end").strip())
-            areas = validate_curriculum(submitted, self.grade)
-        except (json.JSONDecodeError, ValueError, TypeError) as error:
-            raise ValueError(f"Check the curriculum JSON: {error}") from error
-        if len(areas) != 1 or areas[0]["name"].casefold() != self.area_name.casefold():
-            raise ValueError(f"This editor must contain one learning area named {self.area_name}.")
-        return areas
+            return validate_curriculum(
+                [{"name": self.area_name, "strands": strands}], self.grade
+            )
+        except ValueError as error:
+            raise ValueError(f"Check the strands: {error}") from error
 
     def _import_pdf(self):
         path = filedialog.askopenfilename(
@@ -111,9 +175,11 @@ class CBCCurriculumManager(ctk.CTkToplevel):
         except Exception as error:
             messagebox.showerror("Curriculum Import Failed", str(error), parent=self)
             return
-        area = [{"name": self.area_name, "strands": strands}]
-        self.editor.delete("1.0", "end")
-        self.editor.insert("1.0", json.dumps(area, indent=2, ensure_ascii=True))
+        self.strands = [
+            {"name": strand["name"], "sub_strands": list(strand["sub_strands"])}
+            for strand in strands
+        ]
+        self._render_editor()
         sub_strand_count = sum(len(strand["sub_strands"]) for strand in strands)
         messagebox.showinfo(
             "Review Imported Curriculum",
@@ -151,41 +217,6 @@ class CBCCurriculumManager(ctk.CTkToplevel):
         curriculum.setdefault(self.grade, {})[self.area_name] = areas
         self.save_config({"cbc_curriculum": curriculum})
         messagebox.showinfo("Published", result.get("message", "Curriculum published."), parent=self)
-
-    def _fetch_ratings(self):
-        try:
-            academic_year = int(self.year_var.get())
-            if not 2000 <= academic_year <= 2200:
-                raise ValueError
-        except ValueError:
-            messagebox.showerror("Invalid Year", "Enter a year from 2000 to 2200.", parent=self)
-            return
-        credentials = ask_cloud_credentials(self)
-        if not credentials:
-            return
-        result = CloudService().fetch_cbc_ratings(
-            self.grade,
-            self.area_name,
-            self.term_var.get(),
-            academic_year,
-            credentials,
-        )
-        if not result.get("success"):
-            messagebox.showerror(
-                "Fetch Failed", result.get("message", "Could not fetch competency ratings."), parent=self
-            )
-            return
-        result.update(
-            {
-                "subject": self.area_name,
-                "report_title": "Competency Ratings",
-                "filename_suffix": "competency_ratings",
-            }
-        )
-        result_window = ctk.CTkToplevel(self)
-        result_window.title(f"{self.grade} {self.area_name} Ratings")
-        result_window.geometry("1100x620")
-        CBAResultsView(result_window, result).pack(fill="both", expand=True)
 
     def _close(self):
         self.destroy()

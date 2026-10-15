@@ -314,6 +314,49 @@ class CBCCloudFlowTests(unittest.TestCase):
         self.assertIn(b"1 of 1 strands", done.data)
         self.assertIn(b"2 of 2 sub-strands covered", done.data)
 
+    def test_fetch_covered_strands_lists_only_marked_sub_strands(self):
+        sub_strand_ids = self._publish_math_curriculum()
+        connection = sqlite3.connect(self.db_path)
+        student_id = connection.execute("SELECT id FROM students WHERE adm_no = 'A001'").fetchone()[0]
+        connection.close()
+        self.client.post(
+            f"/cbc/gradebook/Grade%203?area=Mathematics&term=Term%202&academic_year=2026&sub_strand_id={sub_strand_ids[0]}",
+            data={f"rating_{student_id}_{sub_strand_ids[0]}": "3"},
+        )
+        request = {"school_code": "cbc-test", "password": "pw", "grade": "Grade 3", "area": "Mathematics", "academic_year": 2026}
+        payload = self.client.post("/api/cbc/fetch_covered_strands", json=request).get_json()
+        self.assertTrue(payload["success"])
+        self.assertEqual(payload["strands"], [{
+            "name": "Number",
+            "sub_strands": [
+                {"name": "Fractions", "terms": ["Term 2"]},
+                {"name": "Decimals", "terms": []},
+            ],
+        }])
+
+        wrong = self.client.post("/api/cbc/fetch_covered_strands", json={**request, "password": "bad"})
+        self.assertEqual(wrong.status_code, 401)
+        other_subject = self.client.post("/api/cbc/fetch_covered_strands", json={**request, "area": "Science"})
+        self.assertFalse(other_subject.get_json()["success"])
+        next_year = self.client.post("/api/cbc/fetch_covered_strands", json={**request, "academic_year": 2025})
+        self.assertEqual(next_year.get_json()["strands"][0]["sub_strands"][0]["terms"], [])
+
+    def test_consume_marks_endpoint_keeps_marks(self):
+        self._create_exam("MID TERM")
+        self.client.post(
+            "/exam/marks/Grade%203?subject=MATH",
+            data={"out_of": "100", "score_A001": "70", "action": "save"},
+        )
+        response = self.client.post(
+            "/api/consume_marks",
+            json={"school_code": "cbc-test", "grade": "Grade 3"},
+        )
+        self.assertTrue(response.get_json()["success"])
+        connection = sqlite3.connect(self.db_path)
+        count = connection.execute("SELECT COUNT(*) FROM marks").fetchone()[0]
+        connection.close()
+        self.assertEqual(count, 1)
+
     def test_curriculum_sync_rejects_invalid_school_password(self):
         response = self.client.post(
             "/api/cbc/upload_curriculum",
