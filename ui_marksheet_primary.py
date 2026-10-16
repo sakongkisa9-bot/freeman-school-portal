@@ -83,7 +83,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
         else:
 
-            self.current_exam_title = "PRIMARY ASSESSMENT 2026"
+            self.current_exam_title = "UPPER PRIMARY ASSESSMENT 2026"
 
             try:
 
@@ -102,7 +102,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
                         # We use a specific key for primary titles
 
                         self.current_exam_title = config.get(
-                            "primary_exam_title", "PRIMARY ASSESSMENT 2026"
+                            "primary_exam_title", "UPPER PRIMARY ASSESSMENT 2026"
                         )
 
             except Exception as e:
@@ -1724,7 +1724,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
         file_path = filedialog.asksaveasfilename(
             defaultextension=".pdf",
             initialfile=f"{self.class_name}_{exam_name.replace(' ', '_')}.pdf",
-            title="Save Primary Marksheet",
+            title="Save Upper Primary Marksheet",
         )
 
         if not file_path:

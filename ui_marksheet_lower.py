@@ -1331,7 +1331,7 @@ class LowerMarkSheetView(ctk.CTkFrame):
         file_path = filedialog.asksaveasfilename(
             defaultextension=".pdf",
             initialfile=f"{self.class_name}_{exam_name.replace(' ', '_')}.pdf",
-            title="Save Lower Marksheet",
+            title="Save Lower Primary Marksheet",
         )
         if not file_path:
             return

@@ -220,7 +220,7 @@
             {% for sub in subjects %}
             <a href="{% if mode == 'cba' %}{{ url_for('enter_cba_marks', grade=grade, subject=sub) }}{% elif mode == 'exam' %}{{ url_for('enter_exam_marks', grade=grade, subject=sub) }}{% else %}{{ url_for('enter_marks', grade=grade, subject=sub) }}{% endif %}" class="subject-card">
                 <div class="subject-icon">📖</div>
-                <div class="subject-name">{{ sub }}</div>
+                <div class="subject-name">{{ (names or {}).get(sub, sub) }}</div>
             </a>
             {% endfor %}
         </div>

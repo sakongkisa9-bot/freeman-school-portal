@@ -584,12 +584,136 @@ class Dashboard(ctk.CTk):
             width=130,
             command=self.open_theme_settings,
         )
+        self.subjects_button = ctk.CTkButton(
+            self.content_panel,
+            text="Subjects",
+            width=100,
+            command=lambda: self.require_auth(self.open_subjects_dialog),
+        )
         self.theme_toggle.place(relx=1, rely=1, anchor="se", x=-150, y=-12)
         self.theme_settings_button.place(
             relx=1, rely=1, anchor="se", x=-12, y=-12
         )
+        toggle_width = max(self.theme_toggle.winfo_reqwidth(), 200)
+        self.subjects_button.place(
+            relx=1, rely=1, anchor="se", x=-(150 + toggle_width + 10), y=-12
+        )
         self.theme_toggle.lift()
         self.theme_settings_button.lift()
+        self.subjects_button.lift()
+
+    def open_subjects_dialog(self):
+        from subject_catalog import (
+            CATALOG_GROUPS,
+            build_catalog,
+            config_updates,
+        )
+
+        catalog = build_catalog(self.load_school_config())
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("School Subjects")
+        dialog.geometry("760x640")
+        dialog.transient(self)
+        dialog.grab_set()
+
+        ctk.CTkLabel(
+            dialog, text="Tick the subjects your school teaches", font=("Arial Bold", 18)
+        ).pack(pady=(16, 2))
+        ctk.CTkLabel(
+            dialog,
+            text="The short form is used on marksheets; teachers see the full name. Short forms are editable.",
+            text_color="gray",
+        ).pack(pady=(0, 8))
+
+        tabs = ctk.CTkTabview(dialog)
+        tabs.pack(fill="both", expand=True, padx=14, pady=4)
+        rows = {key: [] for key, _, _, _ in CATALOG_GROUPS}
+        limits = {key: limit for key, _, _, limit in CATALOG_GROUPS}
+
+        def add_row(key, frame, item):
+            row = ctk.CTkFrame(frame, fg_color="transparent")
+            row.pack(fill="x", padx=6, pady=2)
+            var = ctk.BooleanVar(value=item["selected"])
+            ctk.CTkCheckBox(row, text="", variable=var, width=24).pack(side="left")
+            if item["custom"]:
+                name_widget = ctk.CTkEntry(row, width=330)
+                name_widget.insert(0, item["name"])
+            else:
+                name_widget = ctk.CTkLabel(row, text=item["name"], width=330, anchor="w")
+            name_widget.pack(side="left", padx=(4, 8))
+            short = ctk.CTkEntry(row, width=120)
+            short.insert(0, item["short"])
+            short.pack(side="left")
+            record = {"var": var, "name": name_widget, "short": short,
+                      "custom": item["custom"], "base": item["name"], "row": row}
+            if item["custom"]:
+                def remove(rec=record, k=key):
+                    rec["row"].destroy()
+                    rows[k].remove(rec)
+                ctk.CTkButton(row, text="Remove", width=70, fg_color="#942727",
+                              hover_color="#7a1f1f", command=remove).pack(side="left", padx=8)
+            rows[key].append(record)
+
+        for key, title, _, limit in CATALOG_GROUPS:
+            tab = tabs.add(title.split(" (")[0])
+            ctk.CTkLabel(tab, text=f"{title} - up to {limit} subjects", text_color="gray").pack(anchor="w", padx=6)
+            frame = ctk.CTkScrollableFrame(tab, height=360)
+            frame.pack(fill="both", expand=True, pady=4)
+            for item in catalog[key]:
+                add_row(key, frame, item)
+
+            add_bar = ctk.CTkFrame(tab, fg_color="transparent")
+            add_bar.pack(fill="x")
+            name_entry = ctk.CTkEntry(add_bar, width=300, placeholder_text="New subject (full name)")
+            name_entry.pack(side="left", padx=4)
+            short_entry = ctk.CTkEntry(add_bar, width=110, placeholder_text="Short form")
+            short_entry.pack(side="left", padx=4)
+
+            def add_custom(k=key, f=frame, n=name_entry, s=short_entry):
+                full = n.get().strip()
+                short_form = s.get().strip().upper()
+                if not full or not short_form:
+                    messagebox.showwarning("Subjects", "Enter both the full name and the short form.", parent=dialog)
+                    return
+                add_row(k, f, {"name": full, "short": short_form, "selected": True, "custom": True})
+                n.delete(0, "end")
+                s.delete(0, "end")
+
+            ctk.CTkButton(add_bar, text="Add subject", width=100, command=add_custom).pack(side="left", padx=4)
+
+        def save():
+            result = {}
+            for key, records in rows.items():
+                items, shorts = [], set()
+                for rec in records:
+                    short = rec["short"].get().strip().upper()
+                    name = rec["name"].get().strip() if rec["custom"] else rec["base"]
+                    selected = bool(rec["var"].get())
+                    if selected and (not short or not name):
+                        messagebox.showwarning("Subjects", "Every ticked subject needs a name and a short form.", parent=dialog)
+                        return
+                    if selected and short in shorts:
+                        messagebox.showwarning("Subjects", f"Short form {short} is used twice in the same level.", parent=dialog)
+                        return
+                    if selected:
+                        shorts.add(short)
+                    items.append({"name": name, "short": short, "selected": selected, "custom": rec["custom"]})
+                if len(shorts) > limits[key]:
+                    messagebox.showwarning("Subjects", f"At most {limits[key]} subjects fit this level's marksheet.", parent=dialog)
+                    return
+                result[key] = items
+            self.save_school_config(config_updates(result))
+            messagebox.showinfo(
+                "Subjects",
+                "Subjects saved. Sync with the cloud portal to update teachers.",
+                parent=dialog,
+            )
+            dialog.destroy()
+
+        ctk.CTkButton(
+            dialog, text="Save Subjects", fg_color="#10b981", text_color="black",
+            height=40, command=save,
+        ).pack(fill="x", padx=14, pady=10)
 
     def open_theme_settings(self):
         dialog = ctk.CTkToplevel(self)
@@ -2596,7 +2720,14 @@ class Dashboard(ctk.CTk):
                         "school_address": config.get("address", ""),
                         "school_telephone": config.get("contacts", ""),
                         "school_logo": school_logo,
-                        "subjects": config.get("subjects", {}),
+                        "subjects": {
+                            **config.get("subjects", {}),
+                            "_names": config.get("subject_names", {}),
+                            "_custom": {
+                                key: [i["name"] for i in items if i.get("custom") and i.get("selected")]
+                                for key, items in (config.get("subject_catalog") or {}).items()
+                            },
+                        },
                     }
         except Exception as e:
             print(f"Error loading school config: {e}")

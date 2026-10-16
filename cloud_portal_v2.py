@@ -1825,7 +1825,7 @@ def select_exam_subject(grade):
         return redirect(url_for("dashboard"))
     return render_template(
         "cloud_select_subject.html", grade=grade, subjects=subjects, mode="exam",
-        exam_title=exam["title"],
+        exam_title=exam["title"], names=_subject_full_names(grade),
     )
 
 
@@ -2174,6 +2174,28 @@ def enter_marks(grade):
     )
 
 
+def _subject_full_names(grade):
+    """Short form -> full name for this school's level, as synced from the desktop app."""
+    if "school_id" not in session:
+        return {}
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT subjects FROM schools WHERE id = ?", (session["school_id"],)
+        ).fetchone()
+        data = json.loads(row["subjects"]) if row and row["subjects"] else {}
+        return (data.get("_names") or {}).get(map_grade_to_config_key(grade), {})
+    except (json.JSONDecodeError, TypeError, AttributeError):
+        return {}
+    finally:
+        conn.close()
+
+
+def _learning_area_for(subject, subject_names):
+    code = subject.strip()
+    return subject_names.get(code) or SUBJECT_TO_LEARNING_AREA.get(code.upper(), code)
+
+
 @app.route("/select_subject/<grade>")
 def select_subject(grade):
     if "school_id" not in session:
@@ -2214,7 +2236,8 @@ def select_subject(grade):
             return redirect(url_for("dashboard"))
 
         return render_template(
-            "cloud_select_subject.html", grade=grade, subjects=subjects
+            "cloud_select_subject.html", grade=grade, subjects=subjects,
+            names=_subject_full_names(grade),
         )
     except Exception as e:
         logging.error(f"Error retrieving subjects for grade {grade}: {e}")
@@ -2256,7 +2279,8 @@ def select_cba_subject(grade):
         flash(f"No subjects are assigned to you for {grade}.", "warning")
         return redirect(url_for("dashboard"))
     return render_template(
-        "cloud_select_subject.html", grade=grade, subjects=subjects, mode="cba"
+        "cloud_select_subject.html", grade=grade, subjects=subjects, mode="cba",
+        names=_subject_full_names(grade),
     )
 
 
@@ -2743,11 +2767,43 @@ def developer_strands():
             "strands": len(strands), "sub_strands": sum(len(item["sub_strands"]) for item in strands),
             "updated_at": row["updated_at"][:10],
         })
+    school_subjects = [r["subjects"] for r in conn.execute("SELECT subjects FROM schools").fetchall()]
     conn.close()
+    from subject_catalog import CATALOG_GROUPS, DEFAULT_CATALOG
+
+    # Default subjects are universal; only schools' custom subjects are added.
+    custom = {key: set() for key, _, _, _ in CATALOG_GROUPS}
+    for raw in school_subjects:
+        try:
+            for key, names in ((json.loads(raw or "{}") or {}).get("_custom") or {}).items():
+                if key in custom:
+                    custom[key].update(n for n in names if n)
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            continue
+    group_grades = {
+        "playgroup": ["playgroup"], "pp": ["pp1", "pp2"],
+        "lower": ["Grade 1", "Grade 2", "Grade 3"],
+        "primary": ["Grade 4", "Grade 5", "Grade 6"],
+        "jss": ["Grade 7", "Grade 8", "Grade 9"],
+    }
+    published = {(item["grade"], item["area"].strip().lower()) for item in stored}
+    coverage, area_names = [], set()
+    for key, title, _, _ in CATALOG_GROUPS:
+        defaults = [name for name, _ in DEFAULT_CATALOG[key]]
+        rows = []
+        for name in defaults + sorted(custom[key] - set(defaults)):
+            area_names.add(name)
+            grades = [
+                {"grade": g, "done": (g, name.lower()) in published}
+                for g in group_grades[key]
+            ]
+            rows.append({"area": name, "custom": name not in defaults, "grades": grades,
+                         "complete": all(g["done"] for g in grades)})
+        coverage.append({"title": title, "rows": rows})
     stored.sort(key=lambda item: (GRADE_OPTIONS.index(item["grade"]) if item["grade"] in GRADE_OPTIONS else 99, item["area"]))
     return render_template(
-        "cloud_developer.html", authed=True, stored=stored, preview=None,
-        grades=GRADE_OPTIONS, areas=sorted(set(SUBJECT_TO_LEARNING_AREA.values())),
+        "cloud_developer.html", authed=True, stored=stored, preview=None, coverage=coverage,
+        grades=GRADE_OPTIONS, areas=sorted(area_names),
     )
 
 
@@ -2872,6 +2928,7 @@ def cbc_rubric_gradebook(grade):
         return redirect(url_for("teacher_login"))
 
     conn = get_db()
+    subject_names = _subject_full_names(grade)
     school = conn.execute(
         "SELECT portal_open FROM schools WHERE id = ?", (session["school_id"],)
     ).fetchone()
@@ -2883,7 +2940,7 @@ def cbc_rubric_gradebook(grade):
         (session["school_id"], grade, teacher_code),
     ).fetchall()
     assigned_areas = [
-        SUBJECT_TO_LEARNING_AREA.get(row["subject"].strip().upper(), row["subject"].strip())
+        _learning_area_for(row["subject"], subject_names)
         for row in assignments
     ]
     _sync_global_curriculum(conn, session["school_id"], grade)
@@ -2955,7 +3012,7 @@ def cbc_rubric_gradebook(grade):
     area_subject_codes = [
         row["subject"].strip()
         for row in assignments
-        if SUBJECT_TO_LEARNING_AREA.get(row["subject"].strip().upper(), row["subject"].strip()) == area_name
+        if _learning_area_for(row["subject"], subject_names) == area_name
     ]
     current_exam, exam_percentages = _current_exam_percentages(
         conn, session["school_id"], grade, area_subject_codes

@@ -77,6 +77,23 @@
             <button type="submit" class="save">Read Strands</button>
         </form>
 
+        <h2>Publishing status</h2>
+        {% for group in coverage %}
+        <h3>{{ group.title }}</h3>
+        <table>
+            <thead><tr><th>Learning area</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for row in group.rows %}
+            <tr>
+                <td>{{ row.area }}{% if row.custom %} <span class="muted">(custom)</span>{% endif %}</td>
+                <td>{% if row.complete %}All published{% else %}Missing:
+                    {% for g in row.grades if not g.done %}{{ g.grade }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% endfor %}
+
         <h2>Strands on the portal</h2>
         {% if stored %}
         <table>
