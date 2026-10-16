@@ -20,7 +20,7 @@ SUBJECT_TO_LEARNING_AREA = {
     "INT SCIE": "Integrated Science",
     "PRE-TECH": "Pre-Technical Studies",
     "SST": "Social Studies",
-    "AGRI": "Agriculture",
+    "AGRI": "Agriculture and Nutrition",
     "C/A": "Creative Arts",
     "CRE": "CRE",
     "REL": "Religious Education",

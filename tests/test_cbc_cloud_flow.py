@@ -364,6 +364,26 @@ class CBCCloudFlowTests(unittest.TestCase):
         self.assertTrue(payload["success"], payload)
         self.assertEqual(payload["strands"][0]["name"], "Number")
 
+    def test_fetch_canonical_agriculture_name_matches_legacy_portal_upload(self):
+        self._seed_global(
+            "Grade 4", "Agriculture",
+            [{"name": "Conservation", "sub_strands": ["Soil Conservation"]}],
+        )
+        response = self.client.post(
+            "/api/cbc/fetch_covered_strands",
+            json={
+                "school_code": "cbc-test",
+                "password": "pw",
+                "grade": "Grade 4",
+                "area": "Agriculture and Nutrition",
+                "academic_year": 2026,
+            },
+        )
+
+        payload = response.get_json()
+        self.assertTrue(payload["success"], payload)
+        self.assertEqual(payload["strands"][0]["sub_strands"][0]["name"], "Soil Conservation")
+
     def test_consume_marks_endpoint_keeps_marks(self):
         self._create_exam("MID TERM")
         self.client.post(

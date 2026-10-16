@@ -22,7 +22,7 @@ class CBCEngineTests(unittest.TestCase):
             self.assertIsNone(rating_from_percentage(invalid))
 
     def test_primary_subject_codes_map_to_curriculum_learning_areas(self):
-        self.assertEqual(SUBJECT_TO_LEARNING_AREA["AGRI"], "Agriculture")
+        self.assertEqual(SUBJECT_TO_LEARNING_AREA["AGRI"], "Agriculture and Nutrition")
         self.assertEqual(SUBJECT_TO_LEARNING_AREA["SCIE"], "Science & Technology")
         self.assertEqual(SUBJECT_TO_LEARNING_AREA["REL"], "Religious Education")
 

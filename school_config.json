@@ -2423,6 +2423,652 @@
                             "ME"
                         ]
                     ]
+                },
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-16 17:59",
+                    "records": [
+                        [
+                            "K0040203001",
+                            "ALEX KIPRONO",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.1 Soil Conservation",
+                            "ME"
+                        ],
+                        [
+                            "K0040203002",
+                            "BEATRICE WANJIKU",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.1 Soil Conservation",
+                            "EE"
+                        ],
+                        [
+                            "K0040203003",
+                            "CHARLES ODUOR",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.1 Soil Conservation",
+                            "ME"
+                        ],
+                        [
+                            "K0040203004",
+                            "DORCAS CHEPKEMOI",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.1 Soil Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203005",
+                            "EMMANUEL WAWERU",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.1 Soil Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203006",
+                            "FAITH MUTUA",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.1 Soil Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203007",
+                            "GIDEON KORIR",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.1 Soil Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203008",
+                            "HELLEN AKINYI",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.1 Soil Conservation",
+                            "BE"
+                        ],
+                        [
+                            "K0040203009",
+                            "IAN GIKONYO",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.1 Soil Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203010",
+                            "JOYCE CHEROP",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.1 Soil Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203001",
+                            "ALEX KIPRONO",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.2 Water Conservation",
+                            "ME"
+                        ],
+                        [
+                            "K0040203002",
+                            "BEATRICE WANJIKU",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.2 Water Conservation",
+                            "EE"
+                        ],
+                        [
+                            "K0040203003",
+                            "CHARLES ODUOR",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.2 Water Conservation",
+                            "ME"
+                        ],
+                        [
+                            "K0040203004",
+                            "DORCAS CHEPKEMOI",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.2 Water Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203005",
+                            "EMMANUEL WAWERU",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.2 Water Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203006",
+                            "FAITH MUTUA",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.2 Water Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203007",
+                            "GIDEON KORIR",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.2 Water Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203008",
+                            "HELLEN AKINYI",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.2 Water Conservation",
+                            "BE"
+                        ],
+                        [
+                            "K0040203009",
+                            "IAN GIKONYO",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.2 Water Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203010",
+                            "JOYCE CHEROP",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.2 Water Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203001",
+                            "ALEX KIPRONO",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.3 Fuel Conservation",
+                            "ME"
+                        ],
+                        [
+                            "K0040203002",
+                            "BEATRICE WANJIKU",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.3 Fuel Conservation",
+                            "EE"
+                        ],
+                        [
+                            "K0040203003",
+                            "CHARLES ODUOR",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.3 Fuel Conservation",
+                            "ME"
+                        ],
+                        [
+                            "K0040203004",
+                            "DORCAS CHEPKEMOI",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.3 Fuel Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203005",
+                            "EMMANUEL WAWERU",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.3 Fuel Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203006",
+                            "FAITH MUTUA",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.3 Fuel Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203007",
+                            "GIDEON KORIR",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.3 Fuel Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203008",
+                            "HELLEN AKINYI",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.3 Fuel Conservation",
+                            "BE"
+                        ],
+                        [
+                            "K0040203009",
+                            "IAN GIKONYO",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.3 Fuel Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203010",
+                            "JOYCE CHEROP",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.3 Fuel Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203001",
+                            "ALEX KIPRONO",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.4 Conserving Wild Animals",
+                            "ME"
+                        ],
+                        [
+                            "K0040203002",
+                            "BEATRICE WANJIKU",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.4 Conserving Wild Animals",
+                            "EE"
+                        ],
+                        [
+                            "K0040203003",
+                            "CHARLES ODUOR",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.4 Conserving Wild Animals",
+                            "ME"
+                        ],
+                        [
+                            "K0040203004",
+                            "DORCAS CHEPKEMOI",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.4 Conserving Wild Animals",
+                            "AE"
+                        ],
+                        [
+                            "K0040203005",
+                            "EMMANUEL WAWERU",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.4 Conserving Wild Animals",
+                            "AE"
+                        ],
+                        [
+                            "K0040203006",
+                            "FAITH MUTUA",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.4 Conserving Wild Animals",
+                            "AE"
+                        ],
+                        [
+                            "K0040203007",
+                            "GIDEON KORIR",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.4 Conserving Wild Animals",
+                            "AE"
+                        ],
+                        [
+                            "K0040203008",
+                            "HELLEN AKINYI",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.4 Conserving Wild Animals",
+                            "BE"
+                        ],
+                        [
+                            "K0040203009",
+                            "IAN GIKONYO",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.4 Conserving Wild Animals",
+                            "AE"
+                        ],
+                        [
+                            "K0040203010",
+                            "JOYCE CHEROP",
+                            "Agriculture",
+                            "1.0 Conservation of Resources",
+                            "1.4 Conserving Wild Animals",
+                            "AE"
+                        ],
+                        [
+                            "K0040203001",
+                            "ALEX KIPRONO",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.1 Direct Sowing of Tiny Seeds",
+                            "ME"
+                        ],
+                        [
+                            "K0040203002",
+                            "BEATRICE WANJIKU",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.1 Direct Sowing of Tiny Seeds",
+                            "EE"
+                        ],
+                        [
+                            "K0040203003",
+                            "CHARLES ODUOR",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.1 Direct Sowing of Tiny Seeds",
+                            "ME"
+                        ],
+                        [
+                            "K0040203004",
+                            "DORCAS CHEPKEMOI",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.1 Direct Sowing of Tiny Seeds",
+                            "AE"
+                        ],
+                        [
+                            "K0040203005",
+                            "EMMANUEL WAWERU",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.1 Direct Sowing of Tiny Seeds",
+                            "AE"
+                        ],
+                        [
+                            "K0040203006",
+                            "FAITH MUTUA",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.1 Direct Sowing of Tiny Seeds",
+                            "AE"
+                        ],
+                        [
+                            "K0040203007",
+                            "GIDEON KORIR",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.1 Direct Sowing of Tiny Seeds",
+                            "AE"
+                        ],
+                        [
+                            "K0040203008",
+                            "HELLEN AKINYI",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.1 Direct Sowing of Tiny Seeds",
+                            "BE"
+                        ],
+                        [
+                            "K0040203009",
+                            "IAN GIKONYO",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.1 Direct Sowing of Tiny Seeds",
+                            "AE"
+                        ],
+                        [
+                            "K0040203010",
+                            "JOYCE CHEROP",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.1 Direct Sowing of Tiny Seeds",
+                            "AE"
+                        ],
+                        [
+                            "K0040203001",
+                            "ALEX KIPRONO",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.2 Growing Fruits",
+                            "ME"
+                        ],
+                        [
+                            "K0040203002",
+                            "BEATRICE WANJIKU",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.2 Growing Fruits",
+                            "EE"
+                        ],
+                        [
+                            "K0040203003",
+                            "CHARLES ODUOR",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.2 Growing Fruits",
+                            "ME"
+                        ],
+                        [
+                            "K0040203004",
+                            "DORCAS CHEPKEMOI",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.2 Growing Fruits",
+                            "AE"
+                        ],
+                        [
+                            "K0040203005",
+                            "EMMANUEL WAWERU",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.2 Growing Fruits",
+                            "AE"
+                        ],
+                        [
+                            "K0040203006",
+                            "FAITH MUTUA",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.2 Growing Fruits",
+                            "AE"
+                        ],
+                        [
+                            "K0040203007",
+                            "GIDEON KORIR",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.2 Growing Fruits",
+                            "AE"
+                        ],
+                        [
+                            "K0040203008",
+                            "HELLEN AKINYI",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.2 Growing Fruits",
+                            "BE"
+                        ],
+                        [
+                            "K0040203009",
+                            "IAN GIKONYO",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.2 Growing Fruits",
+                            "AE"
+                        ],
+                        [
+                            "K0040203010",
+                            "JOYCE CHEROP",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.2 Growing Fruits",
+                            "AE"
+                        ],
+                        [
+                            "K0040203001",
+                            "ALEX KIPRONO",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.3 Uses of Domestic Animals",
+                            "ME"
+                        ],
+                        [
+                            "K0040203002",
+                            "BEATRICE WANJIKU",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.3 Uses of Domestic Animals",
+                            "ME"
+                        ],
+                        [
+                            "K0040203003",
+                            "CHARLES ODUOR",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.3 Uses of Domestic Animals",
+                            "ME"
+                        ],
+                        [
+                            "K0040203004",
+                            "DORCAS CHEPKEMOI",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.3 Uses of Domestic Animals",
+                            "AE"
+                        ],
+                        [
+                            "K0040203005",
+                            "EMMANUEL WAWERU",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.3 Uses of Domestic Animals",
+                            "ME"
+                        ],
+                        [
+                            "K0040203006",
+                            "FAITH MUTUA",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.3 Uses of Domestic Animals",
+                            "AE"
+                        ],
+                        [
+                            "K0040203007",
+                            "GIDEON KORIR",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.3 Uses of Domestic Animals",
+                            "ME"
+                        ],
+                        [
+                            "K0040203008",
+                            "HELLEN AKINYI",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.3 Uses of Domestic Animals",
+                            "ME"
+                        ],
+                        [
+                            "K0040203009",
+                            "IAN GIKONYO",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.3 Uses of Domestic Animals",
+                            "EE"
+                        ],
+                        [
+                            "K0040203010",
+                            "JOYCE CHEROP",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.3 Uses of Domestic Animals",
+                            "ME"
+                        ],
+                        [
+                            "K0040203001",
+                            "ALEX KIPRONO",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.4 Balanced Meal",
+                            "ME"
+                        ],
+                        [
+                            "K0040203002",
+                            "BEATRICE WANJIKU",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.4 Balanced Meal",
+                            "EE"
+                        ],
+                        [
+                            "K0040203003",
+                            "CHARLES ODUOR",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.4 Balanced Meal",
+                            "ME"
+                        ],
+                        [
+                            "K0040203004",
+                            "DORCAS CHEPKEMOI",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.4 Balanced Meal",
+                            "ME"
+                        ],
+                        [
+                            "K0040203005",
+                            "EMMANUEL WAWERU",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.4 Balanced Meal",
+                            "ME"
+                        ],
+                        [
+                            "K0040203006",
+                            "FAITH MUTUA",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.4 Balanced Meal",
+                            "AE"
+                        ],
+                        [
+                            "K0040203007",
+                            "GIDEON KORIR",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.4 Balanced Meal",
+                            "ME"
+                        ],
+                        [
+                            "K0040203008",
+                            "HELLEN AKINYI",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.4 Balanced Meal",
+                            "ME"
+                        ],
+                        [
+                            "K0040203009",
+                            "IAN GIKONYO",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.4 Balanced Meal",
+                            "BE"
+                        ],
+                        [
+                            "K0040203010",
+                            "JOYCE CHEROP",
+                            "Agriculture",
+                            "2.0 Food Production Processes",
+                            "2.4 Balanced Meal",
+                            "ME"
+                        ]
+                    ]
                 }
             }
         }

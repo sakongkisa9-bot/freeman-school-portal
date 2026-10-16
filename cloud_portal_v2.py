@@ -1593,10 +1593,14 @@ def api_fetch_cbc_covered_strands():
         ).fetchone()
         if not school or not check_password_hash(school["password_hash"], password):
             return jsonify({"success": False, "message": "Invalid school credentials."}), 401
+        area_aliases = [area_name]
+        if area_name.casefold() in {"agriculture", "agriculture and nutrition"}:
+            area_aliases = ["Agriculture", "Agriculture and Nutrition"]
         curriculum = conn.execute(
             "SELECT strands_json FROM global_curriculum "
-            "WHERE LOWER(TRIM(grade)) = LOWER(?) AND LOWER(TRIM(area)) = LOWER(?)",
-            (grade, area_name),
+            "WHERE LOWER(TRIM(grade)) = LOWER(?) "
+            f"AND LOWER(TRIM(area)) IN ({', '.join('LOWER(?)' for _ in area_aliases)})",
+            (grade, *area_aliases),
         ).fetchone()
         if not curriculum:
             return jsonify({
@@ -2816,7 +2820,7 @@ SUBJECT_TO_LEARNING_AREA = {
     "INT SCIE": "Integrated Science",
     "PRE-TECH": "Pre-Technical Studies",
     "SST": "Social Studies",
-    "AGRI": "Agriculture",
+    "AGRI": "Agriculture and Nutrition",
     "C/A": "Creative Arts",
     "CRE": "CRE",
     "IRE": "IRE",
