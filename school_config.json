@@ -30,55 +30,52 @@
         "playgroup": [
             "LANG",
             "MATH",
-            "CREAT",
             "ENV",
-            "BIO"
+            "CREAT"
         ],
         "pp1": [
             "LANG",
             "MATH",
             "ENV",
-            "PSYCH",
-            "REL"
+            "CREAT",
+            "RE"
         ],
         "pp2": [
             "LANG",
             "MATH",
             "ENV",
-            "PSYCH",
-            "REL"
+            "CREAT",
+            "RE"
         ],
         "lower": [
             "ENG",
             "KISW",
-            "MAT",
+            "MATH",
             "ENV",
-            "LIT",
+            "CREAT",
             "CRE",
-            "ART",
-            "MOV"
+            "LIT"
         ],
         "primary": [
             "ENG",
             "KISW",
             "MATH",
-            "SCIE",
+            "SCI",
             "AGRI",
             "SST",
-            "CRE",
-            "C/A",
-            "PHE"
+            "ARTS",
+            "CRE"
         ],
         "jss": [
             "MATH",
             "ENG",
             "KISW",
-            "INT SCIE",
+            "INT SCI",
             "PRE-TECH",
             "SST",
-            "CRE",
             "AGRI",
-            "C/A"
+            "C/A",
+            "CRE"
         ]
     },
     "dashboard_accent": "#25855a",
@@ -2427,5 +2424,267 @@
         }
     },
     "marksheet_term": "Term 1",
-    "marksheet_style": "Old style"
+    "marksheet_style": "New style",
+    "subject_catalog": {
+        "playgroup": [
+            {
+                "name": "Language and Social Activities",
+                "short": "LANG",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Mathematical and Sorting Activities",
+                "short": "MATH",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Environmental and Health Activities",
+                "short": "ENV",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Psychomotor and Creative Activities",
+                "short": "CREAT",
+                "selected": true,
+                "custom": false
+            }
+        ],
+        "pp": [
+            {
+                "name": "Language Activities",
+                "short": "LANG",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Mathematical Activities",
+                "short": "MATH",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Environmental Activities",
+                "short": "ENV",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Psychomotor and Creative Activities",
+                "short": "CREAT",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Religious Education Activities",
+                "short": "RE",
+                "selected": true,
+                "custom": false
+            }
+        ],
+        "lower": [
+            {
+                "name": "English Language",
+                "short": "ENG",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Kiswahili Language / Kenya Sign Language",
+                "short": "KISW",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Mathematics",
+                "short": "MATH",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Environmental Activities",
+                "short": "ENV",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Creative Activities",
+                "short": "CREAT",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Religious Education",
+                "short": "CRE",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Indigenous Language / Literacy Activities",
+                "short": "LIT",
+                "selected": true,
+                "custom": false
+            }
+        ],
+        "primary": [
+            {
+                "name": "English",
+                "short": "ENG",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Kiswahili",
+                "short": "KISW",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Mathematics",
+                "short": "MATH",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Science and Technology",
+                "short": "SCI",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Agriculture and Nutrition",
+                "short": "AGRI",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Social Studies",
+                "short": "SST",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Creative Arts",
+                "short": "ARTS",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Religious Education",
+                "short": "CRE",
+                "selected": true,
+                "custom": false
+            }
+        ],
+        "jss": [
+            {
+                "name": "Mathematics",
+                "short": "MATH",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "English",
+                "short": "ENG",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Kiswahili / Kenya Sign Language",
+                "short": "KISW",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Integrated Science",
+                "short": "INT SCI",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Pre-Technical Studies",
+                "short": "PRE-TECH",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Social Studies",
+                "short": "SST",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Agriculture and Nutrition",
+                "short": "AGRI",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Creative Arts and Sports",
+                "short": "C/A",
+                "selected": true,
+                "custom": false
+            },
+            {
+                "name": "Religious Education",
+                "short": "CRE",
+                "selected": true,
+                "custom": false
+            }
+        ]
+    },
+    "subject_names": {
+        "playgroup": {
+            "LANG": "Language and Social Activities",
+            "MATH": "Mathematical and Sorting Activities",
+            "ENV": "Environmental and Health Activities",
+            "CREAT": "Psychomotor and Creative Activities"
+        },
+        "pp1": {
+            "LANG": "Language Activities",
+            "MATH": "Mathematical Activities",
+            "ENV": "Environmental Activities",
+            "CREAT": "Psychomotor and Creative Activities",
+            "RE": "Religious Education Activities"
+        },
+        "pp2": {
+            "LANG": "Language Activities",
+            "MATH": "Mathematical Activities",
+            "ENV": "Environmental Activities",
+            "CREAT": "Psychomotor and Creative Activities",
+            "RE": "Religious Education Activities"
+        },
+        "lower": {
+            "ENG": "English Language",
+            "KISW": "Kiswahili Language / Kenya Sign Language",
+            "MATH": "Mathematics",
+            "ENV": "Environmental Activities",
+            "CREAT": "Creative Activities",
+            "CRE": "Religious Education",
+            "LIT": "Indigenous Language / Literacy Activities"
+        },
+        "primary": {
+            "ENG": "English",
+            "KISW": "Kiswahili",
+            "MATH": "Mathematics",
+            "SCI": "Science and Technology",
+            "AGRI": "Agriculture and Nutrition",
+            "SST": "Social Studies",
+            "ARTS": "Creative Arts",
+            "CRE": "Religious Education"
+        },
+        "jss": {
+            "MATH": "Mathematics",
+            "ENG": "English",
+            "KISW": "Kiswahili / Kenya Sign Language",
+            "INT SCI": "Integrated Science",
+            "PRE-TECH": "Pre-Technical Studies",
+            "SST": "Social Studies",
+            "AGRI": "Agriculture and Nutrition",
+            "C/A": "Creative Arts and Sports",
+            "CRE": "Religious Education"
+        }
+    }
 }

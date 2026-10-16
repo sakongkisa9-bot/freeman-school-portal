@@ -19,6 +19,7 @@ import hmac
 import io
 import math
 import tempfile
+import time
 import uuid
 from datetime import datetime, timezone
 import logging
@@ -55,7 +56,9 @@ app = Flask(__name__, template_folder=TEMPLATES_DIR)
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
 
 # Configure session for Railway (multi-container environment)
-app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-2026")
+app.secret_key = os.environ.get("SECRET_KEY") or (
+    os.urandom(32).hex() if os.environ.get("RAILWAY_ENVIRONMENT") else "dev-secret-key-2026"
+)
 app.config["SESSION_COOKIE_SECURE"] = os.environ.get("RAILWAY_ENVIRONMENT") is not None
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
@@ -382,7 +385,7 @@ GRADE_SUBJECTS = {
     "Grade 11": [],
     "Grade 12": [],
 }
-SYSTEM_ADMIN_KEY = "16592@FREE man"
+SYSTEM_ADMIN_KEY = os.environ.get("SYSTEM_ADMIN_KEY", "16592@FREE man")
 
 
 def map_grade_to_config_key(grade):
@@ -923,7 +926,7 @@ def serve_firebase_sw():
 def developer_required(view):
     @wraps(view)
     def wrapper(*args, **kwargs):
-        if not session.get("developer"):
+        if not _developer_active():
             return redirect(url_for("home"))
         return view(*args, **kwargs)
 
@@ -2184,11 +2187,18 @@ def _subject_full_names(grade):
             "SELECT subjects FROM schools WHERE id = ?", (session["school_id"],)
         ).fetchone()
         data = json.loads(row["subjects"]) if row and row["subjects"] else {}
-        return (data.get("_names") or {}).get(map_grade_to_config_key(grade), {})
     except (json.JSONDecodeError, TypeError, AttributeError):
-        return {}
+        data = {}
     finally:
         conn.close()
+    from subject_catalog import DEFAULT_CATALOG
+
+    config_key = map_grade_to_config_key(grade)
+    group = "pp" if config_key in ("pp1", "pp2") else config_key
+    # Defaults let the gradebook work before the school's first sync.
+    names = {short: name for name, short in DEFAULT_CATALOG.get(group, [])}
+    names.update((data.get("_names") or {}).get(config_key, {}))
+    return names
 
 
 def _learning_area_for(subject, subject_names):
@@ -2725,12 +2735,59 @@ def _sync_global_curriculum(conn, school_id, grade):
         except (TypeError, ValueError, KeyError):
             continue
         _upsert_cbc_curriculum(conn, school_id, grade, [{"name": row["area"], "strands": strands}])
+        _prune_replaced_strands(conn, school_id, grade, row["area"], strands)
     if rows:
         conn.commit()
 
 
+def _prune_replaced_strands(conn, school_id, grade, area_name, strands):
+    """Drop strands/sub-strands no longer published, keeping any that already have scores."""
+    area = conn.execute(
+        "SELECT id FROM cbc_learning_areas WHERE school_id = ? AND grade = ? AND name = ?",
+        (school_id, grade, area_name),
+    ).fetchone()
+    if not area:
+        return
+    wanted = {item["name"]: set(item["sub_strands"]) for item in strands}
+    for strand in conn.execute(
+        "SELECT id, name FROM cbc_strands WHERE learning_area_id = ?", (area["id"],)
+    ).fetchall():
+        keep = wanted.get(strand["name"], set())
+        for sub in conn.execute(
+            "SELECT id, name FROM cbc_sub_strands WHERE strand_id = ?", (strand["id"],)
+        ).fetchall():
+            if sub["name"] in keep:
+                continue
+            used = conn.execute(
+                "SELECT 1 FROM cbc_rubric_scores WHERE sub_strand_id = ? LIMIT 1", (sub["id"],)
+            ).fetchone()
+            if not used:
+                conn.execute("DELETE FROM cbc_sub_strands WHERE id = ?", (sub["id"],))
+        if strand["name"] not in wanted and not conn.execute(
+            "SELECT 1 FROM cbc_sub_strands WHERE strand_id = ? LIMIT 1", (strand["id"],)
+        ).fetchone():
+            conn.execute("DELETE FROM cbc_strands WHERE id = ?", (strand["id"],))
+
+
 def _developer_redirect():
     return redirect(url_for("developer_strands"))
+
+
+DEVELOPER_SESSION_SECONDS = 30 * 60
+
+
+def _developer_grant():
+    session["developer"] = True
+    session["developer_until"] = time.time() + DEVELOPER_SESSION_SECONDS
+
+
+def _developer_active():
+    """True only while a recent developer-password unlock is still valid."""
+    if session.get("developer") is True and session.get("developer_until", 0) > time.time():
+        return True
+    session.pop("developer", None)
+    session.pop("developer_until", None)
+    return False
 
 
 def _developer_password_ok(supplied):
@@ -2741,7 +2798,7 @@ def _developer_password_ok(supplied):
 def developer_unlock():
     data = request.get_json(silent=True) or {}
     if _developer_password_ok(data.get("password", "")):
-        session["developer"] = True
+        _developer_grant()
         return jsonify({"success": True})
     return jsonify({"success": False}), 401
 
@@ -2750,11 +2807,11 @@ def developer_unlock():
 def developer_strands():
     if request.method == "POST" and request.form.get("action") == "login":
         if _developer_password_ok(request.form.get("password", "")):
-            session["developer"] = True
+            _developer_grant()
         else:
             flash("Incorrect developer password.", "danger")
         return _developer_redirect()
-    if not session.get("developer"):
+    if not _developer_active():
         return render_template("cloud_developer.html", authed=False)
     conn = get_db()
     stored = []
@@ -2809,7 +2866,7 @@ def developer_strands():
 
 @app.route("/developer/strands/preview", methods=["POST"])
 def developer_strands_preview():
-    if not session.get("developer"):
+    if not _developer_active():
         return _developer_redirect()
     grade = request.form.get("grade", "").strip()
     area = request.form.get("area", "").strip()
@@ -2842,7 +2899,7 @@ def developer_strands_preview():
 
 @app.route("/developer/strands/save", methods=["POST"])
 def developer_strands_save():
-    if not session.get("developer"):
+    if not _developer_active():
         return _developer_redirect()
     grade = request.form.get("grade", "").strip()
     area = request.form.get("area", "").strip()
@@ -2872,7 +2929,7 @@ def developer_strands_save():
 
 @app.route("/developer/strands/delete", methods=["POST"])
 def developer_strands_delete():
-    if not session.get("developer"):
+    if not _developer_active():
         return _developer_redirect()
     conn = get_db()
     conn.execute("DELETE FROM global_curriculum WHERE id = ?", (request.form.get("id", ""),))
