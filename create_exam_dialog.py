@@ -12,9 +12,10 @@ CLASSES = (
 
 
 class CreateExamDialog(ctk.CTkToplevel):
-    def __init__(self, parent, on_created=None):
+    def __init__(self, parent, on_created=None, term="Term 1"):
         super().__init__(parent)
         self.on_created = on_created
+        self.term = term
         self.title("Create Exam")
         self.geometry("460x650")
         self.transient(parent)
@@ -32,9 +33,7 @@ class CreateExamDialog(ctk.CTkToplevel):
 
         term_row = ctk.CTkFrame(self, fg_color="transparent")
         term_row.pack(pady=4)
-        ctk.CTkLabel(term_row, text="Term").pack(side="left", padx=(0, 8))
-        self.term_menu = ctk.CTkOptionMenu(term_row, values=list(TERMS), width=120)
-        self.term_menu.pack(side="left")
+        ctk.CTkLabel(term_row, text=f"Term: {self.term} (set on the dashboard)").pack(side="left")
 
         self.scope_var = ctk.StringVar(value="All school")
         ctk.CTkSegmentedButton(
@@ -87,7 +86,7 @@ class CreateExamDialog(ctk.CTkToplevel):
             )
             return
         messagebox.showinfo("Exam Uploaded", result.get("message", "Exam uploaded."), parent=self)
-        term = self.term_menu.get()
+        term = self.term
         callback = self.on_created
         self.destroy()
         if callback:

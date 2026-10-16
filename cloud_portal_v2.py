@@ -466,6 +466,12 @@ def init_db():
     if "school_signature" not in columns:
         cursor.execute("ALTER TABLE schools ADD COLUMN school_signature TEXT")
         conn.commit()
+    if "current_year" not in columns:
+        cursor.execute("ALTER TABLE schools ADD COLUMN current_year INTEGER")
+        conn.commit()
+    if "current_term" not in columns:
+        cursor.execute("ALTER TABLE schools ADD COLUMN current_term TEXT")
+        conn.commit()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS teachers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1218,6 +1224,96 @@ def dashboard():
     )
 
 
+@app.route("/api/set_period", methods=["POST"])
+def api_set_period():
+    """Desktop pushes the school's current academic year and term."""
+    data = request.get_json(silent=True) or {}
+    school_code = str(data.get("school_code", "")).strip().lower()
+    password = data.get("password", "")
+    term = str(data.get("term", "")).strip()
+    try:
+        year = int(data.get("academic_year"))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "message": "Invalid academic year."}), 400
+    if term not in {"Term 1", "Term 2", "Term 3"} or not 2000 <= year <= 2200:
+        return jsonify({"success": False, "message": "Invalid term or year."}), 400
+    conn = get_db()
+    try:
+        school = conn.execute(
+            "SELECT id, password_hash, current_year FROM schools WHERE school_code = ?",
+            (school_code,),
+        ).fetchone()
+        if not school or not check_password_hash(school["password_hash"], password):
+            return jsonify({"success": False, "message": "Invalid school credentials."}), 401
+        if school["current_year"] and year < school["current_year"]:
+            return jsonify({
+                "success": False,
+                "message": f"The portal is already on {school['current_year']}; it cannot go back.",
+            }), 409
+        conn.execute(
+            "UPDATE schools SET current_year = ?, current_term = ? WHERE id = ?",
+            (year, term, school["id"]),
+        )
+        conn.commit()
+        return jsonify({"success": True, "message": f"Portal set to {term}, {year}."})
+    finally:
+        conn.close()
+
+
+@app.route("/api/start_new_year", methods=["POST"])
+def api_start_new_year():
+    """Clear the completed portal exam and advance the school's period."""
+    data = request.get_json(silent=True) or {}
+    school_code = str(data.get("school_code", "")).strip().lower()
+    password = data.get("password", "")
+    term = str(data.get("term", "")).strip()
+    try:
+        year = int(data.get("academic_year"))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "message": "Invalid academic year."}), 400
+    if term not in {"Term 1", "Term 2", "Term 3"} or not 2000 <= year <= 2200:
+        return jsonify({"success": False, "message": "Invalid term or year."}), 400
+
+    conn = get_db()
+    try:
+        school = conn.execute(
+            "SELECT id, password_hash, current_year FROM schools WHERE school_code = ?",
+            (school_code,),
+        ).fetchone()
+        if not school or not check_password_hash(school["password_hash"], password):
+            return jsonify({"success": False, "message": "Invalid school credentials."}), 401
+        if school["current_year"] and year <= school["current_year"]:
+            return jsonify({
+                "success": False,
+                "message": f"The new year must be after {school['current_year']}.",
+            }), 409
+
+        conn.execute("DELETE FROM exam_submissions WHERE school_id = ?", (school["id"],))
+        conn.execute("DELETE FROM exams WHERE school_id = ?", (school["id"],))
+        conn.execute("DELETE FROM marks WHERE school_id = ?", (school["id"],))
+        conn.execute(
+            "UPDATE schools SET current_year = ?, current_term = ? WHERE id = ?",
+            (year, term, school["id"]),
+        )
+        conn.commit()
+        return jsonify({"success": True, "message": f"Portal started fresh for {term}, {year}."})
+    except Exception as error:
+        conn.rollback()
+        return jsonify({"success": False, "message": str(error)}), 500
+    finally:
+        conn.close()
+
+
+def _school_period(conn, school_id):
+    """The (year, term) the desktop last pushed, defaulting to this calendar year and Term 1."""
+    row = conn.execute(
+        "SELECT current_year, current_term FROM schools WHERE id = ?", (school_id,)
+    ).fetchone()
+    year = row["current_year"] if row and row["current_year"] else datetime.now().year
+    term = row["current_term"] if row and row["current_term"] else "Term 1"
+    return year, term
+
+
 @app.route("/api/toggle_portal", methods=["POST"])
 def api_toggle_portal():
     # API key authentication (like sync endpoints)
@@ -1660,7 +1756,7 @@ def _open_exam_subjects(conn, school_id, grade, teacher_code):
     return exam, [subject for subject in assigned if subject not in finished]
 
 
-def _parse_exam_marks(out_of_text, raw_values):
+def _parse_exam_marks(out_of_text, raw_values, names=None):
     """Validate the out-of total and raw marks; return (out_of, {adm_no: percent or None})."""
     try:
         out_of = int(out_of_text)
@@ -1668,17 +1764,19 @@ def _parse_exam_marks(out_of_text, raw_values):
             raise ValueError
     except (TypeError, ValueError):
         raise ValueError("Enter the total marks (out of) as a whole number from 1 to 1000.")
+    names = names or {}
     percents = {}
     for adm_no, raw in raw_values.items():
         if raw == "" or raw.upper() == "AB":
             percents[adm_no] = None
             continue
+        who = names.get(adm_no, f"ADM {adm_no}")
         try:
             value = float(raw)
         except ValueError:
-            raise ValueError(f"Marks must be numbers. Check the entry for ADM {adm_no}.")
+            raise ValueError(f"Marks must be numbers. Check {who}'s score.")
         if not math.isfinite(value) or not 0 <= value <= out_of:
-            raise ValueError(f"Marks must be between 0 and {out_of}. Check the entry for ADM {adm_no}.")
+            raise ValueError(f"Marks must be between 0 and {out_of}. Check {who}'s score.")
         percents[adm_no] = int(math.floor(value * 100 / out_of + 0.5))
     return out_of, percents
 
@@ -1686,7 +1784,7 @@ def _parse_exam_marks(out_of_text, raw_values):
 MAX_EXAM_PAPERS = 5
 
 
-def _parse_multi_paper_marks(out_of_texts, paper_values):
+def _parse_multi_paper_marks(out_of_texts, paper_values, names=None):
     """Combine several papers; return (total_out_of, {adm_no: (percent or None, combined_raw)}).
 
     paper_values maps adm_no to a list of raw strings, one per paper. A learner with every
@@ -1702,8 +1800,10 @@ def _parse_multi_paper_marks(out_of_texts, paper_values):
             raise ValueError(f"Enter what Paper {index} is out of as a whole number from 1 to 1000.")
         out_ofs.append(value)
     total_out_of = sum(out_ofs)
+    names = names or {}
     results = {}
     for adm_no, raws in paper_values.items():
+        who = names.get(adm_no, f"ADM {adm_no}")
         if all(raw == "" or raw.upper() == "AB" for raw in raws):
             results[adm_no] = (None, "AB")
             continue
@@ -1714,9 +1814,9 @@ def _parse_multi_paper_marks(out_of_texts, paper_values):
             try:
                 value = float(raw)
             except ValueError:
-                raise ValueError(f"Marks must be numbers. Check Paper {index} for ADM {adm_no}.")
+                raise ValueError(f"Paper {index} marks must be numbers. Check {who}'s score.")
             if not math.isfinite(value) or not 0 <= value <= out_of:
-                raise ValueError(f"Paper {index} marks must be between 0 and {out_of}. Check ADM {adm_no}.")
+                raise ValueError(f"Paper {index} marks must be between 0 and {out_of}. Check {who}'s score.")
             total += value
         results[adm_no] = (int(math.floor(total * 100 / total_out_of + 0.5)), f"{total:g}")
     return total_out_of, results
@@ -1894,12 +1994,14 @@ def enter_exam_marks(grade):
                 student["adm_no"]: request.form.get(f"score_{student['adm_no']}", "").strip()
                 for student in students
             }
+        names = {student["adm_no"]: student["student_name"] for student in students}
         try:
             paper_details = {}
             if multi:
                 out_of, combined = _parse_multi_paper_marks(
                     paper_outs[:paper_count],
                     {adm: vals[:paper_count] for adm, vals in paper_values.items()},
+                    names,
                 )
                 percents = {adm: pair[0] for adm, pair in combined.items()}
                 raw_values = {adm: pair[1] for adm, pair in combined.items()}
@@ -1908,7 +2010,7 @@ def enter_exam_marks(grade):
                         {"out_of": int(paper_outs[i]), "raw": vals[i]} for i in range(paper_count)
                     ]
             else:
-                out_of, percents = _parse_exam_marks(out_of_value, raw_values)
+                out_of, percents = _parse_exam_marks(out_of_value, raw_values, names)
             if action == "finish" and all(value is None for value in percents.values()):
                 raise ValueError("Enter at least one mark before finishing.")
             zero_names = [
@@ -3014,18 +3116,8 @@ def cbc_rubric_gradebook(grade):
         conn.close()
         return "No configured learning area matches your class assignment", 404
 
-    term = request.values.get("term", "Term 1").strip()
-    if term not in {"Term 1", "Term 2", "Term 3"}:
-        conn.close()
-        return "Invalid term", 400
+    academic_year, term = _school_period(conn, session["school_id"])
     assessment_type = "Formative"
-    try:
-        academic_year = int(request.values.get("academic_year", datetime.now().year))
-        if academic_year < 2000 or academic_year > 2200:
-            raise ValueError
-    except (TypeError, ValueError):
-        conn.close()
-        return "Invalid academic year", 400
 
     sub_strands = conn.execute(
         "SELECT ss.id, st.name AS strand_name, ss.name AS sub_strand_name FROM cbc_strands st JOIN cbc_sub_strands ss ON ss.strand_id = st.id WHERE st.learning_area_id = ? ORDER BY st.name, ss.name",
@@ -3034,20 +3126,36 @@ def cbc_rubric_gradebook(grade):
     if not sub_strands:
         conn.close()
         return "This learning area has no configured sub-strands", 400
+    # Sub-strands marked in an earlier term of this year are closed for the new term.
+    locked_ids = {
+        row["sub_strand_id"]
+        for row in conn.execute(
+            "SELECT DISTINCT sub_strand_id FROM cbc_rubric_scores WHERE school_id = ? AND grade = ? AND academic_year = ? AND term != ? AND assessment_type = ?",
+            (session["school_id"], grade, academic_year, term, assessment_type),
+        ).fetchall()
+    }
+    open_sub_strands = [item for item in sub_strands if item["id"] not in locked_ids]
     strands = conn.execute(
         "SELECT id, name FROM cbc_strands WHERE learning_area_id = ? ORDER BY name",
         (selected_area["id"],),
     ).fetchall()
+    open_strands = [
+        strand for strand in strands
+        if any(item["strand_name"] == strand["name"] for item in open_sub_strands)
+    ]
+    if not open_strands:
+        conn.close()
+        return f"All sub-strands of this learning area were covered in earlier terms. Nothing is open for {term}.", 200
     try:
         requested_strand_id = int(request.values.get("strand_id", ""))
     except (TypeError, ValueError):
         requested_strand_id = None
     selected_strand = next(
-        (strand for strand in strands if strand["id"] == requested_strand_id),
-        strands[0],
+        (strand for strand in open_strands if strand["id"] == requested_strand_id),
+        open_strands[0],
     )
     selected_strand_sub_strands = [
-        item for item in sub_strands if item["strand_name"] == selected_strand["name"]
+        item for item in open_sub_strands if item["strand_name"] == selected_strand["name"]
     ]
     try:
         requested_sub_strand_id = int(request.values.get("sub_strand_id", ""))
@@ -3090,7 +3198,7 @@ def cbc_rubric_gradebook(grade):
                 covered_ids.add(int(value))
             except ValueError:
                 continue
-        covered_ids &= {item["id"] for item in sub_strands}
+        covered_ids &= {item["id"] for item in open_sub_strands}
         if not current_exam:
             flash("No current exam marks were found for this subject.", "warning")
         elif not covered_ids:
@@ -3181,10 +3289,10 @@ def cbc_rubric_gradebook(grade):
         ).fetchall()
     }
     strand_progress = []
-    for strand in strands:
+    for strand in open_strands:
         items = [
             {"id": item["id"], "name": item["sub_strand_name"], "covered": item["id"] in covered_ids}
-            for item in sub_strands
+            for item in open_sub_strands
             if item["strand_name"] == strand["name"]
         ]
         strand_progress.append({
@@ -3202,8 +3310,8 @@ def cbc_rubric_gradebook(grade):
         term=term,
         academic_year=academic_year,
         students=students,
-        sub_strands=sub_strands,
-        strands=strands,
+        sub_strands=open_sub_strands,
+        strands=open_strands,
         selected_strand=selected_strand,
         selected_sub_strand=selected_sub_strand,
         selected_strand_sub_strands=selected_strand_sub_strands,
@@ -3227,12 +3335,14 @@ def cbc_progress_profile(grade, assessment_number):
     except ValueError as error:
         return str(error), 400
 
-    term = request.args.get("term", "Term 1").strip()
-    try:
-        academic_year = int(request.args.get("academic_year", datetime.now().year))
-    except (TypeError, ValueError):
-        return "Invalid academic year", 400
     conn = get_db()
+    default_year, default_term = _school_period(conn, session["school_id"])
+    term = request.args.get("term", default_term).strip()
+    try:
+        academic_year = int(request.args.get("academic_year", default_year))
+    except (TypeError, ValueError):
+        conn.close()
+        return "Invalid academic year", 400
     if teacher_code and not is_admin():
         assignment = conn.execute(
             "SELECT 1 FROM teacher_assignments WHERE school_id = ? AND class_name = ? AND teacher_code = ? LIMIT 1",

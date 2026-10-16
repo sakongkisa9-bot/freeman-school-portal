@@ -68,7 +68,10 @@ class CBCStrandsView(ctk.CTkFrame):
         credentials = ask_cloud_credentials(self)
         if not credentials:
             return
-        year = datetime.now().year
+        try:
+            year = int(self.school_config.get("academic_year"))
+        except (TypeError, ValueError):
+            year = datetime.now().year
         result = CloudService().fetch_cbc_covered_strands(
             self.grade, self.area_name, year, credentials
         )

@@ -18,13 +18,13 @@
     "grace_period_days": 0,
     "trial_days": 0,
     "premium_days": 90,
-    "playgroup_exam_title": "opener exam",
-    "pp1_exam_title": "opener exam",
-    "pp2_exam_title": "opener exam",
-    "lower_exam_title": "opener exam",
-    "primary_exam_title": "opener exam",
-    "jss_exam_title": "opener exam",
-    "current_exam_title": "opener exam",
+    "playgroup_exam_title": "mid term exam",
+    "pp1_exam_title": "mid term exam",
+    "pp2_exam_title": "mid term exam",
+    "lower_exam_title": "mid term exam",
+    "primary_exam_title": "mid term exam",
+    "jss_exam_title": "mid term exam",
+    "current_exam_title": "mid term exam",
     "portal_open": true,
     "subjects": {
         "playgroup": [
@@ -2686,5 +2686,11 @@
             "C/A": "Creative Arts and Sports",
             "CRE": "Religious Education"
         }
-    }
+    },
+    "playgroup_exam_term": "Term 1",
+    "pp1_exam_term": "Term 1",
+    "pp2_exam_term": "Term 1",
+    "lower_exam_term": "Term 1",
+    "primary_exam_term": "Term 1",
+    "jss_exam_term": "Term 1"
 }

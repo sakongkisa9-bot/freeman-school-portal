@@ -712,6 +712,49 @@ class CBCCloudFlowTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["weighted_result"], 88.0)
 
+    def test_start_new_year_clears_portal_exam_and_advances_period(self):
+        connection = sqlite3.connect(self.db_path)
+        connection.execute("UPDATE schools SET current_year = 2026 WHERE id = ?", (self.school_id,))
+        exam = connection.execute(
+            "INSERT INTO exams (school_id, title, scope_json, created_at) VALUES (?, 'Term Exam', '{}', 'now')",
+            (self.school_id,),
+        )
+        connection.execute(
+            "INSERT INTO exam_submissions (school_id, exam_id, grade, subject, out_of, status, updated_at) VALUES (?, ?, 'Grade 3', 'MATH', 100, 'final', 'now')",
+            (self.school_id, exam.lastrowid),
+        )
+        connection.execute(
+            "INSERT INTO marks (school_id, grade, adm_no, student_name, exam_title, subject_scores_json, total_points, average_level, updated_at) VALUES (?, 'Grade 3', 'A001', 'A Learner', 'Term Exam', '{}', '0', '', 'now')",
+            (self.school_id,),
+        )
+        connection.commit()
+        connection.close()
+
+        response = self.client.post(
+            "/api/start_new_year",
+            json={"school_code": "cbc-test", "password": "pw", "academic_year": 2027, "term": "Term 1"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["success"])
+
+        connection = sqlite3.connect(self.db_path)
+        period = connection.execute(
+            "SELECT current_year, current_term FROM schools WHERE id = ?", (self.school_id,)
+        ).fetchone()
+        remaining = connection.execute(
+            "SELECT (SELECT COUNT(*) FROM marks WHERE school_id = ?), (SELECT COUNT(*) FROM exams WHERE school_id = ?), (SELECT COUNT(*) FROM exam_submissions WHERE school_id = ?)",
+            (self.school_id, self.school_id, self.school_id),
+        ).fetchone()
+        connection.close()
+        self.assertEqual(period, (2027, "Term 1"))
+        self.assertEqual(remaining, (0, 0, 0))
+
+        backwards = self.client.post(
+            "/api/start_new_year",
+            json={"school_code": "cbc-test", "password": "pw", "academic_year": 2026, "term": "Term 1"},
+        )
+        self.assertEqual(backwards.status_code, 409)
+
 
 class CBCRubricSchemaUpgradeTests(unittest.TestCase):
     def test_legacy_ratings_are_preserved_as_formative(self):

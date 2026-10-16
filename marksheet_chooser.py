@@ -25,8 +25,12 @@ class MarksheetChooser(ctk.CTkFrame):
 
         saved_style = config.get("marksheet_style")
         self.style_var = ctk.StringVar(value=saved_style if saved_style in (NEW_STYLE, OLD_STYLE) else NEW_STYLE)
-        term_default = config.get(f"{self.grade_type}_exam_term") or config.get("marksheet_term")
+        term_default = config.get("current_term") or config.get(f"{self.grade_type}_exam_term") or config.get("marksheet_term")
         self.term_var = ctk.StringVar(value=term_default if term_default in TERMS else TERMS[0])
+        current_year = config.get("academic_year")
+        years = sorted({y for y in [current_year, *db.get_previous_exam_years()] if y}, reverse=True)
+        self.years = [str(y) for y in years] or ["-"]
+        self.year_var = ctk.StringVar(value=str(current_year) if current_year else self.years[0])
         self.exam_var = ctk.StringVar()
         self.exam_labels = {}
 
@@ -36,6 +40,11 @@ class MarksheetChooser(ctk.CTkFrame):
 
         ctk.CTkLabel(box, text="Marksheet style").pack()
         ctk.CTkSegmentedButton(box, values=[NEW_STYLE, OLD_STYLE], variable=self.style_var, width=300).pack(pady=(4, 16))
+
+        ctk.CTkLabel(box, text="Year").pack()
+        ctk.CTkOptionMenu(
+            box, values=self.years, variable=self.year_var, width=300, command=lambda _v: self._refresh_exams()
+        ).pack(pady=(4, 16))
 
         ctk.CTkLabel(box, text="Term").pack()
         ctk.CTkSegmentedButton(
@@ -64,25 +73,31 @@ class MarksheetChooser(ctk.CTkFrame):
         term = self.term_var.get()
         config = self.load_config()
         current = self._current_title()
-        current_term = config.get(f"{self.grade_type}_exam_term")
+        current_term = config.get("current_term") or config.get(f"{self.grade_type}_exam_term")
+        year_text = self.year_var.get()
+        is_this_year = year_text == str(config.get("academic_year") or "")
+        year = int(year_text) if year_text.isdigit() else None
         self.exam_labels = {}
-        if current and (not current_term or current_term == term):
+        if current and is_this_year and (not current_term or current_term == term):
             self.exam_labels[f"{current} (current)"] = (current, True)
-        for exam_name, _date in self.db.get_previous_exams_for_term(self.class_name, term):
-            if exam_name != current:
+        for exam_name, _date in self.db.get_previous_exams_for_term(self.class_name, term, year):
+            if not (is_this_year and exam_name == current):
                 self.exam_labels[exam_name] = (exam_name, False)
         if not self.exam_labels:
-            self.exam_labels[f"No exam in {term}"] = (None, False)
+            self.exam_labels[f"No exam in {term} {year_text}"] = (None, False)
         labels = list(self.exam_labels)
         self.exam_menu.configure(values=labels)
         self.exam_var.set(labels[0])
-        self.note.configure(
-            text="" if len(labels) > 1 else "Exams are created from the Create Exam button on the dashboard."
-        )
+        if not is_this_year:
+            note = "Past years are read-only."
+        else:
+            note = "" if len(labels) > 1 else "Exams are created from the Create Exam button on the dashboard."
+        self.note.configure(text=note)
 
     def _open(self):
         exam_name, is_current = self.exam_labels.get(self.exam_var.get(), (None, False))
         style = self.style_var.get()
         term = self.term_var.get()
+        year_text = self.year_var.get()
         self.save_config({"marksheet_style": style, "marksheet_term": term})
-        self.on_open(style, term, exam_name, is_current)
+        self.on_open(style, term, exam_name, is_current, int(year_text) if year_text.isdigit() else None)

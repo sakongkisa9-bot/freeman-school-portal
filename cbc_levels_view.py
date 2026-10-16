@@ -23,9 +23,28 @@ class CBCLevelsView(ctk.CTkFrame):
         self.back_callback = back_callback
         self.dashboard_callback = dashboard_callback
         self.subject_var = ctk.StringVar(value=subjects[0] if subjects else "")
-        self.term_var = ctk.StringVar(value=TERMS[0])
+        current_term = school_config.get("current_term")
+        self.term_var = ctk.StringVar(value=current_term if current_term in TERMS else TERMS[0])
+        self.current_year = self._int_or_none(school_config.get("academic_year")) or datetime.now().year
+        self.year_var = ctk.StringVar(value=str(self.current_year))
         self._build_widgets()
         self._render()
+
+    @staticmethod
+    def _int_or_none(value):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _year_options(self):
+        years = {self.current_year}
+        for areas in self.school_config.get("cbc_levels", {}).get(self.grade, {}).values():
+            for record in areas.values():
+                year = self._int_or_none(record.get("academic_year"))
+                if year:
+                    years.add(year)
+        return [str(year) for year in sorted(years, reverse=True)]
 
     @property
     def area_name(self):
@@ -55,6 +74,11 @@ class CBCLevelsView(ctk.CTkFrame):
         ctk.CTkOptionMenu(
             controls, values=list(TERMS), variable=self.term_var,
             command=lambda _: self._render(), width=110,
+        ).pack(side="left")
+        ctk.CTkLabel(controls, text="Year").pack(side="left", padx=(16, 8))
+        ctk.CTkOptionMenu(
+            controls, values=self._year_options(), variable=self.year_var,
+            command=lambda _: self._render(), width=90,
         ).pack(side="left")
         ctk.CTkButton(
             controls, text="Fetch Marked Strands from Portal", height=36, command=self._fetch,
@@ -86,12 +110,14 @@ class CBCLevelsView(ctk.CTkFrame):
         vertical.grid(row=0, column=1, sticky="ns")
 
     def _record(self):
-        return (
-            self.school_config.get("cbc_levels", {})
-            .get(self.grade, {})
-            .get(self.area_name, {})
-            .get(self.term_var.get())
-        )
+        by_area = self.school_config.get("cbc_levels", {}).get(self.grade, {}).get(self.area_name, {})
+        record = by_area.get(f"{self.year_var.get()}|{self.term_var.get()}")
+        if record is None:
+            # Records fetched before years were tracked are stored under the term alone.
+            legacy = by_area.get(self.term_var.get())
+            if legacy and str(legacy.get("academic_year")) == self.year_var.get():
+                return legacy
+        return record
 
     def _fetch(self):
         if not self.subjects:
@@ -100,7 +126,7 @@ class CBCLevelsView(ctk.CTkFrame):
         credentials = ask_cloud_credentials(self)
         if not credentials:
             return
-        year = datetime.now().year
+        year = int(self.year_var.get())
         result = CloudService().fetch_cbc_ratings(
             self.grade, self.area_name, self.term_var.get(), year, credentials
         )
@@ -111,7 +137,7 @@ class CBCLevelsView(ctk.CTkFrame):
             return
         levels = self.school_config.setdefault("cbc_levels", {})
         by_area = levels.setdefault(self.grade, {}).setdefault(self.area_name, {})
-        by_area[self.term_var.get()] = {
+        by_area[f"{year}|{self.term_var.get()}"] = {
             "academic_year": year,
             "fetched_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
             "records": result.get("records", []),

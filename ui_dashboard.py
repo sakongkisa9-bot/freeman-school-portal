@@ -33,6 +33,8 @@ import io
 import contextlib
 import subprocess
 
+PERIOD_TERMS = ("Term 1", "Term 2", "Term 3")
+
 # Classes that share one marksheet (and so one current exam) by group
 MARKSHEET_CLASS_TYPES = [
     ("playgroup", "playgroup"),
@@ -242,19 +244,6 @@ class Dashboard(ctk.CTk):
         )
         self.btn_performance_dashboard.pack(pady=btn_pady)
 
-        self.btn_previous_exams = ctk.CTkButton(
-            self.menu_panel,
-            text="Previous Exams",
-            width=btn_width,
-            height=btn_height,
-            command=lambda: self.require_auth(
-                lambda: self.show_class_selection(
-                    "Previous Exams", self.btn_previous_exams
-                )
-            ),
-        )
-        self.btn_previous_exams.pack(pady=btn_pady)
-
         self.btn_summary = ctk.CTkButton(
             self.menu_panel,
             text="Student Marks Summary",
@@ -320,7 +309,6 @@ class Dashboard(ctk.CTk):
             self.btn_knec_cba,
             self.btn_competency_gradebook,
             self.btn_performance_dashboard,
-            self.btn_previous_exams,
             self.btn_summary,
             self.btn_teachers,
             self.btn_report_forms,
@@ -414,18 +402,19 @@ class Dashboard(ctk.CTk):
             text_color="#10b981",
         )
         self.countdown_label.place(relx=1, rely=0, anchor="ne", x=-12, y=12)
-        self.btn_promote = ctk.CTkButton(
-            self.content_panel,
-            text="📈 Promote Students to Next Class",
-            command=lambda: self.run_draggable_button_command(
-                "dashboard_promote_button",
-                lambda: self.require_auth(self.promote_students),
-            ),
-            fg_color="#e67e22",
-            hover_color="#d35400",
-            height=35,
-            font=("Arial Bold", 12),
+        self.period_label = ctk.CTkLabel(
+            self.content_panel, text="", font=("Arial Bold", 16), text_color="#10b981"
         )
+        self.period_label.place(x=12, y=12)
+        self.period_button = ctk.CTkButton(
+            self.content_panel,
+            text="Year & Term",
+            width=120,
+            height=30,
+            command=lambda: self.require_auth(self.open_period_dialog),
+        )
+        self.period_button.place(x=12, y=44)
+        self.refresh_period_label()
         self.btn_system_settings = ctk.CTkButton(
             self.content_panel,
             text="⚙️ System Settings",
@@ -462,16 +451,267 @@ class Dashboard(ctk.CTk):
             border_width=2,
             border_color="#2980b9",
         )
-        self.bind_control_drag_events(self.btn_promote, "dashboard_promote_button")
         self.bind_control_drag_events(
             self.btn_system_settings, "dashboard_system_settings_button"
         )
-        self.layout_dashboard_control_group("dashboard_promote_button")
         self.layout_dashboard_control_group("dashboard_system_settings_button")
         self.bind_control_drag_events(self.btn_create_exam, "dashboard_create_exam_button")
         self.layout_dashboard_control_group("dashboard_create_exam_button")
         self.btn_check_updates.place(relx=1, rely=0, anchor="ne", x=-12, y=204)
         self.btn_check_updates.lift()
+
+    def get_academic_year(self):
+        try:
+            return int(self.load_school_config().get("academic_year"))
+        except (TypeError, ValueError):
+            return None
+
+    def get_current_term(self):
+        term = self.load_school_config().get("current_term")
+        return term if term in PERIOD_TERMS else PERIOD_TERMS[0]
+
+    def refresh_period_label(self):
+        label = getattr(self, "period_label", None)
+        if label is None or not label.winfo_exists():
+            return
+        year = self.get_academic_year()
+        label.configure(
+            text=f"{self.get_current_term()} \u00b7 {year}" if year else "Set the year and term"
+        )
+
+    def open_period_dialog(self):
+        year = self.get_academic_year()
+        term = self.get_current_term()
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Year & Term")
+        dialog.geometry("460x430")
+        dialog.transient(self)
+        dialog.grab_set()
+
+        if year is None:
+            ctk.CTkLabel(dialog, text="Set the current year", font=("Arial Bold", 20)).pack(pady=(24, 6))
+            ctk.CTkLabel(
+                dialog,
+                text="Type the current year once. After this the year can only move forward.",
+                wraplength=380,
+                text_color="gray",
+            ).pack(pady=(0, 10))
+            year_entry = ctk.CTkEntry(dialog, width=160, placeholder_text="e.g. 2026")
+            year_entry.pack(pady=6)
+            term_menu = ctk.CTkOptionMenu(dialog, values=list(PERIOD_TERMS), width=160)
+            term_menu.set(term)
+            term_menu.pack(pady=6)
+
+            def save_first():
+                text = year_entry.get().strip()
+                if not text.isdigit() or not 2000 <= int(text) <= datetime.now().year + 1:
+                    messagebox.showerror("Year", "Enter a valid current year.", parent=dialog)
+                    return
+                self.set_period(int(text), term_menu.get())
+                dialog.destroy()
+
+            ctk.CTkButton(dialog, text="Save", height=38, command=save_first).pack(pady=16)
+            return
+
+        ctk.CTkLabel(dialog, text=f"Year {year}", font=("Arial Bold", 22)).pack(pady=(24, 6))
+        ctk.CTkLabel(dialog, text="Term").pack()
+        # A term can be kept or moved forward, never back.
+        term_menu = ctk.CTkOptionMenu(
+            dialog, values=list(PERIOD_TERMS[PERIOD_TERMS.index(term):]), width=160
+        )
+        term_menu.set(term)
+        term_menu.pack(pady=6)
+
+        def set_term():
+            chosen = term_menu.get()
+            if chosen != term and not messagebox.askyesno(
+                "Change Term",
+                f"Move to {chosen}? The current exam is saved as read-only {term} history "
+                f"and {chosen} starts with no exam.",
+                parent=dialog,
+            ):
+                return
+            self.set_period(year, chosen)
+            dialog.destroy()
+
+        def reflect():
+            dialog.destroy()
+            self.reflect_period_to_portal()
+
+        def next_year():
+            dialog.destroy()
+            self.start_next_year()
+
+        ctk.CTkButton(dialog, text="Set Term", height=36, command=set_term).pack(pady=(10, 4))
+        ctk.CTkButton(
+            dialog, text="Reflect to Portal", height=36, fg_color="#10b981", text_color="black",
+            command=reflect,
+        ).pack(pady=4)
+        ctk.CTkLabel(dialog, text="New school year", font=("Arial Bold", 14)).pack(pady=(24, 2))
+        ctk.CTkLabel(
+            dialog,
+            text=f"Starts {year + 1}: promotes every learner and makes {year} read-only.",
+            wraplength=380,
+            text_color="gray",
+        ).pack()
+        ctk.CTkButton(
+            dialog, text=f"Start {year + 1}", height=36, fg_color="#e67e22", hover_color="#d35400",
+            command=next_year,
+        ).pack(pady=8)
+
+    def set_period(self, year, term):
+        old_year = self.get_academic_year()
+        if old_year is None:
+            self.db.backfill_previous_exam_year(year)
+        elif term != self.get_current_term():
+            self.snapshot_exams()
+        self.save_school_config({"academic_year": year, "current_term": term})
+        self.refresh_period_label()
+
+    def snapshot_exams(self):
+        """Store every class's running exam as read-only history under the current term and year."""
+        config = self.load_school_config()
+        cleared = {"current_exam_title": ""}
+        for class_name, grade_type in MARKSHEET_CLASS_TYPES:
+            if config.get(f"{grade_type}_exam_title"):
+                self.store_class_exam(class_name, grade_type, config)
+            cleared[f"{grade_type}_exam_title"] = ""
+            cleared[f"{grade_type}_exam_term"] = ""
+        self.save_school_config(cleared)
+
+    def start_next_year(self):
+        year = self.get_academic_year()
+        if not year:
+            return
+        new_year = year + 1
+        portal_rollover = messagebox.askyesnocancel(
+            "Start New Year",
+            f"Start {new_year}?\n\n"
+            f"- Every learner moves to the next class.\n"
+            f"- {year} exams are kept read-only.\n"
+            f"- Yes: copy portal marks to this computer and clear the portal.\n"
+            f"- No: start this computer only.\n\nThis cannot be undone.",
+        )
+        if portal_rollover is None:
+            return
+        if portal_rollover:
+            credentials = ask_cloud_credentials(self)
+            if not credentials:
+                return
+            archived, error = self.archive_portal_marks(year, self.get_current_term(), credentials)
+            if not archived:
+                messagebox.showerror("Portal Archive Failed", error)
+                return
+            result = CloudService().start_new_year(new_year, PERIOD_TERMS[0], credentials)
+            if not result.get("success"):
+                messagebox.showerror(
+                    "Portal Reset Failed",
+                    result.get("message", "Portal marks were downloaded, but the portal could not be reset."),
+                )
+                return
+        self.snapshot_exams()
+        # Marks are keyed by admission number, so they must not follow learners into the new class.
+        cursor = self.db.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%\\_marks' ESCAPE '\\'")
+        for (table_name,) in cursor.fetchall():
+            cursor.execute(f"DELETE FROM {table_name}")
+        self.db.conn.commit()
+        self.execute_student_promotion()
+        self.save_school_config({"academic_year": new_year, "current_term": PERIOD_TERMS[0]})
+        self.refresh_period_label()
+        if portal_rollover:
+            messagebox.showinfo(
+                "New Year Started",
+                f"{new_year} started. Previous portal marks are saved on this computer, and the portal is ready for the new year.",
+            )
+
+    def archive_portal_marks(self, year, term, credentials):
+        service = CloudService()
+        config = self.load_school_config()
+        archived_records = []
+        for class_name, grade_type in MARKSHEET_CLASS_TYPES:
+            result = service.fetch_marks(class_name, credentials)
+            if not result.get("success"):
+                return False, result.get("message", f"Could not fetch portal marks for {class_name}.")
+            records = result.get("marks", [])
+            if records:
+                archived_records.append((class_name, grade_type, records))
+
+        summary = json.dumps({
+            "total_students": 0,
+            "distribution": {},
+            "gender_counts": {},
+            "gender_totals": {},
+            "subject_averages": [],
+            "has_history": False,
+            "trend_text": "Portal archive",
+        })
+        for class_name, grade_type, records in archived_records:
+            subjects = config.get("subjects", {}).get(grade_type, [])
+            if not subjects:
+                subjects = {
+                    "playgroup": ["MATH", "CREAT", "ENV"],
+                    "pp1": ["MATH", "ENV", "PSYCH", "REL"],
+                    "pp2": ["MATH", "ENV", "PSYCH", "REL"],
+                    "lower": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
+                    "primary": ["ENG", "KISW", "MATH", "SCIE", "AGRI", "SST", "CRE", "C/A", "PHE"],
+                    "jss": ["MATH", "ENG", "KISW", "INT SCIE", "PRE-TECH", "SST", "CRE", "AGRI", "C/A"],
+                }.get(grade_type, [])
+            by_exam = {}
+            for record in records:
+                exam_title = str(record.get("exam_title") or config.get(f"{grade_type}_exam_title") or f"Portal Marks {year}")
+                scores = record.get("scores") or {}
+                row = [record.get("student_name", "")]
+                for subject in subjects:
+                    normalized = subject.strip().lower()
+                    key = next(
+                        (name for name in scores if name.strip().lower() == normalized),
+                        next((name for name in scores if normalized in name.strip().lower() or name.strip().lower() in normalized), None),
+                    )
+                    entry = scores.get(key, {}) if key else {}
+                    if not isinstance(entry, dict):
+                        entry = {"score": entry}
+                    row.extend([entry.get("score", entry.get("raw", "")), entry.get("rating", "")])
+                    if grade_type == "jss":
+                        row.append(entry.get("points", ""))
+                if grade_type == "jss":
+                    row.extend([record.get("total_points", ""), "", "-"])
+                else:
+                    row.extend([record.get("total_scores", ""), ""])
+                by_exam.setdefault(exam_title, []).append(row)
+
+            for exam_title, rows in by_exam.items():
+                existing, _ = self.db.get_previous_exam_data(exam_title, class_name, year)
+                current_title = config.get(f"{grade_type}_exam_title", "")
+                if grade_type == "jss":
+                    current_title = current_title or config.get("current_exam_title", "")
+                saved_title = f"{exam_title} (Portal)" if existing or current_title == exam_title else exam_title
+                try:
+                    self.db.save_previous_exam(
+                        saved_title,
+                        class_name,
+                        summary,
+                        json.dumps(rows),
+                        term=term,
+                        year=year,
+                    )
+                except Exception as error:
+                    return False, f"Could not save portal marks for {class_name}: {error}"
+        return True, ""
+
+    def reflect_period_to_portal(self):
+        year = self.get_academic_year()
+        if not year:
+            messagebox.showwarning("Year & Term", "Set the year and term first.")
+            return
+        credentials = ask_cloud_credentials(self)
+        if not credentials:
+            return
+        result = CloudService().set_period(year, self.get_current_term(), credentials)
+        if result.get("success"):
+            messagebox.showinfo("Portal", result.get("message", "Portal updated."))
+        else:
+            messagebox.showerror("Portal", result.get("message", "Could not update the portal."))
 
     def bind_control_drag_events(self, widget, group_name):
         widget.bind(
@@ -500,7 +740,6 @@ class Dashboard(ctk.CTk):
 
     def get_control_position(self, group_name):
         defaults = {
-            "dashboard_promote_button": {"x": -12, "y": 64},
             "dashboard_system_settings_button": {"x": -12, "y": 108},
             "dashboard_create_exam_button": {"x": -12, "y": 152},
         }
@@ -516,9 +755,7 @@ class Dashboard(ctk.CTk):
 
     def layout_dashboard_control_group(self, group_name):
         x, y = self.get_control_position(group_name)
-        if group_name == "dashboard_promote_button":
-            button = self.btn_promote
-        elif group_name == "dashboard_system_settings_button":
+        if group_name == "dashboard_system_settings_button":
             button = self.btn_system_settings
         elif group_name == "dashboard_create_exam_button":
             button = self.btn_create_exam
@@ -1464,106 +1701,10 @@ class Dashboard(ctk.CTk):
         if self.verify_developer_password():
             action()
 
-    def promote_students(self):
-        """Promote all students to the next class level"""
-        # Create dialog for year input
-        promote_dialog = ctk.CTkToplevel(self)
-        promote_dialog.title("Promote Students")
-        promote_dialog.geometry("500x300")
-        promote_dialog.attributes("-topmost", True)
-        promote_dialog.grab_set()
-
-        # Create scrollable frame
-        scrollable_frame = ctk.CTkScrollableFrame(promote_dialog, corner_radius=0)
-        scrollable_frame.pack(fill="both", expand=True)
-
-        ctk.CTkLabel(
-            scrollable_frame,
-            text="Promote Students to Next Class",
-            font=("Arial Bold", 18),
-        ).pack(pady=20)
-        ctk.CTkLabel(
-            scrollable_frame,
-            text="This will move all students to their next class level.",
-            font=("Arial", 12),
-        ).pack(pady=5)
-        ctk.CTkLabel(
-            scrollable_frame,
-            text="Grade 9 students will continue to Grade 10; Grade 12 records will be retained.",
-            font=("Arial", 12),
-            text_color="red",
-        ).pack(pady=5)
-
-        ctk.CTkLabel(
-            scrollable_frame,
-            text="Enter Academic Year (e.g., 2024):",
-            font=("Arial Bold", 14),
-        ).pack(pady=(20, 10))
-        year_entry = ctk.CTkEntry(scrollable_frame, width=200)
-        year_entry.pack(pady=10)
-        year_entry.insert(0, str(2024))  # Default to current year
-
-        result = {"confirmed": False, "year": ""}
-
-        def confirm_promotion():
-            year = year_entry.get().strip()
-            if not year or not year.isdigit():
-                messagebox.showerror(
-                    "Invalid Year", "Please enter a valid year (e.g., 2024)"
-                )
-                return
-
-            if messagebox.askyesno(
-                "Confirm Promotion",
-                f"Are you sure you want to promote all students to the next class?\n\n"
-                f"This action will:\n"
-                f"- Move Playgroup → PP1\n"
-                f"- Move PP1 → PP2\n"
-                f"- Move PP2 → Grade 1\n"
-                f"- Move Grade 1 → Grade 2\n"
-                f"- Move Grade 2 → Grade 3\n"
-                f"- Move Grade 3 → Grade 4\n"
-                f"- Move Grade 4 → Grade 5\n"
-                f"- Move Grade 5 → Grade 6\n"
-                f"- Move Grade 6 → Grade 7\n"
-                f"- Move Grade 7 → Grade 8\n"
-                f"- Move Grade 8 → Grade 9\n"
-                f"- Move Grade 9 → Grade 10\n"
-                f"- Move Grade 10 → Grade 11\n"
-                f"- Move Grade 11 → Grade 12\n"
-                f"- Retain Grade 12 learners in the system\n\n"
-                f"All current exam data will be archived under year: {year}",
-            ):
-                result["confirmed"] = True
-                result["year"] = year
-                promote_dialog.destroy()
-
-        ctk.CTkButton(
-            scrollable_frame,
-            text="Promote Students",
-            command=confirm_promotion,
-            fg_color="#e67e22",
-            hover_color="#d35400",
-            width=150,
-            height=40,
-        ).pack(pady=20)
-        ctk.CTkButton(
-            scrollable_frame,
-            text="Cancel",
-            command=promote_dialog.destroy,
-            width=150,
-            height=40,
-        ).pack(pady=5)
-
-        promote_dialog.wait_window()
-
-        if result["confirmed"]:
-            self.execute_student_promotion(result["year"])
-
-    def execute_student_promotion(self, year):
-        """Execute the actual student promotion and archiving"""
+    def execute_student_promotion(self):
+        """Move every learner to the next class; called when a new year starts."""
         try:
-            print(f"[PROMOTION] Starting student promotion for year: {year}")
+            print("[PROMOTION] Starting student promotion")
 
             # Define promotion mapping
             promotion_map = {
@@ -1594,11 +1735,6 @@ class Dashboard(ctk.CTk):
             print(f"[PROMOTION] Found {len(students)} students")
 
             promoted_count = 0
-
-            # Archive all exam data for this year BEFORE promotion
-            print(f"[PROMOTION] Starting archiving process...")
-            self.archive_all_exams(year)
-            print(f"[PROMOTION] Archiving completed")
 
             for student in students:
                 adm_no, name, current_grade, gender, phone, photo, stream = student
@@ -1642,8 +1778,7 @@ class Dashboard(ctk.CTk):
                 "Promotion Complete",
                 f"Student promotion completed successfully!\n\n"
                 f"Promoted: {promoted_count} students\n"
-                f"Grade 12 learners were retained in the system.\n"
-                f"All exam data archived under year: {year}",
+                f"Grade 12 learners were retained in the system.",
             )
 
             # Sync students to cloud after promotion
@@ -1682,177 +1817,6 @@ class Dashboard(ctk.CTk):
                 "Promotion Failed", f"An error occurred during promotion: {e}"
             )
 
-    def archive_all_exams(self, year):
-        """Archive all current exam data under the specified year"""
-        try:
-            print(f"[ARCHIVE] Starting archiving process for year: {year}")
-
-            # Create archives directory if it doesn't exist
-            archives_dir = os.path.join(self.USER_DATA_DIR, "archives")
-            print(f"[ARCHIVE] Archives directory: {archives_dir}")
-
-            if not os.path.exists(archives_dir):
-                print(f"[ARCHIVE] Creating archives directory...")
-                os.makedirs(archives_dir)
-                print(f"[ARCHIVE] Archives directory created")
-            else:
-                print(f"[ARCHIVE] Archives directory already exists")
-
-            archived_count = 0
-
-            # Archive based on previous_exams table (which contains exam titles)
-            print(f"[ARCHIVE] Fetching previous_exams data...")
-            self.db.cursor().execute(
-                "SELECT exam_name, class_name, exam_date, summary_data, marks_data FROM previous_exams"
-            )
-            previous_exams = self.db.cursor().fetchall()
-            print(f"[ARCHIVE] Found {len(previous_exams)} previous exams")
-
-            for (
-                exam_name,
-                class_name,
-                exam_date,
-                summary_data,
-                marks_data,
-            ) in previous_exams:
-                print(f"[ARCHIVE] Archiving exam: {exam_name} for class: {class_name}")
-
-                # Save to archive file - use exam name to differentiate
-                import json
-
-                # Sanitize exam name for filename
-                safe_exam_name = (
-                    exam_name.replace(" ", "_").replace("/", "_").replace("\\", "_")
-                )
-                archive_file = os.path.join(
-                    archives_dir, f"{year}_{class_name}_{safe_exam_name}_archive.json"
-                )
-                print(f"[ARCHIVE] Creating archive file: {archive_file}")
-
-                archive_data = {
-                    "year": year,
-                    "class": class_name,
-                    "exam_name": exam_name,
-                    "exam_date": exam_date,
-                    "summary_data": summary_data,
-                    "marks_data": marks_data,
-                    "archived_date": str(datetime.now()),
-                }
-
-                with open(archive_file, "w") as f:
-                    json.dump(archive_data, f, indent=4, default=str)
-
-                print(f"[ARCHIVE] Archive file created successfully")
-                archived_count += 1
-
-            # Also archive current marks from marksheet tables
-            print(f"[ARCHIVE] Archiving current marks from marksheet tables...")
-            self.db.cursor().execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%_marks'"
-            )
-            exam_tables = self.db.cursor().fetchall()
-            print(f"[ARCHIVE] Found {len(exam_tables)} marksheet tables")
-
-            for (table_name,) in exam_tables:
-                print(f"[ARCHIVE] Processing table: {table_name}")
-
-                # Extract class from table name (e.g., "playgroup_marks" -> "playgroup")
-                class_name = table_name.replace("_marks", "")
-                print(f"[ARCHIVE] Class name extracted: {class_name}")
-
-                # Get all data from this marksheet table
-                print(f"[ARCHIVE] Fetching data from {table_name}...")
-                self.db.cursor().execute(f"SELECT * FROM {table_name}")
-                marks_data = self.db.cursor().fetchall()
-                print(f"[ARCHIVE] Found {len(marks_data)} records in {table_name}")
-
-                if marks_data:
-                    # Get column names
-                    print(f"[ARCHIVE] Getting column names for {table_name}...")
-                    self.db.cursor().execute(f"PRAGMA table_info({table_name})")
-                    columns = [col[1] for col in self.db.cursor().fetchall()]
-                    print(f"[ARCHIVE] Columns: {columns}")
-
-                    # Group marks by grade (for tables like primary_marks that have multiple grades)
-                    grade_groups = {}
-                    for row in marks_data:
-                        adm_no = row[0]  # First column is adm_no
-                        # Get student's grade from students table
-                        self.db.cursor().execute(
-                            "SELECT grade FROM students WHERE adm_no = ?", (adm_no,)
-                        )
-                        student_grade = self.db.cursor().fetchone()
-                        if student_grade:
-                            grade = student_grade[0]
-                            if grade not in grade_groups:
-                                grade_groups[grade] = []
-                            grade_groups[grade].append(row)
-
-                    # Archive each grade separately
-                    for grade, grade_marks in grade_groups.items():
-                        print(
-                            f"[ARCHIVE] Archiving {len(grade_marks)} records for grade: {grade}"
-                        )
-
-                        # Save to archive file
-                        import json
-
-                        safe_grade = grade.replace(" ", "_")
-                        archive_file = os.path.join(
-                            archives_dir,
-                            f"{year}_{safe_grade}_current_marks_archive.json",
-                        )
-                        print(
-                            f"[ARCHIVE] Creating current marks archive file: {archive_file}"
-                        )
-
-                        archive_data = {
-                            "year": year,
-                            "class": grade,  # Use specific grade instead of table class
-                            "table_name": table_name,
-                            "exam_name": f"Current Marks ({grade})",
-                            "exam_date": str(datetime.now()),
-                            "columns": columns,
-                            "data": grade_marks,
-                            "archived_date": str(datetime.now()),
-                        }
-
-                        with open(archive_file, "w") as f:
-                            json.dump(archive_data, f, indent=4, default=str)
-
-                        print(
-                            f"[ARCHIVE] Current marks archive file created successfully"
-                        )
-                        archived_count += 1
-
-            # Clear the previous_exams table after archiving
-            print(f"[ARCHIVE] Clearing previous_exams table...")
-            self.db.cursor().execute("DELETE FROM previous_exams")
-            print(f"[ARCHIVE] Deleted all records from previous_exams table")
-
-            # Also clear the marksheet tables
-            print(f"[ARCHIVE] Clearing marksheet tables...")
-            for (table_name,) in exam_tables:
-                print(f"[ARCHIVE] Clearing table: {table_name}")
-                self.db.cursor().execute(f"DELETE FROM {table_name}")
-
-            print(f"[ARCHIVE] Committing database changes...")
-            self.db.conn.commit()
-            print(f"[ARCHIVE] Database commit successful")
-            print(
-                f"[ARCHIVE] Archiving completed. Total archives created: {archived_count}"
-            )
-
-        except Exception as e:
-            print(f"[ARCHIVE ERROR] Error archiving exams: {e}")
-            import traceback
-
-            traceback.print_exc()
-
-    def open_archives(self):
-        """Open the archive viewer"""
-        self.show_archive_year_selection()
-
     def open_system_settings(self):
         """Open the system settings dialog"""
         self.reset_sidebar_highlights()
@@ -1882,19 +1846,6 @@ class Dashboard(ctk.CTk):
         ctk.CTkLabel(
             settings_frame, text="System Settings", font=("Arial Bold", 24)
         ).pack(pady=20)
-
-        # Archives option
-        archives_btn = ctk.CTkButton(
-            settings_frame,
-            text="📁 Archives",
-            width=300,
-            height=50,
-            font=("Arial Bold", 14),
-            fg_color="#9b59b6",
-            hover_color="#8e44ad",
-            command=self.open_archives,
-        )
-        archives_btn.pack(pady=10)
 
         # Setup School Branding option
         setup_branding_btn = ctk.CTkButton(
@@ -2067,523 +2018,6 @@ class Dashboard(ctk.CTk):
             self.open_system_settings()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save credentials: {e}")
-
-    def show_archive_year_selection(self):
-        """Show year selection for archives"""
-        # Clear content panel
-        for widget in self.content_panel.winfo_children():
-            widget.destroy()
-
-        # Create header
-        header_frame = ctk.CTkFrame(self.content_panel, fg_color="transparent")
-        header_frame.pack(fill="x", pady=(10, 20))
-
-        ctk.CTkLabel(
-            header_frame, text=self.dynamic_school_name, font=("Arial Bold", 26)
-        ).pack(side="left", padx=10)
-        ctk.CTkLabel(
-            header_frame,
-            text="/ ARCHIVES",
-            font=("Arial Italic", 14),
-            text_color="gray",
-        ).pack(side="left", anchor="sw")
-
-        # Get available years from archives directory
-        archives_dir = os.path.join(self.USER_DATA_DIR, "archives")
-        years = set()
-
-        if os.path.exists(archives_dir):
-            for filename in os.listdir(archives_dir):
-                if filename.endswith("_archive.json"):
-                    year = filename.split("_")[0]
-                    years.add(year)
-
-        years = sorted(list(years), reverse=True)  # Most recent first
-
-        # Create year selection frame
-        year_frame = ctk.CTkFrame(self.content_panel)
-        year_frame.pack(expand=True, fill="both", padx=20, pady=20)
-
-        ctk.CTkLabel(
-            year_frame, text="Select Academic Year", font=("Arial Bold", 20)
-        ).pack(pady=20)
-
-        if not years:
-            ctk.CTkLabel(
-                year_frame,
-                text="No archives found.",
-                font=("Arial", 14),
-                text_color="gray",
-            ).pack(pady=20)
-            ctk.CTkButton(
-                year_frame, text="Back to Dashboard", command=self.restore_dashboard
-            ).pack(pady=20)
-            return
-
-        # Create year buttons with delete option
-        for year in years:
-            year_card = ctk.CTkFrame(year_frame)
-            year_card.pack(fill="x", pady=5, padx=10)
-
-            year_btn = ctk.CTkButton(
-                year_card,
-                text=f"📅 {year}",
-                width=300,
-                height=50,
-                font=("Arial Bold", 14),
-                command=lambda y=year: self.show_archive_class_selection(y),
-            )
-            year_btn.pack(side="left", padx=10, pady=10)
-
-            delete_btn = ctk.CTkButton(
-                year_card,
-                text="🗑️",
-                fg_color="#e74c3c",
-                hover_color="#c0392b",
-                width=50,
-                height=50,
-                font=("Arial Bold", 16),
-                command=lambda y=year: self.delete_archive_year(y),
-            )
-            delete_btn.pack(side="right", padx=10, pady=10)
-
-        ctk.CTkButton(
-            year_frame, text="Back to Dashboard", command=self.restore_dashboard
-        ).pack(pady=20)
-
-    def show_archive_class_selection(self, year):
-        """Show class selection for selected year"""
-        # Clear content panel
-        for widget in self.content_panel.winfo_children():
-            widget.destroy()
-
-        # Create header
-        header_frame = ctk.CTkFrame(self.content_panel, fg_color="transparent")
-        header_frame.pack(fill="x", pady=(10, 20))
-
-        ctk.CTkLabel(
-            header_frame, text=self.dynamic_school_name, font=("Arial Bold", 26)
-        ).pack(side="left", padx=10)
-        ctk.CTkLabel(
-            header_frame,
-            text=f"/ ARCHIVES / {year}",
-            font=("Arial Italic", 14),
-            text_color="gray",
-        ).pack(side="left", anchor="sw")
-
-        # Get ALL available classes from ALL years (not filtered by year)
-        import json
-
-        archives_dir = os.path.join(self.USER_DATA_DIR, "archives")
-        classes = set()
-
-        if os.path.exists(archives_dir):
-            for filename in os.listdir(archives_dir):
-                if filename.endswith("_archive.json"):
-                    filepath = os.path.join(archives_dir, filename)
-                    try:
-                        with open(filepath, "r") as f:
-                            archive_data = json.load(f)
-                            class_name = archive_data.get("class", "")
-                            # Filter out "previous" (from old previous_exams_archive.json files)
-                            if class_name.lower() != "previous":
-                                classes.add(class_name)
-                    except:
-                        pass
-
-        classes = sorted(list(classes))
-
-        # Create class selection frame
-        class_frame = ctk.CTkFrame(self.content_panel)
-        class_frame.pack(expand=True, fill="both", padx=20, pady=20)
-
-        ctk.CTkLabel(
-            class_frame, text=f"Select Class - {year}", font=("Arial Bold", 20)
-        ).pack(pady=20)
-
-        if not classes:
-            ctk.CTkLabel(
-                class_frame,
-                text="No classes found in archives.",
-                font=("Arial", 14),
-                text_color="gray",
-            ).pack(pady=20)
-            ctk.CTkButton(
-                class_frame,
-                text="Back to Years",
-                command=self.show_archive_year_selection,
-            ).pack(pady=20)
-            return
-
-        # Create scrollable frame for class buttons
-        scrollable_frame = ctk.CTkScrollableFrame(
-            class_frame, label_text="", width=400, height=400
-        )
-        scrollable_frame.pack(expand=True, fill="both", padx=10, pady=10)
-
-        # Create class buttons
-        for class_name in classes:
-            btn = ctk.CTkButton(
-                scrollable_frame,
-                text=f"📚 {class_name}",
-                width=300,
-                height=50,
-                font=("Arial Bold", 14),
-                command=lambda c=class_name: self.show_archive_exams(year, c),
-            )
-            btn.pack(pady=10)
-
-        ctk.CTkButton(
-            class_frame, text="Back to Years", command=self.show_archive_year_selection
-        ).pack(pady=20)
-
-    def show_archive_exams(self, year, class_name):
-        """Show archived exams for selected year and class"""
-        # Clear content panel
-        for widget in self.content_panel.winfo_children():
-            widget.destroy()
-
-        # Create header
-        header_frame = ctk.CTkFrame(self.content_panel, fg_color="transparent")
-        header_frame.pack(fill="x", pady=(10, 20))
-
-        ctk.CTkLabel(
-            header_frame, text=self.dynamic_school_name, font=("Arial Bold", 26)
-        ).pack(side="left", padx=10)
-        ctk.CTkLabel(
-            header_frame,
-            text=f"/ ARCHIVES / {year} / {class_name}",
-            font=("Arial Italic", 14),
-            text_color="gray",
-        ).pack(side="left", anchor="sw")
-
-        # Get archived exams for this year and class
-        import json
-
-        archives_dir = os.path.join(self.USER_DATA_DIR, "archives")
-        archives = []
-
-        if os.path.exists(archives_dir):
-            for filename in os.listdir(archives_dir):
-                # Match pattern: {year}_{class_name}_{exam_name}_archive.json
-                if filename.startswith(f"{year}_{class_name}_") and filename.endswith(
-                    "_archive.json"
-                ):
-                    filepath = os.path.join(archives_dir, filename)
-                    with open(filepath, "r") as f:
-                        archive_data = json.load(f)
-                        archives.append(archive_data)
-
-        # Create exams frame
-        exams_frame = ctk.CTkFrame(self.content_panel)
-        exams_frame.pack(expand=True, fill="both", padx=20, pady=20)
-
-        ctk.CTkLabel(
-            exams_frame,
-            text=f"Archived Exams - {class_name} ({year})",
-            font=("Arial Bold", 20),
-        ).pack(pady=20)
-
-        if not archives:
-            ctk.CTkLabel(
-                exams_frame,
-                text="No archived exams found.",
-                font=("Arial", 14),
-                text_color="gray",
-            ).pack(pady=20)
-            ctk.CTkButton(
-                exams_frame,
-                text="Back to Classes",
-                command=lambda: self.show_archive_class_selection(year),
-            ).pack(pady=20)
-            return
-
-        # Create archive cards with exam titles
-        for archive in archives:
-            card = ctk.CTkFrame(exams_frame)
-            card.pack(fill="x", pady=10, padx=10)
-
-            info_frame = ctk.CTkFrame(card, fg_color="transparent")
-            info_frame.pack(side="left", fill="both", expand=True, padx=10, pady=10)
-
-            exam_name = archive.get("exam_name", "Unknown Exam")
-            exam_date = archive.get("exam_date", "Unknown Date")
-
-            ctk.CTkLabel(
-                info_frame, text=f"📄 {exam_name}", font=("Arial Bold", 14)
-            ).pack(anchor="w")
-            ctk.CTkLabel(
-                info_frame,
-                text=f"Date: {exam_date}",
-                font=("Arial", 12),
-                text_color="gray",
-            ).pack(anchor="w")
-            ctk.CTkLabel(
-                info_frame,
-                text=f"Archived: {archive['archived_date']}",
-                font=("Arial", 12),
-                text_color="gray",
-            ).pack(anchor="w")
-
-            action_frame = ctk.CTkFrame(card, fg_color="transparent")
-            action_frame.pack(side="right", padx=10, pady=10)
-
-            ctk.CTkButton(
-                action_frame,
-                text="👁️ View",
-                fg_color="#3498db",
-                hover_color="#2980b9",
-                width=80,
-                command=lambda a=archive: self.view_archived_exam(a, year, class_name),
-            ).pack(pady=2)
-
-            ctk.CTkButton(
-                action_frame,
-                text="🗑️ Delete",
-                fg_color="#e74c3c",
-                hover_color="#c0392b",
-                width=80,
-                command=lambda a=archive: self.delete_archive(a, year, class_name),
-            ).pack(pady=2)
-
-        ctk.CTkButton(
-            exams_frame,
-            text="Back to Classes",
-            command=lambda: self.show_archive_class_selection(year),
-        ).pack(pady=20)
-
-    def delete_archive(self, archive, year, class_name):
-        """Delete an archived exam"""
-        if messagebox.askyesno(
-            "Confirm Delete", "Are you sure you want to delete this archived exam?"
-        ):
-            try:
-                archives_dir = os.path.join(self.USER_DATA_DIR, "archives")
-                # Use exam name from archive data to construct correct filename
-                exam_name = archive.get("exam_name", "")
-                safe_exam_name = (
-                    exam_name.replace(" ", "_").replace("/", "_").replace("\\", "_")
-                )
-                filename = f"{year}_{class_name}_{safe_exam_name}_archive.json"
-                filepath = os.path.join(archives_dir, filename)
-
-                if os.path.exists(filepath):
-                    os.remove(filepath)
-                    messagebox.showinfo("Deleted", "Archive deleted successfully.")
-                    self.show_archive_exams(year, class_name)
-                else:
-                    messagebox.showerror("Error", "Archive file not found.")
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to delete archive: {e}")
-
-    def view_archived_exam(self, archive, year, class_name):
-        """View an archived exam with full marksheet display"""
-        print(
-            f"[ARCHIVE VIEW] Starting view_archived_exam for class: {class_name}, year: {year}"
-        )
-        print(f"[ARCHIVE VIEW] Archive data keys: {archive.keys()}")
-
-        # Clear the old view completely
-        for widget in self.content_panel.winfo_children():
-            if widget != self.header_frame and widget != self.theme_frame:
-                widget.destroy()
-
-        # Full screen mode
-        self.menu_panel.grid_forget()
-        self.grid_columnconfigure(0, weight=0, minsize=0)
-        self.content_panel.grid(row=0, column=0, columnspan=2, sticky="nsew")
-
-        # Get the exam data
-        exam_name = archive.get("exam_name", "Unknown Exam")
-        print(f"[ARCHIVE VIEW] Exam name: {exam_name}")
-
-        # Determine if this is a previous_exams archive or current marks archive
-        if "marks_data" in archive and "summary_data" in archive:
-            # This is a previous_exams archive
-            marks_data = archive.get("marks_data")
-            summary_data = archive.get("summary_data")
-            print(
-                f"[ARCHIVE VIEW] Previous exams archive - marks_data type: {type(marks_data)}, summary_data type: {type(summary_data)}"
-            )
-            print(
-                f"[ARCHIVE VIEW] marks_data length: {len(marks_data) if marks_data else 0}"
-            )
-
-            # Keep as JSON strings - marksheet views will deserialize them
-            # Don't deserialize here as the marksheet views expect JSON strings
-        elif "data" in archive and "columns" in archive:
-            # This is a current marks archive
-            marks_data = archive.get("data")
-            summary_data = None
-            print(
-                f"[ARCHIVE VIEW] Current marks archive - data type: {type(marks_data)}"
-            )
-            print(f"[ARCHIVE VIEW] data length: {len(marks_data) if marks_data else 0}")
-
-            # Keep as JSON string - marksheet views will deserialize it
-            # Don't deserialize here as the marksheet views expect JSON strings
-        else:
-            print(f"[ARCHIVE VIEW] ERROR: Invalid archive format")
-            messagebox.showerror("Error", "Invalid archive format")
-            self.show_archive_exams(year, class_name)
-            return
-
-        # Determine the correct marksheet view based on class
-        name_upper = class_name.upper().strip()
-        print(f"[ARCHIVE VIEW] Class name upper: {name_upper}")
-
-        if "PLAYGROUP" in name_upper or "PLAY GROUP" in name_upper:
-            from ui_marksheet_playgroup import PlaygroupMarkSheetView
-
-            self.current_view = PlaygroupMarkSheetView(
-                self.content_panel,
-                self.db,
-                class_name,
-                read_only=True,
-                exam_name=exam_name,
-                marks_data=marks_data,
-                summary_data=summary_data,
-            )
-        elif "PP1" in name_upper or "PRE-PRIMARY 1" in name_upper:
-            from ui_marksheet_pp1 import PP1MarkSheetView
-
-            self.current_view = PP1MarkSheetView(
-                self.content_panel,
-                self.db,
-                class_name,
-                read_only=True,
-                exam_name=exam_name,
-                marks_data=marks_data,
-                summary_data=summary_data,
-            )
-        elif "PP2" in name_upper or "PRE-PRIMARY 2" in name_upper:
-            from ui_marksheet_pp2 import PP2MarkSheetView
-
-            self.current_view = PP2MarkSheetView(
-                self.content_panel,
-                self.db,
-                class_name,
-                read_only=True,
-                exam_name=exam_name,
-                marks_data=marks_data,
-                summary_data=summary_data,
-            )
-        elif "LOWER" in name_upper or "LOWER PRIMARY" in name_upper:
-            from ui_marksheet_lower import LowerMarkSheetView
-
-            self.current_view = LowerMarkSheetView(
-                self.content_panel,
-                self.db,
-                class_name,
-                read_only=True,
-                exam_name=exam_name,
-                marks_data=marks_data,
-                summary_data=summary_data,
-            )
-        elif (
-            "PRIMARY" in name_upper
-            or "GRADE 1" in name_upper
-            or "GRADE 2" in name_upper
-            or "GRADE 3" in name_upper
-            or "GRADE 4" in name_upper
-            or "GRADE 5" in name_upper
-            or "GRADE 6" in name_upper
-        ):
-            from ui_marksheet_primary import PrimaryMarkSheetView
-
-            self.current_view = PrimaryMarkSheetView(
-                self.content_panel,
-                self.db,
-                class_name,
-                read_only=True,
-                exam_name=exam_name,
-                marks_data=marks_data,
-                summary_data=summary_data,
-            )
-        elif (
-            "JSS" in name_upper
-            or "JUNIOR" in name_upper
-            or "GRADE 7" in name_upper
-            or "GRADE 8" in name_upper
-            or "GRADE 9" in name_upper
-        ):
-            from ui_marksheet_junior import JuniorMarkSheetView
-
-            self.current_view = JuniorMarkSheetView(
-                self.content_panel,
-                self.db,
-                class_name,
-                read_only=True,
-                exam_name=exam_name,
-                marks_data=marks_data,
-                summary_data=summary_data,
-            )
-        else:
-            messagebox.showerror("Error", f"Unknown class type: {class_name}")
-            self.show_archive_exams(year, class_name)
-            return
-
-        # Pack the view to display it
-        self.current_view.pack(fill="both", expand=True)
-        print(f"[ARCHIVE VIEW] Marksheet view packed successfully")
-
-    def show_archived_exam_summary(self, archive):
-        """Show the summary of an archived exam"""
-        summary_data = archive.get("summary_data", "")
-
-        if summary_data:
-            # Create summary dialog
-            summary_dialog = ctk.CTkToplevel(self)
-            summary_dialog.title("Exam Summary")
-            summary_dialog.geometry("800x600")
-            summary_dialog.attributes("-topmost", True)
-
-            # Create scrollable text area
-            text_frame = ctk.CTkFrame(summary_dialog)
-            text_frame.pack(expand=True, fill="both", padx=20, pady=20)
-
-            text_area = ctk.CTkTextbox(text_frame, font=("Arial", 12))
-            text_area.pack(expand=True, fill="both")
-            text_area.insert("1.0", summary_data)
-            text_area.configure(state="disabled")
-        else:
-            messagebox.showinfo(
-                "No Summary", "No summary data available for this exam."
-            )
-
-    def print_archived_exam_pdf(self, archive):
-        """Print an archived exam as PDF"""
-        messagebox.showinfo(
-            "Print PDF",
-            "PDF printing functionality would be implemented here.\nThis would use the marks_data from the archive to generate a PDF report.",
-        )
-
-    def delete_archive_year(self, year):
-        """Delete all archives for a specific year"""
-        if messagebox.askyesno(
-            "Confirm Delete",
-            f"Are you sure you want to delete ALL archives for year {year}? This action cannot be undone.",
-        ):
-            try:
-                archives_dir = os.path.join(self.USER_DATA_DIR, "archives")
-                deleted_count = 0
-
-                if os.path.exists(archives_dir):
-                    for filename in os.listdir(archives_dir):
-                        if filename.startswith(f"{year}_") and filename.endswith(
-                            "_archive.json"
-                        ):
-                            filepath = os.path.join(archives_dir, filename)
-                            os.remove(filepath)
-                            deleted_count += 1
-
-                messagebox.showinfo(
-                    "Deleted",
-                    f"Successfully deleted {deleted_count} archive(s) for year {year}.",
-                )
-                self.show_archive_year_selection()  # Refresh the year list
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to delete archives: {e}")
 
     def restore_dashboard(self):
         """Restore the dashboard view"""
@@ -3737,7 +3171,10 @@ class Dashboard(ctk.CTk):
         ).pack(pady=10)
 
     def open_create_exam_dialog(self):
-        CreateExamDialog(self, on_created=self.on_exam_created)
+        if not self.get_academic_year():
+            messagebox.showwarning("Year & Term", "Set the academic year and term first (top left of the dashboard).")
+            return
+        CreateExamDialog(self, on_created=self.on_exam_created, term=self.get_current_term())
 
     def classes_sharing_exam(self, class_names):
         """A marksheet group switches exam together, so include the whole group."""
@@ -3751,7 +3188,7 @@ class Dashboard(ctk.CTk):
             return
         message = (
             f"Start '{title}' ({term}) on this computer for: {', '.join(affected)}.\n\n"
-            "The current marks are first saved under Previous Exams, then cleared."
+            "The current marks are first saved as read-only history, then cleared."
         )
         extra = [name for name in affected if name not in chosen]
         if extra:
@@ -3762,42 +3199,47 @@ class Dashboard(ctk.CTk):
 
     def rotate_local_exam(self, exam_title, term, class_names):
         config = self.load_school_config()
-        empty_summary = json.dumps(
-            {
-                "total_students": 0,
-                "distribution": {},
-                "gender_counts": {},
-                "gender_totals": {},
-                "subject_averages": [],
-                "has_history": False,
-                "trend_text": "First Exam",
-            }
-        )
         updates = {}
         for class_name, grade_type in MARKSHEET_CLASS_TYPES:
             if class_name not in class_names:
                 continue
-            table_name = self.get_table_name_for_grade(grade_type)
-            old_title = config.get(f"{grade_type}_exam_title", "")
-            if old_title:
-                marks_data = self.get_current_marks_for_class(class_name, table_name, grade_type)
-                self.db.save_previous_exam(
-                    old_title, class_name, empty_summary, marks_data,
-                    term=config.get(f"{grade_type}_exam_term") or None,
-                )
-            try:
-                self.db.cursor().execute(
-                    f"DELETE FROM {table_name} WHERE adm_no IN (SELECT adm_no FROM students WHERE grade = ?)",
-                    (class_name,),
-                )
-                self.db.conn.commit()
-            except Exception as error:
-                print(f"Error clearing marks for {class_name}: {error}")
+            self.store_class_exam(class_name, grade_type, config)
             updates[f"{grade_type}_exam_title"] = exam_title
             updates[f"{grade_type}_exam_term"] = term
             if grade_type == "jss":
                 updates["current_exam_title"] = exam_title
         self.save_school_config(updates)
+
+    def store_class_exam(self, class_name, grade_type, config):
+        """Save the class's current exam as read-only history for its term and year, then clear its marks."""
+        old_title = config.get(f"{grade_type}_exam_title", "")
+        table_name = self.get_table_name_for_grade(grade_type)
+        if old_title:
+            empty_summary = json.dumps(
+                {
+                    "total_students": 0,
+                    "distribution": {},
+                    "gender_counts": {},
+                    "gender_totals": {},
+                    "subject_averages": [],
+                    "has_history": False,
+                    "trend_text": "First Exam",
+                }
+            )
+            marks_data = self.get_current_marks_for_class(class_name, table_name, grade_type)
+            self.db.save_previous_exam(
+                old_title, class_name, empty_summary, marks_data,
+                term=config.get(f"{grade_type}_exam_term") or config.get("current_term") or None,
+                year=self.get_academic_year(),
+            )
+        try:
+            self.db.cursor().execute(
+                f"DELETE FROM {table_name} WHERE adm_no IN (SELECT adm_no FROM students WHERE grade = ?)",
+                (class_name,),
+            )
+            self.db.conn.commit()
+        except Exception as error:
+            print(f"Error clearing marks for {class_name}: {error}")
 
     def open_competency_gradebook(self):
         self.show_class_selection(
@@ -4467,8 +3909,8 @@ class Dashboard(ctk.CTk):
                 class_selected,
                 self.load_school_config,
                 self.save_school_config,
-                lambda style, term, exam, is_current: self.open_chosen_marksheet(
-                    class_selected, style, term, exam, is_current
+                lambda style, term, exam, is_current, year=None: self.open_chosen_marksheet(
+                    class_selected, style, term, exam, is_current, year
                 ),
                 self.return_to_home,
             )
@@ -4524,10 +3966,6 @@ class Dashboard(ctk.CTk):
         elif action_type == "Registering" or action_type == "Registration":
             # We call the function that is already inside this Dashboard class
             self.show_student_registry(class_selected)
-
-        # This handles the Previous Exams button
-        elif action_type == "Previous Exams":
-            self.show_previous_exams_selection(class_selected)
 
         # This handles the Teachers Linked button
         elif action_type == "Teachers":
@@ -5019,77 +4457,7 @@ class Dashboard(ctk.CTk):
             f"Generated {total_success}/{total_students} PDF reports for all classes.",
         )
 
-    def show_previous_exams_selection(self, class_selected):
-        # Clear the old view completely (Class Selection Menu)
-        for widget in self.content_panel.winfo_children():
-            if widget != self.header_frame and widget != self.theme_frame:
-                widget.destroy()
-
-        # Get previous exams for this class
-        previous_exams = self.db.get_previous_exams(class_selected)
-
-        if not previous_exams:
-            # No previous exams found
-            no_exams_label = ctk.CTkLabel(
-                self.content_panel,
-                text=f"No previous exams found for {class_selected}",
-                font=("Arial", 18),
-                text_color="gray",
-            )
-            no_exams_label.pack(pady=50)
-
-            back_btn = ctk.CTkButton(
-                self.content_panel, text="Back", command=self.return_to_home, width=150
-            )
-            back_btn.pack(pady=20)
-            return
-
-        # Create the exam selection UI
-        exam_frame = ctk.CTkScrollableFrame(
-            self.content_panel,
-            label_text=f"PREVIOUS EXAMS FOR: {class_selected.upper()}",
-            label_font=("Arial Bold", 20),
-            fg_color="gray10",
-            width=600,
-            height=500,
-        )
-        exam_frame.pack(pady=40, expand=True)
-
-        for exam_name, exam_date in previous_exams:
-            row_frame = ctk.CTkFrame(exam_frame, fg_color="transparent")
-            row_frame.pack(fill="x", pady=5)
-
-            view_btn = ctk.CTkButton(
-                row_frame,
-                text=f"{exam_name} ({exam_date})",
-                width=400,
-                height=45,
-                hover_color="#2ecc71",
-                command=lambda e=exam_name, c=class_selected: self.open_previous_exam_marksheet(
-                    e, c
-                ),
-            )
-            view_btn.pack(side="left", padx=5)
-
-            delete_btn = ctk.CTkButton(
-                row_frame,
-                text="🗑 Delete",
-                width=100,
-                height=45,
-                fg_color="#e74c3c",
-                hover_color="#c0392b",
-                command=lambda e=exam_name, c=class_selected: self.delete_previous_exam(
-                    e, c
-                ),
-            )
-            delete_btn.pack(side="left", padx=5)
-
-        back_btn = ctk.CTkButton(
-            self.content_panel, text="Back", command=self.return_to_home, width=150
-        )
-        back_btn.pack(pady=20)
-
-    def open_chosen_marksheet(self, class_name, style, term, exam_name, is_current):
+    def open_chosen_marksheet(self, class_name, style, term, exam_name, is_current, year=None):
         if exam_name is None:
             messagebox.showinfo(
                 "No Exam", f"No exam for {term}. Create one with the Create Exam button on the dashboard."
@@ -5110,7 +4478,7 @@ class Dashboard(ctk.CTk):
                     "Previous Exam",
                     "Previous exams open in the old style (read-only). Their saved ratings use the old layout.",
                 )
-            self.open_previous_exam_marksheet(exam_name, class_name)
+            self.open_previous_exam_marksheet(exam_name, class_name, year)
             return
         for widget in self.content_panel.winfo_children():
             if widget != self.header_frame and widget != self.theme_frame:
@@ -5131,7 +4499,7 @@ class Dashboard(ctk.CTk):
             )
         self.current_view.pack(fill="both", expand=True)
 
-    def open_previous_exam_marksheet(self, exam_name, class_name):
+    def open_previous_exam_marksheet(self, exam_name, class_name, year=None):
         # Clear the old view completely
         for widget in self.content_panel.winfo_children():
             if widget != self.header_frame and widget != self.theme_frame:
@@ -5143,7 +4511,7 @@ class Dashboard(ctk.CTk):
         self.content_panel.grid(row=0, column=0, columnspan=2, sticky="nsew")
 
         # Get the exam data
-        marks_data, summary_data = self.db.get_previous_exam_data(exam_name, class_name)
+        marks_data, summary_data = self.db.get_previous_exam_data(exam_name, class_name, year)
 
         # Determine the correct marksheet view based on class
         name_upper = class_name.upper().strip()
@@ -5222,17 +4590,6 @@ class Dashboard(ctk.CTk):
             )
 
         self.current_view.pack(fill="both", expand=True)
-
-    def delete_previous_exam(self, exam_name, class_name):
-        """Delete a previous exam"""
-        if messagebox.askyesno(
-            "Confirm Delete",
-            f"Are you sure you want to delete the exam '{exam_name}' for {class_name}? This action cannot be undone.",
-        ):
-            self.db.delete_previous_exam(exam_name, class_name)
-            messagebox.showinfo("Success", f"Exam '{exam_name}' has been deleted.")
-            # Refresh the exam list
-            self.show_previous_exams_selection(class_name)
 
     def show_marksheet_view(self, class_name):
         # 1. Clear the main panel
@@ -5954,8 +5311,7 @@ class Dashboard(ctk.CTk):
             "btn_newsletter",
             "btn_portal",
             "btn_cloud_sync",
-            "btn_promote",
-            "btn_previous_exams",
+            "period_button",
             "btn_system_settings",
             "btn_check_updates",
         ]
@@ -5981,8 +5337,7 @@ class Dashboard(ctk.CTk):
             "btn_newsletter",
             "btn_portal",
             "btn_cloud_sync",
-            "btn_promote",
-            "btn_previous_exams",
+            "period_button",
             "btn_system_settings",
             "btn_check_updates",
         ]

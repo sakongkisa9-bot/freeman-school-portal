@@ -69,8 +69,7 @@
         <label>Learning Area<select name="area" onchange="this.form.submit()">{% for item in areas %}<option value="{{ item.name }}"{% if item.name == area %} selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></label>
         <label>Strand<select name="strand_id" onchange="this.form.elements.sub_strand_id.disabled = true; this.form.submit()">{% for item in strand_progress %}<option value="{{ item.id }}"{% if item.id == selected_strand.id %} selected{% endif %}>{{ item.name }} ({{ item.covered_count }}/{{ item.sub_strands|length }})</option>{% endfor %}</select></label>
         <label>Sub-strand<select name="sub_strand_id" onchange="this.form.submit()">{% for item in selected_strand_sub_strands %}<option value="{{ item.id }}"{% if item.id == selected_sub_strand.id %} selected{% endif %}>{% if item.id in covered_ids %}✓ {% endif %}{{ item.sub_strand_name }}</option>{% endfor %}</select></label>
-        <label>Term<select name="term" onchange="this.form.submit()">{% for item in ["Term 1", "Term 2", "Term 3"] %}<option{% if item == term %} selected{% endif %}>{{ item }}</option>{% endfor %}</select></label>
-        <label>Year<input type="number" name="academic_year" min="2000" max="2200" value="{{ academic_year }}" onchange="this.form.submit()"></label>
+        <span class="period">{{ term }} · {{ academic_year }}</span>
     </form>
     {% set total_sub = namespace(count=0, covered=0, strands_done=0) %}
     {% for strand in strand_progress %}{% set total_sub.count = total_sub.count + strand.sub_strands|length %}{% set total_sub.covered = total_sub.covered + strand.covered_count %}{% if strand.covered_count == strand.sub_strands|length %}{% set total_sub.strands_done = total_sub.strands_done + 1 %}{% endif %}{% endfor %}

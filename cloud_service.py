@@ -153,6 +153,26 @@ class CloudService:
         }
         return self._post_json("/api/upload_cba_tasks", payload)
 
+    def set_period(self, academic_year, term, credentials):
+        payload = {
+            "school_code": credentials["school_code"],
+            "username": credentials["username"],
+            "password": credentials["password"],
+            "academic_year": academic_year,
+            "term": term,
+        }
+        return self._post_json("/api/set_period", payload)
+
+    def start_new_year(self, academic_year, term, credentials):
+        payload = {
+            "school_code": credentials["school_code"],
+            "username": credentials["username"],
+            "password": credentials["password"],
+            "academic_year": academic_year,
+            "term": term,
+        }
+        return self._post_json("/api/start_new_year", payload)
+
     def create_exam(self, title, all_classes, classes, credentials):
         payload = {
             "school_code": credentials["school_code"],
