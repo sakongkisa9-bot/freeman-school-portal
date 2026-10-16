@@ -1594,7 +1594,8 @@ def api_fetch_cbc_covered_strands():
         if not school or not check_password_hash(school["password_hash"], password):
             return jsonify({"success": False, "message": "Invalid school credentials."}), 401
         curriculum = conn.execute(
-            "SELECT strands_json FROM global_curriculum WHERE grade = ? AND area = ?",
+            "SELECT strands_json FROM global_curriculum "
+            "WHERE LOWER(TRIM(grade)) = LOWER(?) AND LOWER(TRIM(area)) = LOWER(?)",
             (grade, area_name),
         ).fetchone()
         if not curriculum:
@@ -2869,7 +2870,8 @@ def _prune_replaced_strands(conn, school_id, grade, area_name, strands):
             "SELECT 1 FROM cbc_sub_strands WHERE strand_id = ? LIMIT 1", (strand["id"],)
         ).fetchone():
             conn.execute("DELETE FROM cbc_strands WHERE id = ?", (strand["id"],))
-
+            "SELECT strands_json FROM global_curriculum "
+            "WHERE LOWER(TRIM(grade)) = LOWER(?) AND LOWER(TRIM(area)) = LOWER(?)",
 
 def _developer_redirect():
     return redirect(url_for("developer_strands"))

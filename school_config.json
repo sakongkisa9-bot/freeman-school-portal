@@ -98,8 +98,12 @@
             "y": 52
         },
         "dashboard_system_settings_button": {
+            "x": -4,
+            "y": 48
+        },
+        "dashboard_create_exam_button": {
             "x": 0,
-            "y": 111
+            "y": 96
         }
     },
     "bing_wallpaper_interval_hours": 1,

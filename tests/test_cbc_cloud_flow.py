@@ -336,6 +336,34 @@ class CBCCloudFlowTests(unittest.TestCase):
         next_year = self.client.post("/api/cbc/fetch_covered_strands", json={**request, "academic_year": 2025})
         self.assertEqual(next_year.get_json()["strands"][0]["sub_strands"][0]["terms"], [])
 
+    def test_fetch_covered_strands_matches_uploaded_labels_case_insensitively(self):
+        self._seed_global(
+            "Grade 3", "Mathematics",
+            [{"name": "Number", "sub_strands": ["Fractions"]}],
+        )
+        connection = sqlite3.connect(self.db_path)
+        connection.execute(
+            "UPDATE global_curriculum SET grade = ?, area = ?",
+            (" grade 3 ", " mathematics "),
+        )
+        connection.commit()
+        connection.close()
+
+        response = self.client.post(
+            "/api/cbc/fetch_covered_strands",
+            json={
+                "school_code": "cbc-test",
+                "password": "pw",
+                "grade": "Grade 3",
+                "area": "Mathematics",
+                "academic_year": 2026,
+            },
+        )
+
+        payload = response.get_json()
+        self.assertTrue(payload["success"], payload)
+        self.assertEqual(payload["strands"][0]["name"], "Number")
+
     def test_consume_marks_endpoint_keeps_marks(self):
         self._create_exam("MID TERM")
         self.client.post(
