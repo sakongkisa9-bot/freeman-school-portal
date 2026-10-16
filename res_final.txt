@@ -1,0 +1,14 @@
+﻿DEBUG: Request received at /api/fetch_cba_results from 127.0.0.1
+DEBUG: Request received at /api/create_exam from 127.0.0.1
+DEBUG: Request received at /exam/marks/Grade 3 from 127.0.0.1
+DEBUG: Request received at /api/create_exam from 127.0.0.1
+DEBUG: Request received at /cbc/gradebook/Grade 3 from 127.0.0.1
+DEBUG: Request received at /cbc/gradebook/Grade 3 from 127.0.0.1
+DEBUG: Request received at /cbc/gradebook/Grade 3 from 127.0.0.1
+DEBUG: Request received at /cbc/gradebook/Grade 3 from 127.0.0.1
+DEBUG: Request received at /cbc/gradebook/Grade 3 from 127.0.0.1
+DEBUG: Request received at /cbc/gradebook/Grade 3 from 127.0.0.1
+DEBUG: Request received at /api/cbc/fetch_covered_strands from 127.0.0.1
+DEBUG: Request received at /api/cbc/fetch_covered_strands from 127.0.0.1
+DEBUG: Request received at /api/upload_cba_tasks from 127.0.0.1
+DEBUG: Request received at /api/fetch_cba_results from 127.0.0.1

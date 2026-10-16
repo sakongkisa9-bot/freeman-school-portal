@@ -1680,6 +1680,45 @@ def _parse_exam_marks(out_of_text, raw_values):
     return out_of, percents
 
 
+MAX_EXAM_PAPERS = 5
+
+
+def _parse_multi_paper_marks(out_of_texts, paper_values):
+    """Combine several papers; return (total_out_of, {adm_no: (percent or None, combined_raw)}).
+
+    paper_values maps adm_no to a list of raw strings, one per paper. A learner with every
+    paper blank is AB; a blank paper for a learner who sat another counts as 0.
+    """
+    out_ofs = []
+    for index, text in enumerate(out_of_texts, start=1):
+        try:
+            value = int(text)
+            if not 1 <= value <= 1000:
+                raise ValueError
+        except (TypeError, ValueError):
+            raise ValueError(f"Enter what Paper {index} is out of as a whole number from 1 to 1000.")
+        out_ofs.append(value)
+    total_out_of = sum(out_ofs)
+    results = {}
+    for adm_no, raws in paper_values.items():
+        if all(raw == "" or raw.upper() == "AB" for raw in raws):
+            results[adm_no] = (None, "AB")
+            continue
+        total = 0.0
+        for index, (raw, out_of) in enumerate(zip(raws, out_ofs), start=1):
+            if raw == "" or raw.upper() == "AB":
+                continue
+            try:
+                value = float(raw)
+            except ValueError:
+                raise ValueError(f"Marks must be numbers. Check Paper {index} for ADM {adm_no}.")
+            if not math.isfinite(value) or not 0 <= value <= out_of:
+                raise ValueError(f"Paper {index} marks must be between 0 and {out_of}. Check ADM {adm_no}.")
+            total += value
+        results[adm_no] = (int(math.floor(total * 100 / total_out_of + 0.5)), f"{total:g}")
+    return total_out_of, results
+
+
 def _store_student_subject_score(conn, school_id, grade, subject, exam_title, student, score, now, extra=None):
     """Save one learner's subject score in the marks table, keeping other subjects intact."""
     is_jss = any(g in grade.lower() for g in ["grade 7", "grade 8", "grade 9"])
@@ -1822,17 +1861,51 @@ def enter_exam_marks(grade):
     review = request.args.get("review") == "1" and submission is not None
     out_of_value = str(submission["out_of"]) if submission else ""
     raw_values = {}
+    paper_count = 1
+    paper_outs = [""] * MAX_EXAM_PAPERS
+    paper_values = {}
 
     if request.method == "POST":
         action = request.form.get("action")
         review = request.form.get("review") == "1"
         out_of_value = request.form.get("out_of", "").strip()
-        raw_values = {
-            student["adm_no"]: request.form.get(f"score_{student['adm_no']}", "").strip()
-            for student in students
-        }
         try:
-            out_of, percents = _parse_exam_marks(out_of_value, raw_values)
+            paper_count = int(request.form.get("paper_count", "1"))
+        except ValueError:
+            paper_count = 1
+        paper_count = min(max(paper_count, 1), MAX_EXAM_PAPERS)
+        multi = paper_count > 1
+        paper_outs = [
+            request.form.get(f"out_of_{i}", "").strip() for i in range(1, MAX_EXAM_PAPERS + 1)
+        ]
+        if multi:
+            paper_values = {
+                student["adm_no"]: [
+                    request.form.get(f"score_{student['adm_no']}_{i}", "").strip()
+                    for i in range(1, MAX_EXAM_PAPERS + 1)
+                ]
+                for student in students
+            }
+        else:
+            raw_values = {
+                student["adm_no"]: request.form.get(f"score_{student['adm_no']}", "").strip()
+                for student in students
+            }
+        try:
+            paper_details = {}
+            if multi:
+                out_of, combined = _parse_multi_paper_marks(
+                    paper_outs[:paper_count],
+                    {adm: vals[:paper_count] for adm, vals in paper_values.items()},
+                )
+                percents = {adm: pair[0] for adm, pair in combined.items()}
+                raw_values = {adm: pair[1] for adm, pair in combined.items()}
+                for adm, vals in paper_values.items():
+                    paper_details[adm] = [
+                        {"out_of": int(paper_outs[i]), "raw": vals[i]} for i in range(paper_count)
+                    ]
+            else:
+                out_of, percents = _parse_exam_marks(out_of_value, raw_values)
             if action == "finish" and all(value is None for value in percents.values()):
                 raise ValueError("Enter at least one mark before finishing.")
             zero_names = [
@@ -1854,7 +1927,11 @@ def enter_exam_marks(grade):
                 _store_student_subject_score(
                     conn, session["school_id"], grade, subject, exam["title"], student,
                     "AB" if percent is None else str(percent), now,
-                    {"raw": "AB" if percent is None else raw_values[student["adm_no"]], "out_of": out_of},
+                    {
+                        "raw": "AB" if percent is None else raw_values[student["adm_no"]],
+                        "out_of": out_of,
+                        **({"papers": paper_details[student["adm_no"]]} if multi else {}),
+                    },
                 )
             conn.execute(
                 """
@@ -1875,7 +1952,7 @@ def enter_exam_marks(grade):
             flash("Marks saved. Review them, edit if needed, then click Finish.", "success")
             return redirect(url_for("enter_exam_marks", grade=grade, subject=subject, review=1))
 
-    if not raw_values:
+    if not raw_values and not paper_values:
         for row in conn.execute(
             "SELECT adm_no, subject_scores_json FROM marks WHERE school_id = ? AND grade = ? AND exam_title = ?",
             (session["school_id"], grade, exam["title"]),
@@ -1883,6 +1960,12 @@ def enter_exam_marks(grade):
             entry = json.loads(row["subject_scores_json"]).get(subject)
             if isinstance(entry, dict):
                 raw_values[row["adm_no"]] = entry.get("raw", entry.get("score", "")) or ""
+                papers = entry.get("papers")
+                if papers:
+                    paper_count = len(papers)
+                    paper_values[row["adm_no"]] = [p.get("raw", "") for p in papers]
+                    for i, paper in enumerate(papers):
+                        paper_outs[i] = str(paper.get("out_of", ""))
     conn.close()
     return render_template(
         "cloud_exam_marks.html",
@@ -1893,6 +1976,10 @@ def enter_exam_marks(grade):
         raw_values=raw_values,
         out_of_value=out_of_value,
         review=review,
+        paper_count=paper_count,
+        paper_outs=paper_outs,
+        paper_values=paper_values,
+        max_papers=MAX_EXAM_PAPERS,
     )
 
 

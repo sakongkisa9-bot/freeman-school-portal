@@ -1,0 +1,30 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "run-tests-chooser-1",
+			"type": "shell",
+			"command": ".venv-2\\Scripts\\python.exe -m unittest tests.test_ui_marksheet_kicd tests.test_kicd_grading tests.test_cbc_cloud_flow > test_out.txt 2>&1; .venv-2\\Scripts\\python.exe -c \"import ui_marksheet_primary, ui_marksheet_lower, ui_marksheet_pp1, ui_marksheet_pp2, ui_marksheet_playgroup, ui_marksheet_junior, marksheet_chooser, grading_four_level, create_exam_dialog; print('imports ok')\" >> test_out.txt 2>&1"
+		},
+		{
+			"label": "run-tests-chooser-2",
+			"type": "shell",
+			"command": ".venv-2\\Scripts\\python.exe -c \"import subprocess,sys; r=subprocess.run([sys.executable,'-m','unittest','tests.test_ui_marksheet_kicd','tests.test_kicd_grading','tests.test_cbc_cloud_flow'],capture_output=True,text=True); t=r.stderr[-1800:]; import ui_marksheet_primary, ui_marksheet_lower, ui_marksheet_pp1, ui_marksheet_pp2, ui_marksheet_playgroup, ui_marksheet_junior, marksheet_chooser, grading_four_level, create_exam_dialog; open('res_utf8.txt','w',encoding='utf8').write(t+chr(10)+'imports ok')\""
+		},
+		{
+			"label": "run-tests-chooser-3",
+			"type": "shell",
+			"command": ".venv-2\\Scripts\\python.exe -m unittest tests.test_ui_marksheet_kicd tests.test_kicd_grading tests.test_cbc_cloud_flow 2>&1 | Select-Object -Last 14"
+		},
+		{
+			"label": "run-tests-chooser-4",
+			"type": "shell",
+			"command": "$o = & .venv-2\\Scripts\\python.exe -m unittest tests.test_ui_marksheet_kicd tests.test_kicd_grading tests.test_cbc_cloud_flow 2>&1 | ForEach-Object { \"$_\" } | Select-Object -Last 14; $o += & .venv-2\\Scripts\\python.exe -c \"import ui_marksheet_primary, ui_marksheet_lower, ui_marksheet_pp1, ui_marksheet_pp2, ui_marksheet_playgroup, ui_marksheet_junior, marksheet_chooser, grading_four_level, create_exam_dialog; print('imports ok')\" 2>&1 | ForEach-Object { \"$_\" } | Select-Object -Last 4; $o | Out-File -Encoding utf8 res_final.txt"
+		},
+		{
+			"label": "run-tests-chooser-5",
+			"type": "shell",
+			"command": ".venv-2\\Scripts\\python.exe _run_check.py"
+		}
+	]
+}

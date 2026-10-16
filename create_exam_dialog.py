@@ -4,6 +4,7 @@ import customtkinter as ctk
 
 from cloud_service import CloudService, ask_cloud_credentials
 
+TERMS = ("Term 1", "Term 2", "Term 3")
 CLASSES = (
     "playgroup", "pp1", "pp2", "Grade 1", "Grade 2", "Grade 3", "Grade 4",
     "Grade 5", "Grade 6", "Grade 7", "Grade 8", "Grade 9",
@@ -11,10 +12,11 @@ CLASSES = (
 
 
 class CreateExamDialog(ctk.CTkToplevel):
-    def __init__(self, parent):
+    def __init__(self, parent, on_created=None):
         super().__init__(parent)
+        self.on_created = on_created
         self.title("Create Exam")
-        self.geometry("460x600")
+        self.geometry("460x650")
         self.transient(parent)
         self.grab_set()
 
@@ -27,6 +29,12 @@ class CreateExamDialog(ctk.CTkToplevel):
 
         self.title_entry = ctk.CTkEntry(self, placeholder_text="Exam title, e.g. TERM 2 EXAM 2026", width=380)
         self.title_entry.pack(pady=8)
+
+        term_row = ctk.CTkFrame(self, fg_color="transparent")
+        term_row.pack(pady=4)
+        ctk.CTkLabel(term_row, text="Term").pack(side="left", padx=(0, 8))
+        self.term_menu = ctk.CTkOptionMenu(term_row, values=list(TERMS), width=120)
+        self.term_menu.pack(side="left")
 
         self.scope_var = ctk.StringVar(value="All school")
         ctk.CTkSegmentedButton(
@@ -79,4 +87,8 @@ class CreateExamDialog(ctk.CTkToplevel):
             )
             return
         messagebox.showinfo("Exam Uploaded", result.get("message", "Exam uploaded."), parent=self)
+        term = self.term_menu.get()
+        callback = self.on_created
         self.destroy()
+        if callback:
+            callback(title, term, all_classes, classes)

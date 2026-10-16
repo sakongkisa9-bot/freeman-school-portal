@@ -2425,5 +2425,7 @@
                 }
             }
         }
-    }
+    },
+    "marksheet_term": "Term 1",
+    "marksheet_style": "Old style"
 }

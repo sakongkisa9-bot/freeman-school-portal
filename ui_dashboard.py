@@ -9,6 +9,9 @@ from teachers_linked import TeachersLinkedView, get_subjects_for_class
 from cba_task_manager import CBATaskManager
 from cba_results_view import CBAResultsView
 from cbc_levels_view import CBCLevelsView
+from ui_marksheet_kicd import KICDMarkSheetView
+from marksheet_chooser import MarksheetChooser, OLD_STYLE
+from teachers_linked import map_class_name_to_config_key
 from cbc_strands_view import CBCStrandsView
 from create_exam_dialog import CreateExamDialog
 from reportforms import ReportFormsView, ask_opening_closing_dates
@@ -29,6 +32,22 @@ from cloud_service import CloudService, ask_cloud_credentials
 import io
 import contextlib
 import subprocess
+
+# Classes that share one marksheet (and so one current exam) by group
+MARKSHEET_CLASS_TYPES = [
+    ("playgroup", "playgroup"),
+    ("pp1", "pp1"),
+    ("pp2", "pp2"),
+    ("Grade 1", "lower"),
+    ("Grade 2", "lower"),
+    ("Grade 3", "lower"),
+    ("Grade 4", "primary"),
+    ("Grade 5", "primary"),
+    ("Grade 6", "primary"),
+    ("Grade 7", "jss"),
+    ("Grade 8", "jss"),
+    ("Grade 9", "jss"),
+]
 
 
 # Handle both development and executable environments
@@ -3587,7 +3606,67 @@ class Dashboard(ctk.CTk):
         ).pack(pady=10)
 
     def open_create_exam_dialog(self):
-        CreateExamDialog(self)
+        CreateExamDialog(self, on_created=self.on_exam_created)
+
+    def classes_sharing_exam(self, class_names):
+        """A marksheet group switches exam together, so include the whole group."""
+        group_types = {kind for name, kind in MARKSHEET_CLASS_TYPES if name in class_names}
+        return [name for name, kind in MARKSHEET_CLASS_TYPES if kind in group_types]
+
+    def on_exam_created(self, title, term, all_classes, classes):
+        chosen = [name for name, _kind in MARKSHEET_CLASS_TYPES] if all_classes else classes
+        affected = self.classes_sharing_exam(chosen)
+        if not affected:
+            return
+        message = (
+            f"Start '{title}' ({term}) on this computer for: {', '.join(affected)}.\n\n"
+            "The current marks are first saved under Previous Exams, then cleared."
+        )
+        extra = [name for name in affected if name not in chosen]
+        if extra:
+            message += f"\n\nIncluded because they share a marksheet: {', '.join(extra)}."
+        if messagebox.askyesno("Start Exam on This Computer", message):
+            self.rotate_local_exam(title, term, affected)
+            messagebox.showinfo("Exam Started", f"'{title}' is now the current exam ({term}).")
+
+    def rotate_local_exam(self, exam_title, term, class_names):
+        config = self.load_school_config()
+        empty_summary = json.dumps(
+            {
+                "total_students": 0,
+                "distribution": {},
+                "gender_counts": {},
+                "gender_totals": {},
+                "subject_averages": [],
+                "has_history": False,
+                "trend_text": "First Exam",
+            }
+        )
+        updates = {}
+        for class_name, grade_type in MARKSHEET_CLASS_TYPES:
+            if class_name not in class_names:
+                continue
+            table_name = self.get_table_name_for_grade(grade_type)
+            old_title = config.get(f"{grade_type}_exam_title", "")
+            if old_title:
+                marks_data = self.get_current_marks_for_class(class_name, table_name, grade_type)
+                self.db.save_previous_exam(
+                    old_title, class_name, empty_summary, marks_data,
+                    term=config.get(f"{grade_type}_exam_term") or None,
+                )
+            try:
+                self.db.cursor().execute(
+                    f"DELETE FROM {table_name} WHERE adm_no IN (SELECT adm_no FROM students WHERE grade = ?)",
+                    (class_name,),
+                )
+                self.db.conn.commit()
+            except Exception as error:
+                print(f"Error clearing marks for {class_name}: {error}")
+            updates[f"{grade_type}_exam_title"] = exam_title
+            updates[f"{grade_type}_exam_term"] = term
+            if grade_type == "jss":
+                updates["current_exam_title"] = exam_title
+        self.save_school_config(updates)
 
     def open_competency_gradebook(self):
         self.show_class_selection(
@@ -4164,18 +4243,6 @@ class Dashboard(ctk.CTk):
                 command=self.show_dashboard_workspace,
             ).pack(pady=(0, 20))
 
-        if action_type == "Viewing Marks":
-            create_exam_btn = ctk.CTkButton(
-                self.class_frame,
-                text="🆕 Create New Exam (All Classes)",
-                fg_color="#10b981",
-                text_color="white",
-                width=300,
-                height=45,
-                command=self.create_new_exam_all_classes,
-            )
-            create_exam_btn.pack(pady=(0, 20))
-
         # Add Send All Reports to Portal and Print All Reports buttons for Report Forms
         if action_type == "Report Forms":
             send_all_btn = ctk.CTkButton(
@@ -4263,46 +4330,17 @@ class Dashboard(ctk.CTk):
                 row=0, column=0, columnspan=2, sticky="nsew"
             )  # Content takes all columns
 
-            # 1. Clean up the class name for easier comparison
-            name_upper = class_selected.upper().strip()
-
-            # 2. Route to the correct view based on the name
-            if "PLAYGROUP" in name_upper or "PLAY GROUP" in name_upper:
-                self.current_view = PlaygroupMarkSheetView(
-                    self.content_panel, self.db, class_selected
-                )
-
-            elif "PP1" in name_upper or "PRE-PRIMARY 1" in name_upper:
-                self.current_view = PP1MarkSheetView(
-                    self.content_panel, self.db, class_selected
-                )
-
-            elif "PP2" in name_upper or "PRE-PRIMARY 2" in name_upper:
-                self.current_view = PP2MarkSheetView(
-                    self.content_panel, self.db, class_selected
-                )
-
-            elif any(g in name_upper for g in ["GRADE 1", "GRADE 2", "GRADE 3"]):
-                self.current_view = LowerMarkSheetView(
-                    self.content_panel, self.db, class_selected
-                )
-
-            elif any(g in name_upper for g in ["GRADE 4", "GRADE 5", "GRADE 6"]):
-                from ui_marksheet_primary import PrimaryMarkSheetView
-
-                self.current_view = PrimaryMarkSheetView(
-                    self.content_panel, self.db, class_selected
-                )
-
-            else:
-                # Fallback for Junior Secondary or others
-                from ui_marksheet_junior import JuniorMarkSheetView
-
-                self.current_view = JuniorMarkSheetView(
-                    self.content_panel, self.db, class_selected
-                )
-
-            # Final UI placement
+            self.current_view = MarksheetChooser(
+                self.content_panel,
+                self.db,
+                class_selected,
+                self.load_school_config,
+                self.save_school_config,
+                lambda style, term, exam, is_current: self.open_chosen_marksheet(
+                    class_selected, style, term, exam, is_current
+                ),
+                self.return_to_home,
+            )
             self.current_view.pack(fill="both", expand=True)
 
         elif action_type == "Summary":
@@ -4919,6 +4957,48 @@ class Dashboard(ctk.CTk):
             self.content_panel, text="Back", command=self.return_to_home, width=150
         )
         back_btn.pack(pady=20)
+
+    def open_chosen_marksheet(self, class_name, style, term, exam_name, is_current):
+        if exam_name is None:
+            messagebox.showinfo(
+                "No Exam", f"No exam for {term}. Create one with the Create Exam button on the dashboard."
+            )
+            return
+        old_views = {
+            "playgroup": PlaygroupMarkSheetView,
+            "pp1": PP1MarkSheetView,
+            "pp2": PP2MarkSheetView,
+            "lower": LowerMarkSheetView,
+            "primary": PrimaryMarkSheetView,
+            "jss": JuniorMarkSheetView,
+        }
+        grade_type = dict(MARKSHEET_CLASS_TYPES).get(class_name) or map_class_name_to_config_key(class_name)
+        if not is_current:
+            if style != OLD_STYLE:
+                messagebox.showinfo(
+                    "Previous Exam",
+                    "Previous exams open in the old style (read-only). Their saved ratings use the old layout.",
+                )
+            self.open_previous_exam_marksheet(exam_name, class_name)
+            return
+        for widget in self.content_panel.winfo_children():
+            if widget != self.header_frame and widget != self.theme_frame:
+                widget.destroy()
+        if style == OLD_STYLE:
+            self.current_view = old_views.get(grade_type, JuniorMarkSheetView)(
+                self.content_panel, self.db, class_name
+            )
+        else:
+            self.current_view = KICDMarkSheetView(
+                self.content_panel,
+                self.db,
+                class_name,
+                self.return_to_home,
+                self.load_school_config,
+                self.save_school_config,
+                initial_term=term,
+            )
+        self.current_view.pack(fill="both", expand=True)
 
     def open_previous_exam_marksheet(self, exam_name, class_name):
         # Clear the old view completely

@@ -2,7 +2,8 @@ import customtkinter as ctk
 
 from tkinter import messagebox
 
-from grading_logic import get_grade_4_6_rating, calculate_final_level
+from grading_four_level import get_grade_4_6_rating, calculate_final_level
+from grading_four_level import is_absent_level as _is_absent_level
 
 from fpdf import FPDF
 
@@ -288,16 +289,6 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
             self.btn_pdf.pack(side="left", padx=5, pady=15)
 
-            self.btn_new_exam = ctk.CTkButton(
-                self.bottom_bar,
-                text="🆕 New Exam",
-                fg_color="#e67e22",
-                hover_color="#d35400",
-                command=self.handle_new_exam,
-            )
-
-            self.btn_new_exam.pack(side="left", padx=5, pady=15)
-
             self.btn_refresh = ctk.CTkButton(
                 self.bottom_bar,
                 text="🔄 Refresh",
@@ -366,7 +357,7 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
             # 5. Recalculate totals and averages for all rows from individual scores
             # This ensures totals are correct even if cloud sends zero
-            import grading_logic as gl
+            import grading_four_level as gl
 
             all_widgets = self.table_inner.grid_slaves()
             if all_widgets:
@@ -412,6 +403,17 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
                     # Calculate and update average level
                     avg_lvl = gl.calculate_final_level(
                         total_score, is_primary=True, num_subjects=num_subs
+                    )
+                    avg_lvl = (
+                        gl.absent_average_level(
+                            [
+                                widgets[1 + (i * 2)].get()
+                                for i in range(num_subs)
+                                if 1 + (i * 2) < len(widgets)
+                                and hasattr(widgets[1 + (i * 2)], "get")
+                            ]
+                        )
+                        or avg_lvl
                     )
                     avg_idx = total_idx + 1
                     if avg_idx < len(widgets):
@@ -606,7 +608,7 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                     distribution = summary.get("distribution", {})
 
-                    levels = ["EE1", "EE2", "ME1", "ME2", "AE1", "AE2", "BE1", "BE2"]
+                    levels = list(distribution) or ["EE", "ME", "AE", "BE"]
 
                     for i, level in enumerate(levels):
 
@@ -1069,6 +1071,11 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
         val = entry_widget.get().strip()
 
+        if val.upper() in ("AB", "A"):
+            entry_widget.delete(0, "end")
+            entry_widget.insert(0, "AB")
+            val = ""
+
         # 1. Validate input (make sure they actually typed a number)
 
         if val:
@@ -1109,7 +1116,7 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
     def refresh_totals(self, row_frame, row_idx):
 
-        import grading_logic as gl  # Ensure your file is imported
+        import grading_four_level as gl  # Ensure your file is imported
 
         subjects = self.get_subjects_from_json()
 
@@ -1151,6 +1158,16 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                     widgets[rate_idx].configure(state="disabled")
 
+                elif score_val.upper() == "AB":
+
+                    widgets[rate_idx].configure(state="normal")
+
+                    widgets[rate_idx].delete(0, "end")
+
+                    widgets[rate_idx].insert(0, "AB")
+
+                    widgets[rate_idx].configure(state="disabled")
+
             except:
 
                 continue
@@ -1171,6 +1188,13 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
         avg_lvl = gl.calculate_final_level(
             total_score, is_primary=True, num_subjects=num_subs
+        )
+
+        avg_lvl = (
+            gl.absent_average_level(
+                [widgets[1 + (i * 2)].get() for i in range(num_subs)]
+            )
+            or avg_lvl
         )
 
         l_box = widgets[t_idx + 1]
@@ -1337,11 +1361,18 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                         score = -1
 
-                    scored_students.append({"data": row_data, "score": score})
+                    scored_students.append(
+                        {
+                            "data": row_data,
+                            "score": score
+                            - (10**6 if _is_absent_level(row_data[-1]) else 0),
+                            "absent": _is_absent_level(row_data[-1]),
+                        }
+                    )
 
-                # Sort by total points (Highest first)
+                # Sort by total points (Highest first), absent students last
 
-                scored_students.sort(key=lambda x: x["score"], reverse=True)
+                scored_students.sort(key=lambda x: (x["absent"], -x["score"]))
 
                 # Assign positions
 
@@ -1449,11 +1480,18 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
 
                         score = -1
 
-                    scored_students.append({"data": row, "score": score})
+                    scored_students.append(
+                        {
+                            "data": row,
+                            "score": score
+                            - (10**6 if _is_absent_level(row[total_idx + 1]) else 0),
+                            "absent": _is_absent_level(row[total_idx + 1]),
+                        }
+                    )
 
-                # Sort by total points (Highest first)
+                # Sort by total points (Highest first), absent students last
 
-                scored_students.sort(key=lambda x: x["score"], reverse=True)
+                scored_students.sort(key=lambda x: (x["absent"], -x["score"]))
 
                 # 3. Assign positions and Sort for UI
 
@@ -2059,7 +2097,7 @@ class PlaygroupMarkSheetView(ctk.CTkFrame):
     def generate_summary_data(self):
         """Generate summary data for the current exam matching ClassSummaryView format"""
 
-        LEVEL_ORDER = ["EE1", "EE2", "ME1", "ME2", "AE1", "AE2", "BE1", "BE2"]
+        LEVEL_ORDER = ["EE", "ME", "AE", "BE"]
 
         # Get subjects from JSON
 

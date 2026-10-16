@@ -403,6 +403,9 @@ class FreemanDB:
                 UNIQUE(exam_name, class_name)
             )
         ''')
+        self._cursor.execute("PRAGMA table_info(previous_exams)")
+        if "term" not in [row[1] for row in self._cursor.fetchall()]:
+            self._cursor.execute("ALTER TABLE previous_exams ADD COLUMN term TEXT")
         self.conn.commit()
 
     def create_teachers_table(self):
@@ -435,15 +438,24 @@ class FreemanDB:
         ''')
         self.conn.commit()
 
-    def save_previous_exam(self, exam_name, class_name, summary_data, marks_data):
+    def save_previous_exam(self, exam_name, class_name, summary_data, marks_data, term=None):
         """Save a previous exam with its summary and marks data"""
         import datetime
         exam_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self._cursor.execute('''
-            INSERT OR REPLACE INTO previous_exams (exam_name, class_name, exam_date, summary_data, marks_data)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (exam_name, class_name, exam_date, summary_data, marks_data))
+            INSERT OR REPLACE INTO previous_exams (exam_name, class_name, exam_date, summary_data, marks_data, term)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (exam_name, class_name, exam_date, summary_data, marks_data, term))
         self.conn.commit()
+
+    def get_previous_exams_for_term(self, class_name, term):
+        """Previous exams of a term; exams saved before terms existed appear in every term"""
+        self._cursor.execute('''
+            SELECT exam_name, exam_date FROM previous_exams
+            WHERE class_name = ? AND (term = ? OR term IS NULL OR term = '')
+            ORDER BY exam_date DESC
+        ''', (class_name, term))
+        return self._cursor.fetchall()
 
     def get_previous_exams(self, class_name):
         """Get list of previous exams for a class"""

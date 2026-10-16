@@ -22,6 +22,8 @@
         input:focus { outline: 2px solid #62b58f; border-color: transparent; }
         input.out-of { width: 110px; }
         input.mark { width: 130px; }
+        select { padding: 10px; background: #0d1513; color: white; border: 1px solid #52665f; border-radius: 4px; font: inherit; }
+        [hidden] { display: none !important; }
         .table-wrap { border: 1px solid #354943; background: #17221f; }
         table { width: 100%; border-collapse: collapse; }
         th, td { border-bottom: 1px solid #354943; padding: 10px; text-align: left; }
@@ -58,8 +60,23 @@
         <input type="hidden" name="review" value="{{ '1' if review else '' }}">
         <input type="hidden" name="confirm_zero" id="confirmZero" value="">
         <div class="toolbar">
-            <label for="outOf">Out of</label>
-            <input id="outOf" class="out-of" name="out_of" type="number" min="1" max="1000" step="1" required value="{{ out_of_value }}">
+            <label for="paperCount">Papers</label>
+            <select id="paperCount" name="paper_count">
+                <option value="1" {{ 'selected' if paper_count == 1 }}>One paper</option>
+                {% for n in range(2, max_papers + 1) %}
+                <option value="{{ n }}" {{ 'selected' if paper_count == n }}>{{ n }} papers</option>
+                {% endfor %}
+            </select>
+            <span class="single-only">
+                <label for="outOf">Out of</label>
+                <input id="outOf" class="out-of" name="out_of" type="number" min="1" max="1000" step="1" required value="{{ out_of_value if paper_count == 1 else '' }}">
+            </span>
+            {% for n in range(1, max_papers + 1) %}
+            <span class="multi-only paper-col" data-paper="{{ n }}">
+                <label for="outOf{{ n }}">Paper {{ n }} out of</label>
+                <input id="outOf{{ n }}" class="out-of paper-out" name="out_of_{{ n }}" type="number" min="1" max="1000" step="1" required value="{{ paper_outs[n - 1] }}">
+            </span>
+            {% endfor %}
         </div>
         <div class="toolbar">
             <input id="studentSearch" type="search" placeholder="Search learner" aria-label="Search learner">
@@ -67,12 +84,23 @@
         </div>
         <div class="table-wrap">
             <table>
-                <thead><tr><th>Learner</th><th>Marks</th><th>Percentage</th></tr></thead>
+                <thead><tr>
+                    <th>Learner</th>
+                    <th class="single-only">Marks</th>
+                    {% for n in range(1, max_papers + 1) %}<th class="multi-only paper-col" data-paper="{{ n }}">Paper {{ n }}</th>{% endfor %}
+                    <th class="multi-only">Total</th>
+                    <th>Percentage</th>
+                </tr></thead>
                 <tbody>
                     {% for student in students %}
                     <tr class="student-row" data-search="{{ student.student_name }} {{ student.adm_no }}">
                         <td class="student-name">{{ student.student_name }}</td>
-                        <td><input class="mark" type="text" inputmode="decimal" autocomplete="off" name="score_{{ student.adm_no }}" value="{{ raw_values.get(student.adm_no, '') }}" placeholder="AB" aria-label="{{ student.student_name }} marks"></td>
+                        <td class="single-only"><input class="mark single-mark" type="text" inputmode="decimal" autocomplete="off" name="score_{{ student.adm_no }}" value="{{ raw_values.get(student.adm_no, '') if paper_count == 1 else '' }}" placeholder="AB" aria-label="{{ student.student_name }} marks"></td>
+                        {% set pv = paper_values.get(student.adm_no, []) %}
+                        {% for n in range(1, max_papers + 1) %}
+                        <td class="multi-only paper-col" data-paper="{{ n }}"><input class="mark paper-mark" type="text" inputmode="decimal" autocomplete="off" name="score_{{ student.adm_no }}_{{ n }}" value="{{ pv[n - 1] if n <= pv|length else '' }}" placeholder="AB" aria-label="{{ student.student_name }} paper {{ n }} marks"></td>
+                        {% endfor %}
+                        <td class="multi-only combined"></td>
                         <td class="percent"></td>
                     </tr>
                     {% endfor %}
@@ -124,18 +152,64 @@
     searchInput.addEventListener("input", filterRoster);
     filterRoster();
 
-    function updatePercentages() {
-        const total = Number(outOf.value);
-        for (const row of rows) {
-            const raw = row.querySelector(".mark").value.trim();
-            const cell = row.querySelector(".percent");
+    const paperCountSelect = document.getElementById("paperCount");
+
+    function paperCount() { return Number(paperCountSelect.value); }
+
+    // Show only the controls for the chosen paper mode; disabled inputs are not submitted.
+    function applyPaperMode() {
+        const count = paperCount();
+        const multi = count > 1;
+        document.querySelectorAll(".single-only").forEach(el => {
+            el.hidden = multi;
+            el.querySelectorAll("input").forEach(i => { i.disabled = multi; });
+        });
+        document.querySelectorAll(".multi-only").forEach(el => {
+            const paper = Number(el.dataset.paper || 0);
+            const on = multi && (paper === 0 || paper <= count);
+            el.hidden = !on;
+            el.querySelectorAll("input").forEach(i => { i.disabled = !on; });
+        });
+        updatePercentages();
+    }
+
+    // Returns {entered, total, absent} for one row, or null when a mark is not a number.
+    function rowTotals(row) {
+        const inputs = paperCount() > 1
+            ? Array.from(row.querySelectorAll(".paper-mark")).filter(i => !i.disabled)
+            : [row.querySelector(".single-mark")];
+        let total = 0, entered = 0;
+        for (const input of inputs) {
+            const raw = input.value.trim();
+            if (raw === "" || raw.toUpperCase() === "AB") continue;
             const value = Number(raw);
-            const absent = raw === "" || raw.toUpperCase() === "AB";
-            cell.textContent = absent ? "AB" : (total > 0 && Number.isFinite(value) ? `${Math.floor(value * 100 / total + 0.5)}%` : "");
+            if (!Number.isFinite(value)) return null;
+            total += value;
+            entered += 1;
+        }
+        return { entered, total };
+    }
+
+    function totalOutOf() {
+        if (paperCount() === 1) return Number(outOf.value);
+        let sum = 0;
+        document.querySelectorAll(".paper-out").forEach(i => { if (!i.disabled) sum += Number(i.value); });
+        return sum;
+    }
+
+    function updatePercentages() {
+        const total = totalOutOf();
+        for (const row of rows) {
+            const cell = row.querySelector(".percent");
+            const combined = row.querySelector(".combined");
+            const t = rowTotals(row);
+            if (combined) combined.textContent = t && t.entered ? String(Math.round(t.total * 100) / 100) : "";
+            if (t && t.entered === 0) { cell.textContent = "AB"; continue; }
+            cell.textContent = t && total > 0 ? `${Math.floor(t.total * 100 / total + 0.5)}%` : "";
         }
     }
     document.getElementById("marksForm").addEventListener("input", updatePercentages);
-    updatePercentages();
+    paperCountSelect.addEventListener("change", applyPaperMode);
 
     const finishButton = document.getElementById("finishButton");
     const finishDialog = document.getElementById("finishDialog");
@@ -145,8 +219,8 @@
     function zeroLearners() {
         return rows
             .filter(row => {
-                const raw = row.querySelector(".mark").value.trim();
-                return raw !== "" && Number(raw) === 0;
+                const t = rowTotals(row);
+                return t && t.entered > 0 && t.total === 0;
             })
             .map(row => row.querySelector(".student-name").textContent.trim());
     }
@@ -195,6 +269,7 @@
         document.getElementById("cancelFinish").addEventListener("click", () => finishDialog.close());
         document.getElementById("confirmFinish").addEventListener("click", () => submitWith("finish"));
     }
+    applyPaperMode();
 </script>
 </body>
 </html>

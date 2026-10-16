@@ -1,0 +1,27 @@
+t\cloud_portal_v2.py:1851: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  now = datetime.utcnow().isoformat()
+2026-10-16 09:54:23,324 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpjqjdujwz\cbc-test.sqlite
+.2026-10-16 09:54:24,401 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpduioi2ed\cbc-test.sqlite
+2026-10-16 09:54:27,887 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpduioi2ed\cbc-test.sqlite
+2026-10-16 09:54:29,147 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpduioi2ed\cbc-test.sqlite
+2026-10-16 09:54:29,504 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpduioi2ed\cbc-test.sqlite
+2026-10-16 09:54:29,663 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpduioi2ed\cbc-test.sqlite
+2026-10-16 09:54:30,054 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpduioi2ed\cbc-test.sqlite
+2026-10-16 09:54:30,213 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpduioi2ed\cbc-test.sqlite
+2026-10-16 09:54:30,592 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpduioi2ed\cbc-test.sqlite
+.2026-10-16 09:54:30,741 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpfwnvwsb4\cbc-test.sqlite
+2026-10-16 09:54:35,862 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpfwnvwsb4\cbc-test.sqlite
+2026-10-16 09:54:36,908 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpfwnvwsb4\cbc-test.sqlite
+2026-10-16 09:54:37,689 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpfwnvwsb4\cbc-test.sqlite
+.2026-10-16 09:54:38,490 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpljq4xgoo\cbc-test.sqlite
+2026-10-16 09:54:43,006 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpljq4xgoo\cbc-test.sqlite
+2026-10-16 09:54:44,126 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpljq4xgoo\cbc-test.sqlite
+2026-10-16 09:54:45,423 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpljq4xgoo\cbc-test.sqlite
+.2026-10-16 09:54:47,521 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmps7nos6xi\legacy-cbc.sqlite
+.
+----------------------------------------------------------------------
+Ran 33 tests in 202.664s
+
+OK
+
+imports ok
