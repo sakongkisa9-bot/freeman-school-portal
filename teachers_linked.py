@@ -80,56 +80,37 @@ def map_class_name_to_config_key(class_name):
 
 
 def get_subjects_for_class(class_name):
-    """Get subjects for a class from school_config.json"""
+    """Return only subjects selected in the school's Subjects settings."""
     try:
         json_path = get_json_path()
         if os.path.exists(json_path):
             with open(json_path, "r") as f:
                 config = json.load(f)
-
-                # Get the config key for this class
                 config_key = map_class_name_to_config_key(class_name)
+                catalog = config.get("subject_catalog")
+                if isinstance(catalog, dict) and isinstance(catalog.get(config_key), list):
+                    return [
+                        item["short"].strip()
+                        for item in catalog[config_key]
+                        if item.get("selected") and item.get("short", "").strip()
+                    ]
 
-                # Navigate the nested dictionary: subjects -> config_key
-                if "subjects" in config and config_key in config["subjects"]:
-                    return config["subjects"][config_key]
-
-                # Fallback: try direct class_name match
-                if "subjects" in config and class_name in config["subjects"]:
-                    return config["subjects"][class_name]
+                subjects = config.get("subjects", {})
+                configured = subjects.get(config_key, subjects.get(class_name, []))
+                return list(configured) if isinstance(configured, list) else []
 
     except Exception as e:
         print(f"Warning: Could not read subjects from JSON: {e}")
-
-    # Default fallback subjects if JSON is missing or broken
-    default_subjects = {
-        "playgroup": ["LANG", "MATH", "ENV", "CREAT"],
-        "pp1": ["LANG", "MATH", "ENV", "PSYCH", "REL"],
-        "pp2": ["LANG", "MATH", "ENV", "PSYCH", "REL"],
-        "lower": ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"],
-        "primary": ["ENG", "KISW", "MATH", "SCIE", "AGRI", "SST", "CRE", "C/A", "PHE"],
-        "jss": [
-            "MATH",
-            "ENG",
-            "KISW",
-            "INT SCIE",
-            "PRE-TECH",
-            "SST",
-            "CRE",
-            "AGRI",
-            "C/A",
-        ],
-    }
-
-    config_key = map_class_name_to_config_key(class_name)
-    return default_subjects.get(config_key, [])
+    return []
 
 
 class TeachersLinkedView(ctk.CTkFrame):
-    def __init__(self, parent, db, class_name, return_callback):
+    def __init__(self, parent, db, class_name, return_callback, stream=None):
         super().__init__(parent)
         self.db = db
         self.class_name = class_name
+        self.stream = stream
+        self.assignment_class = f"{class_name} [{stream}]" if stream else class_name
         self.return_callback = return_callback
         self.all_teacher_rows = []
 
@@ -144,7 +125,7 @@ class TeachersLinkedView(ctk.CTkFrame):
 
         title_label = ctk.CTkLabel(
             header_frame,
-            text=f"Teachers Linked: {self.class_name.upper()}",
+            text=f"Teachers Linked: {self.class_name.upper()}" + (f" / {self.stream}" if self.stream else ""),
             font=("Arial Bold", 24),
             text_color="white",
         )
@@ -309,7 +290,7 @@ class TeachersLinkedView(ctk.CTkFrame):
 
         try:
             self.db.add_teacher_assignment(
-                self.class_name, subject, teacher_name, teacher_code
+                self.assignment_class, subject, teacher_name, teacher_code
             )
 
             # Lock the row
@@ -331,7 +312,7 @@ class TeachersLinkedView(ctk.CTkFrame):
         try:
             cursor = self.db.conn.cursor()
             query = "SELECT subject, teacher_name, teacher_code FROM teachers WHERE class_name = ?"
-            cursor.execute(query, (self.class_name,))
+            cursor.execute(query, (self.assignment_class,))
             records = cursor.fetchall()
 
             for row_data in records:
@@ -473,7 +454,7 @@ class TeachersLinkedView(ctk.CTkFrame):
                     break
 
             self.db.update_teacher_assignment(
-                self.class_name, old_subject, subject, teacher_name, teacher_code
+                self.assignment_class, old_subject, subject, teacher_name, teacher_code
             )
 
             # Lock the row again
@@ -521,7 +502,7 @@ class TeachersLinkedView(ctk.CTkFrame):
             f"Are you sure you want to delete the assignment for {subject}?",
         ):
             try:
-                self.db.delete_teacher_assignment(self.class_name, subject)
+                self.db.delete_teacher_assignment(self.assignment_class, subject)
                 frame.destroy()
                 if frame in self.all_teacher_rows:
                     self.all_teacher_rows.remove(frame)

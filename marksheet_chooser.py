@@ -13,10 +13,12 @@ class MarksheetChooser(ctk.CTkFrame):
     on_open(style, term, exam_name, is_current) is called when the user presses Open.
     """
 
-    def __init__(self, parent, db, class_name, load_config, save_config, on_open, on_back):
+    def __init__(self, parent, db, class_name, load_config, save_config, on_open, on_back, stream=None):
         super().__init__(parent, fg_color="transparent")
         self.db = db
         self.class_name = class_name
+        self.stream = stream
+        self.history_class_name = f"{class_name} [{stream}]" if stream else class_name
         self.load_config = load_config
         self.save_config = save_config
         self.on_open = on_open
@@ -80,7 +82,7 @@ class MarksheetChooser(ctk.CTkFrame):
         self.exam_labels = {}
         if current and is_this_year and (not current_term or current_term == term):
             self.exam_labels[f"{current} (current)"] = (current, True)
-        for exam_name, _date in self.db.get_previous_exams_for_term(self.class_name, term, year):
+        for exam_name, _date in self.db.get_previous_exams_for_term(self.history_class_name, term, year):
             if not (is_this_year and exam_name == current):
                 self.exam_labels[exam_name] = (exam_name, False)
         if not self.exam_labels:

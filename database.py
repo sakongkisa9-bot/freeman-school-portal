@@ -46,6 +46,7 @@ class FreemanDB:
         
         # Create all tables (run regardless of connection success)
         self.create_table()
+        self.create_class_streams_table()
         self.create_marksheet_table()
         self.create_playgroup_table()
         self.create_pp1_table()
@@ -177,6 +178,64 @@ class FreemanDB:
         except:
             pass
         self.conn.commit()
+
+    def create_class_streams_table(self):
+        self._cursor.execute('''
+            CREATE TABLE IF NOT EXISTS class_streams (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                grade TEXT NOT NULL COLLATE NOCASE,
+                stream TEXT NOT NULL COLLATE NOCASE,
+                UNIQUE (grade, stream)
+            )
+        ''')
+        self.conn.commit()
+
+    def get_class_streams(self, grade):
+        self._cursor.execute(
+            "SELECT stream FROM class_streams WHERE grade = ? ORDER BY id",
+            (grade.strip(),),
+        )
+        return [row[0] for row in self._cursor.fetchall()]
+
+    def set_class_streams(self, grade, streams):
+        grade = str(grade or "").strip()
+        if not grade:
+            raise ValueError("A class is required to configure streams.")
+
+        normalized_streams = []
+        seen = set()
+        for stream in streams:
+            stream = str(stream or "").strip()
+            if not stream:
+                raise ValueError("Stream names cannot be empty.")
+            key = stream.casefold()
+            if key not in seen:
+                normalized_streams.append(stream)
+                seen.add(key)
+
+        current_streams = self.get_class_streams(grade)
+        removed_streams = [
+            stream for stream in current_streams if stream.casefold() not in seen
+        ]
+        for removed_stream in removed_streams:
+            self._cursor.execute(
+                "SELECT 1 FROM students WHERE UPPER(TRIM(grade)) = UPPER(?) "
+                "AND UPPER(TRIM(stream)) = UPPER(?) LIMIT 1",
+                (grade, removed_stream),
+            )
+            if self._cursor.fetchone():
+                raise ValueError(
+                    f"Cannot remove stream '{removed_stream}' while students are assigned to it. "
+                    "Move those students to another stream first."
+                )
+
+        self._cursor.execute("DELETE FROM class_streams WHERE grade = ?", (grade,))
+        self._cursor.executemany(
+            "INSERT INTO class_streams (grade, stream) VALUES (?, ?)",
+            [(grade, stream) for stream in normalized_streams],
+        )
+        self.conn.commit()
+        return normalized_streams
 
     def add_student(self, adm, name, grade, gender, phone, photo=None, stream=None, check_footprint=True, assessment_number=None):
         """Add student with optional footprint check for anti-cheating"""

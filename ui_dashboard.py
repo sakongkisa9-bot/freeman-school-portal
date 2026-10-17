@@ -14,7 +14,7 @@ from marksheet_chooser import MarksheetChooser, OLD_STYLE
 from teachers_linked import map_class_name_to_config_key
 from cbc_strands_view import CBCStrandsView
 from create_exam_dialog import CreateExamDialog
-from reportforms import ReportFormsView, ask_opening_closing_dates
+from reportforms import ReportFormsView, ask_opening_closing_dates, ask_report_print_mode
 from ocr_student_dialog import show_ocr_dialog
 from excel_student_import import read_student_rows
 import os
@@ -2445,6 +2445,8 @@ class Dashboard(ctk.CTk):
 
         # Stream field
         stream = ctk.CTkEntry(row_frame, placeholder_text="Stream", **entry_style)
+        if getattr(self, "registry_streams", []) and self.registry_stream != "None":
+            stream.insert(0, self.registry_stream)
         stream.grid(row=0, column=6, padx=2, pady=5, sticky="ew")
 
         # Photo upload button
@@ -2568,7 +2570,19 @@ class Dashboard(ctk.CTk):
         assessment_number = assessment_entry.get() if assessment_entry else ""
         gender = gender_entry.get()
         phone = phone_entry.get()
-        stream = stream_entry.get() if stream_entry else "None"
+        stream = stream_entry.get().strip() if stream_entry else "None"
+        if getattr(self, "registry_streams", []):
+            configured = {
+                configured_stream.casefold(): configured_stream
+                for configured_stream in self.registry_streams
+            }
+            if stream.casefold() not in configured:
+                messagebox.showwarning(
+                    "Invalid Stream",
+                    "Choose one of this class's configured streams before saving.",
+                )
+                return
+            stream = configured[stream.casefold()]
         photo = photo_path_var.get() if photo_path_var else None
 
         # --- THE CRITICAL FIX ---
@@ -2577,7 +2591,7 @@ class Dashboard(ctk.CTk):
         raw_title = self.registry_title.cget(
             "text"
         )  # Result: "Student Registry: playgroup"
-        current_class = raw_title.replace("Student Registry: ", "").strip()
+        current_class = self.registry_class
 
         # Normalize grade names to match database format
         grade_mapping = {
@@ -2887,7 +2901,7 @@ class Dashboard(ctk.CTk):
             else:
                 lbl.grid(row=0, column=8, padx=10, pady=5)
 
-    def show_student_registry(self, class_name):
+    def show_student_registry(self, class_name, stream=None):
         # 1. Layout: Hide sidebar and expand content
         self.menu_panel.grid_forget()
         self.grid_columnconfigure(0, weight=0, minsize=0)
@@ -2908,6 +2922,32 @@ class Dashboard(ctk.CTk):
         )
         self.registry_title.pack(pady=20)
         # -------------------------
+
+        self.registry_class = class_name
+        self.registry_streams = self.db.get_class_streams(class_name)
+        self.registry_stream = stream or (
+            self.registry_streams[0] if self.registry_streams else "None"
+        )
+        stream_bar = ctk.CTkFrame(self.content_panel, fg_color="transparent")
+        stream_bar.pack(fill="x", padx=24, pady=(0, 14))
+        ctk.CTkButton(
+            stream_bar,
+            text="Configure Streams",
+            width=150,
+            command=lambda: self.configure_class_streams(class_name),
+        ).pack(side="left")
+        ctk.CTkLabel(stream_bar, text="Registry stream:").pack(side="left", padx=(20, 8))
+        stream_values = self.registry_streams or ["None"]
+        if self.registry_stream not in stream_values:
+            self.registry_stream = stream_values[0]
+        self.registry_stream_var = ctk.StringVar(value=self.registry_stream)
+        ctk.CTkOptionMenu(
+            stream_bar,
+            values=stream_values,
+            variable=self.registry_stream_var,
+            command=lambda value: self.show_student_registry(class_name, value),
+            width=180,
+        ).pack(side="left")
 
         # 3. Create the Main Container and THE TABLE FRAME (Must happen FIRST)
         self.registry_container = ctk.CTkFrame(
@@ -3010,6 +3050,47 @@ class Dashboard(ctk.CTk):
 
         self.btn_remove.configure(command=self.clear_all_students)
 
+    def configure_class_streams(self, class_name):
+        dialog = ctk.CTkToplevel(self)
+        dialog.title(f"Configure {class_name} Streams")
+        dialog.geometry("420x520")
+        dialog.transient(self)
+        dialog.grab_set()
+
+        existing = self.db.get_class_streams(class_name)
+        ctk.CTkLabel(dialog, text=f"Streams for {class_name}", font=("Arial Bold", 20)).pack(pady=(20, 8))
+        ctk.CTkLabel(dialog, text="Choose 0 for no streams, or enter a name for each stream.").pack(pady=(0, 12))
+        count_var = ctk.StringVar(value=str(len(existing)))
+        count_menu = ctk.CTkOptionMenu(dialog, values=[str(count) for count in range(13)], variable=count_var)
+        count_menu.pack(pady=(0, 12))
+        names_frame = ctk.CTkScrollableFrame(dialog, height=300)
+        names_frame.pack(fill="both", expand=True, padx=20, pady=8)
+        name_entries = []
+
+        def rebuild_name_entries(_value=None):
+            for child in names_frame.winfo_children():
+                child.destroy()
+            name_entries.clear()
+            for index in range(int(count_var.get())):
+                entry = ctk.CTkEntry(names_frame, placeholder_text=f"Stream {index + 1}")
+                entry.pack(fill="x", pady=5)
+                if index < len(existing):
+                    entry.insert(0, existing[index])
+                name_entries.append(entry)
+
+        count_menu.configure(command=rebuild_name_entries)
+        rebuild_name_entries()
+
+        def save_streams():
+            try:
+                self.db.set_class_streams(class_name, [entry.get() for entry in name_entries])
+                dialog.destroy()
+                self.show_student_registry(class_name)
+            except ValueError as error:
+                messagebox.showerror("Invalid Streams", str(error), parent=dialog)
+
+        ctk.CTkButton(dialog, text="Save Streams", command=save_streams).pack(pady=16)
+
     def next_registry_admission_number(self):
         """Allocate an admission number after saved and currently staged rows."""
         next_admission_text = self.db.next_admission_number()
@@ -3097,43 +3178,171 @@ class Dashboard(ctk.CTk):
                 "Pre-Primary 2": "pp2",
             }
             grade = grade_mapping.get(class_name, class_name)
-            for student in students_to_add:
-                self.add_empty_row()
-                row_frame = self.all_student_rows[-1]
-                entries = {
-                    int(widget.grid_info()["column"]): widget
-                    for widget in row_frame.winfo_children()
-                    if isinstance(widget, ctk.CTkEntry)
-                }
-                values = {
-                    0: self.next_registry_admission_number(),
-                    1: student["assessment_number"],
-                    2: student["name"],
-                    3: grade,
-                    4: student.get("gender", ""),
-                    5: student.get("phone", ""),
-                    6: student.get("stream", ""),
-                }
-                for column, value in values.items():
-                    entries[column].insert(0, value)
+            has_stream_column = bool(imported_students) and all(
+                "stream" in student for student in imported_students
+            )
 
-            messagebox.showinfo(
-                "Excel Import",
-                f"Loaded {len(students_to_add)} students for review. "
-                f"{skipped_duplicates} duplicate assessment number(s) skipped. "
-                "Save each row to register it.",
+            if self.registry_streams and not has_stream_column:
+                self.assign_import_streams(
+                    class_name, grade, students_to_add, skipped_duplicates
+                )
+                return
+
+            if self.registry_streams:
+                selected_stream = self.registry_stream.casefold()
+                assigned_students = [
+                    (student, self.registry_stream)
+                    for student in students_to_add
+                    if student.get("stream", "").strip().casefold() == selected_stream
+                ]
+                skipped_other_streams = len(students_to_add) - len(assigned_students)
+            else:
+                assigned_students = [
+                    (student, student.get("stream") or "None")
+                    for student in students_to_add
+                ]
+                skipped_other_streams = 0
+
+            if not assigned_students:
+                messagebox.showinfo(
+                    "Excel Import",
+                    f"No new Excel rows matched stream '{self.registry_stream}'.",
+                )
+                return
+
+            self.stage_imported_students(
+                class_name,
+                grade,
+                assigned_students,
+                skipped_duplicates,
+                skipped_other_streams,
             )
         except Exception as error:
             messagebox.showerror("Excel Import", f"Could not read this workbook:\n{error}")
+
+    def assign_import_streams(self, class_name, grade, students, skipped_duplicates):
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Assign Excel Students to Streams")
+        dialog.geometry("1200x650")
+        dialog.transient(self)
+        dialog.grab_set()
+        ctk.CTkLabel(
+            dialog,
+            text="Select one stream for each student",
+            font=("Arial Bold", 20),
+        ).pack(pady=(16, 10))
+
+        grid = ctk.CTkScrollableFrame(dialog)
+        grid.pack(fill="both", expand=True, padx=16, pady=8)
+        grid.grid_columnconfigure(0, weight=2, minsize=220)
+        grid.grid_columnconfigure(1, weight=1, minsize=130)
+        ctk.CTkLabel(grid, text="STUDENT", font=("Arial Bold", 11)).grid(
+            row=0, column=0, padx=6, pady=6, sticky="w"
+        )
+        ctk.CTkLabel(grid, text="ASSESSMENT NO.", font=("Arial Bold", 11)).grid(
+            row=0, column=1, padx=6, pady=6
+        )
+        for column, stream_name in enumerate(self.registry_streams, start=2):
+            grid.grid_columnconfigure(column, weight=0, minsize=68)
+            ctk.CTkLabel(
+                grid,
+                text=stream_name,
+                font=("Arial Bold", 10),
+                wraplength=64,
+            ).grid(row=0, column=column, padx=2, pady=6)
+
+        assignments = []
+        for row_index, student in enumerate(students, start=1):
+            ctk.CTkLabel(grid, text=student["name"], anchor="w").grid(
+                row=row_index, column=0, padx=6, pady=4, sticky="ew"
+            )
+            ctk.CTkLabel(grid, text=student["assessment_number"]).grid(
+                row=row_index, column=1, padx=6, pady=4
+            )
+            row_vars = {}
+            assignments.append(row_vars)
+
+            def select_only(stream_name, variables=row_vars):
+                if variables[stream_name].get():
+                    for other_name, variable in variables.items():
+                        if other_name != stream_name:
+                            variable.set(False)
+
+            for column, stream_name in enumerate(self.registry_streams, start=2):
+                variable = ctk.BooleanVar(value=False)
+                row_vars[stream_name] = variable
+                ctk.CTkCheckBox(
+                    grid,
+                    text="",
+                    width=24,
+                    variable=variable,
+                    command=lambda name=stream_name, vars_for_row=row_vars: select_only(
+                        name, vars_for_row
+                    ),
+                ).grid(row=row_index, column=column, padx=10, pady=4)
+
+        def confirm_assignments():
+            assigned = []
+            for student, row_vars in zip(students, assignments):
+                selected = [name for name, variable in row_vars.items() if variable.get()]
+                if len(selected) != 1:
+                    messagebox.showwarning(
+                        "Stream Required",
+                        f"Select exactly one stream for {student['name']}.",
+                        parent=dialog,
+                    )
+                    return
+                assigned.append((student, selected[0]))
+            dialog.destroy()
+            self.stage_imported_students(
+                class_name, grade, assigned, skipped_duplicates, 0
+            )
+
+        ctk.CTkButton(
+            dialog, text="Add to Registry", command=confirm_assignments
+        ).pack(pady=12)
+
+    def stage_imported_students(
+        self, class_name, grade, assigned_students, skipped_duplicates, skipped_streams
+    ):
+        for student, stream_name in assigned_students:
+            self.add_empty_row()
+            row_frame = self.all_student_rows[-1]
+            entries = {
+                int(widget.grid_info()["column"]): widget
+                for widget in row_frame.winfo_children()
+                if isinstance(widget, ctk.CTkEntry)
+            }
+            values = {
+                0: self.next_registry_admission_number(),
+                1: student["assessment_number"],
+                2: student["name"],
+                3: grade,
+                4: student.get("gender", ""),
+                5: student.get("phone", ""),
+                6: stream_name,
+            }
+            for column, value in values.items():
+                entries[column].delete(0, "end")
+                entries[column].insert(0, value)
+
+        messagebox.showinfo(
+            "Excel Import",
+            f"Loaded {len(assigned_students)} students for review. "
+            f"{skipped_duplicates} duplicate assessment number(s) skipped. "
+            f"{skipped_streams} row(s) from other streams skipped. "
+            "Save each row to register it.",
+        )
 
     def open_ocr_dialog(self, class_name):
         """Open the OCR student registration dialog"""
 
         def refresh_registry():
             # Refresh the student registry after OCR registration
-            self.show_student_registry(class_name)
+            self.show_student_registry(class_name, self.registry_stream)
 
-        show_ocr_dialog(self, refresh_registry, self.db)
+        stream = self.registry_stream if self.registry_stream != "None" else None
+        show_ocr_dialog(self, refresh_registry, self.db, class_name, stream)
 
     def open_cba_menu(self):
         self.highlight_button(self.btn_knec_cba)
@@ -3226,12 +3435,19 @@ class Dashboard(ctk.CTk):
                     "trend_text": "First Exam",
                 }
             )
-            marks_data = self.get_current_marks_for_class(class_name, table_name, grade_type)
-            self.db.save_previous_exam(
-                old_title, class_name, empty_summary, marks_data,
-                term=config.get(f"{grade_type}_exam_term") or config.get("current_term") or None,
-                year=self.get_academic_year(),
-            )
+            streams = self.db.get_class_streams(class_name)
+            archive_streams = [*streams, "None"] if streams else [None]
+            for stream in archive_streams:
+                history_class = f"{class_name} [{stream}]" if stream and stream != "None" else class_name
+                marks_data = self.get_current_marks_for_class(
+                    class_name, table_name, grade_type,
+                    stream=stream if streams else None,
+                )
+                self.db.save_previous_exam(
+                    old_title, history_class, empty_summary, marks_data,
+                    term=config.get(f"{grade_type}_exam_term") or config.get("current_term") or None,
+                    year=self.get_academic_year(),
+                )
         try:
             self.db.cursor().execute(
                 f"DELETE FROM {table_name} WHERE adm_no IN (SELECT adm_no FROM students WHERE grade = ?)",
@@ -3565,10 +3781,18 @@ class Dashboard(ctk.CTk):
             total_count = self.db.cursor().fetchone()[0]
             print(f"DEBUG: Total students in database: {total_count}")
 
-            self.db.cursor().execute(
-                "SELECT adm_no, assessment_number, name, grade, gender, phone, photo, stream FROM students WHERE UPPER(grade) = UPPER(?)",
-                (class_name,),
+            query = (
+                "SELECT adm_no, assessment_number, name, grade, gender, phone, photo, stream "
+                "FROM students WHERE UPPER(grade) = UPPER(?)"
             )
+            params = [class_name]
+            if self.registry_streams:
+                if self.registry_stream == "None":
+                    query += " AND (stream IS NULL OR TRIM(stream) = '' OR UPPER(stream) = 'NONE')"
+                else:
+                    query += " AND UPPER(TRIM(stream)) = UPPER(?)"
+                    params.append(self.registry_stream)
+            self.db.cursor().execute(query, params)
             records = self.db.cursor().fetchall()
             print(
                 f"DEBUG: Loaded {len(records)} students for grade '{class_name}' from database"
@@ -3882,13 +4106,19 @@ class Dashboard(ctk.CTk):
             btn.pack(pady=10)
             self.class_selection_buttons.append(btn)
 
-    def open_class_action(self, class_selected, action_type):
+    def open_class_action(self, class_selected, action_type, stream=None):
+        configured_streams = self.db.get_class_streams(class_selected)
+        if action_type not in ("Registration", "Registering") and configured_streams and stream is None:
+            self.show_stream_selection(class_selected, action_type, configured_streams)
+            return
+
         # 1. Clear the old view completely (Class Selection Menu)
         for widget in self.content_panel.winfo_children():
             if widget != self.header_frame and widget != self.theme_frame:
                 widget.destroy()
 
-        print(f"Action: {action_type} | Target: {class_selected}")
+        print(f"Action: {action_type} | Target: {class_selected} | Stream: {stream or 'None'}")
+        self.selected_stream = stream
 
         # 2. DECIDE: Which screen are we opening?
 
@@ -3910,9 +4140,10 @@ class Dashboard(ctk.CTk):
                 self.load_school_config,
                 self.save_school_config,
                 lambda style, term, exam, is_current, year=None: self.open_chosen_marksheet(
-                    class_selected, style, term, exam, is_current, year
+                    class_selected, style, term, exam, is_current, year, stream
                 ),
                 self.return_to_home,
+                stream=stream,
             )
             self.current_view.pack(fill="both", expand=True)
 
@@ -3922,7 +4153,7 @@ class Dashboard(ctk.CTk):
             self.grid_columnconfigure(0, weight=0, minsize=0)
             self.content_panel.grid(row=0, column=0, columnspan=2, sticky="nsew")
             self.current_view = ClassSummaryView(
-                self.content_panel, self.db, class_selected
+                self.content_panel, self.db, class_selected, stream=stream
             )
             self.current_view.pack(fill="both", expand=True)
 
@@ -3980,6 +4211,7 @@ class Dashboard(ctk.CTk):
                 self.db,
                 class_selected,
                 self.show_dashboard_workspace,
+                stream=stream,
             )
             self.current_view.pack(fill="both", expand=True)
 
@@ -3991,9 +4223,45 @@ class Dashboard(ctk.CTk):
                 0, weight=0, minsize=0
             )  # Shrink sidebar space to zero
             self.content_panel.grid(row=0, column=0, columnspan=2, sticky="nsew")
-            self.show_report_forms_class_view(class_selected)
+            self.show_report_forms_class_view(class_selected, stream)
 
-    def show_report_forms_class_view(self, class_name):
+    def show_stream_selection(self, class_name, action_type, streams):
+        for widget in self.content_panel.winfo_children():
+            if widget != self.header_frame and widget != self.theme_frame:
+                widget.destroy()
+
+        frame = ctk.CTkScrollableFrame(
+            self.content_panel,
+            label_text=f"SELECT STREAM FOR {class_name.upper()}: {action_type.upper()}",
+            label_font=("Arial Bold", 20),
+            fg_color="gray10",
+            width=400,
+            height=500,
+        )
+        frame.pack(pady=40, expand=True)
+        ctk.CTkButton(
+            frame,
+            text="Back to Classes",
+            width=300,
+            height=40,
+            command=lambda: self.show_class_selection(
+                action_type, self.active_sidebar_button
+            ),
+        ).pack(pady=(0, 16))
+        for stream in streams:
+            ctk.CTkButton(
+                frame,
+                text=stream,
+                width=300,
+                height=45,
+                fg_color=self.dashboard_accent,
+                hover_color=self.get_hover_color(self.dashboard_accent),
+                command=lambda selected=stream: self.open_class_action(
+                    class_name, action_type, selected
+                ),
+            ).pack(pady=10)
+
+    def show_report_forms_class_view(self, class_name, stream=None):
         # Clear the old view completely
         for widget in self.content_panel.winfo_children():
             if widget != self.header_frame and widget != self.theme_frame:
@@ -4005,7 +4273,9 @@ class Dashboard(ctk.CTk):
 
         # Title
         title_label = ctk.CTkLabel(
-            header_frame, text=f"Report Forms - {class_name}", font=("Arial Bold", 28)
+            header_frame,
+            text=f"Report Forms - {class_name}" + (f" / {stream}" if stream else ""),
+            font=("Arial Bold", 28),
         )
         title_label.pack(side="left", padx=10)
 
@@ -4017,7 +4287,7 @@ class Dashboard(ctk.CTk):
             hover_color="#2980b9",
             font=("Arial Bold", 14),
             height=40,
-            command=lambda: self.send_class_reports_to_portal(class_name),
+            command=lambda: self.send_class_reports_to_portal(class_name, stream),
         )
         send_class_btn.pack(side="right", padx=10)
 
@@ -4029,7 +4299,7 @@ class Dashboard(ctk.CTk):
             hover_color="#1e8449",
             font=("Arial Bold", 14),
             height=40,
-            command=lambda: self.print_class_reports(class_name),
+            command=lambda: self.print_class_reports(class_name, stream),
         )
         print_class_btn.pack(side="right", padx=10)
 
@@ -4050,7 +4320,7 @@ class Dashboard(ctk.CTk):
         student_frame.pack(fill="both", expand=True)
 
         # Get students in this class
-        students = self.get_students_in_class(class_name)
+        students = self.get_students_in_class(class_name, stream)
 
         if not students:
             no_students_label = ctk.CTkLabel(
@@ -4096,12 +4366,15 @@ class Dashboard(ctk.CTk):
             )
             view_btn.pack(side="right", padx=10, pady=10)
 
-    def get_students_in_class(self, class_name):
+    def get_students_in_class(self, class_name, stream=None):
         try:
-            self.db.cursor().execute(
-                "SELECT adm_no, name, grade, stream, photo FROM students WHERE grade = ? ORDER BY name",
-                (class_name,),
-            )
+            query = "SELECT adm_no, name, grade, stream, photo FROM students WHERE UPPER(grade) = UPPER(?)"
+            params = [class_name]
+            if stream:
+                query += " AND UPPER(TRIM(stream)) = UPPER(?)"
+                params.append(stream)
+            query += " ORDER BY name"
+            self.db.cursor().execute(query, params)
             students = []
             for row in self.db.cursor().fetchall():
                 student_data = {
@@ -4128,7 +4401,7 @@ class Dashboard(ctk.CTk):
         report_window.state('zoomed')  # Full screen by default
 
         # Main container with portal gradient background
-        report_container = ctk.CTkScrollableFrame(report_window, fg_color="#f0f2f5")
+        report_container = ctk.CTkFrame(report_window, fg_color="#f0f2f5")
         report_container.pack(fill="both", expand=True, padx=0, pady=0)
 
         # Import report forms functionality
@@ -4146,12 +4419,51 @@ class Dashboard(ctk.CTk):
             temp_report.school_config.get("subjects", {})
         )
 
+        report_data = temp_report.generate_report_data(student)
+        if not report_data:
+            report_window.destroy()
+            messagebox.showinfo("No Report Data", "No assessment marks are available for this student.", parent=self)
+            return
+
+        navigation = ctk.CTkFrame(report_container, fg_color="transparent")
+        navigation.pack(fill="x", padx=12, pady=(8, 4))
+
         # Create school header
         temp_report.create_school_header(report_container, student)
-        # Create student info
         temp_report.create_student_info(report_container, student)
-        # Create unified marks section (includes current and previous exams)
-        temp_report.create_current_marks_section(report_container, student)
+
+        page = ctk.CTkScrollableFrame(report_container, fg_color="transparent")
+        page.pack(fill="both", expand=True, padx=8, pady=4)
+        page_specs = [("Summary", "summary", None)]
+        page_specs.extend(
+            (item["name"], "rubric", item)
+            for item in report_data.get("rubric_subjects", [])
+        )
+        if report_data.get("pathway_recommendation"):
+            page_specs.append(("Career Pathways", "pathway", None))
+        temp_report.report_page_specs = page_specs
+        temp_report.report_page_container = page
+        temp_report.report_page_buttons = []
+        navigation_columns = 5
+        for column in range(navigation_columns):
+            navigation.grid_columnconfigure(column, weight=1, uniform="report_navigation")
+        for index, (label, _kind, _data) in enumerate(page_specs):
+            button = ctk.CTkButton(
+                navigation,
+                text=label,
+                height=40,
+                width=0,
+                command=lambda selected=index: temp_report.show_report_page(selected, report_data),
+            )
+            button.grid(
+                row=index // navigation_columns,
+                column=index % navigation_columns,
+                sticky="ew",
+                padx=4,
+                pady=4,
+            )
+            temp_report.report_page_buttons.append(button)
+        temp_report.show_report_page(0, report_data)
 
         # Action buttons
         button_frame = ctk.CTkFrame(report_container, fg_color="transparent")
@@ -4206,19 +4518,24 @@ class Dashboard(ctk.CTk):
         report_window.after(100, report_window.focus_force)
 
     def print_individual_report(self, report_view, student):
+        report_mode = ask_report_print_mode(self)
+        if report_mode is None:
+            return
         date_range = ask_opening_closing_dates(self)
         if date_range is None:
             return
         report_data = report_view.generate_report_data(student)
         if report_data:
-            report_view.print_report_pdf(None, report_data, date_range=date_range)
+            report_view.print_report_pdf(
+                None, report_data, date_range=date_range, report_mode=report_mode
+            )
 
-    def send_class_reports_to_portal(self, class_name):
+    def send_class_reports_to_portal(self, class_name, stream=None):
         credentials = self.get_cloud_credentials()
         if not credentials:
             return
 
-        students = self.get_students_in_class(class_name)
+        students = self.get_students_in_class(class_name, stream)
         if not students:
             messagebox.showinfo("Info", "No students in this class.")
             return
@@ -4239,12 +4556,15 @@ class Dashboard(ctk.CTk):
             "Success", f"Sent {success_count}/{len(students)} reports to portal."
         )
 
-    def print_class_reports(self, class_name):
-        students = self.get_students_in_class(class_name)
+    def print_class_reports(self, class_name, stream=None):
+        students = self.get_students_in_class(class_name, stream)
         if not students:
             messagebox.showinfo("Info", "No students in this class.")
             return
 
+        report_mode = ask_report_print_mode(self)
+        if report_mode is None:
+            return
         date_range = ask_opening_closing_dates(self)
         if date_range is None:
             return
@@ -4283,7 +4603,8 @@ class Dashboard(ctk.CTk):
 
                 # Call the print function with file_path
                 if temp_report.print_report_pdf(
-                    None, report_data, file_path, date_range=date_range
+                    None, report_data, file_path, date_range=date_range,
+                    report_mode=report_mode,
                 ):
                     success_count += 1
 
@@ -4390,6 +4711,9 @@ class Dashboard(ctk.CTk):
             "Grade 9",
         ]
 
+        report_mode = ask_report_print_mode(self)
+        if report_mode is None:
+            return
         date_range = ask_opening_closing_dates(self)
         if date_range is None:
             return
@@ -4440,7 +4764,8 @@ class Dashboard(ctk.CTk):
 
                     # Call the print function with file_path
                     if temp_report.print_report_pdf(
-                        None, report_data, file_path, date_range=date_range
+                        None, report_data, file_path, date_range=date_range,
+                        report_mode=report_mode,
                     ):
                         total_success += 1
 
@@ -4457,7 +4782,7 @@ class Dashboard(ctk.CTk):
             f"Generated {total_success}/{total_students} PDF reports for all classes.",
         )
 
-    def open_chosen_marksheet(self, class_name, style, term, exam_name, is_current, year=None):
+    def open_chosen_marksheet(self, class_name, style, term, exam_name, is_current, year=None, stream=None):
         if exam_name is None:
             messagebox.showinfo(
                 "No Exam", f"No exam for {term}. Create one with the Create Exam button on the dashboard."
@@ -4478,14 +4803,14 @@ class Dashboard(ctk.CTk):
                     "Previous Exam",
                     "Previous exams open in the old style (read-only). Their saved ratings use the old layout.",
                 )
-            self.open_previous_exam_marksheet(exam_name, class_name, year)
+            self.open_previous_exam_marksheet(exam_name, class_name, year, stream)
             return
         for widget in self.content_panel.winfo_children():
             if widget != self.header_frame and widget != self.theme_frame:
                 widget.destroy()
         if style == OLD_STYLE:
             self.current_view = old_views.get(grade_type, JuniorMarkSheetView)(
-                self.content_panel, self.db, class_name
+                self.content_panel, self.db, class_name, stream=stream
             )
         else:
             self.current_view = KICDMarkSheetView(
@@ -4496,10 +4821,11 @@ class Dashboard(ctk.CTk):
                 self.load_school_config,
                 self.save_school_config,
                 initial_term=term,
+                stream=stream,
             )
         self.current_view.pack(fill="both", expand=True)
 
-    def open_previous_exam_marksheet(self, exam_name, class_name, year=None):
+    def open_previous_exam_marksheet(self, exam_name, class_name, year=None, stream=None):
         # Clear the old view completely
         for widget in self.content_panel.winfo_children():
             if widget != self.header_frame and widget != self.theme_frame:
@@ -4511,7 +4837,8 @@ class Dashboard(ctk.CTk):
         self.content_panel.grid(row=0, column=0, columnspan=2, sticky="nsew")
 
         # Get the exam data
-        marks_data, summary_data = self.db.get_previous_exam_data(exam_name, class_name, year)
+        history_class = f"{class_name} [{stream}]" if stream else class_name
+        marks_data, summary_data = self.db.get_previous_exam_data(exam_name, history_class, year)
 
         # Determine the correct marksheet view based on class
         name_upper = class_name.upper().strip()
@@ -4527,6 +4854,7 @@ class Dashboard(ctk.CTk):
                 exam_name=exam_name,
                 marks_data=marks_data,
                 summary_data=summary_data,
+                stream=stream,
             )
         elif "PP1" in name_upper or "PRE-PRIMARY 1" in name_upper:
             from ui_marksheet_pp1 import PP1MarkSheetView
@@ -4539,6 +4867,7 @@ class Dashboard(ctk.CTk):
                 exam_name=exam_name,
                 marks_data=marks_data,
                 summary_data=summary_data,
+                stream=stream,
             )
         elif "PP2" in name_upper or "PRE-PRIMARY 2" in name_upper:
             from ui_marksheet_pp2 import PP2MarkSheetView
@@ -4551,6 +4880,7 @@ class Dashboard(ctk.CTk):
                 exam_name=exam_name,
                 marks_data=marks_data,
                 summary_data=summary_data,
+                stream=stream,
             )
         elif any(g in name_upper for g in ["GRADE 1", "GRADE 2", "GRADE 3"]):
             from ui_marksheet_lower import LowerMarkSheetView
@@ -4563,6 +4893,7 @@ class Dashboard(ctk.CTk):
                 exam_name=exam_name,
                 marks_data=marks_data,
                 summary_data=summary_data,
+                stream=stream,
             )
         elif any(g in name_upper for g in ["GRADE 4", "GRADE 5", "GRADE 6"]):
             from ui_marksheet_primary import PrimaryMarkSheetView
@@ -4575,6 +4906,7 @@ class Dashboard(ctk.CTk):
                 exam_name=exam_name,
                 marks_data=marks_data,
                 summary_data=summary_data,
+                stream=stream,
             )
         else:
             from ui_marksheet_junior import JuniorMarkSheetView
@@ -4587,6 +4919,7 @@ class Dashboard(ctk.CTk):
                 exam_name=exam_name,
                 marks_data=marks_data,
                 summary_data=summary_data,
+                stream=stream,
             )
 
         self.current_view.pack(fill="both", expand=True)
@@ -4689,9 +5022,6 @@ class Dashboard(ctk.CTk):
             try:
                 # Always get current marks from the marks table (don't skip if previous exists)
                 table_name = self.get_table_name_for_grade(grade_type)
-                marks_data = self.get_current_marks_for_class(
-                    class_name, table_name, grade_type
-                )
                 summary_data = json.dumps(
                     {
                         "total_students": 0,
@@ -4708,16 +5038,24 @@ class Dashboard(ctk.CTk):
                 old_exam_title = old_exam_titles.get(grade_type, "")
                 if old_exam_title:  # Only save if there was an old exam title
                     exam_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    self.db.cursor().execute(
-                        "INSERT OR REPLACE INTO previous_exams (exam_name, class_name, exam_date, marks_data, summary_data) VALUES (?, ?, ?, ?, ?)",
-                        (
-                            old_exam_title,
-                            class_name,
-                            exam_date,
-                            marks_data,
-                            summary_data,
-                        ),
-                    )
+                    streams = self.db.get_class_streams(class_name)
+                    archive_streams = [*streams, "None"] if streams else [None]
+                    for stream in archive_streams:
+                        history_class = f"{class_name} [{stream}]" if stream and stream != "None" else class_name
+                        marks_data = self.get_current_marks_for_class(
+                            class_name, table_name, grade_type,
+                            stream=stream if streams else None,
+                        )
+                        self.db.cursor().execute(
+                            "INSERT OR REPLACE INTO previous_exams (exam_name, class_name, exam_date, marks_data, summary_data) VALUES (?, ?, ?, ?, ?)",
+                            (
+                                old_exam_title,
+                                history_class,
+                                exam_date,
+                                marks_data,
+                                summary_data,
+                            ),
+                        )
                     self.db.conn.commit()
 
                 # Clear current marks table for this class to start fresh with new exam
@@ -4769,7 +5107,7 @@ class Dashboard(ctk.CTk):
         }
         return table_mapping.get(grade_type, "marksheet")
 
-    def get_current_marks_for_class(self, class_name, table_name, grade_type):
+    def get_current_marks_for_class(self, class_name, table_name, grade_type, stream=None):
         """Get current marks data for a class"""
         import json
 
@@ -4843,9 +5181,14 @@ class Dashboard(ctk.CTk):
                 select_cols.append("m.average_level")
 
             col_str = ", ".join(select_cols)
-            query = f"SELECT {col_str} FROM students s LEFT JOIN {table_name} m ON s.adm_no = m.adm_no WHERE s.grade = ?"
-
-            self.db.cursor().execute(query, (class_name,))
+            query = f"SELECT {col_str} FROM students s LEFT JOIN {table_name} m ON s.adm_no = m.adm_no WHERE UPPER(s.grade) = UPPER(?)"
+            params = [class_name]
+            if stream == "None":
+                query += " AND (s.stream IS NULL OR TRIM(s.stream) = '' OR UPPER(s.stream) = 'NONE')"
+            elif stream:
+                query += " AND UPPER(TRIM(s.stream)) = UPPER(?)"
+                params.append(stream)
+            self.db.cursor().execute(query, params)
             rows = self.db.cursor().fetchall()
 
             # Convert to JSON

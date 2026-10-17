@@ -1852,6 +1852,102 @@
                         ]
                     }
                 ]
+            },
+            "Agriculture and Nutrition": {
+                "academic_year": 2026,
+                "fetched_at": "2026-10-16 18:22",
+                "strands": [
+                    {
+                        "name": "1.0 Conservation of Resources",
+                        "sub_strands": [
+                            {
+                                "name": "1.1 Soil Conservation",
+                                "terms": [
+                                    "Term 1"
+                                ]
+                            },
+                            {
+                                "name": "1.2 Water Conservation",
+                                "terms": [
+                                    "Term 1"
+                                ]
+                            },
+                            {
+                                "name": "1.3 Fuel Conservation",
+                                "terms": [
+                                    "Term 1"
+                                ]
+                            },
+                            {
+                                "name": "1.4 Conserving Wild Animals",
+                                "terms": [
+                                    "Term 1"
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "2.0 Food Production Processes",
+                        "sub_strands": [
+                            {
+                                "name": "2.1 Direct Sowing of Tiny Seeds",
+                                "terms": [
+                                    "Term 1"
+                                ]
+                            },
+                            {
+                                "name": "2.2 Growing Fruits",
+                                "terms": [
+                                    "Term 1"
+                                ]
+                            },
+                            {
+                                "name": "2.3 Uses of Domestic Animals",
+                                "terms": [
+                                    "Term 1"
+                                ]
+                            },
+                            {
+                                "name": "2.4 Balanced Meal",
+                                "terms": [
+                                    "Term 1"
+                                ]
+                            },
+                            {
+                                "name": "2.5 Cooking Food",
+                                "terms": [
+                                    "Term 1"
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "3.0 Hygiene Practices",
+                        "sub_strands": [
+                            {
+                                "name": "3.1 Personal Hygiene",
+                                "terms": []
+                            },
+                            {
+                                "name": "3.2 Domestic Hygiene",
+                                "terms": []
+                            },
+                            {
+                                "name": "3.3 Cleaning Personal Protective Equipment",
+                                "terms": []
+                            }
+                        ]
+                    },
+                    {
+                        "name": "4.0 Production Techniques",
+                        "sub_strands": [
+                            {
+                                "name": "4.1 Making Tacking Stitches",
+                                "terms": []
+                            }
+                        ]
+                    }
+                ]
             }
         }
     },
@@ -3070,6 +3166,734 @@
                         ]
                     ]
                 }
+            },
+            "Agriculture and Nutrition": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-16 18:29",
+                    "records": [
+                        [
+                            "K0040203001",
+                            "ALEX KIPRONO",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.1 Soil Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203002",
+                            "BEATRICE WANJIKU",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.1 Soil Conservation",
+                            "EE"
+                        ],
+                        [
+                            "K0040203003",
+                            "CHARLES ODUOR",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.1 Soil Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203004",
+                            "DORCAS CHEPKEMOI",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.1 Soil Conservation",
+                            "EE"
+                        ],
+                        [
+                            "K0040203005",
+                            "EMMANUEL WAWERU",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.1 Soil Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203006",
+                            "FAITH MUTUA",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.1 Soil Conservation",
+                            "EE"
+                        ],
+                        [
+                            "K0040203007",
+                            "GIDEON KORIR",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.1 Soil Conservation",
+                            "ME"
+                        ],
+                        [
+                            "K0040203008",
+                            "HELLEN AKINYI",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.1 Soil Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203009",
+                            "IAN GIKONYO",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.1 Soil Conservation",
+                            "ME"
+                        ],
+                        [
+                            "K0040203010",
+                            "JOYCE CHEROP",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.1 Soil Conservation",
+                            "EE"
+                        ],
+                        [
+                            "K0040203001",
+                            "ALEX KIPRONO",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.2 Water Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203002",
+                            "BEATRICE WANJIKU",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.2 Water Conservation",
+                            "EE"
+                        ],
+                        [
+                            "K0040203003",
+                            "CHARLES ODUOR",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.2 Water Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203004",
+                            "DORCAS CHEPKEMOI",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.2 Water Conservation",
+                            "EE"
+                        ],
+                        [
+                            "K0040203005",
+                            "EMMANUEL WAWERU",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.2 Water Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203006",
+                            "FAITH MUTUA",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.2 Water Conservation",
+                            "EE"
+                        ],
+                        [
+                            "K0040203007",
+                            "GIDEON KORIR",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.2 Water Conservation",
+                            "ME"
+                        ],
+                        [
+                            "K0040203008",
+                            "HELLEN AKINYI",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.2 Water Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203009",
+                            "IAN GIKONYO",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.2 Water Conservation",
+                            "ME"
+                        ],
+                        [
+                            "K0040203010",
+                            "JOYCE CHEROP",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.2 Water Conservation",
+                            "EE"
+                        ],
+                        [
+                            "K0040203001",
+                            "ALEX KIPRONO",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.3 Fuel Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203002",
+                            "BEATRICE WANJIKU",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.3 Fuel Conservation",
+                            "EE"
+                        ],
+                        [
+                            "K0040203003",
+                            "CHARLES ODUOR",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.3 Fuel Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203004",
+                            "DORCAS CHEPKEMOI",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.3 Fuel Conservation",
+                            "EE"
+                        ],
+                        [
+                            "K0040203005",
+                            "EMMANUEL WAWERU",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.3 Fuel Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203006",
+                            "FAITH MUTUA",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.3 Fuel Conservation",
+                            "EE"
+                        ],
+                        [
+                            "K0040203007",
+                            "GIDEON KORIR",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.3 Fuel Conservation",
+                            "ME"
+                        ],
+                        [
+                            "K0040203008",
+                            "HELLEN AKINYI",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.3 Fuel Conservation",
+                            "AE"
+                        ],
+                        [
+                            "K0040203009",
+                            "IAN GIKONYO",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.3 Fuel Conservation",
+                            "ME"
+                        ],
+                        [
+                            "K0040203010",
+                            "JOYCE CHEROP",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.3 Fuel Conservation",
+                            "EE"
+                        ],
+                        [
+                            "K0040203001",
+                            "ALEX KIPRONO",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.4 Conserving Wild Animals",
+                            "AE"
+                        ],
+                        [
+                            "K0040203002",
+                            "BEATRICE WANJIKU",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.4 Conserving Wild Animals",
+                            "EE"
+                        ],
+                        [
+                            "K0040203003",
+                            "CHARLES ODUOR",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.4 Conserving Wild Animals",
+                            "AE"
+                        ],
+                        [
+                            "K0040203004",
+                            "DORCAS CHEPKEMOI",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.4 Conserving Wild Animals",
+                            "EE"
+                        ],
+                        [
+                            "K0040203005",
+                            "EMMANUEL WAWERU",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.4 Conserving Wild Animals",
+                            "AE"
+                        ],
+                        [
+                            "K0040203006",
+                            "FAITH MUTUA",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.4 Conserving Wild Animals",
+                            "EE"
+                        ],
+                        [
+                            "K0040203007",
+                            "GIDEON KORIR",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.4 Conserving Wild Animals",
+                            "ME"
+                        ],
+                        [
+                            "K0040203008",
+                            "HELLEN AKINYI",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.4 Conserving Wild Animals",
+                            "AE"
+                        ],
+                        [
+                            "K0040203009",
+                            "IAN GIKONYO",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.4 Conserving Wild Animals",
+                            "ME"
+                        ],
+                        [
+                            "K0040203010",
+                            "JOYCE CHEROP",
+                            "Agriculture and Nutrition",
+                            "1.0 Conservation of Resources",
+                            "1.4 Conserving Wild Animals",
+                            "EE"
+                        ],
+                        [
+                            "K0040203001",
+                            "ALEX KIPRONO",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.1 Direct Sowing of Tiny Seeds",
+                            "AE"
+                        ],
+                        [
+                            "K0040203002",
+                            "BEATRICE WANJIKU",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.1 Direct Sowing of Tiny Seeds",
+                            "EE"
+                        ],
+                        [
+                            "K0040203003",
+                            "CHARLES ODUOR",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.1 Direct Sowing of Tiny Seeds",
+                            "AE"
+                        ],
+                        [
+                            "K0040203004",
+                            "DORCAS CHEPKEMOI",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.1 Direct Sowing of Tiny Seeds",
+                            "EE"
+                        ],
+                        [
+                            "K0040203005",
+                            "EMMANUEL WAWERU",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.1 Direct Sowing of Tiny Seeds",
+                            "AE"
+                        ],
+                        [
+                            "K0040203006",
+                            "FAITH MUTUA",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.1 Direct Sowing of Tiny Seeds",
+                            "EE"
+                        ],
+                        [
+                            "K0040203007",
+                            "GIDEON KORIR",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.1 Direct Sowing of Tiny Seeds",
+                            "ME"
+                        ],
+                        [
+                            "K0040203008",
+                            "HELLEN AKINYI",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.1 Direct Sowing of Tiny Seeds",
+                            "AE"
+                        ],
+                        [
+                            "K0040203009",
+                            "IAN GIKONYO",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.1 Direct Sowing of Tiny Seeds",
+                            "ME"
+                        ],
+                        [
+                            "K0040203010",
+                            "JOYCE CHEROP",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.1 Direct Sowing of Tiny Seeds",
+                            "EE"
+                        ],
+                        [
+                            "K0040203001",
+                            "ALEX KIPRONO",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.2 Growing Fruits",
+                            "AE"
+                        ],
+                        [
+                            "K0040203002",
+                            "BEATRICE WANJIKU",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.2 Growing Fruits",
+                            "EE"
+                        ],
+                        [
+                            "K0040203003",
+                            "CHARLES ODUOR",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.2 Growing Fruits",
+                            "AE"
+                        ],
+                        [
+                            "K0040203004",
+                            "DORCAS CHEPKEMOI",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.2 Growing Fruits",
+                            "EE"
+                        ],
+                        [
+                            "K0040203005",
+                            "EMMANUEL WAWERU",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.2 Growing Fruits",
+                            "AE"
+                        ],
+                        [
+                            "K0040203006",
+                            "FAITH MUTUA",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.2 Growing Fruits",
+                            "EE"
+                        ],
+                        [
+                            "K0040203007",
+                            "GIDEON KORIR",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.2 Growing Fruits",
+                            "ME"
+                        ],
+                        [
+                            "K0040203008",
+                            "HELLEN AKINYI",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.2 Growing Fruits",
+                            "AE"
+                        ],
+                        [
+                            "K0040203009",
+                            "IAN GIKONYO",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.2 Growing Fruits",
+                            "ME"
+                        ],
+                        [
+                            "K0040203010",
+                            "JOYCE CHEROP",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.2 Growing Fruits",
+                            "EE"
+                        ],
+                        [
+                            "K0040203001",
+                            "ALEX KIPRONO",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.3 Uses of Domestic Animals",
+                            "AE"
+                        ],
+                        [
+                            "K0040203002",
+                            "BEATRICE WANJIKU",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.3 Uses of Domestic Animals",
+                            "EE"
+                        ],
+                        [
+                            "K0040203003",
+                            "CHARLES ODUOR",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.3 Uses of Domestic Animals",
+                            "AE"
+                        ],
+                        [
+                            "K0040203004",
+                            "DORCAS CHEPKEMOI",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.3 Uses of Domestic Animals",
+                            "EE"
+                        ],
+                        [
+                            "K0040203005",
+                            "EMMANUEL WAWERU",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.3 Uses of Domestic Animals",
+                            "AE"
+                        ],
+                        [
+                            "K0040203006",
+                            "FAITH MUTUA",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.3 Uses of Domestic Animals",
+                            "EE"
+                        ],
+                        [
+                            "K0040203007",
+                            "GIDEON KORIR",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.3 Uses of Domestic Animals",
+                            "ME"
+                        ],
+                        [
+                            "K0040203008",
+                            "HELLEN AKINYI",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.3 Uses of Domestic Animals",
+                            "AE"
+                        ],
+                        [
+                            "K0040203009",
+                            "IAN GIKONYO",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.3 Uses of Domestic Animals",
+                            "ME"
+                        ],
+                        [
+                            "K0040203010",
+                            "JOYCE CHEROP",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.3 Uses of Domestic Animals",
+                            "EE"
+                        ],
+                        [
+                            "K0040203001",
+                            "ALEX KIPRONO",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.4 Balanced Meal",
+                            "AE"
+                        ],
+                        [
+                            "K0040203002",
+                            "BEATRICE WANJIKU",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.4 Balanced Meal",
+                            "EE"
+                        ],
+                        [
+                            "K0040203003",
+                            "CHARLES ODUOR",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.4 Balanced Meal",
+                            "AE"
+                        ],
+                        [
+                            "K0040203004",
+                            "DORCAS CHEPKEMOI",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.4 Balanced Meal",
+                            "EE"
+                        ],
+                        [
+                            "K0040203005",
+                            "EMMANUEL WAWERU",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.4 Balanced Meal",
+                            "AE"
+                        ],
+                        [
+                            "K0040203006",
+                            "FAITH MUTUA",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.4 Balanced Meal",
+                            "EE"
+                        ],
+                        [
+                            "K0040203007",
+                            "GIDEON KORIR",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.4 Balanced Meal",
+                            "ME"
+                        ],
+                        [
+                            "K0040203008",
+                            "HELLEN AKINYI",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.4 Balanced Meal",
+                            "AE"
+                        ],
+                        [
+                            "K0040203009",
+                            "IAN GIKONYO",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.4 Balanced Meal",
+                            "ME"
+                        ],
+                        [
+                            "K0040203010",
+                            "JOYCE CHEROP",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.4 Balanced Meal",
+                            "EE"
+                        ],
+                        [
+                            "K0040203001",
+                            "ALEX KIPRONO",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.5 Cooking Food",
+                            "AE"
+                        ],
+                        [
+                            "K0040203002",
+                            "BEATRICE WANJIKU",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.5 Cooking Food",
+                            "EE"
+                        ],
+                        [
+                            "K0040203003",
+                            "CHARLES ODUOR",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.5 Cooking Food",
+                            "AE"
+                        ],
+                        [
+                            "K0040203004",
+                            "DORCAS CHEPKEMOI",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.5 Cooking Food",
+                            "EE"
+                        ],
+                        [
+                            "K0040203005",
+                            "EMMANUEL WAWERU",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.5 Cooking Food",
+                            "AE"
+                        ],
+                        [
+                            "K0040203006",
+                            "FAITH MUTUA",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.5 Cooking Food",
+                            "EE"
+                        ],
+                        [
+                            "K0040203007",
+                            "GIDEON KORIR",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.5 Cooking Food",
+                            "ME"
+                        ],
+                        [
+                            "K0040203008",
+                            "HELLEN AKINYI",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.5 Cooking Food",
+                            "AE"
+                        ],
+                        [
+                            "K0040203009",
+                            "IAN GIKONYO",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.5 Cooking Food",
+                            "ME"
+                        ],
+                        [
+                            "K0040203010",
+                            "JOYCE CHEROP",
+                            "Agriculture and Nutrition",
+                            "2.0 Food Production Processes",
+                            "2.5 Cooking Food",
+                            "EE"
+                        ]
+                    ]
+                }
             }
         }
     },
@@ -3342,5 +4166,7 @@
     "pp2_exam_term": "Term 1",
     "lower_exam_term": "Term 1",
     "primary_exam_term": "Term 1",
-    "jss_exam_term": "Term 1"
+    "jss_exam_term": "Term 1",
+    "academic_year": 2026,
+    "current_term": "Term 1"
 }

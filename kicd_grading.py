@@ -57,7 +57,10 @@ def formative_weighted(raw):
 def index_levels(records):
     """Group portal rows [assessment number, learner, area, strand, sub-strand, level] by learner."""
     index = {}
-    for number, learner, _area, _strand, _sub_strand, level in records:
+    for record in records:
+        if len(record) < 6:
+            continue
+        number, learner, _area, _strand, _sub_strand, level = record[:6]
         keys = [
             key
             for key in (str(number or "").strip().lower(), "".join(str(learner or "").split()).lower())

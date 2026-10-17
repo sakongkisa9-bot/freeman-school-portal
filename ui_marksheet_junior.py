@@ -77,10 +77,14 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         exam_name=None,
         marks_data=None,
         summary_data=None,
+        stream=None,
     ):
         super().__init__(parent, fg_color="transparent")
         self.db = db_connection
         self.class_name = class_name
+        self.stream = stream
+        self.selected_stream = stream
+        self.full_class_mode = False
         self.read_only = read_only
         self.exam_name = exam_name
         self.marks_data = marks_data
@@ -586,7 +590,14 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                     f"ORDER BY CASE WHEN m.rank IS NULL THEN 1 ELSE 0 END, m.rank ASC"
                 )
 
-                self.db.cursor().execute(query, (self.class_name,))
+                params = (self.class_name,)
+                if self.stream:
+                    query = query.replace(
+                        "WHERE UPPER(s.grade) = UPPER(?)",
+                        "WHERE UPPER(s.grade) = UPPER(?) AND UPPER(TRIM(s.stream)) = UPPER(?)",
+                    )
+                    params = (self.class_name, self.stream)
+                self.db.cursor().execute(query, params)
                 records = self.db.cursor().fetchall()
                 print(
                     f"DEBUG: Loaded {len(records)} students for grade '{self.class_name}' from database"
@@ -666,6 +677,26 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             command=self.master.master.return_to_home,
         ).pack(side="right", padx=5)
 
+        if self.selected_stream and not self.read_only:
+            self.btn_full_class = ctk.CTkButton(
+                self.bottom_bar,
+                text="Show Whole Class",
+                command=self.toggle_full_class_view,
+            )
+            self.btn_full_class.pack(side="left", padx=5)
+
+    def toggle_full_class_view(self):
+        self.full_class_mode = not self.full_class_mode
+        self.stream = None if self.full_class_mode else self.selected_stream
+        if hasattr(self, "calculate_primary_rankings"):
+            self.calculate_primary_rankings()
+        if hasattr(self, "calculate_rankings"):
+            self.calculate_rankings()
+        self.btn_full_class.configure(
+            text="Show Stream Only" if self.full_class_mode else "Show Whole Class"
+        )
+        self.load_students_from_registry()
+
     def fetch_cloud_data(self):
         # 1. Get login details
         credentials = ask_cloud_credentials(self)
@@ -733,31 +764,9 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             )
 
     def get_subjects_from_json(self):
-        default_subjects = [
-            "ENG",
-            "KISW",
-            "MATHS",
-            "INT SCIE",
-            "AGRI",
-            "SST",
-            "CRE",
-            "C/A",
-            "PRE-TECH",
-        ]
+        from teachers_linked import get_subjects_for_class
 
-        # Use USER_DATA_DIR for config file (works in both script and executable)
-        json_path = os.path.join(self.USER_DATA_DIR, "school_config.json")
-
-        try:
-            if os.path.exists(json_path):
-                with open(json_path, "r") as f:
-                    config = json.load(f)
-                    # Use the nested structure we found earlier
-                    subjects_dict = config.get("subjects", {})
-                    return subjects_dict.get("jss", default_subjects)
-            return default_subjects
-        except Exception as e:
-            return default_subjects
+        return get_subjects_for_class(self.class_name)
 
     def print_to_pdf(self):
         from fpdf import FPDF
@@ -1118,16 +1127,21 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                 )
 
         # Get all students for this class; absent (X/Y) students rank last
-        self.db.cursor().execute(
-            """
+        rank_query = """
             SELECT m.adm_no 
             FROM marksheet m
             JOIN students s ON m.adm_no = s.adm_no
             WHERE UPPER(s.grade) = UPPER(?)
             ORDER BY (m.average_points IN ('X', 'Y')), m.total_points DESC
-            """,
-            (self.class_name,),
-        )
+            """
+        rank_params = (self.class_name,)
+        if self.stream:
+            rank_query = rank_query.replace(
+                "WHERE UPPER(s.grade) = UPPER(?)",
+                "WHERE UPPER(s.grade) = UPPER(?) AND UPPER(TRIM(s.stream)) = UPPER(?)",
+            )
+            rank_params = (self.class_name, self.stream)
+        self.db.cursor().execute(rank_query, rank_params)
         ranked_students = self.db.cursor().fetchall()
 
         # Update the 'rank' column with their position (starting from 1)

@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime
 from tkinter import filedialog, messagebox, ttk
 
 import customtkinter as ctk
@@ -41,10 +42,11 @@ def normalize_score(value):
 class KICDMarkSheetView(ctk.CTkFrame):
     """Marksheet with Formative (70%), Summative exam and Final rating per subject, no ranking."""
 
-    def __init__(self, parent, db, class_name, return_callback, load_config, save_config, initial_term=None):
+    def __init__(self, parent, db, class_name, return_callback, load_config, save_config, initial_term=None, stream=None):
         super().__init__(parent, fg_color="transparent")
         self.db = db
         self.class_name = class_name
+        self.stream = stream
         self.return_callback = return_callback
         self.load_config = load_config
         self.save_config = save_config
@@ -85,7 +87,14 @@ class KICDMarkSheetView(ctk.CTkFrame):
             "WHERE UPPER(s.grade) = UPPER(?) ORDER BY s.name COLLATE NOCASE"
         )
         cursor = self.db.cursor()
-        cursor.execute(query, (self.class_name,))
+        params = [self.class_name]
+        if self.stream:
+            query = query.replace(
+                "ORDER BY s.name COLLATE NOCASE",
+                "AND UPPER(TRIM(s.stream)) = UPPER(?) ORDER BY s.name COLLATE NOCASE",
+            )
+            params.append(self.stream)
+        cursor.execute(query, params)
         self.rows = [
             {
                 "adm_no": record[0],
@@ -104,12 +113,37 @@ class KICDMarkSheetView(ctk.CTkFrame):
     def _load_levels(self):
         config = self.load_config()
         term = self.term_var.get()
+        year = str(config.get("academic_year") or "")
         self.level_index = {}
         for subject in self.subjects:
-            area = SUBJECT_TO_LEARNING_AREA.get(subject.strip().upper(), subject.strip())
-            record = config.get("cbc_levels", {}).get(self.class_name, {}).get(area, {}).get(term)
+            area = self._learning_area(subject, config)
+            area_names = [area]
+            if area == "Agriculture and Nutrition":
+                area_names.append("Agriculture")
+            record = None
+            for area_name in area_names:
+                by_area = config.get("cbc_levels", {}).get(self.class_name, {}).get(area_name, {})
+                record = by_area.get(f"{year}|{term}") if year else None
+                if record is None:
+                    record = by_area.get(term)
+                if record is not None:
+                    break
             if isinstance(record, dict):
                 self.level_index[subject] = index_levels(record.get("records", []))
+
+    def _learning_area(self, subject, config):
+        normalized = subject.strip().upper()
+        area = SUBJECT_TO_LEARNING_AREA.get(normalized)
+        if area:
+            return area
+        names = config.get("subject_names", {}).get(self.grade_type, {})
+        if subject in names:
+            return names[subject]
+        for items in (config.get("subject_catalog") or {}).values():
+            for item in items:
+                if item.get("short", "").strip().upper() == normalized:
+                    return item.get("name", subject).strip()
+        return subject.strip()
 
     # ---- widgets --------------------------------------------------------
     def _config_text(self):
@@ -211,7 +245,7 @@ class KICDMarkSheetView(ctk.CTkFrame):
         covered = [subject for subject in self.subjects if subject in self.level_index]
         self.status.configure(
             text="Strands loaded for: " + (", ".join(covered) if covered else "none (F shows n/a)")
-            + ". Fetch them on the Performance Dashboard first."
+            + "."
         )
 
     def _term_changed(self, term):
@@ -295,16 +329,57 @@ class KICDMarkSheetView(ctk.CTkFrame):
         credentials = ask_cloud_credentials(self)
         if not credentials:
             return
-        result = CloudService().fetch_marks(self.class_name, credentials)
+        service = CloudService()
+        result = service.fetch_marks(self.class_name, credentials)
         if not result.get("success"):
             messagebox.showerror(
                 "Cloud Fetch Failed", result.get("message", "Could not fetch cloud marks."), parent=self
             )
             return
         records = result.get("marks", [])
-        if not records:
-            messagebox.showinfo("Cloud Fetch", "No marks found on the cloud for this class.", parent=self)
-            return
+        config = self.load_config()
+        try:
+            year = int(config.get("academic_year"))
+        except (TypeError, ValueError):
+            year = datetime.now().year
+        term = self.term_var.get()
+        levels = config.setdefault("cbc_levels", {})
+        by_area = levels.setdefault(self.class_name, {})
+        covered_by_grade = config.setdefault("cbc_covered_strands", {})
+        covered_by_area = covered_by_grade.setdefault(self.class_name, {})
+        ratings_synced = []
+        ratings_failed = []
+        strands_synced = []
+        strands_failed = []
+        for subject in self.subjects:
+            area = self._learning_area(subject, config)
+            strands_result = service.fetch_cbc_covered_strands(
+                self.class_name, area, year, credentials
+            )
+            if strands_result.get("success"):
+                covered_by_area[area] = {
+                    "academic_year": year,
+                    "fetched_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "strands": strands_result.get("strands", []),
+                }
+                strands_synced.append(subject)
+            else:
+                strands_failed.append(subject)
+            rating_result = service.fetch_cbc_ratings(
+                self.class_name, area, term, year, credentials
+            )
+            if rating_result.get("success"):
+                by_area.setdefault(area, {})[f"{year}|{term}"] = {
+                    "academic_year": year,
+                    "fetched_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "records": rating_result.get("records", []),
+                }
+                ratings_synced.append(subject)
+            else:
+                ratings_failed.append(subject)
+        self.save_config({"cbc_levels": levels, "cbc_covered_strands": covered_by_grade})
+        self._load_levels()
+
         by_adm = {str(record.get("adm_no", "")).strip(): record for record in records}
         by_name = {"".join(str(record.get("student_name", "")).split()).lower(): record for record in records}
         matched = 0
@@ -316,20 +391,34 @@ class KICDMarkSheetView(ctk.CTkFrame):
                 continue
             matched += 1
             scores = record.get("scores", {})
+            subject_names = config.get("subject_names", {}).get(self.grade_type, {})
             for subject in self.subjects:
-                key = next(
-                    (name for name in scores if subject.strip().lower() in name.lower()
-                     or name.lower() in subject.strip().lower()),
-                    None,
-                )
+                aliases = {subject.strip().casefold()}
+                full_name = subject_names.get(subject)
+                if full_name:
+                    aliases.add(full_name.strip().casefold())
+                key = next((name for name in scores if str(name).strip().casefold() in aliases), None)
                 if key is None:
                     continue
                 entry = scores[key]
                 value = entry.get("score", "") if isinstance(entry, dict) else entry
                 row["scores"][subject] = normalize_score(value)
             self.tree.item(row["item"], values=self._cells(row))
-        self.save_marks(notify=False)
-        messagebox.showinfo("Cloud Fetch", f"Synchronized {matched} student records.", parent=self)
+        if records:
+            self.save_marks(notify=False)
+        self._render()
+        details = [f"Synchronized {matched} student records."] if records else [
+            "No marks found on the cloud for this class."
+        ]
+        if ratings_synced:
+            details.append(f"Refreshed strand ratings for {len(ratings_synced)} subjects.")
+        if ratings_failed:
+            details.append("Could not refresh strands for: " + ", ".join(ratings_failed) + ".")
+        if strands_synced:
+            details.append(f"Updated strand lists for {len(strands_synced)} subjects.")
+        if strands_failed:
+            details.append("Could not update strand lists for: " + ", ".join(strands_failed) + ".")
+        messagebox.showinfo("Cloud Fetch", "\n".join(details), parent=self)
 
     # ---- printing -------------------------------------------------------
     def print_pdf(self):

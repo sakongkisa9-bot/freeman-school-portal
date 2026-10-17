@@ -16,28 +16,9 @@ from cloud_service import (
     apply_cloud_records_to_table,
 )
 import os
-import sys
-
-
-def get_app_dir():
-    """Get the application directory, handling both script and executable environments"""
-    if getattr(sys, "frozen", False):
-        # Running as executable
-        BASE_DIR = sys._MEIPASS
-        USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
-        os.makedirs(USER_DATA_DIR, exist_ok=True)
-    else:
-        # Running as script
-        BASE_DIR = os.path.dirname(os.path.realpath(__file__))
-        USER_DATA_DIR = BASE_DIR
-    return BASE_DIR, USER_DATA_DIR
 
 
 class PP1MarkSheetView(ctk.CTkFrame):
-    def get_json_path(self):
-        # Use USER_DATA_DIR for config file (works in both script and executable)
-        return os.path.join(self.USER_DATA_DIR, "school_config.json")
-
     def __init__(
         self,
         parent,
@@ -47,6 +28,7 @@ class PP1MarkSheetView(ctk.CTkFrame):
         exam_name=None,
         marks_data=None,
         summary_data=None,
+        stream=None,
     ):
         super().__init__(parent, fg_color="transparent")
         self.db = db_connection
@@ -59,6 +41,9 @@ class PP1MarkSheetView(ctk.CTkFrame):
             "Pre-Primary 2": "pp2",
         }
         self.class_name = grade_mapping.get(class_name, class_name)
+        self.stream = stream
+        self.selected_stream = stream
+        self.full_class_mode = False
         self.read_only = read_only
         self.exam_name = exam_name
         self.marks_data = marks_data
@@ -95,26 +80,9 @@ class PP1MarkSheetView(ctk.CTkFrame):
         self.load_students_from_registry()
 
     def get_subjects_from_json(self):
-        import json
+        from teachers_linked import get_subjects_for_class
 
-        try:
-            json_path = self.get_json_path()
-            with open(json_path, "r") as f:
-                config = json.load(f)
-
-                # Navigate the nested dictionary: subjects -> pp1
-                if "subjects" in config and "pp1" in config["subjects"]:
-                    return config["subjects"]["pp1"]
-
-                # Fallback for old flat JSON format
-                if "pp1_subjects" in config:
-                    return config["pp1_subjects"]
-
-        except Exception as e:
-            print(f"Warning: Could not read JSON: {e}")
-
-        # Default fallback if file is missing or broken
-        return ["LANG", "MATH", "ENV", "PSYCH", "REL"]
+        return get_subjects_for_class(self.class_name)
 
     def create_header_section(self):
         header_text = (
@@ -136,28 +104,22 @@ class PP1MarkSheetView(ctk.CTkFrame):
         """Updates the header to match the Junior style: SCHOOL NAME | GRADE | EXAM TITLE"""
         import json
 
-        # 1. Default values
         school_name = "SHINNERS SCHOOL"
-
-        # 2. Try to get the real school name from JSON
         try:
             json_path = self.get_json_path()
             with open(json_path, "r") as f:
                 config = json.load(f)
                 school_name = config.get("school_name", "SHINNERS SCHOOL").upper()
-        except:
+        except Exception:
             pass
 
-        # 3. Construct the full string
         display_text = (
             f"{school_name}  |  {self.class_name.upper()}  |  {self.current_exam_title}"
         )
-
-        # 4. Update the label (using your existing header_label)
         if hasattr(self, "header_label"):
             self.header_label.configure(
                 text=display_text,
-                text_color="#f39c12",  # Matches the Junior orange highlight
+                text_color="#f39c12",
             )
 
     def create_bottom_controls(self):
@@ -229,6 +191,26 @@ class PP1MarkSheetView(ctk.CTkFrame):
             command=self.master.master.return_to_home,
         )
         self.btn_back.pack(side="right", padx=20, pady=15)
+
+        if self.selected_stream and not self.read_only:
+            self.btn_full_class = ctk.CTkButton(
+                self.bottom_bar,
+                text="Show Whole Class",
+                command=self.toggle_full_class_view,
+            )
+            self.btn_full_class.pack(side="left", padx=5, pady=15)
+
+    def toggle_full_class_view(self):
+        self.full_class_mode = not self.full_class_mode
+        self.stream = None if self.full_class_mode else self.selected_stream
+        if hasattr(self, "calculate_primary_rankings"):
+            self.calculate_primary_rankings()
+        if hasattr(self, "calculate_rankings"):
+            self.calculate_rankings()
+        self.btn_full_class.configure(
+            text="Show Stream Only" if self.full_class_mode else "Show Whole Class"
+        )
+        self.load_students_from_registry()
 
     def fetch_cloud_data(self):
         # 1. Get login details
@@ -1107,7 +1089,14 @@ class PP1MarkSheetView(ctk.CTkFrame):
                 
                 # 1. Fetch data
                 # ... (Your existing SQL SELECT query logic here) ...
-                self.db.cursor().execute(query, (self.class_name,))
+                params = (self.class_name,)
+                if self.stream:
+                    query = query.replace(
+                        "WHERE UPPER(s.grade) = UPPER(?)",
+                        "WHERE UPPER(s.grade) = UPPER(?) AND UPPER(TRIM(s.stream)) = UPPER(?)",
+                    )
+                    params = (self.class_name, self.stream)
+                self.db.cursor().execute(query, params)
                 records = self.db.cursor().fetchall()
                 print(
                     f"DEBUG: Loaded {len(records)} students for grade '{self.class_name}' from database"

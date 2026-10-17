@@ -120,6 +120,13 @@ class CBCCloudFlowTests(unittest.TestCase):
         self.assertEqual(
             dict(saved), {sub_strands[0][0]: "2", sub_strands[1][0]: "4"}
         )
+        connection = sqlite3.connect(self.db_path)
+        connection.execute(
+            "UPDATE cbc_rubric_scores SET evidence = 'Explains the method clearly' WHERE sub_strand_id = ?",
+            (sub_strands[0][0],),
+        )
+        connection.commit()
+        connection.close()
 
         fetched = self.client.post(
             "/api/cbc/fetch_ratings",
@@ -137,6 +144,8 @@ class CBCCloudFlowTests(unittest.TestCase):
         self.assertEqual(payload["columns"][-1], "Level")
         self.assertEqual(len(payload["records"]), 2)
         self.assertEqual({row[4] for row in payload["records"]}, {"Decimals", "Fractions"})
+        self.assertEqual(len(payload["evidence_records"]), 2)
+        self.assertIn("Explains the method clearly", [row[6] for row in payload["evidence_records"]])
 
     def _publish_math_curriculum(self):
         self._seed_global(

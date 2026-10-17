@@ -57,6 +57,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
         exam_name=None,
         marks_data=None,
         summary_data=None,
+        stream=None,
     ):
 
         super().__init__(parent, fg_color="transparent")
@@ -66,6 +67,9 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
         self.BASE_DIR, self.USER_DATA_DIR = get_app_dir()
 
         self.class_name = class_name
+        self.stream = stream
+        self.selected_stream = stream
+        self.full_class_mode = False
 
         self.read_only = read_only
 
@@ -126,36 +130,9 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
         self.load_students_from_registry()
 
     def get_subjects_from_json(self):
+        from teachers_linked import get_subjects_for_class
 
-        import json
-
-        try:
-
-            json_path = self.get_json_path()
-
-            with open(json_path, "r") as f:
-
-                config = json.load(f)
-
-                # Navigate the nested dictionary: subjects -> primary
-
-                if "subjects" in config and "primary" in config["subjects"]:
-
-                    return config["subjects"]["primary"]
-
-                # Fallback for old flat JSON format
-
-                if "primary_subjects" in config:
-
-                    return config["primary_subjects"]
-
-        except Exception as e:
-
-            print(f"Warning: Could not read JSON: {e}")
-
-        # Default fallback if file is missing or broken
-
-        return ["ENG", "KISW", "MAT", "SCI", "AGR", "SST", "CRE", "C/A", "PHE"]
+        return get_subjects_for_class(self.class_name)
 
     def create_header_section(self):
 
@@ -299,6 +276,26 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
         )
 
         self.btn_back.pack(side="right", padx=20, pady=15)
+
+        if self.selected_stream and not self.read_only:
+            self.btn_full_class = ctk.CTkButton(
+                self.bottom_bar,
+                text="Show Whole Class",
+                command=self.toggle_full_class_view,
+            )
+            self.btn_full_class.pack(side="left", padx=5, pady=15)
+
+    def toggle_full_class_view(self):
+        self.full_class_mode = not self.full_class_mode
+        self.stream = None if self.full_class_mode else self.selected_stream
+        if hasattr(self, "calculate_primary_rankings"):
+            self.calculate_primary_rankings()
+        if hasattr(self, "calculate_rankings"):
+            self.calculate_rankings()
+        self.btn_full_class.configure(
+            text="Show Stream Only" if self.full_class_mode else "Show Whole Class"
+        )
+        self.load_students_from_registry()
 
     def fetch_cloud_data(self):
 
@@ -1374,7 +1371,14 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
                 # 1. Fetch data
 
-                self.db.cursor().execute(query, (self.class_name,))
+                params = (self.class_name,)
+                if self.stream:
+                    query = query.replace(
+                        "WHERE UPPER(s.grade) = UPPER(?)",
+                        "WHERE UPPER(s.grade) = UPPER(?) AND UPPER(TRIM(s.stream)) = UPPER(?)",
+                    )
+                    params = (self.class_name, self.stream)
+                self.db.cursor().execute(query, params)
 
                 records = self.db.cursor().fetchall()
 
@@ -1661,8 +1665,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
             # Get all students for this class sorted by total_points descending
 
-            self.db.cursor().execute(
-                """
+            rank_query = """
 
                 SELECT pm.adm_no, pm.total_points, pm.average_level
 
@@ -1672,9 +1675,15 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
                 WHERE UPPER(s.grade) = UPPER(?)
 
-                """,
-                (self.class_name,),
-            )
+                """
+            rank_params = (self.class_name,)
+            if self.stream:
+                rank_query = rank_query.replace(
+                    "WHERE UPPER(s.grade) = UPPER(?)",
+                    "WHERE UPPER(s.grade) = UPPER(?) AND UPPER(TRIM(s.stream)) = UPPER(?)",
+                )
+                rank_params = (self.class_name, self.stream)
+            self.db.cursor().execute(rank_query, rank_params)
 
             import grading_four_level as gl
 

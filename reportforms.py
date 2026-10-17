@@ -1,5 +1,6 @@
 import customtkinter as ctk
 from tkinter import messagebox, filedialog
+import tkinter as tk
 from PIL import Image, ImageDraw, ImageFont
 import os
 import sys
@@ -9,6 +10,14 @@ import tempfile
 from database import FreemanDB
 from cloud_service import CloudService, ask_cloud_credentials
 from teacher_comments import build_subject_comment_indices, rating_to_comment as get_rating_comment
+from cbc_engine import SUBJECT_TO_LEARNING_AREA
+from cbc_report import (
+    build_teacher_comments,
+    build_subject_results,
+    group_rubric_records,
+    normalize_level,
+    pathway_recommendation,
+)
 import datetime
 
 
@@ -75,6 +84,36 @@ def ask_opening_closing_dates(parent):
         fg_color="#287a65", hover_color="#216451",
     ).pack(side="left", expand=True, padx=6)
 
+    parent.wait_window(dialog)
+    return dialog.result
+
+
+def ask_report_print_mode(parent):
+    dialog = ctk.CTkToplevel(parent)
+    dialog.title("Choose Report Format")
+    dialog.geometry("460x190")
+    dialog.resizable(False, False)
+    dialog.transient(parent)
+    dialog.grab_set()
+    dialog.result = None
+    ctk.CTkLabel(
+        dialog, text="Which report should be printed?", font=("Arial Bold", 16),
+    ).pack(padx=24, pady=(24, 18))
+    actions = ctk.CTkFrame(dialog, fg_color="transparent")
+    actions.pack(fill="x", padx=16, pady=(0, 20))
+    for label, value, color in (
+        ("One-page summary", "summary", "#287a65"),
+        ("Full rubric", "full", "#1f538d"),
+        ("Cancel", None, "#64748b"),
+    ):
+        def choose(selected=value):
+            dialog.result = selected
+            dialog.destroy()
+
+        ctk.CTkButton(
+            actions, text=label, command=choose, fg_color=color,
+            hover_color="#216451" if value == "summary" else "#153d66" if value == "full" else "#475569",
+        ).pack(side="left", expand=True, padx=5)
     parent.wait_window(dialog)
     return dialog.result
 
@@ -302,53 +341,344 @@ class ReportFormsView(ctk.CTkToplevel):
     def show_report_form(self, student):
         self.current_student = student
         self.clear_container()
-        
-        # Debug: Check if student has photo
-        print(f"DEBUG show_report_form: Student keys: {list(student.keys())}")
-        print(f"DEBUG show_report_form: Photo field: {student.get('photo', 'NOT FOUND')}")
-        
-        # Create report form window
+
+        report_data = self.generate_report_data(student)
+        if not report_data:
+            messagebox.showinfo("No Report Data", "No assessment marks are available for this student.", parent=self)
+            return
+
         report_window = ctk.CTkToplevel(self)
         report_window.title(f"Report Form - {student['name']}")
-        report_window.geometry("1000x800")
-        
-        # Main container
-        report_container = ctk.CTkScrollableFrame(report_window)
-        report_container.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        # School header
+        report_window.geometry("1180x850")
+        report_window.minsize(900, 650)
+
+        report_container = ctk.CTkFrame(report_window, fg_color="transparent")
+        report_container.pack(fill="both", expand=True, padx=16, pady=16)
+        navigation = ctk.CTkScrollableFrame(report_container, height=56, orientation="horizontal")
+        navigation.pack(fill="x", pady=(4, 8))
         self.create_school_header(report_container, student)
-        
-        # Student info
         self.create_student_info(report_container, student)
-        
-        # Current marks section
-        self.create_current_marks_section(report_container, student)
-        
-        # Action buttons
+        page = ctk.CTkScrollableFrame(report_container)
+        page.pack(fill="both", expand=True)
+
+        page_specs = [("Summary", "summary", None)]
+        page_specs.extend(
+            (item["name"], "rubric", item)
+            for item in report_data.get("rubric_subjects", [])
+        )
+        if report_data.get("pathway_recommendation"):
+            page_specs.append(("Career Pathways", "pathway", None))
+
+        self.report_page_specs = page_specs
+        self.report_page_container = page
+        self.report_page_buttons = []
+        for index, (label, _kind, _data) in enumerate(page_specs):
+            button = ctk.CTkButton(
+                navigation,
+                text=label,
+                height=36,
+                width=max(100, min(190, len(label) * 9)),
+                command=lambda selected=index: self.show_report_page(selected, report_data),
+            )
+            button.pack(side="left", padx=4, pady=4)
+            self.report_page_buttons.append(button)
+
         button_frame = ctk.CTkFrame(report_container, fg_color="transparent")
-        button_frame.pack(fill="x", pady=30)
-        
-        # Print PDF button
-        print_btn = ctk.CTkButton(button_frame, text="📄 Print as PDF",
-                                 fg_color="#27ae60", hover_color="#1e8449",
-                                 font=("Arial Bold", 14), height=45, width=200,
-                                 command=lambda: self.print_individual_report(student))
+        button_frame.pack(fill="x", pady=(8, 0))
+
+        print_btn = ctk.CTkButton(
+            button_frame, text="Print PDF", fg_color="#287a65", hover_color="#216451",
+            height=40, width=150,
+            command=lambda: self.print_individual_report(student),
+        )
         print_btn.pack(side="left", padx=10)
-        
-        # Send to parent button
-        send_btn = ctk.CTkButton(button_frame, text="📤 Send Report to Parent",
-                                fg_color="#3498db", hover_color="#2980b9",
-                                font=("Arial Bold", 14), height=45, width=200,
-                                command=lambda: self.send_student_report_to_portal(student))
+
+        send_btn = ctk.CTkButton(
+            button_frame, text="Send Full Report to Parent", fg_color="#1f538d",
+            hover_color="#153d66", height=40, width=210,
+            command=lambda: self.send_student_report_to_portal(student),
+        )
         send_btn.pack(side="left", padx=10)
-        
-        # Close button
-        close_btn = ctk.CTkButton(button_frame, text="✕ Close",
-                                 fg_color="#e74c3c", hover_color="#c0392b",
-                                 font=("Arial Bold", 14), height=45, width=150,
-                                 command=report_window.destroy)
+
+        close_btn = ctk.CTkButton(
+            button_frame, text="Close", fg_color="#64748b", hover_color="#475569",
+            height=40, width=120, command=report_window.destroy,
+        )
         close_btn.pack(side="right", padx=10)
+
+        self.show_report_page(0, report_data)
+
+    def show_report_page(self, index, report_data):
+        for widget in self.report_page_container.winfo_children():
+            widget.destroy()
+        for button_index, button in enumerate(self.report_page_buttons):
+            button.configure(
+                fg_color="#287a65" if button_index == index else "#e5e7eb",
+                hover_color="#216451" if button_index == index else "#cbd5e1",
+                text_color="white" if button_index == index else "#1f2937",
+            )
+
+        _label, kind, page_data = self.report_page_specs[index]
+        if kind == "summary":
+            self.create_cbc_summary_page(self.report_page_container, report_data)
+        elif kind == "rubric":
+            self.create_rubric_page(self.report_page_container, page_data)
+        else:
+            self.create_pathway_page(self.report_page_container, report_data)
+
+    def create_cbc_summary_page(self, container, report_data):
+        ctk.CTkLabel(
+            container,
+            text="Composite rating = 70% formative evidence + 30% summative assessment. "
+            "Where no strand is marked, the summative assessment determines the rating.",
+            anchor="w", justify="left", wraplength=1050, text_color="#475569",
+        ).pack(fill="x", padx=12, pady=(4, 10))
+
+        self.create_cbc_marks_table(container, report_data)
+        self.create_subject_history_chart(container, report_data)
+
+        comments = ctk.CTkFrame(
+            container, fg_color="#ffffff", border_width=1, border_color="#94a3b8", corner_radius=6
+        )
+        comments.pack(fill="x", padx=12, pady=10)
+        ctk.CTkLabel(
+            comments, text="Class Teacher Comment", font=("Arial Bold", 12), anchor="w", text_color="#111827"
+        ).pack(
+            fill="x", padx=12, pady=(8, 2)
+        )
+        teacher_comments = report_data.get("teacher_comments") or build_teacher_comments(
+            report_data.get("subject_results", []), report_data.get("rubric_subjects", []),
+            self.current_student.get("name", ""),
+        )
+        ctk.CTkLabel(
+            comments, text=teacher_comments["class_teacher"], anchor="w", justify="left",
+            wraplength=1000, text_color="#111827",
+        ).pack(fill="x", padx=12, pady=(0, 8))
+        ctk.CTkLabel(
+            comments, text="Head Teacher Comment", font=("Arial Bold", 12), anchor="w", text_color="#111827"
+        ).pack(
+            fill="x", padx=12, pady=(4, 2)
+        )
+        ctk.CTkLabel(
+            comments, text=teacher_comments["head_teacher"], anchor="w", justify="left",
+            wraplength=1000, text_color="#111827",
+        ).pack(fill="x", padx=12, pady=(0, 8))
+        self.create_signature_section(container, self.current_student)
+
+    def create_cbc_marks_table(self, container, report_data):
+        table = ctk.CTkFrame(container, fg_color="white", border_width=1, border_color="#d1d5db")
+        table.pack(fill="x", padx=12, pady=4)
+        previous = list(reversed(report_data.get("previous_exams", [])[:2]))
+        current_exam = report_data.get("exam_title", "Current Exam")
+        widths = [190] + [105] * len(previous) + [120, 100, 125, 70, 110]
+        for column, width in enumerate(widths):
+            table.grid_columnconfigure(column, weight=width)
+
+        learning_area_header = ctk.CTkLabel(
+            table, text="Learning Area", width=widths[0], height=68, fg_color="#2e7d32",
+            text_color="white", font=("Arial Bold", 10), wraplength=widths[0] - 8,
+        )
+        learning_area_header.grid(row=0, column=0, rowspan=2, sticky="nsew", padx=1, pady=1)
+        for index, exam in enumerate(previous, start=1):
+            ctk.CTkLabel(
+                table, text=exam.get("exam_name", "Previous"), width=widths[index], height=68, fg_color="#2e7d32",
+                text_color="white", font=("Arial Bold", 10), wraplength=widths[index] - 8,
+            ).grid(row=0, column=index, rowspan=2, sticky="nsew", padx=1, pady=1)
+
+        current_start = 1 + len(previous)
+        current_columns = ("Formative (70%)", "Summative (30%)", "Composite (Total)", "Level")
+        ctk.CTkLabel(
+            table, text=current_exam, height=32, fg_color="#1b5e20", text_color="white",
+            font=("Arial Bold", 11),
+        ).grid(row=0, column=current_start, columnspan=4, sticky="nsew", padx=1, pady=1)
+        ctk.CTkLabel(
+            table, text="Improvement", width=widths[-1], height=68, fg_color="#2e7d32",
+            text_color="white", font=("Arial Bold", 10), wraplength=widths[-1] - 8,
+        ).grid(row=0, column=current_start + 4, rowspan=2, sticky="nsew", padx=1, pady=1)
+        for offset, heading in enumerate(current_columns):
+            column = current_start + offset
+            ctk.CTkLabel(
+                table, text=heading, width=widths[column], height=34, fg_color="#2e7d32",
+                text_color="white", font=("Arial Bold", 10), wraplength=widths[column] - 8,
+            ).grid(row=1, column=column, sticky="nsew", padx=1, pady=1)
+
+        latest_previous = report_data.get("previous_exams", [])
+        latest_previous_marks = latest_previous[0].get("marks", {}) if latest_previous else {}
+        for row_index, result in enumerate(report_data.get("subject_results", []), start=2):
+            values = [result["subject"]]
+            for exam in previous:
+                values.append(self._previous_subject_score(exam.get("marks", {}), result["subject"]))
+            current_score = result.get("composite_score")
+            previous_score = self._previous_subject_score(latest_previous_marks, result["subject"])
+            improvement = "-"
+            if current_score is not None:
+                try:
+                    difference = int(round(float(current_score) - float(previous_score)))
+                    improvement = f"+{difference}" if difference > 0 else str(difference)
+                except (TypeError, ValueError):
+                    pass
+            values.extend((
+                result.get("formative", "n/a"),
+                result.get("summative", ""),
+                "-" if current_score is None else str(current_score),
+                result.get("rating", ""),
+                improvement,
+            ))
+            background = "#f8fafc" if row_index % 2 else "white"
+            for column, (value, width) in enumerate(zip(values, widths)):
+                is_level = column == current_start + 3
+                level = normalize_level(value) if is_level else ""
+                ctk.CTkLabel(
+                    table, text=str(value), width=width, height=34, fg_color=self._level_color(level) if level else background,
+                    text_color="white" if level else "#1f2937", anchor="w" if column == 0 else "center",
+                    wraplength=width - 8,
+                ).grid(row=row_index, column=column, sticky="nsew", padx=1, pady=1)
+
+    def create_subject_history_chart(self, container, report_data):
+        section = ctk.CTkFrame(container, fg_color="transparent")
+        section.pack(fill="x", padx=12, pady=(14, 4))
+        ctk.CTkLabel(section, text="Subject Progress History", font=("Arial Bold", 16)).pack(
+            anchor="w", pady=(0, 2)
+        )
+        ctk.CTkLabel(
+            section, text="Composite score (%) across exams", text_color="#334155", anchor="w",
+        ).pack(fill="x", pady=(0, 6))
+        canvas = tk.Canvas(section, height=310, background="white", highlightthickness=1, highlightbackground="#d1d5db")
+        canvas.pack(fill="x", expand=True)
+        self._draw_subject_history(canvas, report_data)
+        canvas.bind("<Configure>", lambda _event: self._draw_subject_history(canvas, report_data))
+
+    def _draw_subject_history(self, canvas, report_data):
+        canvas.delete("all")
+        history = report_data.get("performance_history", [])
+        if not history:
+            canvas.create_text(24, 30, anchor="nw", text="No subject history is available yet.", fill="#475569")
+            return
+        width = max(canvas.winfo_width(), 850)
+        left, right, top, bottom = 64, width - 245, 30, 250
+        canvas.create_text(left + 2, top - 10, text="Composite (%)", anchor="sw", fill="#334155")
+        for value in range(0, 101, 20):
+            y = bottom - (bottom - top) * value / 100
+            canvas.create_line(left, y, right, y, fill="#e2e8f0")
+            canvas.create_text(left - 8, y, text=str(value), anchor="e", fill="#475569")
+        canvas.create_line(left, top, left, bottom, fill="#475569")
+        canvas.create_line(left, bottom, right, bottom, fill="#475569")
+
+        palette = ["#166534", "#2563eb", "#c2410c", "#9333ea", "#0891b2", "#be123c", "#4d7c0f", "#0f766e", "#a16207"]
+        subjects = report_data.get("subjects", [])
+        subject_labels = report_data.get("subject_labels", {})
+        for index, exam in enumerate(history):
+            x = left + (right - left) * index / max(1, len(history) - 1)
+            canvas.create_text(x, bottom + 12, text=exam.get("name", "Exam"), anchor="n", width=100, fill="#334155")
+        for subject_index, subject in enumerate(subjects):
+            display_subject = subject_labels.get(subject, subject)
+            color = palette[subject_index % len(palette)]
+            points = []
+            for exam_index, exam in enumerate(history):
+                score = exam.get("subjects", {}).get(subject)
+                if score is None:
+                    continue
+                x = left + (right - left) * exam_index / max(1, len(history) - 1)
+                y = bottom - (bottom - top) * max(0, min(100, float(score))) / 100
+                points.append((x, y))
+            for first, second in zip(points, points[1:]):
+                canvas.create_line(*first, *second, fill=color, width=2)
+            for marker_index, (x, y) in enumerate(points):
+                if subject_index % 3 == 0:
+                    canvas.create_oval(x - 4, y - 4, x + 4, y + 4, fill=color, outline="white")
+                elif subject_index % 3 == 1:
+                    canvas.create_rectangle(x - 4, y - 4, x + 4, y + 4, fill=color, outline="white")
+                else:
+                    canvas.create_polygon(x, y - 5, x + 5, y + 4, x - 5, y + 4, fill=color, outline="white")
+            if points:
+                x, y = points[-1]
+                canvas.create_text(
+                    right + 10, y, text=display_subject, anchor="w", width=220,
+                    fill=color, font=("Arial", 9, "bold"),
+                )
+
+    def create_rubric_page(self, container, subject):
+        ctk.CTkLabel(
+            container, text=subject["name"], font=("Arial Bold", 20), text_color="#2e7d32",
+        ).pack(anchor="w", padx=12, pady=(12, 6))
+        ctk.CTkLabel(
+            container, text="Each X marks the learner's recorded level for a sub-strand.",
+            text_color="#475569", anchor="w",
+        ).pack(fill="x", padx=12, pady=(0, 8))
+        if not subject.get("strands"):
+            ctk.CTkLabel(container, text="No strand ratings are available for this learning area and term.", text_color="#64748b").pack(pady=24)
+            return
+
+        colors = {"BE": "#b91c1c", "AE": "#c2410c", "ME": "#1d4ed8", "EE": "#15803d"}
+        for strand in subject["strands"]:
+            ctk.CTkLabel(
+                container, text=strand["name"], font=("Arial Bold", 14),
+                fg_color="#e8f5e9", text_color="#14532d", anchor="w",
+            ).pack(fill="x", padx=12, pady=(8, 2))
+            table = ctk.CTkFrame(container, fg_color="white", border_width=1, border_color="#d1d5db")
+            table.pack(fill="x", padx=12, pady=(0, 4))
+            headers = (("Sub-strand", 380), ("BE (1)", 86), ("AE (2)", 86), ("ME (3)", 86), ("EE (4)", 86), ("Teacher note", 260))
+            for col, (label, col_width) in enumerate(headers):
+                ctk.CTkLabel(table, text=label, width=col_width, height=34, fg_color="#2e7d32", text_color="white", font=("Arial Bold", 10)).grid(row=0, column=col, sticky="nsew", padx=1, pady=1)
+            for row_index, row in enumerate(strand["sub_strands"], start=1):
+                cells = [row["name"]]
+                cells.extend("X" if row.get("level") == level else "" for level in ("BE", "AE", "ME", "EE"))
+                cells.append(row.get("evidence") or (
+                    "Absent (AB)" if row.get("level") == "AB" else "No written note recorded"
+                ))
+                for col, ((label, col_width), value) in enumerate(zip(headers, cells)):
+                    level = row.get("level") if 1 <= col <= 4 else ""
+                    ctk.CTkLabel(
+                        table, text=value, width=col_width, height=32,
+                        fg_color=colors.get(level, "#f8fafc" if row_index % 2 else "white"),
+                        text_color="white" if level else "#334155",
+                        anchor="w" if col in (0, 5) else "center", wraplength=col_width - 8,
+                    ).grid(row=row_index, column=col, sticky="nsew", padx=1, pady=1)
+        recommendations = subject.get("recommendations", [])
+        if recommendations:
+            names = ", ".join(
+                f"{item['name']} ({item['level']})" for item in recommendations
+            )
+            text = f"Revisit these sub-strands: {names}."
+        else:
+            text = "No specific revisit recommendation: the recorded levels do not show a lower-level variation."
+        ctk.CTkLabel(
+            container, text=text, fg_color="#fff7ed", text_color="#9a3412",
+            anchor="w", justify="left", wraplength=1000,
+        ).pack(fill="x", padx=12, pady=12)
+
+    def create_pathway_page(self, container, report_data):
+        recommendation = report_data.get("pathway_recommendation", {})
+        ctk.CTkLabel(
+            container, text="Junior Career Pathways", font=("Arial Bold", 20),
+            text_color="#2e7d32",
+        ).pack(anchor="w", padx=12, pady=(12, 4))
+        ctk.CTkLabel(
+            container,
+            text=f"Indicative pathway: {recommendation.get('recommended') or 'Not enough ratings'}\n{recommendation.get('basis', '')}",
+            anchor="w", justify="left", wraplength=1000, fg_color="#e8f5e9",
+        ).pack(fill="x", padx=12, pady=8)
+        score_lookup = {item["subject"]: item.get("composite_score") for item in report_data.get("subject_results", [])}
+        aliases = {
+            "MATH": "Mathematics", "MAT": "Mathematics", "ENG": "English",
+            "KISW": "Kiswahili", "SCIE": "Science & Technology", "INT SCIE": "Integrated Science",
+            "PRE-TECH": "Pre-Technical Studies", "AGRI": "Agriculture and Nutrition",
+            "SST": "Social Studies", "C/A": "Creative Arts and Sports", "REL": "Religious Education",
+            "CRE": "Religious Education", "RE": "Religious Education",
+            "IRE": "Religious Education", "HRE": "Religious Education",
+        }
+        for pathway in recommendation.get("pathways", []):
+            score = pathway.get("score")
+            panel = ctk.CTkFrame(container, fg_color="#f8fafc", border_width=1, border_color="#cbd5e1", corner_radius=6)
+            panel.pack(fill="x", padx=12, pady=6)
+            ctk.CTkLabel(panel, text=f"{pathway['name']}  |  {score if score is not None else 'No evidence'}%", font=("Arial Bold", 15), anchor="w").pack(fill="x", padx=12, pady=(8, 4))
+            for subject in pathway["subjects"]:
+                match = next((name for name in score_lookup if aliases.get(name, name) == subject), None)
+                mark = score_lookup.get(match) if match else None
+                ctk.CTkLabel(
+                    panel, text=f"{subject}: {mark:g}%" if mark is not None else f"{subject}: no recorded composite",
+                    anchor="w", text_color="#475569",
+                ).pack(fill="x", padx=18, pady=1)
     
     def create_school_header(self, container, student):
         # Header frame matching portal layout with purple gradient
@@ -475,6 +805,9 @@ class ReportFormsView(ctk.CTkToplevel):
 
     def get_class_teacher_comment(self, average_level):
         """Get class teacher comment based on average level"""
+        normalized = normalize_level(average_level)
+        if normalized:
+            average_level = f"{normalized}1"
         comments = {
             "EE1": "Outstanding performance! You have shown a deep and advanced understanding of all subjects.",
             "EE2": "Excellent work! You are consistently performing at a very high level. Keep it up!",
@@ -489,6 +822,9 @@ class ReportFormsView(ctk.CTkToplevel):
 
     def get_head_teacher_comment(self, average_level):
         """Get head teacher comment based on average level"""
+        normalized = normalize_level(average_level)
+        if normalized:
+            average_level = f"{normalized}1"
         comments = {
             "EE1": "Excellent achievement. Continue to maintain this high standard of excellence.",
             "EE2": "A remarkable performance this term. Well done on your hard work.",
@@ -1413,12 +1749,411 @@ class ReportFormsView(ctk.CTkToplevel):
         return ask_opening_closing_dates(self)
 
     def print_individual_report(self, student):
+        report_mode = ask_report_print_mode(self)
+        if report_mode is None:
+            return
         date_range = self.ask_opening_closing_dates()
         if date_range is None:
             return
-        self.print_report_pdf(None, student, date_range=date_range)
+        self.print_report_pdf(None, student, date_range=date_range, report_mode=report_mode)
 
-    def print_report_pdf(self, container, student, file_path=None, date_range=None):
+    def _print_cbc_report_pdf(self, report, file_path, date_range, report_mode, show_messages):
+        from fpdf import FPDF
+
+        temporary_files = []
+
+        def pdf_text(value):
+            return str(value or "").encode("latin-1", "replace").decode("latin-1")
+
+        def image_file(value):
+            if not value:
+                return ""
+            value = str(value)
+            if os.path.isfile(value):
+                return value
+            if value.startswith("data:image/"):
+                try:
+                    _, encoded = value.split(",", 1)
+                    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as image:
+                        image.write(base64.b64decode(encoded))
+                        temporary_files.append(image.name)
+                        return image.name
+                except (ValueError, base64.binascii.Error):
+                    return ""
+            return ""
+
+        dialog_parent = getattr(self, "parent_window", None)
+        student_name = report.get("student_name", report.get("name", ""))
+        grade = report.get("grade", "")
+        exam_title = report.get("exam_title") or self.school_config.get("current_exam_title", "ASSESSMENT")
+        output_path = file_path
+        if not output_path:
+            output_path = filedialog.asksaveasfilename(
+                parent=dialog_parent,
+                defaultextension=".pdf",
+                initialfile=f"{str(student_name).replace(' ', '_')}_{str(exam_title).replace(' ', '_')}.pdf",
+            )
+        if not output_path:
+            return False
+
+        pdf = FPDF(orientation="L", unit="mm", format="A4")
+        pdf.set_auto_page_break(auto=True, margin=12)
+        school_name = self.school_config.get("school_name", "MY SCHOOL")
+        address = self.school_config.get("address", "")
+        contacts = self.school_config.get("contacts", "")
+        logo = image_file(self.school_config.get("logo"))
+        photo = image_file(report.get("photo"))
+        green = (46, 125, 50)
+        dark = (31, 41, 55)
+        level_colors = {"BE": (185, 28, 28), "AE": (194, 65, 12), "ME": (29, 78, 216), "EE": (21, 128, 61)}
+
+        def page_header(title):
+            pdf.add_page()
+            pdf.set_draw_color(*green)
+            pdf.set_line_width(0.6)
+            pdf.rect(5, 5, 287, 200)
+            if logo:
+                try:
+                    pdf.image(logo, 10, 8, 22, 22)
+                except Exception:
+                    pass
+            if photo:
+                try:
+                    pdf.image(photo, 265, 8, 20, 24)
+                except Exception:
+                    pass
+            pdf.set_xy(36, 9)
+            pdf.set_font("Helvetica", "B", 14)
+            pdf.set_text_color(*green)
+            pdf.cell(225, 7, pdf_text(str(school_name).upper()), align="C", ln=1)
+            pdf.set_font("Helvetica", "", 8)
+            pdf.set_text_color(*dark)
+            pdf.cell(277, 4, pdf_text(address), align="C", ln=1)
+            pdf.cell(277, 4, pdf_text(contacts), align="C", ln=1)
+            pdf.set_font("Helvetica", "B", 11)
+            pdf.set_text_color(*dark)
+            pdf.cell(277, 7, pdf_text(title), align="C", ln=1)
+            pdf.set_fill_color(241, 245, 249)
+            pdf.set_font("Helvetica", "B", 8)
+            meta = (
+                f"Learner: {student_name}    Class: {grade}    Stream: {report.get('stream', 'None')}    "
+                f"Term: {report.get('term', '')}, {report.get('academic_year', '')}"
+            )
+            pdf.cell(277, 7, pdf_text(meta), border=0, ln=1, fill=True)
+            pdf.ln(2)
+
+        def section_title(text):
+            pdf.set_fill_color(*green)
+            pdf.set_text_color(255, 255, 255)
+            pdf.set_font("Helvetica", "B", 8)
+            pdf.cell(277, 6, pdf_text(text), border=0, ln=1, fill=True)
+            pdf.set_text_color(*dark)
+
+        def draw_history_chart(y, height=34):
+            history = report.get("performance_history", [])
+            subjects = report.get("subjects", [])
+            x_left, x_plot_right = 20, 238
+            x_label = 241
+            y_top, y_bottom = y + 3, y + height - 6
+            pdf.set_font("Helvetica", "B", 7)
+            pdf.set_text_color(*dark)
+            pdf.text(10, y + 4, "Composite / exam score (%)")
+            for value in (0, 50, 100):
+                point_y = y_bottom - (y_bottom - y_top) * value / 100
+                pdf.set_draw_color(218, 226, 232)
+                pdf.line(x_left, point_y, x_plot_right, point_y)
+                pdf.text(11, point_y + 1, str(value))
+            if not history:
+                return
+            for exam_index, exam in enumerate(history):
+                x = x_left + (x_plot_right - x_left) * exam_index / max(1, len(history) - 1)
+                pdf.set_font("Helvetica", "", 6)
+                pdf.text(x - 8, y_bottom + 4, pdf_text(str(exam.get("name", "Exam"))[:18]))
+            palette = [(22, 101, 52), (37, 99, 235), (194, 65, 12), (147, 51, 234), (8, 145, 178), (190, 18, 60), (77, 124, 15), (15, 118, 110), (161, 98, 7)]
+            for subject_index, subject in enumerate(subjects):
+                color = palette[subject_index % len(palette)]
+                points = []
+                for exam_index, exam in enumerate(history):
+                    score = exam.get("subjects", {}).get(subject)
+                    if score is None:
+                        continue
+                    x = x_left + (x_plot_right - x_left) * exam_index / max(1, len(history) - 1)
+                    point_y = y_bottom - (y_bottom - y_top) * max(0, min(100, float(score))) / 100
+                    points.append((x, point_y))
+                pdf.set_draw_color(*color)
+                pdf.set_fill_color(*color)
+                pdf.set_line_width(0.5)
+                for first, second in zip(points, points[1:]):
+                    pdf.line(first[0], first[1], second[0], second[1])
+                for point_index, (x, point_y) in enumerate(points):
+                    shape = subject_index % 5
+                    if shape == 0:
+                        pdf.ellipse(x - 1.2, point_y - 1.2, 2.4, 2.4, style="F")
+                    elif shape == 1:
+                        pdf.rect(x - 1.2, point_y - 1.2, 2.4, 2.4, style="F")
+                    elif shape == 2:
+                        pdf.line(x, point_y - 1.5, x - 1.5, point_y + 1.2)
+                        pdf.line(x - 1.5, point_y + 1.2, x + 1.5, point_y + 1.2)
+                        pdf.line(x + 1.5, point_y + 1.2, x, point_y - 1.5)
+                    elif shape == 3:
+                        pdf.line(x - 1.4, point_y, x + 1.4, point_y)
+                        pdf.line(x, point_y - 1.4, x, point_y + 1.4)
+                    else:
+                        pdf.line(x, point_y - 1.5, x + 1.5, point_y)
+                        pdf.line(x + 1.5, point_y, x, point_y + 1.5)
+                        pdf.line(x, point_y + 1.5, x - 1.5, point_y)
+                        pdf.line(x - 1.5, point_y, x, point_y - 1.5)
+                if points:
+                    pdf.set_text_color(*color)
+                    pdf.set_font("Helvetica", "B", 6)
+                    pdf.text(x_label, points[-1][1] + 1, pdf_text(subject)[:24])
+            pdf.set_text_color(*dark)
+
+        try:
+            page_header("LEARNER CBC SUMMARY")
+            pdf.set_font("Helvetica", "", 7)
+            pdf.multi_cell(
+                277, 4,
+                "Composite level uses 70% formative evidence and 30% summative assessment. "
+                "If no formative strands are marked, the summative assessment determines the level. "
+                "Previous exam columns retain their recorded score values.",
+            )
+            previous = list(reversed(report.get("previous_exams", [])[:2]))
+            subject_results = report.get("subject_results", [])
+            subject_width = 30
+            previous_width = 17
+            current_widths = [25, 20, 22, 12]
+            improvement_width = 17
+            teacher_width = 22
+            comment_width = 277 - subject_width - previous_width * len(previous) - sum(current_widths) - improvement_width - teacher_width
+            widths = [subject_width] + [previous_width] * len(previous) + current_widths + [improvement_width, teacher_width, comment_width]
+            y = pdf.get_y()
+            header_height = 10
+
+            def header_cell(x, cell_y, cell_width, cell_height, label, color=green):
+                pdf.set_fill_color(*color)
+                pdf.set_draw_color(255, 255, 255)
+                pdf.rect(x, cell_y, cell_width, cell_height, style="DF")
+                pdf.set_text_color(255, 255, 255)
+                pdf.set_font("Helvetica", "B", 6)
+                pdf.set_xy(x + 1, cell_y + max(0, (cell_height - 4) / 2))
+                pdf.multi_cell(cell_width - 2, 4, pdf_text(label), align="C")
+
+            x = 10
+            header_cell(x, y, subject_width, header_height, "Learning Area")
+            x += subject_width
+            for exam, cell_width in zip(previous, widths[1:1 + len(previous)]):
+                header_cell(x, y, cell_width, header_height, str(exam.get("exam_name", "Previous"))[:18])
+                x += cell_width
+            current_title = report.get("exam_title", "Current Exam")
+            header_cell(x, y, sum(current_widths), 5, f"{current_title} (Current Exam)", color=(27, 94, 32))
+            sub_x = x
+            for label, cell_width in zip(("Formative 70%", "Summative 30%", "Composite Total", "Level"), current_widths):
+                header_cell(sub_x, y + 5, cell_width, 5, label)
+                sub_x += cell_width
+            x += sum(current_widths)
+            header_cell(x, y, improvement_width, header_height, "Improvement")
+            x += improvement_width
+            header_cell(x, y, teacher_width, header_height, "Teacher")
+            x += teacher_width
+            header_cell(x, y, comment_width, header_height, "Teacher Comment")
+            y += header_height
+            pdf.set_text_color(*dark)
+            pdf.set_font("Helvetica", "", 6)
+            teacher_map = self.get_teacher_assignments(grade)
+            latest_previous = report.get("previous_exams", [])
+            latest_previous_marks = latest_previous[0].get("marks", {}) if latest_previous else {}
+            for row_index, item in enumerate(subject_results):
+                subject = item["subject"]
+                values = [subject]
+                values.extend(self._previous_subject_score(exam.get("marks", {}), subject) for exam in previous)
+                current_score = item.get("composite_score")
+                previous_score = self._previous_subject_score(latest_previous_marks, subject)
+                improvement = "-"
+                if current_score is not None:
+                    try:
+                        difference = int(round(float(current_score) - float(previous_score)))
+                        improvement = f"+{difference}" if difference > 0 else str(difference)
+                    except (TypeError, ValueError):
+                        pass
+                values.extend((
+                    item.get("formative", "n/a"), item.get("summative", ""),
+                    "-" if current_score is None else str(current_score), item.get("rating", ""),
+                    improvement,
+                    teacher_map.get(subject, teacher_map.get(item.get("area"), "-")),
+                    self.rating_to_comment({"EE": "EE1", "ME": "ME1", "AE": "AE1", "BE": "BE1"}.get(item.get("rating"), ""), subject),
+                ))
+                x = 10
+                for column, (value, cell_width) in enumerate(zip(values, widths)):
+                    row_color = (248, 250, 252) if row_index % 2 == 0 else (255, 255, 255)
+                    pdf.set_fill_color(*level_colors.get(item.get("rating"), row_color) if column == 1 + len(previous) + 3 else row_color)
+                    pdf.set_draw_color(203, 213, 225)
+                    pdf.rect(x, y, cell_width, 7, style="DF")
+                    pdf.set_xy(x, y)
+                    if column == 1 + len(previous) + 3:
+                        pdf.set_text_color(255, 255, 255)
+                    else:
+                        pdf.set_text_color(*dark)
+                    pdf.set_font("Helvetica", "", 6)
+                    pdf.multi_cell(cell_width, 5, pdf_text(value), align="L" if column in (0, len(values) - 1, len(values) - 2) else "C")
+                    x += cell_width
+                y += 7
+            pdf.set_y(y)
+            chart_y = max(pdf.get_y() + 2, 128)
+            draw_history_chart(chart_y, 27)
+            teacher_comments = report.get("teacher_comments") or build_teacher_comments(
+                report.get("subject_results", []), report.get("rubric_subjects", []), student_name
+            )
+
+            def draw_comment_frame(y, title, text, fill_color):
+                line_count = max(1, (len(pdf_text(text)) + 149) // 150)
+                frame_height = max(9, 4 + line_count * 3)
+                pdf.set_fill_color(*fill_color)
+                pdf.set_draw_color(*green)
+                pdf.rect(10, y, 277, frame_height, style="DF")
+                pdf.set_xy(14, y + 2)
+                pdf.set_font("Helvetica", "B", 7)
+                pdf.set_text_color(*green)
+                pdf.cell(48, 4, pdf_text(title))
+                pdf.set_xy(62, y + 2)
+                pdf.set_font("Helvetica", "", 7)
+                pdf.set_text_color(*dark)
+                pdf.multi_cell(220, 3, pdf_text(text))
+                return y + frame_height + 1
+
+            comment_y = chart_y + 29
+            comment_y = draw_comment_frame(
+                comment_y, "CLASS TEACHER", teacher_comments["class_teacher"], (240, 249, 244)
+            )
+            comment_y = draw_comment_frame(
+                comment_y, "HEAD TEACHER", teacher_comments["head_teacher"], (239, 246, 255)
+            )
+            signature_y = comment_y + 1
+            pdf.set_fill_color(241, 245, 249)
+            pdf.set_draw_color(*green)
+            pdf.rect(10, signature_y, 277, 12, style="DF")
+            pdf.set_xy(14, signature_y + 2)
+            pdf.set_font("Helvetica", "B", 7)
+            pdf.set_text_color(*dark)
+            administrator = self.school_config.get("school_administrator", "School Administrator")
+            pdf.cell(90, 4, pdf_text(f"HEADTEACHER: {administrator}"))
+            pdf.set_xy(108, signature_y + 2)
+            pdf.cell(75, 4, pdf_text("Signature: __________________"))
+            pdf.set_xy(188, signature_y + 2)
+            pdf.cell(45, 4, pdf_text("Date: __________"))
+            if date_range and date_range.get("opening_date") and date_range.get("closing_date"):
+                pdf.set_xy(14, signature_y + 7)
+                pdf.set_font("Helvetica", "", 6)
+                pdf.cell(270, 3, pdf_text(f"Term opening: {date_range['opening_date']}    Term closing: {date_range['closing_date']}"))
+
+            if report_mode == "full":
+                for subject in report.get("rubric_subjects", []):
+                    page_header(f"LEARNER DETAILED PERFORMANCE RUBRIC - {subject['name']}")
+                    section_title("SUB-STRAND PERFORMANCE")
+                    if not subject.get("strands"):
+                        pdf.set_font("Helvetica", "", 10)
+                        pdf.multi_cell(277, 7, "No strand ratings are available for this learning area and term.")
+                    else:
+                        for strand in subject["strands"]:
+                            if pdf.get_y() > 183:
+                                page_header(f"{subject['name']} - CONTINUED")
+                                section_title("SUB-STRAND PERFORMANCE")
+                            pdf.set_fill_color(232, 245, 233)
+                            pdf.set_text_color(20, 83, 45)
+                            pdf.set_font("Helvetica", "B", 8)
+                            pdf.cell(277, 6, pdf_text(strand["name"]), ln=1, fill=True)
+                            pdf.set_text_color(*dark)
+                            header = (("Sub-strand", 135), ("BE (1)", 20), ("AE (2)", 20), ("ME (3)", 20), ("EE (4)", 20), ("Teacher note", 62))
+                            pdf.set_font("Helvetica", "B", 7)
+                            pdf.set_fill_color(*green)
+                            pdf.set_text_color(255, 255, 255)
+                            for label, cell_width in header:
+                                pdf.cell(cell_width, 6, pdf_text(label), border=1, align="C", fill=True)
+                            pdf.ln()
+                            for row in strand["sub_strands"]:
+                                if pdf.get_y() > 188:
+                                    page_header(f"{subject['name']} - CONTINUED")
+                                    section_title("SUB-STRAND PERFORMANCE")
+                                    pdf.set_font("Helvetica", "B", 7)
+                                    pdf.set_fill_color(*green)
+                                    pdf.set_text_color(255, 255, 255)
+                                    for label, cell_width in header:
+                                        pdf.cell(cell_width, 6, pdf_text(label), border=1, align="C", fill=True)
+                                    pdf.ln()
+                                pdf.set_font("Helvetica", "", 7)
+                                pdf.set_text_color(*dark)
+                                pdf.set_fill_color(248, 250, 252)
+                                pdf.cell(135, 6, pdf_text(row["name"]), border=1, fill=True)
+                                for level in ("BE", "AE", "ME", "EE"):
+                                    pdf.set_fill_color(*level_colors[level])
+                                    pdf.set_text_color(255, 255, 255)
+                                    pdf.cell(20, 6, "X" if row.get("level") == level else "", border=1, align="C", fill=True)
+                                pdf.set_fill_color(248, 250, 252)
+                                pdf.set_text_color(100, 116, 139)
+                                evidence = row.get("evidence") or ("AB" if row.get("level") == "AB" else "No written note recorded")
+                                pdf.cell(62, 6, pdf_text(evidence), border=1, align="C", fill=True)
+                                pdf.ln()
+                    recommendations = subject.get("recommendations", [])
+                    if pdf.get_y() > 183:
+                        page_header(f"{subject['name']} - REVISIT FOCUS")
+                    pdf.ln(4)
+                    pdf.set_font("Helvetica", "B", 8)
+                    pdf.set_text_color(154, 52, 18)
+                    if recommendations:
+                        guidance = "Revisit these sub-strands: " + ", ".join(
+                            f"{item['name']} ({item['level']})" for item in recommendations
+                        ) + "."
+                    else:
+                        guidance = "No specific revisit recommendation: recorded levels do not show lower-level variation."
+                    pdf.multi_cell(277, 5, pdf_text(guidance))
+                    pdf.set_text_color(*dark)
+
+                pathway = report.get("pathway_recommendation")
+                if pathway:
+                    page_header("JUNIOR CAREER PATHWAY GUIDANCE")
+                    pdf.set_font("Helvetica", "", 8)
+                    pdf.multi_cell(277, 5, pdf_text(pathway.get("basis", "")))
+                    score_lookup = {item["subject"]: item.get("composite_score") for item in report.get("subject_results", [])}
+                    aliases = {
+                        "math": "mathematics", "mat": "mathematics", "eng": "english",
+                        "kisw": "kiswahili", "scie": "science & technology", "int scie": "integrated science",
+                        "pre-tech": "pre-technical studies", "agri": "agriculture and nutrition",
+                        "sst": "social studies", "c/a": "creative arts and sports", "rel": "religious education",
+                        "cre": "religious education", "re": "religious education",
+                        "ire": "religious education", "hre": "religious education",
+                    }
+                    for item in pathway.get("pathways", []):
+                        score = item.get("score")
+                        is_recommended = item["name"] == pathway.get("recommended")
+                        pdf.set_fill_color(*(232, 245, 233) if is_recommended else (241, 245, 249))
+                        pdf.set_font("Helvetica", "B", 9)
+                        label = f"{item['name']}  |  {score if score is not None else 'No evidence'}%"
+                        if is_recommended:
+                            label += "  |  INDICATIVE RECOMMENDATION"
+                        pdf.cell(277, 7, pdf_text(label), ln=1, fill=True)
+                        pdf.set_font("Helvetica", "", 7)
+                        for subject_name in item["subjects"]:
+                            match = next((name for name in score_lookup if aliases.get(name.casefold(), name.casefold()) == subject_name.casefold()), None)
+                            mark = score_lookup.get(match) if match else None
+                            value = f"{subject_name}: {mark:g}%" if mark is not None else f"{subject_name}: no recorded composite"
+                            pdf.cell(277, 5, pdf_text("    " + value), ln=1)
+
+            pdf.output(output_path)
+            if show_messages:
+                messagebox.showinfo("Success", "PDF generated successfully!", parent=dialog_parent)
+            return True
+        except Exception as error:
+            if show_messages:
+                messagebox.showerror("PDF Generation Failed", str(error), parent=dialog_parent)
+            else:
+                print(f"PDF Generation Failed: {error}")
+            return False
+        finally:
+            for temporary_path in temporary_files:
+                if os.path.exists(temporary_path):
+                    os.remove(temporary_path)
+
+    def print_report_pdf(self, container, student, file_path=None, date_range=None, report_mode="full"):
         from fpdf import FPDF
         import os
         from tkinter import filedialog
@@ -1437,6 +2172,9 @@ class ReportFormsView(ctk.CTkToplevel):
                 if show_messages:
                     messagebox.showerror("No report data", "No marks were found for this student.")
                 return False
+
+        if student.get("subject_results") is not None:
+            return self._print_cbc_report_pdf(student, file_path, date_range, report_mode, show_messages)
 
         # Get school configuration
         school_name = self.school_config.get("school_name", "MY SCHOOL")
@@ -2158,13 +2896,16 @@ class ReportFormsView(ctk.CTkToplevel):
             messagebox.showinfo("Info", "No students in this class.")
             return
 
+        report_mode = ask_report_print_mode(self)
+        if report_mode is None:
+            return
         date_range = self.ask_opening_closing_dates()
         if date_range is None:
             return
         output_dir = filedialog.askdirectory(parent=self, title="Choose folder for class report PDFs")
         if not output_dir:
             return
-        self._print_students_to_folder(students, output_dir, date_range)
+        self._print_students_to_folder(students, output_dir, date_range, report_mode)
     
     def print_all_reports(self):
         classes = self.get_available_classes()
@@ -2177,15 +2918,18 @@ class ReportFormsView(ctk.CTkToplevel):
             messagebox.showinfo("Info", "No students found.")
             return
 
+        report_mode = ask_report_print_mode(self)
+        if report_mode is None:
+            return
         date_range = self.ask_opening_closing_dates()
         if date_range is None:
             return
         output_dir = filedialog.askdirectory(parent=self, title="Choose folder for all report PDFs")
         if not output_dir:
             return
-        self._print_students_to_folder(students, output_dir, date_range)
+        self._print_students_to_folder(students, output_dir, date_range, report_mode)
 
-    def _print_students_to_folder(self, students, output_dir, date_range):
+    def _print_students_to_folder(self, students, output_dir, date_range, report_mode):
         success_count = 0
         for student in students:
             report_data = self.generate_report_data(student)
@@ -2200,7 +2944,9 @@ class ReportFormsView(ctk.CTkToplevel):
                 for character in str(student.get("adm_no", ""))
             )
             file_name = f"{safe_name}_{safe_adm or 'report'}.pdf"
-            if self.print_report_pdf(None, report_data, os.path.join(output_dir, file_name), date_range):
+            if self.print_report_pdf(
+                None, report_data, os.path.join(output_dir, file_name), date_range, report_mode
+            ):
                 success_count += 1
         messagebox.showinfo(
             "Print complete",
@@ -2235,6 +2981,128 @@ class ReportFormsView(ctk.CTkToplevel):
         except Exception as e:
             print(f"DEBUG: Could not prepare student photo for cloud: {e}")
             return ""
+
+    @staticmethod
+    def _report_subject_token(value):
+        return "".join(character for character in str(value or "").casefold() if character.isalnum())
+
+    def _report_learning_area(self, subject, grade):
+        area = SUBJECT_TO_LEARNING_AREA.get(str(subject).strip().upper())
+        if area:
+            return area
+        area = {
+            "INT SCI": "Integrated Science",
+            "INT SCIE": "Integrated Science",
+            "SCI": "Science & Technology",
+            "SCIE": "Science & Technology",
+            "CREAT": "Creative Arts and Sports",
+            "ARTS": "Creative Arts and Sports",
+            "REL": "Religious Education",
+            "RE": "Religious Education",
+        }.get(str(subject).strip().upper())
+        if area:
+            return area
+        grade_type = self._grade_type_for_report(grade)
+        configured_names = self.school_config.get("subject_names", {}).get(grade_type, {})
+        if subject in configured_names:
+            return configured_names[subject]
+        token = self._report_subject_token(subject)
+        for items in (self.school_config.get("subject_catalog") or {}).values():
+            for item in items:
+                if self._report_subject_token(item.get("short")) == token:
+                    return str(item.get("name") or subject).strip()
+        return str(subject).strip()
+
+    @staticmethod
+    def _grade_type_for_report(grade):
+        return {
+            "playgroup": "playgroup", "pp1": "pp1", "pp2": "pp2",
+            "grade 1": "lower", "grade 2": "lower", "grade 3": "lower",
+            "grade 4": "primary", "grade 5": "primary", "grade 6": "primary",
+            "grade 7": "jss", "grade 8": "jss", "grade 9": "jss",
+        }.get(str(grade).strip().casefold(), "")
+
+    def _report_cbc_records(self, student, subjects, term, year):
+        configured = self.school_config.get("cbc_levels", {}).get(student.get("grade"), {})
+        if not configured:
+            return []
+        assessment_number = str(student.get("assessment_number") or "").strip()
+        if not assessment_number:
+            try:
+                self.db.cursor().execute(
+                    "SELECT assessment_number FROM students WHERE adm_no = ?",
+                    (student.get("adm_no"),),
+                )
+                row = self.db.cursor().fetchone()
+                assessment_number = str(row[0] or "").strip() if row else ""
+            except Exception:
+                assessment_number = ""
+        learner_name = self._report_subject_token(student.get("name"))
+        requested_areas = {self._report_learning_area(subject, student.get("grade")) for subject in subjects}
+        aliases = {
+            "Agriculture and Nutrition": ("Agriculture",),
+            "Agriculture": ("Agriculture and Nutrition",),
+            "Creative Arts and Sports": ("Creative Arts",),
+            "Creative Arts": ("Creative Arts and Sports",),
+        }
+        matches = {}
+        for area in requested_areas:
+            for area_name in (area, *aliases.get(area, ())):
+                by_term = configured.get(area_name, {})
+                record = by_term.get(f"{year}|{term}") if year else None
+                if record is None:
+                    legacy = by_term.get(term)
+                    if legacy and (not year or str(legacy.get("academic_year", year)) == str(year)):
+                        record = legacy
+                if not isinstance(record, dict):
+                    continue
+                for raw in record.get("records", []):
+                    if len(raw) < 6:
+                        continue
+                    number, learner = str(raw[0] or "").strip(), str(raw[1] or "").strip()
+                    if assessment_number and number:
+                        belongs = number.casefold() == assessment_number.casefold()
+                    else:
+                        belongs = self._report_subject_token(learner) == learner_name
+                    if belongs:
+                        normalized = [raw[0], raw[1], area, *raw[3:]]
+                        key = tuple(str(value or "") for value in normalized[:5])
+                        matches[key] = normalized
+        return list(matches.values())
+
+    def _previous_subject_score(self, marks, subject):
+        target = self._report_subject_token(subject)
+        aliases = {
+            "math": "mathematics", "mat": "mathematics", "eng": "english",
+            "kisw": "kiswahili", "intsci": "integratedscience", "intscie": "integratedscience",
+            "scie": "sciencetechnology",
+            "pretech": "pretechnicalstudies", "agri": "agricultureandnutrition",
+            "sst": "socialstudies", "ca": "creativeartsandsports", "rel": "religiouseducation",
+        }
+        target = aliases.get(target, target)
+        if not isinstance(marks, dict):
+            return "-"
+        for key, value in marks.items():
+            normalized = self._report_subject_token(key)
+            normalized = aliases.get(normalized, normalized)
+            if normalized != target:
+                continue
+            if isinstance(value, dict):
+                value = value.get("score", "")
+            return value if value not in (None, "") else "-"
+        return "-"
+
+    @staticmethod
+    def _level_color(level):
+        return {"BE": "#b91c1c", "AE": "#c2410c", "ME": "#1d4ed8", "EE": "#15803d"}.get(level, "#64748b")
+
+    def _average_cbc_rating(self, report_data):
+        values = {"BE": 1, "AE": 2, "ME": 3, "EE": 4}
+        ratings = [values[item.get("rating")] for item in report_data.get("subject_results", []) if item.get("rating") in values]
+        if not ratings:
+            return ""
+        average = sum(ratings) / len(ratings)
+        return {1: "BE", 2: "AE", 3: "ME", 4: "EE"}[min(4, max(1, int(average + 0.5)))]
 
     def generate_report_data(self, student):
         if not hasattr(self, "subject_comment_indices"):
@@ -2492,7 +3360,52 @@ class ReportFormsView(ctk.CTkToplevel):
                     pass
         
         print(f"DEBUG: Total previous_exams_data: {len(previous_exams_data)}")
-        
+
+        subjects = self.get_subjects_for_grade(student["grade"])
+        term = self.school_config.get("marksheet_term") or self.school_config.get("current_term") or "Term 1"
+        year = self.school_config.get("academic_year")
+        rubric_records = self._report_cbc_records(student, subjects, term, year)
+        subject_areas = [
+            (subject, self._report_learning_area(subject, student["grade"]))
+            for subject in subjects
+        ]
+        subject_results = build_subject_results(subject_areas, current_marks, rubric_records)
+        grouped_rubrics = {
+            item["name"].casefold(): item for item in group_rubric_records(rubric_records)
+        }
+        rubric_subjects = []
+        for subject, area in subject_areas:
+            detail = grouped_rubrics.get(area.casefold()) or {
+                "strands": [], "recommendations": []
+            }
+            rubric_subjects.append({"name": area, **detail})
+
+        performance_history = []
+        for exam in reversed(previous_exams_data):
+            scores = {}
+            for subject in subjects:
+                value = self._previous_subject_score(exam.get("marks", {}), subject)
+                try:
+                    score = float(value)
+                    if 0 <= score <= 100:
+                        scores[subject] = score
+                except (TypeError, ValueError):
+                    continue
+            performance_history.append({"name": exam.get("exam_name", "Previous"), "subjects": scores})
+        current_scores = {
+            item["subject"]: item["composite_score"]
+            for item in subject_results
+            if item.get("composite_score") is not None
+        }
+        performance_history.append({"name": exam_title, "subjects": current_scores})
+        pathway = None
+        if student["grade"] in ("Grade 7", "Grade 8", "Grade 9"):
+            prior_scores = [item["subjects"] for item in performance_history[:-1]]
+            pathway = pathway_recommendation(current_scores, prior_scores, term)
+        teacher_comments = build_teacher_comments(
+            subject_results, rubric_subjects, student.get("name", "")
+        )
+
         return {
             'student_name': student['name'],
             'adm_no': student['adm_no'],
@@ -2500,6 +3413,19 @@ class ReportFormsView(ctk.CTkToplevel):
             'grade': student['grade'],
             'school_name': self.school_config.get('school_name', ''),
             'current_marks': current_marks,
+            'term': term,
+            'academic_year': year,
+            'subjects': subjects,
+            'subject_labels': {
+                subject: self._report_learning_area(subject, student["grade"])
+                for subject in subjects
+            },
+            'subject_results': subject_results,
+            'average_rating': self._average_cbc_rating({'subject_results': subject_results}),
+            'teacher_comments': teacher_comments,
+            'rubric_subjects': rubric_subjects,
+            'performance_history': performance_history,
+            'pathway_recommendation': pathway,
             'class_teacher': self.get_class_teacher(student['grade']),
             'exam_title': exam_title,
             'previous_exams': previous_exams_data,

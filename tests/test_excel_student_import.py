@@ -28,6 +28,19 @@ class ExcelStudentImportTests(unittest.TestCase):
         self.assertEqual(records[1]["stream"], "West")
         self.assertEqual(records[2]["assessment_number"], "00000012345")
 
+    def test_stream_field_is_absent_when_workbook_has_no_stream_header(self):
+        workbook = Workbook()
+        worksheet = workbook.active
+        worksheet.append(["Assessment Number", "Name", "Gender"])
+        worksheet.append(["12345678901", "Amina Wanjiku", "Female"])
+
+        with tempfile.TemporaryDirectory() as directory:
+            file_path = Path(directory) / "nominal-roll.xlsx"
+            workbook.save(file_path)
+            records = read_student_rows(file_path)
+
+        self.assertNotIn("stream", records[0])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -47,12 +47,16 @@ class LowerMarkSheetView(ctk.CTkFrame):
         exam_name=None,
         marks_data=None,
         summary_data=None,
+        stream=None,
     ):
         super().__init__(parent, fg_color="transparent")
         self.db = db_connection
         # Initialize proper paths for executable environment
         self.BASE_DIR, self.USER_DATA_DIR = get_app_dir()
         self.class_name = class_name
+        self.stream = stream
+        self.selected_stream = stream
+        self.full_class_mode = False
         self.read_only = read_only
         self.exam_name = exam_name
         self.marks_data = marks_data
@@ -89,26 +93,9 @@ class LowerMarkSheetView(ctk.CTkFrame):
         self.load_students_from_registry()
 
     def get_subjects_from_json(self):
-        import json
+        from teachers_linked import get_subjects_for_class
 
-        try:
-            json_path = self.get_json_path()
-            with open(json_path, "r") as f:
-                config = json.load(f)
-
-                # Navigate the nested dictionary: subjects -> lower
-                if "subjects" in config and "lower" in config["subjects"]:
-                    return config["subjects"]["lower"]
-
-                # Fallback for old flat JSON format
-                if "lower_subjects" in config:
-                    return config["lower_subjects"]
-
-        except Exception as e:
-            print(f"Warning: Could not read JSON: {e}")
-
-        # Default fallback if file is missing or broken
-        return ["ENG", "KISW", "MAT", "ENV", "LIT", "CRE", "ART", "MOV"]
+        return get_subjects_for_class(self.class_name)
 
     def create_header_section(self):
         header_text = (
@@ -223,6 +210,26 @@ class LowerMarkSheetView(ctk.CTkFrame):
             command=self.master.master.return_to_home,
         )
         self.btn_back.pack(side="right", padx=20, pady=15)
+
+        if self.selected_stream and not self.read_only:
+            self.btn_full_class = ctk.CTkButton(
+                self.bottom_bar,
+                text="Show Whole Class",
+                command=self.toggle_full_class_view,
+            )
+            self.btn_full_class.pack(side="left", padx=5, pady=15)
+
+    def toggle_full_class_view(self):
+        self.full_class_mode = not self.full_class_mode
+        self.stream = None if self.full_class_mode else self.selected_stream
+        if hasattr(self, "calculate_primary_rankings"):
+            self.calculate_primary_rankings()
+        if hasattr(self, "calculate_rankings"):
+            self.calculate_rankings()
+        self.btn_full_class.configure(
+            text="Show Stream Only" if self.full_class_mode else "Show Whole Class"
+        )
+        self.load_students_from_registry()
 
     def fetch_cloud_data(self):
         # 1. Get login details
@@ -1086,7 +1093,14 @@ class LowerMarkSheetView(ctk.CTkFrame):
                 """
                 # 1. Fetch data
                 # ... (Your existing SQL SELECT query logic here) ...
-                self.db.cursor().execute(query, (self.class_name,))
+                params = (self.class_name,)
+                if self.stream:
+                    query = query.replace(
+                        "WHERE UPPER(s.grade) = UPPER(?)",
+                        "WHERE UPPER(s.grade) = UPPER(?) AND UPPER(TRIM(s.stream)) = UPPER(?)",
+                    )
+                    params = (self.class_name, self.stream)
+                self.db.cursor().execute(query, params)
                 records = self.db.cursor().fetchall()
                 print(
                     f"DEBUG: Loaded {len(records)} students for grade '{self.class_name}' from database"

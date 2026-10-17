@@ -135,12 +135,21 @@ class CBCLevelsView(ctk.CTkFrame):
                 "Fetch Failed", result.get("message", "Could not fetch marked strands."), parent=self
             )
             return
+        evidence_by_key = {
+            (str(row[0]), str(row[3]), str(row[4])): row[6]
+            for row in result.get("evidence_records", [])
+            if len(row) > 6
+        }
+        records = [
+            [*row, evidence_by_key.get((str(row[0]), str(row[3]), str(row[4])), "")]
+            for row in result.get("records", [])
+        ]
         levels = self.school_config.setdefault("cbc_levels", {})
         by_area = levels.setdefault(self.grade, {}).setdefault(self.area_name, {})
         by_area[f"{year}|{self.term_var.get()}"] = {
             "academic_year": year,
             "fetched_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "records": result.get("records", []),
+            "records": records,
         }
         self.save_config({"cbc_levels": levels})
         self._render()
@@ -155,7 +164,10 @@ class CBCLevelsView(ctk.CTkFrame):
             return
         # Records: assessment number, learner, area, strand, sub-strand, level.
         strands = {}
-        for number, learner, _area, strand, sub_strand, level in record["records"]:
+        for row in record["records"]:
+            if len(row) < 6:
+                continue
+            number, learner, _area, strand, sub_strand, level = row[:6]
             strands.setdefault(strand, {}).setdefault(sub_strand, []).append((learner, number, level))
         self.status.configure(
             text=f"{self.area_name} \u00b7 {self.term_var.get()} \u00b7 fetched {record['fetched_at']} "

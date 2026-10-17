@@ -33,10 +33,11 @@ DEFAULT_SUBJECTS = {
 }
 
 class ClassSummaryView(ctk.CTkFrame):
-    def __init__(self, parent, db_connection, class_name):
+    def __init__(self, parent, db_connection, class_name, stream=None):
         super().__init__(parent, fg_color="transparent")
         self.db = db_connection
         self.class_name = class_name
+        self.stream = stream
         # Initialize proper paths for executable environment
         self.BASE_DIR, self.USER_DATA_DIR = get_app_dir()
         self.grade_type, self.table_name = self.resolve_class_metadata(class_name)
@@ -150,9 +151,13 @@ class ClassSummaryView(ctk.CTkFrame):
         select_columns = ["s.adm_no", "s.name", "s.gender"] + subject_select + ["m.total_points", average_field]
         column_clause = ", ".join(select_columns)
         query = f"SELECT {column_clause} FROM students s LEFT JOIN {self.table_name} m ON s.adm_no = m.adm_no WHERE UPPER(s.grade) = UPPER(?)"
+        params = [self.class_name]
+        if self.stream:
+            query += " AND UPPER(TRIM(s.stream)) = UPPER(?)"
+            params.append(self.stream)
 
         try:
-            self.db.cursor().execute(query, (self.class_name,))
+            self.db.cursor().execute(query, params)
             rows = self.db.cursor().fetchall()
         except Exception:
             rows = []

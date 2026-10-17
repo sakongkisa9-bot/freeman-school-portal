@@ -47,6 +47,29 @@ class StudentAssessmentRegistrationTests(unittest.TestCase):
         self.assertEqual(self.db.cursor().fetchone()[0], "00012345678")
         self.assertEqual(self.db.next_admission_number(), "008")
 
+    def test_class_streams_are_saved_and_cleared_per_class(self):
+        self.db.create_class_streams_table()
+
+        saved = self.db.set_class_streams("Playgroup", ["A", "B", "a"])
+
+        self.assertEqual(saved, ["A", "B"])
+        self.assertEqual(self.db.get_class_streams("playgroup"), ["A", "B"])
+        self.assertEqual(self.db.set_class_streams("Playgroup", []), [])
+        self.assertEqual(self.db.get_class_streams("Playgroup"), [])
+
+    def test_cannot_remove_stream_with_assigned_students(self):
+        self.db.create_class_streams_table()
+        self.db.set_class_streams("Playgroup", ["A", "B"])
+        self.db.cursor().execute(
+            "INSERT INTO students (adm_no, name, grade, stream) VALUES (?, ?, ?, ?)",
+            ("001", "Amina", "Playgroup", "B"),
+        )
+
+        with self.assertRaisesRegex(ValueError, "students are assigned"):
+            self.db.set_class_streams("Playgroup", ["A"])
+
+        self.assertEqual(self.db.get_class_streams("Playgroup"), ["A", "B"])
+
 
 if __name__ == "__main__":
     unittest.main()

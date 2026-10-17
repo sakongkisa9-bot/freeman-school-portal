@@ -1675,7 +1675,7 @@ def api_fetch_cbc_ratings():
             return jsonify({"success": False, "message": "Invalid school credentials."}), 401
         query = """
             SELECT rs.assessment_number, COALESCE(students.student_name, ''),
-                   la.name, st.name, ss.name, rs.rating
+                   la.name, st.name, ss.name, rs.rating, COALESCE(rs.evidence, '')
             FROM cbc_rubric_scores rs
             JOIN cbc_sub_strands ss ON ss.id = rs.sub_strand_id
             JOIN cbc_strands st ON st.id = ss.strand_id
@@ -1691,11 +1691,13 @@ def api_fetch_cbc_ratings():
         query += " ORDER BY st.id, ss.id, students.student_name COLLATE NOCASE"
         rows = conn.execute(query, parameters).fetchall()
         records = []
+        evidence_records = []
         for row in rows:
             level = row[5]
             if level.isdigit():
                 level = RUBRIC_DESCRIPTORS.get(int(level), level)
             records.append([*row[:5], level])
+            evidence_records.append([*row[:5], level, row[6]])
         return jsonify(
             {
                 "success": True,
@@ -1708,6 +1710,7 @@ def api_fetch_cbc_ratings():
                     "Level",
                 ],
                 "records": records,
+                "evidence_records": evidence_records,
                 "grade": grade,
                 "area": area,
                 "term": term,
