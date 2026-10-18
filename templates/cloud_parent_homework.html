@@ -9,6 +9,12 @@
     .parent-homework h1 { margin: 0 0 7px; color: #123c3a; font-size: 29px; }
     .parent-homework header p { margin: 0; color: #64716f; }
     .homework-back { display: inline-block; margin-top: 13px; color: #0f766e; font-weight: 700; text-decoration: none; }
+    .subject-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+    .subject-card { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 76px; padding: 16px; border: 1px solid #dce7e4; border-radius: 6px; color: #183d39; text-decoration: none; background: #fff; }
+    .subject-card:hover { border-color: #0f766e; background: #f2f8f6; }
+    .subject-card strong { font-size: 16px; }
+    .subject-card span { color: #64716f; font-size: 12px; text-align: right; }
+    .subject-heading { margin: 20px 0 8px; color: #123c3a; font-size: 20px; }
     .parent-assignment { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 19px 0; border-top: 1px solid #dce7e4; text-decoration: none; color: inherit; }
     .parent-assignment:hover .assignment-title { color: #0f766e; }
     .assignment-title { margin: 0 0 6px; font-size: 18px; color: #183d39; }
@@ -25,13 +31,15 @@
         <p>{{ student_name }} · {{ school_name }}</p>
         <a class="homework-back" href="{{ url_for('parent_dashboard') }}">Back to student portal</a>
     </header>
-    {% if assignments %}
+    {% if selected_subject %}
+        <a class="homework-back" href="{{ url_for('parent_homework') }}">All subjects</a>
+        <h2 class="subject-heading">{{ selected_subject }}</h2>
+        {% if assignments %}
         {% for assignment in assignments %}
         <a class="parent-assignment" href="{{ url_for('parent_homework_detail', homework_id=assignment.id) }}">
             <div>
                 <h2 class="assignment-title">{{ assignment.title }}</h2>
                 <div class="assignment-meta">
-                    {% if assignment.subject %}<span>{{ assignment.subject }}</span>{% endif %}
                     <span>Due {{ assignment.due_date }}</span>
                     {% if assignment.file_count %}<span>{{ assignment.file_count }} attachment{{ '' if assignment.file_count == 1 else 's' }}</span>{% endif %}
                 </div>
@@ -39,6 +47,18 @@
             <span class="assignment-state {{ 'new' if not assignment.has_viewed else '' }}">{{ 'NEW' if not assignment.has_viewed else 'VIEWED' }}</span>
         </a>
         {% endfor %}
+        {% else %}
+        <p class="homework-empty">There is no current homework for this subject.</p>
+        {% endif %}
+    {% elif subjects %}
+        <div class="subject-list">
+            {% for subject in subjects %}
+            <a class="subject-card" href="{{ url_for('parent_homework', subject=subject.subject) }}">
+                <strong>{{ subject.subject }}</strong>
+                <span>{{ subject.assignment_count }} assignment{{ '' if subject.assignment_count == 1 else 's' }}{% if subject.unread_count %}<br>{{ subject.unread_count }} new{% endif %}</span>
+            </a>
+            {% endfor %}
+        </div>
     {% else %}
         <p class="homework-empty">There is no current homework for this class.</p>
     {% endif %}

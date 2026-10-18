@@ -47,6 +47,18 @@ class CloudHomeworkFlowTests(unittest.TestCase):
             session["teacher_code"] = "T003"
             session["role"] = "teacher"
 
+        missing_subject = self.client.post(
+            "/teacher/homework",
+            data={
+                "grade": "Grade 3",
+                "title": "Untyped subject",
+                "instructions": "This should not publish without a subject.",
+                "due_date": "2099-12-31",
+            },
+        )
+        self.assertEqual(missing_subject.status_code, 200)
+        self.assertIn(b"Choose or enter a subject", missing_subject.data)
+
         response = self.client.post(
             "/teacher/homework",
             data={
@@ -86,7 +98,11 @@ class CloudHomeworkFlowTests(unittest.TestCase):
 
         listing = self.client.get("/parent/homework")
         self.assertEqual(listing.status_code, 200)
-        self.assertIn(b"Fractions practice", listing.data)
+        self.assertIn(b"Mathematics", listing.data)
+        self.assertNotIn(b"Fractions practice", listing.data)
+        subject_listing = self.client.get("/parent/homework?subject=Mathematics")
+        self.assertIn(b"Fractions practice", subject_listing.data)
+        self.assertNotIn(b"Second Learner", subject_listing.data)
         detail = self.client.get(f"/parent/homework/{homework_id}")
         self.assertEqual(detail.status_code, 200)
         self.assertIn(b"Answers cannot be submitted", detail.data)

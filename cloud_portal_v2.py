@@ -1294,6 +1294,8 @@ def teacher_homework():
 
             if selected_grade not in assigned_grades:
                 flash("Choose a class assigned to your account.", "danger")
+            elif not subject:
+                flash("Choose or enter a subject for this homework.", "danger")
             elif not title or not parsed_due_date or parsed_due_date < datetime.now().date():
                 flash("Enter a title and a due date that is today or later.", "danger")
             elif not instructions and not uploaded_files:
@@ -1408,19 +1410,43 @@ def parent_homework():
 
     conn = get_db()
     try:
+        student_id = session["parent_student_id"]
+        school_id = session["parent_school_id"]
+        grade = session["parent_grade"]
+        subjects = conn.execute(
+            """SELECT COALESCE(NULLIF(TRIM(h.subject), ''), 'Other') AS subject,
+                      COUNT(*) AS assignment_count,
+                      SUM(CASE WHEN COALESCE(pvs.has_viewed, 0) = 0 THEN 1 ELSE 0 END) AS unread_count
+               FROM homework_assignments h
+               LEFT JOIN parent_view_status pvs
+                 ON pvs.content_id = h.id AND pvs.content_type = 'homework'
+                AND pvs.student_id = ?
+               WHERE h.school_id = ? AND h.grade = ? AND h.due_date >= date('now')
+               GROUP BY COALESCE(NULLIF(TRIM(h.subject), ''), 'Other')
+               ORDER BY subject COLLATE NOCASE""",
+            (student_id, school_id, grade),
+        ).fetchall()
+        selected_subject = request.args.get("subject", "").strip()
+        if selected_subject not in {row["subject"] for row in subjects}:
+            selected_subject = ""
+
         assignments = conn.execute(
             """SELECT h.*, COALESCE(pvs.has_viewed, 0) AS has_viewed,
+                      COALESCE(NULLIF(TRIM(h.subject), ''), 'Other') AS display_subject,
                       (SELECT COUNT(*) FROM homework_files hf WHERE hf.homework_id = h.id) AS file_count
                FROM homework_assignments h
                LEFT JOIN parent_view_status pvs
                  ON pvs.content_id = h.id AND pvs.content_type = 'homework'
                 AND pvs.student_id = ?
                WHERE h.school_id = ? AND h.grade = ? AND h.due_date >= date('now')
+                 AND COALESCE(NULLIF(TRIM(h.subject), ''), 'Other') = ?
                ORDER BY h.due_date, h.created_at DESC""",
-            (session["parent_student_id"], session["parent_school_id"], session["parent_grade"]),
-        ).fetchall()
+            (student_id, school_id, grade, selected_subject),
+        ).fetchall() if selected_subject else []
         return render_template(
             "cloud_parent_homework.html",
+            subjects=subjects,
+            selected_subject=selected_subject,
             assignments=assignments,
             school_name=session.get("parent_school_name"),
             student_name=session.get("parent_student_name"),
