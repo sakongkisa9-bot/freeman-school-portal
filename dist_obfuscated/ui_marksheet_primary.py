@@ -2,7 +2,7 @@ import customtkinter as ctk
 
 from tkinter import messagebox
 
-from grading_logic import get_grade_4_6_rating, calculate_final_level
+from grading_four_level import get_grade_4_6_rating, calculate_final_level
 
 from fpdf import FPDF
 
@@ -57,6 +57,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
         exam_name=None,
         marks_data=None,
         summary_data=None,
+        stream=None,
     ):
 
         super().__init__(parent, fg_color="transparent")
@@ -66,6 +67,9 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
         self.BASE_DIR, self.USER_DATA_DIR = get_app_dir()
 
         self.class_name = class_name
+        self.stream = stream
+        self.selected_stream = stream
+        self.full_class_mode = False
 
         self.read_only = read_only
 
@@ -83,7 +87,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
         else:
 
-            self.current_exam_title = "PRIMARY ASSESSMENT 2026"
+            self.current_exam_title = "UPPER PRIMARY ASSESSMENT 2026"
 
             try:
 
@@ -102,7 +106,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
                         # We use a specific key for primary titles
 
                         self.current_exam_title = config.get(
-                            "primary_exam_title", "PRIMARY ASSESSMENT 2026"
+                            "primary_exam_title", "UPPER PRIMARY ASSESSMENT 2026"
                         )
 
             except Exception as e:
@@ -126,36 +130,9 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
         self.load_students_from_registry()
 
     def get_subjects_from_json(self):
+        from teachers_linked import get_subjects_for_class
 
-        import json
-
-        try:
-
-            json_path = self.get_json_path()
-
-            with open(json_path, "r") as f:
-
-                config = json.load(f)
-
-                # Navigate the nested dictionary: subjects -> primary
-
-                if "subjects" in config and "primary" in config["subjects"]:
-
-                    return config["subjects"]["primary"]
-
-                # Fallback for old flat JSON format
-
-                if "primary_subjects" in config:
-
-                    return config["primary_subjects"]
-
-        except Exception as e:
-
-            print(f"Warning: Could not read JSON: {e}")
-
-        # Default fallback if file is missing or broken
-
-        return ["ENG", "KISW", "MAT", "SCI", "AGR", "SST", "CRE", "C/A", "PHE"]
+        return get_subjects_for_class(self.class_name)
 
     def create_header_section(self):
 
@@ -280,16 +257,6 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
             self.btn_pdf.pack(side="left", padx=5, pady=15)
 
-            self.btn_new_exam = ctk.CTkButton(
-                self.bottom_bar,
-                text="🆕 New Exam",
-                fg_color="#e67e22",
-                hover_color="#d35400",
-                command=self.handle_new_exam,
-            )
-
-            self.btn_new_exam.pack(side="left", padx=5, pady=15)
-
             self.btn_refresh = ctk.CTkButton(
                 self.bottom_bar,
                 text="🔄 Refresh",
@@ -309,6 +276,26 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
         )
 
         self.btn_back.pack(side="right", padx=20, pady=15)
+
+        if self.selected_stream and not self.read_only:
+            self.btn_full_class = ctk.CTkButton(
+                self.bottom_bar,
+                text="Show Whole Class",
+                command=self.toggle_full_class_view,
+            )
+            self.btn_full_class.pack(side="left", padx=5, pady=15)
+
+    def toggle_full_class_view(self):
+        self.full_class_mode = not self.full_class_mode
+        self.stream = None if self.full_class_mode else self.selected_stream
+        if hasattr(self, "calculate_primary_rankings"):
+            self.calculate_primary_rankings()
+        if hasattr(self, "calculate_rankings"):
+            self.calculate_rankings()
+        self.btn_full_class.configure(
+            text="Show Stream Only" if self.full_class_mode else "Show Whole Class"
+        )
+        self.load_students_from_registry()
 
     def fetch_cloud_data(self):
 
@@ -359,7 +346,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
             # 5. Recalculate totals and averages for all rows from individual scores
             # This ensures totals are correct even if cloud sends zero
             # Primary marksheet uses grid layout, so we need to iterate through rows differently
-            import grading_logic as gl
+            import grading_four_level as gl
 
             all_widgets = self.table_inner.grid_slaves()
             if all_widgets:
@@ -406,6 +393,17 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
                     avg_lvl = gl.calculate_final_level(
                         total_score, is_primary=True, num_subjects=num_subs
                     )
+                    avg_lvl = (
+                        gl.absent_average_level(
+                            [
+                                widgets[1 + (i * 2)].get()
+                                for i in range(num_subs)
+                                if 1 + (i * 2) < len(widgets)
+                                and hasattr(widgets[1 + (i * 2)], "get")
+                            ]
+                        )
+                        or avg_lvl
+                    )
                     avg_idx = total_idx + 1
                     if avg_idx < len(widgets):
                         avg_widget = widgets[avg_idx]
@@ -420,19 +418,11 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
             self.save_primary_marks(skip_reload=True)
 
-            # 6. Consume marks from cloud (delete them after successful fetch)
-
-            consume_result = service.consume_marks(self.class_name, credentials)
-            if not consume_result.get("success"):
-                print(
-                    f"WARNING: Failed to consume marks from cloud: {consume_result.get('message')}"
-                )
-
             # 7. Success Message
 
             messagebox.showinfo(
                 "Cloud Fetch",
-                f"Successfully synchronized {len(marks_data)} student records. Marks have been removed from cloud.",
+                f"Successfully synchronized {len(marks_data)} student records.",
             )
 
         else:
@@ -607,7 +597,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
                     distribution = summary.get("distribution", {})
 
-                    levels = ["EE1", "EE2", "ME1", "ME2", "AE1", "AE2", "BE1", "BE2"]
+                    levels = list(distribution) or ["EE", "ME", "AE", "BE"]
 
                     for i, level in enumerate(levels):
 
@@ -1057,6 +1047,11 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
         val = entry_widget.get().strip()
 
+        if val.upper() in ("AB", "A"):
+            entry_widget.delete(0, "end")
+            entry_widget.insert(0, "AB")
+            val = ""
+
         # 1. Validate input (make sure they actually typed a number)
 
         if val:
@@ -1097,7 +1092,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
     def refresh_totals(self, row_frame, row_idx):
 
-        import grading_logic as gl  # Ensure your file is imported
+        import grading_four_level as gl  # Ensure your file is imported
 
         subjects = self.get_subjects_from_json()
 
@@ -1139,6 +1134,16 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
                     widgets[rate_idx].configure(state="disabled")
 
+                elif score_val.upper() == "AB":
+
+                    widgets[rate_idx].configure(state="normal")
+
+                    widgets[rate_idx].delete(0, "end")
+
+                    widgets[rate_idx].insert(0, "AB")
+
+                    widgets[rate_idx].configure(state="disabled")
+
             except:
 
                 continue
@@ -1159,6 +1164,13 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
         avg_lvl = gl.calculate_final_level(
             total_score, is_primary=True, num_subjects=num_subs
+        )
+
+        avg_lvl = (
+            gl.absent_average_level(
+                [widgets[1 + (i * 2)].get() for i in range(num_subs)]
+            )
+            or avg_lvl
         )
 
         l_box = widgets[t_idx + 1]
@@ -1359,7 +1371,14 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
                 # 1. Fetch data
 
-                self.db.cursor().execute(query, (self.class_name,))
+                params = (self.class_name,)
+                if self.stream:
+                    query = query.replace(
+                        "WHERE UPPER(s.grade) = UPPER(?)",
+                        "WHERE UPPER(s.grade) = UPPER(?) AND UPPER(TRIM(s.stream)) = UPPER(?)",
+                    )
+                    params = (self.class_name, self.stream)
+                self.db.cursor().execute(query, params)
 
                 records = self.db.cursor().fetchall()
 
@@ -1646,10 +1665,9 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
             # Get all students for this class sorted by total_points descending
 
-            self.db.cursor().execute(
-                """
+            rank_query = """
 
-                SELECT pm.adm_no, pm.total_points
+                SELECT pm.adm_no, pm.total_points, pm.average_level
 
                 FROM primary_marks pm
 
@@ -1657,13 +1675,21 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
                 WHERE UPPER(s.grade) = UPPER(?)
 
-                ORDER BY pm.total_points DESC
+                """
+            rank_params = (self.class_name,)
+            if self.stream:
+                rank_query = rank_query.replace(
+                    "WHERE UPPER(s.grade) = UPPER(?)",
+                    "WHERE UPPER(s.grade) = UPPER(?) AND UPPER(TRIM(s.stream)) = UPPER(?)",
+                )
+                rank_params = (self.class_name, self.stream)
+            self.db.cursor().execute(rank_query, rank_params)
 
-                """,
-                (self.class_name,),
+            import grading_four_level as gl
+
+            students = sorted(
+                self.db.cursor().fetchall(), key=lambda r: gl.rank_key(r[1], r[2])
             )
-
-            students = self.db.cursor().fetchall()
 
             # Assign ranks starting from 1
 
@@ -1671,13 +1697,13 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
 
             prev_score = None
 
-            for i, (adm_no, score) in enumerate(students, start=1):
+            for i, (adm_no, score, _lvl) in enumerate(students, start=1):
 
-                if score != prev_score:
+                if (score, _lvl) != prev_score:
 
                     current_rank = i
 
-                    prev_score = score
+                    prev_score = (score, _lvl)
 
                 self.db.cursor().execute(
                     "UPDATE primary_marks SET rank = ? WHERE adm_no = ?",
@@ -1707,7 +1733,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
         file_path = filedialog.asksaveasfilename(
             defaultextension=".pdf",
             initialfile=f"{self.class_name}_{exam_name.replace(' ', '_')}.pdf",
-            title="Save Primary Marksheet",
+            title="Save Upper Primary Marksheet",
         )
 
         if not file_path:
@@ -2088,7 +2114,7 @@ class PrimaryMarkSheetView(ctk.CTkFrame):
     def generate_summary_data(self):
         """Generate summary data for the current exam matching ClassSummaryView format"""
 
-        LEVEL_ORDER = ["EE1", "EE2", "ME1", "ME2", "AE1", "AE2", "BE1", "BE2"]
+        LEVEL_ORDER = ["EE", "ME", "AE", "BE"]
 
         # Get subjects from JSON
 

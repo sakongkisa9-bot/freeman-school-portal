@@ -90,7 +90,7 @@ The build script includes these data files:
 The following Python files are protected:
 - Core: `main.py`, `ui_dashboard.py`, `security.py`, `license_manager.py`, `database.py`, `grading_logic.py`
 - UI: All marksheet UI files (`ui_marksheet_*.py`, `ui_summary.py`)
-- Services: `cloud_service.py`, `cloud_portal_v2.py`, `notification_service.py`, `fcm_service.py`, `mpesa_service.py`, `update_manager.py`, `newsletter.py`, `network_manager.py`, `hotspot_server.py`, `teachers_linked.py`, `reportforms.py`, `wizard.py`, `splash.py`
+- Services: `cloud_service.py`, `cloud_portal_v2.py`, `notification_service.py`, `fcm_service.py`, `mpesa_service.py`, `update_manager.py`, `newsletter.py`, `teachers_linked.py`, `reportforms.py`, `wizard.py`, `splash.py`
 
 ## Troubleshooting
 
@@ -124,6 +124,14 @@ After successful build, the executable will be at:
 ```
 dist/FreemanSchoolPortal.exe
 ```
+
+## Runtime Diagnostics
+
+Frozen executable startup and callback errors are written to
+`%USERPROFILE%\FreemanSchoolPortal\freeman_portal_debug.txt`. If that location
+is not writable, the application falls back to the executable directory and
+then the system temporary directory. User-data Python updates are loaded only
+when their required API matches the bundled dashboard.
 
 ## Security Notes
 

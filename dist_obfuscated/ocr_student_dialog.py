@@ -8,11 +8,13 @@ from database import FreemanDB
 class OCRStudentDialog(ctk.CTkToplevel):
     """Dialog for OCR-based student registration"""
     
-    def __init__(self, parent, callback=None, db=None):
+    def __init__(self, parent, callback=None, db=None, grade=None, stream=None):
         super().__init__(parent)
         
         self.parent = parent
         self.callback = callback
+        self.grade = grade
+        self.stream = stream
         self.ocr_service = OCRService()
         # Use the passed database instance if provided, otherwise create a new one
         self.db = db if db else FreemanDB()
@@ -430,10 +432,11 @@ class OCRStudentDialog(ctk.CTkToplevel):
                 success = self.db.add_student(
                     adm=cleaned.get('adm_no', ''),
                     name=cleaned.get('name', ''),
-                    grade=cleaned.get('grade', ''),
+                    grade=self.grade or cleaned.get('grade', ''),
                     gender=cleaned.get('gender', ''),
                     phone=cleaned.get('phone', ''),
-                    check_footprint=True
+                    check_footprint=True,
+                    stream=self.stream,
                 )
                 
                 if success:
@@ -467,9 +470,9 @@ class OCRStudentDialog(ctk.CTkToplevel):
         else:
             messagebox.showerror("Registration Failed", "Failed to register any students")
 
-def show_ocr_dialog(parent, callback=None, db=None):
+def show_ocr_dialog(parent, callback=None, db=None, grade=None, stream=None):
     """Show the OCR student registration dialog"""
-    dialog = OCRStudentDialog(parent, callback, db)
+    dialog = OCRStudentDialog(parent, callback, db, grade, stream)
     dialog.grab_set()  # Make dialog modal
     return dialog
 

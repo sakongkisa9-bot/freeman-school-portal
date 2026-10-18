@@ -47,36 +47,7 @@ class SchoolSetupWizard(ctk.CTkToplevel):
         self.create_label("School Contacts:")
         self.contact_entry = self.create_entry("e.g., 0712 345 678 / 0789 123 456")
 
-        # 4. SUBJECT CONFIGURATION (The "Dynamic" part)
-        ctk.CTkLabel(self.scroll_frame, text="Subject Setup (Comma Separated)", font=("Arial", 14, "bold"), text_color="#10b981").pack(pady=(20, 5))
-        self.create_label("Playgroup subjects:")
-        self.playgroup_subs = self.create_entry("LANG,MATH,CREAT...")
-        # Pre-fill with your current defaults
-        self.playgroup_subs.insert(0, "LANG, MATH, CREAT, ENV")
-
-        self.create_label("PP1 Subjects:")
-        self.pp1_subs = self.create_entry("LANG,MATH,ENV...")
-        # Pre-fill with your current defaults
-        self.pp1_subs.insert(0, "LANG, MATH, ENV, PSYCH, REL")
-
-        self.create_label("PP2 Subjects:")
-        self.pp2_subs = self.create_entry("LANG,MATH,ENV...")
-        # Pre-fill with your current defaults
-        self.pp2_subs.insert(0, "LANG, MATH, ENV, PSYCH, REL")
-
-        self.create_label("lower Subjects (G1 - G3):")
-        self.lower_subs = self.create_entry("Math, English, Kiswahili...")
-        # Pre-fill with your current defaults
-        self.lower_subs.insert(0, "ENG, KISW, MAT, ENV, LIT, CRE, ART, MOV")
-        
-        self.create_label("Primary Subjects (G4 - G6):")
-        self.primary_subs = self.create_entry("Math, English, Kiswahili...")
-        # Pre-fill with your current defaults
-        self.primary_subs.insert(0, "ENG, KISW, MATH, SCIE, AGRI, SST, CRE, C/A, PHE")
-
-        self.create_label("Junior Secondary Subjects (G7 - G9):")
-        self.jss_subs = self.create_entry("Math, English, Pre-Tech...")
-        self.jss_subs.insert(0, "MATH, ENG, KISW, INT SCIE, PRE-TECH, SST, CRE, AGRI, C/A")
+        # Subjects are managed from the dashboard Subjects button.
 
         # 5. Cloud Portal Registration
         ctk.CTkLabel(self.scroll_frame, text="Cloud Portal Registration", font=("Arial", 14, "bold"), text_color="#10b981").pack(pady=(20, 5))
@@ -253,31 +224,6 @@ class SchoolSetupWizard(ctk.CTkToplevel):
             self.premium_days_entry.delete(0, 'end')
             self.premium_days_entry.insert(0, str(config['premium_days']))
         
-        # Populate subjects
-        subjects = config.get('subjects', {})
-        if hasattr(self, 'playgroup_subs') and subjects.get('playgroup'):
-            self.playgroup_subs.delete(0, 'end')
-            self.playgroup_subs.insert(0, ', '.join(subjects['playgroup']))
-        
-        if hasattr(self, 'pp1_subs') and subjects.get('pp1'):
-            self.pp1_subs.delete(0, 'end')
-            self.pp1_subs.insert(0, ', '.join(subjects['pp1']))
-        
-        if hasattr(self, 'pp2_subs') and subjects.get('pp2'):
-            self.pp2_subs.delete(0, 'end')
-            self.pp2_subs.insert(0, ', '.join(subjects['pp2']))
-        
-        if hasattr(self, 'lower_subs') and subjects.get('lower'):
-            self.lower_subs.delete(0, 'end')
-            self.lower_subs.insert(0, ', '.join(subjects['lower']))
-        
-        if hasattr(self, 'primary_subs') and subjects.get('primary'):
-            self.primary_subs.delete(0, 'end')
-            self.primary_subs.insert(0, ', '.join(subjects['primary']))
-        
-        if hasattr(self, 'jss_subs') and subjects.get('jss'):
-            self.jss_subs.delete(0, 'end')
-            self.jss_subs.insert(0, ', '.join(subjects['jss']))
 
     def normalize_cloud_url(self, url):
         url = (url or '').strip()
@@ -344,16 +290,11 @@ class SchoolSetupWizard(ctk.CTkToplevel):
                 "jss_exam_title": existing_config.get("jss_exam_title", "JUNIOR SECONDARY ASSESSMENT"),
                 "current_exam_title": existing_config.get("current_exam_title", "ASSESSMENT"),
                 "portal_open": existing_config.get("portal_open", False),
-
-                "subjects": {
-                    "playgroup": [s.strip().upper() for s in self.playgroup_subs.get().split(',') if s.strip()],
-                    "pp1": [s.strip().upper() for s in self.pp1_subs.get().split(',') if s.strip()],
-                    "pp2": [s.strip().upper() for s in self.pp2_subs.get().split(',') if s.strip()],
-                    "lower": [s.strip().upper() for s in self.lower_subs.get().split(',') if s.strip()],
-                    "primary": [s.strip().upper() for s in self.primary_subs.get().split(',') if s.strip()],
-                    "jss": [s.strip().upper() for s in self.jss_subs.get().split(',') if s.strip()]
-                }
             }
+            # Keep subjects chosen via the dashboard Subjects button
+            for key in ("subjects", "subject_catalog", "subject_names"):
+                if key in existing_config:
+                    config_data[key] = existing_config[key]
 
             # Save the file
             with open(json_path, 'w') as f:

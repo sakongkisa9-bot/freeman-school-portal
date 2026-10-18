@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ exam_title }} - {{ subject }} - Freeman Portal</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #101a19; color: #f4f7f5; font-family: "Segoe UI", Tahoma, sans-serif; }
+        main { max-width: 900px; margin: 0 auto; padding: 24px; }
+        header { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; border-bottom: 1px solid #41524d; padding-bottom: 18px; margin-bottom: 20px; }
+        h1 { margin: 0; font-size: 25px; }
+        .subtitle { color: #b7c8c1; margin: 7px 0 0; }
+        a.button, button { display: inline-block; padding: 10px 14px; border: 1px solid #53776d; border-radius: 5px; background: #19332d; color: #effff8; text-decoration: none; font: inherit; font-weight: 650; cursor: pointer; }
+        a.button:hover, button:hover { background: #285347; }
+        .message { padding: 10px 12px; margin: 8px 0; border-left: 4px solid #d69c48; background: #26312b; }
+        .message.success { border-color: #4daf86; }
+        .message.danger { border-color: #d26060; }
+        .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 16px 0; }
+        label { font-weight: 650; }
+        input { padding: 10px; background: #0d1513; color: white; border: 1px solid #52665f; border-radius: 4px; font: inherit; }
+        input:focus { outline: 2px solid #62b58f; border-color: transparent; }
+        input.out-of { width: 110px; }
+        input.mark { width: 130px; }
+        select { padding: 10px; background: #0d1513; color: white; border: 1px solid #52665f; border-radius: 4px; font: inherit; }
+        [hidden] { display: none !important; }
+        .table-wrap { border: 1px solid #354943; background: #17221f; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border-bottom: 1px solid #354943; padding: 10px; text-align: left; }
+        th { background: #20332d; color: #cde9dc; }
+        .student-name { font-weight: 650; }
+        .percent { color: #a9beb5; }
+        .actions { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 0; }
+        button.save { border-color: #5c9c83; background: #28735b; min-width: 170px; }
+        button.finish { border-color: #b06a3b; background: #8a4b22; min-width: 170px; }
+        input[type=search] { width: min(100%, 340px); }
+        .roster-count { color: #a9beb5; font-size: 13px; }
+        dialog { background: #17221f; color: #f4f7f5; border: 1px solid #53776d; border-left: 4px solid #d69c48; border-radius: 8px; padding: 22px; width: min(440px, 92vw); }
+        dialog::backdrop { background: rgba(0, 0, 0, 0.65); }
+        dialog h2 { margin: 0 0 10px; font-size: 20px; }
+        dialog p { margin: 0; color: #cdd9d4; line-height: 1.5; }
+        .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+<main>
+    <header>
+        <div>
+            <h1>{{ exam_title }}: {{ subject }}</h1>
+            <p class="subtitle">{{ grade }} · {% if review %}Review the marks, edit if needed, then click Finish.{% else %}Enter each learner's marks.{% endif %}</p>
+        </div>
+        <a class="button" href="{{ url_for('dashboard') }}">Dashboard</a>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}<div class="message {{ category }}">{{ message }}</div>{% endfor %}
+    {% endwith %}
+
+    <form method="post" id="marksForm" action="{{ url_for('enter_exam_marks', grade=grade, subject=subject) }}">
+        <input type="hidden" name="review" value="{{ '1' if review else '' }}">
+        <input type="hidden" name="confirm_zero" id="confirmZero" value="">
+        <div class="toolbar">
+            <label for="paperCount">Papers</label>
+            <select id="paperCount" name="paper_count">
+                <option value="1" {{ 'selected' if paper_count == 1 }}>One paper</option>
+                {% for n in range(2, max_papers + 1) %}
+                <option value="{{ n }}" {{ 'selected' if paper_count == n }}>{{ n }} papers</option>
+                {% endfor %}
+            </select>
+            <span class="single-only">
+                <label for="outOf">Out of</label>
+                <input id="outOf" class="out-of" name="out_of" type="number" min="1" max="1000" step="1" required value="{{ out_of_value if paper_count == 1 else '' }}">
+            </span>
+            {% for n in range(1, max_papers + 1) %}
+            <span class="multi-only paper-col" data-paper="{{ n }}">
+                <label for="outOf{{ n }}">Paper {{ n }} out of</label>
+                <input id="outOf{{ n }}" class="out-of paper-out" name="out_of_{{ n }}" type="number" min="1" max="1000" step="1" required value="{{ paper_outs[n - 1] }}">
+            </span>
+            {% endfor %}
+        </div>
+        <div class="toolbar">
+            <input id="studentSearch" type="search" placeholder="Search learner" aria-label="Search learner">
+            <span class="roster-count" id="rosterCount"></span>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr>
+                    <th>Learner</th>
+                    <th class="single-only">Marks</th>
+                    {% for n in range(1, max_papers + 1) %}<th class="multi-only paper-col" data-paper="{{ n }}">Paper {{ n }}</th>{% endfor %}
+                    <th class="multi-only">Total</th>
+                    <th>Percentage</th>
+                </tr></thead>
+                <tbody>
+                    {% for student in students %}
+                    <tr class="student-row" data-search="{{ student.student_name }} {{ student.adm_no }}">
+                        <td class="student-name">{{ student.student_name }}</td>
+                        <td class="single-only"><input class="mark single-mark" type="text" inputmode="decimal" autocomplete="off" name="score_{{ student.adm_no }}" value="{{ raw_values.get(student.adm_no, '') if paper_count == 1 else '' }}" placeholder="AB" aria-label="{{ student.student_name }} marks"></td>
+                        {% set pv = paper_values.get(student.adm_no, []) %}
+                        {% for n in range(1, max_papers + 1) %}
+                        <td class="multi-only paper-col" data-paper="{{ n }}"><input class="mark paper-mark" type="text" inputmode="decimal" autocomplete="off" name="score_{{ student.adm_no }}_{{ n }}" value="{{ pv[n - 1] if n <= pv|length else '' }}" placeholder="AB" aria-label="{{ student.student_name }} paper {{ n }} marks"></td>
+                        {% endfor %}
+                        <td class="multi-only combined"></td>
+                        <td class="percent"></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="actions">
+            {% if review %}
+            <button type="submit" name="action" value="save" class="save">Save Changes</button>
+            <button type="submit" name="action" value="finish" class="finish" id="finishButton">Finish</button>
+            {% else %}
+            <button type="submit" name="action" value="save" class="save">Save Marks</button>
+            {% endif %}
+        </div>
+    </form>
+</main>
+<dialog id="zeroDialog">
+    <h2>Confirm zero marks</h2>
+    <p id="zeroText"></p>
+    <div class="dialog-actions">
+        <button type="button" id="cancelZero">Go Back</button>
+        <button type="button" class="save" id="confirmZeroButton">Yes, They Scored 0</button>
+    </div>
+</dialog>
+<dialog id="finishDialog">
+    <h2>Finish these marks?</h2>
+    <p>After you click Finish you cannot edit these scores again.</p>
+    <div class="dialog-actions">
+        <button type="button" id="cancelFinish">Cancel</button>
+        <button type="button" class="finish" id="confirmFinish">Yes, Finish</button>
+    </div>
+</dialog>
+<script>
+    const outOf = document.getElementById("outOf");
+    const rows = Array.from(document.querySelectorAll("tbody tr"));
+    const searchInput = document.getElementById("studentSearch");
+    const rosterCount = document.getElementById("rosterCount");
+
+    function filterRoster() {
+        const query = searchInput.value.trim().toLocaleLowerCase();
+        let visible = 0;
+        for (const row of rows) {
+            const matches = row.dataset.search.toLocaleLowerCase().includes(query);
+            row.hidden = !matches;
+            if (matches) visible += 1;
+        }
+        rosterCount.textContent = `${visible} of ${rows.length} learners`;
+    }
+    searchInput.addEventListener("input", filterRoster);
+    filterRoster();
+
+    const paperCountSelect = document.getElementById("paperCount");
+
+    function paperCount() { return Number(paperCountSelect.value); }
+
+    // Show only the controls for the chosen paper mode; disabled inputs are not submitted.
+    function applyPaperMode() {
+        const count = paperCount();
+        const multi = count > 1;
+        document.querySelectorAll(".single-only").forEach(el => {
+            el.hidden = multi;
+            el.querySelectorAll("input").forEach(i => { i.disabled = multi; });
+        });
+        document.querySelectorAll(".multi-only").forEach(el => {
+            const paper = Number(el.dataset.paper || 0);
+            const on = multi && (paper === 0 || paper <= count);
+            el.hidden = !on;
+            el.querySelectorAll("input").forEach(i => { i.disabled = !on; });
+        });
+        updatePercentages();
+    }
+
+    // Returns {entered, total, absent} for one row, or null when a mark is not a number.
+    function rowTotals(row) {
+        const inputs = paperCount() > 1
+            ? Array.from(row.querySelectorAll(".paper-mark")).filter(i => !i.disabled)
+            : [row.querySelector(".single-mark")];
+        let total = 0, entered = 0;
+        for (const input of inputs) {
+            const raw = input.value.trim();
+            if (raw === "" || raw.toUpperCase() === "AB") continue;
+            const value = Number(raw);
+            if (!Number.isFinite(value)) return null;
+            total += value;
+            entered += 1;
+        }
+        return { entered, total };
+    }
+
+    function totalOutOf() {
+        if (paperCount() === 1) return Number(outOf.value);
+        let sum = 0;
+        document.querySelectorAll(".paper-out").forEach(i => { if (!i.disabled) sum += Number(i.value); });
+        return sum;
+    }
+
+    function updatePercentages() {
+        const total = totalOutOf();
+        for (const row of rows) {
+            const cell = row.querySelector(".percent");
+            const combined = row.querySelector(".combined");
+            const t = rowTotals(row);
+            if (combined) combined.textContent = t && t.entered ? String(Math.round(t.total * 100) / 100) : "";
+            if (t && t.entered === 0) { cell.textContent = "AB"; continue; }
+            cell.textContent = t && total > 0 ? `${Math.floor(t.total * 100 / total + 0.5)}%` : "";
+        }
+    }
+    document.getElementById("marksForm").addEventListener("input", updatePercentages);
+    paperCountSelect.addEventListener("change", applyPaperMode);
+
+    const finishButton = document.getElementById("finishButton");
+    const finishDialog = document.getElementById("finishDialog");
+    const zeroDialog = document.getElementById("zeroDialog");
+    const marksForm = document.getElementById("marksForm");
+
+    function zeroLearners() {
+        return rows
+            .filter(row => {
+                const t = rowTotals(row);
+                return t && t.entered > 0 && t.total === 0;
+            })
+            .map(row => row.querySelector(".student-name").textContent.trim());
+    }
+
+    function submitWith(action) {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = "action";
+        input.value = action;
+        marksForm.appendChild(input);
+        marksForm.submit();
+    }
+
+    // Runs `proceed` once any zero marks are confirmed.
+    function confirmZeros(proceed) {
+        const names = zeroLearners();
+        if (names.length === 0) {
+            proceed();
+            return;
+        }
+        document.getElementById("zeroText").textContent =
+            `Are you sure ${names.join(", ")} scored 0? If the learner did not sit the exam, leave the field blank so it is recorded as AB.`;
+        const confirmButton = document.getElementById("confirmZeroButton");
+        confirmButton.onclick = () => {
+            document.getElementById("confirmZero").value = "1";
+            zeroDialog.close();
+            proceed();
+        };
+        zeroDialog.showModal();
+    }
+    document.getElementById("cancelZero").addEventListener("click", () => zeroDialog.close());
+
+    marksForm.addEventListener("submit", event => {
+        const action = event.submitter ? event.submitter.value : "save";
+        if (action === "finish" || zeroLearners().length === 0 || document.getElementById("confirmZero").value === "1") return;
+        event.preventDefault();
+        confirmZeros(() => submitWith(action));
+    });
+
+    if (finishButton) {
+        finishButton.addEventListener("click", event => {
+            event.preventDefault();
+            if (!marksForm.reportValidity()) return;
+            confirmZeros(() => finishDialog.showModal());
+        });
+        document.getElementById("cancelFinish").addEventListener("click", () => finishDialog.close());
+        document.getElementById("confirmFinish").addEventListener("click", () => submitWith("finish"));
+    }
+    applyPaperMode();
+</script>
+</body>
+</html>

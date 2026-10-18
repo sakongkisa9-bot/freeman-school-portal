@@ -2,38 +2,45 @@
 import os
 import sys
 import logging
+import tempfile
 from datetime import datetime
 
 # Setup logging to file BEFORE any other imports
 def setup_logging():
     """Setup logging to file for debugging executable behavior"""
     try:
-        # Determine log file location
+        # Prefer the persistent app-data folder; fall back if it is not writable.
         if getattr(sys, 'frozen', False):
-            # Running as executable
-            log_dir = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
+            log_dirs = [
+                os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal"),
+                os.path.dirname(sys.executable),
+                tempfile.gettempdir(),
+            ]
         else:
-            # Running as script
-            log_dir = os.path.dirname(os.path.realpath(__file__))
+            log_dirs = [os.path.dirname(os.path.realpath(__file__)), tempfile.gettempdir()]
 
-        os.makedirs(log_dir, exist_ok=True)
-        log_file = os.path.join(log_dir, "freeman_portal_log.txt")
-
-        # Clear previous log file on new run
-        if os.path.exists(log_file):
+        file_handler = None
+        log_file = None
+        for log_dir in log_dirs:
             try:
-                os.remove(log_file)
-            except:
-                pass
+                os.makedirs(log_dir, exist_ok=True)
+                log_file = os.path.join(log_dir, "freeman_portal_debug.txt")
+                file_handler = logging.FileHandler(log_file, mode='w', encoding='utf-8')
+                break
+            except OSError:
+                continue
 
-        # Configure logging
+        if file_handler is None:
+            raise OSError("Could not create the debug log in any writable location")
+
+        handlers = [file_handler]
+        if sys.stdout is not None:
+            handlers.append(logging.StreamHandler(sys.stdout))
         logging.basicConfig(
             level=logging.DEBUG,
             format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(log_file, mode='w'),
-                logging.StreamHandler(sys.stdout)
-            ]
+            handlers=handlers,
+            force=True,
         )
 
         logging.info("=" * 80)
@@ -58,6 +65,16 @@ def setup_logging():
 # Setup logging immediately
 log_file = setup_logging()
 logging.info("Logging initialized successfully")
+
+
+def log_uncaught_exception(exception_type, exception, traceback_object):
+    logging.critical(
+        "Uncaught application exception",
+        exc_info=(exception_type, exception, traceback_object),
+    )
+
+
+sys.excepthook = log_uncaught_exception
 
 # Import file_loader FIRST to set up user data directory and sys.path
 try:
@@ -86,13 +103,10 @@ except Exception as e:
 # Add user data directory to Python path for updated modules
 # This MUST happen before importing any application modules
 if getattr(sys, 'frozen', False):
-    logging.info("Running in executable mode - setting up sys.path")
+    logging.info("Running in executable mode")
     _, user_data_dir = get_app_directories()
     logging.info(f"User data directory: {user_data_dir}")
-
-    if user_data_dir not in sys.path:
-        sys.path.insert(0, user_data_dir)
-        logging.info(f"Added {user_data_dir} to sys.path at position 0")
+    logging.info("User-data Python overrides will be loaded only after API validation")
 
     # Check for update pending flag
     backup_dir = os.path.join(user_data_dir, "backup")
@@ -100,7 +114,7 @@ if getattr(sys, 'frozen', False):
     update_pending = os.path.exists(flag_file)
 
     if update_pending:
-        logging.info("Update pending detected - will prioritize user data modules")
+        logging.info("Update pending detected - checking user-data module compatibility")
         # Clean up the flag file
         try:
             os.remove(flag_file)
@@ -129,8 +143,7 @@ if getattr(sys, 'frozen', False):
         module_file = f"{module_name}.py"
         user_module_path = os.path.join(user_data_dir, module_file)
         if os.path.exists(user_module_path):
-            status = "UPDATE PENDING" if update_pending else "UPDATED"
-            logging.info(f"  Found {status} {module_name} in user data, will load from there")
+            logging.info(f"  Found user-data override for {module_name}; import hook validates it")
         else:
             logging.info(f"  {module_name} not in user data, will load from bundled")
 else:
@@ -914,6 +927,23 @@ import customtkinter as ctk
 from security import LoginPage   # Assuming you saved the login class here
 from splash import SplashScreen2, apply_rounded_corners # Assuming you saved the splash class here
 from ui_dashboard import Dashboard     # Your beautiful registry GUI
+
+for module_name in (
+    "ui_dashboard",
+    "marksheet_chooser",
+    "ui_marksheet_kicd",
+    "teachers_linked",
+):
+    module = sys.modules.get(module_name)
+    logging.info(
+        "Loaded module %s from %s",
+        module_name,
+        getattr(module, "__file__", "not found"),
+    )
+logging.info(
+    "Dashboard callback logging enabled: %s",
+    "report_callback_exception" in Dashboard.__dict__,
+)
 
 def run_freeman_os():
     # Check license before starting application

@@ -1,6 +1,7 @@
 import customtkinter as ctk
 from tkinter import messagebox
-from grading_logic import get_grade_4_6_rating, calculate_final_level
+from grading_four_level import get_grade_4_6_rating, calculate_final_level
+from grading_four_level import is_absent_level as _is_absent_level
 
 from fpdf import FPDF
 from reportlab.lib.pagesizes import landscape, A4
@@ -15,28 +16,9 @@ from cloud_service import (
     apply_cloud_records_to_table,
 )
 import os
-import sys
-
-
-def get_app_dir():
-    """Get the application directory, handling both script and executable environments"""
-    if getattr(sys, "frozen", False):
-        # Running as executable
-        BASE_DIR = sys._MEIPASS
-        USER_DATA_DIR = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal")
-        os.makedirs(USER_DATA_DIR, exist_ok=True)
-    else:
-        # Running as script
-        BASE_DIR = os.path.dirname(os.path.realpath(__file__))
-        USER_DATA_DIR = BASE_DIR
-    return BASE_DIR, USER_DATA_DIR
 
 
 class PP1MarkSheetView(ctk.CTkFrame):
-    def get_json_path(self):
-        # Use USER_DATA_DIR for config file (works in both script and executable)
-        return os.path.join(self.USER_DATA_DIR, "school_config.json")
-
     def __init__(
         self,
         parent,
@@ -46,6 +28,7 @@ class PP1MarkSheetView(ctk.CTkFrame):
         exam_name=None,
         marks_data=None,
         summary_data=None,
+        stream=None,
     ):
         super().__init__(parent, fg_color="transparent")
         self.db = db_connection
@@ -58,6 +41,9 @@ class PP1MarkSheetView(ctk.CTkFrame):
             "Pre-Primary 2": "pp2",
         }
         self.class_name = grade_mapping.get(class_name, class_name)
+        self.stream = stream
+        self.selected_stream = stream
+        self.full_class_mode = False
         self.read_only = read_only
         self.exam_name = exam_name
         self.marks_data = marks_data
@@ -94,26 +80,9 @@ class PP1MarkSheetView(ctk.CTkFrame):
         self.load_students_from_registry()
 
     def get_subjects_from_json(self):
-        import json
+        from teachers_linked import get_subjects_for_class
 
-        try:
-            json_path = self.get_json_path()
-            with open(json_path, "r") as f:
-                config = json.load(f)
-
-                # Navigate the nested dictionary: subjects -> pp1
-                if "subjects" in config and "pp1" in config["subjects"]:
-                    return config["subjects"]["pp1"]
-
-                # Fallback for old flat JSON format
-                if "pp1_subjects" in config:
-                    return config["pp1_subjects"]
-
-        except Exception as e:
-            print(f"Warning: Could not read JSON: {e}")
-
-        # Default fallback if file is missing or broken
-        return ["LANG", "MATH", "ENV", "PSYCH", "REL"]
+        return get_subjects_for_class(self.class_name)
 
     def create_header_section(self):
         header_text = (
@@ -135,28 +104,22 @@ class PP1MarkSheetView(ctk.CTkFrame):
         """Updates the header to match the Junior style: SCHOOL NAME | GRADE | EXAM TITLE"""
         import json
 
-        # 1. Default values
         school_name = "SHINNERS SCHOOL"
-
-        # 2. Try to get the real school name from JSON
         try:
             json_path = self.get_json_path()
             with open(json_path, "r") as f:
                 config = json.load(f)
                 school_name = config.get("school_name", "SHINNERS SCHOOL").upper()
-        except:
+        except Exception:
             pass
 
-        # 3. Construct the full string
         display_text = (
             f"{school_name}  |  {self.class_name.upper()}  |  {self.current_exam_title}"
         )
-
-        # 4. Update the label (using your existing header_label)
         if hasattr(self, "header_label"):
             self.header_label.configure(
                 text=display_text,
-                text_color="#f39c12",  # Matches the Junior orange highlight
+                text_color="#f39c12",
             )
 
     def create_bottom_controls(self):
@@ -211,15 +174,6 @@ class PP1MarkSheetView(ctk.CTkFrame):
             )
             self.btn_pdf.pack(side="left", padx=5, pady=15)
 
-            self.btn_new_exam = ctk.CTkButton(
-                self.bottom_bar,
-                text="🆕 New Exam",
-                fg_color="#e67e22",
-                hover_color="#d35400",
-                command=self.handle_new_exam,
-            )
-            self.btn_new_exam.pack(side="left", padx=5, pady=15)
-
             self.btn_refresh = ctk.CTkButton(
                 self.bottom_bar,
                 text="🔄 Refresh",
@@ -237,6 +191,26 @@ class PP1MarkSheetView(ctk.CTkFrame):
             command=self.master.master.return_to_home,
         )
         self.btn_back.pack(side="right", padx=20, pady=15)
+
+        if self.selected_stream and not self.read_only:
+            self.btn_full_class = ctk.CTkButton(
+                self.bottom_bar,
+                text="Show Whole Class",
+                command=self.toggle_full_class_view,
+            )
+            self.btn_full_class.pack(side="left", padx=5, pady=15)
+
+    def toggle_full_class_view(self):
+        self.full_class_mode = not self.full_class_mode
+        self.stream = None if self.full_class_mode else self.selected_stream
+        if hasattr(self, "calculate_primary_rankings"):
+            self.calculate_primary_rankings()
+        if hasattr(self, "calculate_rankings"):
+            self.calculate_rankings()
+        self.btn_full_class.configure(
+            text="Show Stream Only" if self.full_class_mode else "Show Whole Class"
+        )
+        self.load_students_from_registry()
 
     def fetch_cloud_data(self):
         # 1. Get login details
@@ -272,7 +246,7 @@ class PP1MarkSheetView(ctk.CTkFrame):
 
             # 5. Recalculate totals and averages for all rows from individual scores
             # This ensures totals are correct even if cloud sends zero
-            import grading_logic as gl
+            import grading_four_level as gl
 
             all_widgets = self.table_inner.grid_slaves()
             if all_widgets:
@@ -319,6 +293,17 @@ class PP1MarkSheetView(ctk.CTkFrame):
                     avg_lvl = gl.calculate_final_level(
                         total_score, is_primary=True, num_subjects=num_subs
                     )
+                    avg_lvl = (
+                        gl.absent_average_level(
+                            [
+                                widgets[1 + (i * 2)].get()
+                                for i in range(num_subs)
+                                if 1 + (i * 2) < len(widgets)
+                                and hasattr(widgets[1 + (i * 2)], "get")
+                            ]
+                        )
+                        or avg_lvl
+                    )
                     avg_idx = total_idx + 1
                     if avg_idx < len(widgets):
                         avg_widget = widgets[avg_idx]
@@ -332,13 +317,10 @@ class PP1MarkSheetView(ctk.CTkFrame):
             # 6. Save the fetched marks to database (skip reload to preserve cloud values)
             self.save_pp1_marks(skip_reload=True)
 
-            # 6. Consume marks from cloud (delete them after successful fetch)
-            service.consume_marks(self.class_name, credentials)
-
             # 7. Success Message
             messagebox.showinfo(
                 "Cloud Fetch",
-                f"Successfully synchronized {len(marks_data)} student records. Marks have been removed from cloud.",
+                f"Successfully synchronized {len(marks_data)} student records.",
             )
 
         else:
@@ -473,7 +455,7 @@ class PP1MarkSheetView(ctk.CTkFrame):
                     dist_grid.pack(fill="x", padx=15, pady=(0, 15))
 
                     distribution = summary.get("distribution", {})
-                    levels = ["EE1", "EE2", "ME1", "ME2", "AE1", "AE2", "BE1", "BE2"]
+                    levels = list(distribution) or ["EE", "ME", "AE", "BE"]
                     for i, level in enumerate(levels):
                         if i % 4 == 0:
                             row_frame = ctk.CTkFrame(dist_grid, fg_color="transparent")
@@ -832,6 +814,11 @@ class PP1MarkSheetView(ctk.CTkFrame):
         """Validates the input and triggers the dynamic total calculation."""
         val = entry_widget.get().strip()
 
+        if val.upper() in ("AB", "A"):
+            entry_widget.delete(0, "end")
+            entry_widget.insert(0, "AB")
+            val = ""
+
         # 1. Validate input (make sure they actually typed a number)
         if val:
             try:
@@ -856,7 +843,7 @@ class PP1MarkSheetView(ctk.CTkFrame):
         self.refresh_totals(row_frame, row_idx)
 
     def refresh_totals(self, row_frame, row_idx):
-        import grading_logic as gl  # Ensure your file is imported
+        import grading_four_level as gl  # Ensure your file is imported
 
         subjects = self.get_subjects_from_json()
         num_subs = len(subjects)
@@ -883,6 +870,11 @@ class PP1MarkSheetView(ctk.CTkFrame):
                     widgets[rate_idx].delete(0, "end")
                     widgets[rate_idx].insert(0, rate)
                     widgets[rate_idx].configure(state="disabled")
+                elif score_val.upper() == "AB":
+                    widgets[rate_idx].configure(state="normal")
+                    widgets[rate_idx].delete(0, "end")
+                    widgets[rate_idx].insert(0, "AB")
+                    widgets[rate_idx].configure(state="disabled")
             except:
                 continue
 
@@ -896,6 +888,12 @@ class PP1MarkSheetView(ctk.CTkFrame):
         # 3. Calculate Final Level using your calculate_final_level (is_primary=True)
         avg_lvl = gl.calculate_final_level(
             total_score, is_primary=True, num_subjects=num_subs
+        )
+        avg_lvl = (
+            gl.absent_average_level(
+                [widgets[1 + (i * 2)].get() for i in range(num_subs)]
+            )
+            or avg_lvl
         )
 
         l_box = widgets[t_idx + 1]
@@ -1020,10 +1018,17 @@ class PP1MarkSheetView(ctk.CTkFrame):
                         )
                     except (ValueError, TypeError):
                         score = -1
-                    scored_students.append({"data": row_data, "score": score})
+                    scored_students.append(
+                        {
+                            "data": row_data,
+                            "score": score
+                            - (10**6 if _is_absent_level(row_data[total_idx + 1]) else 0),
+                            "absent": _is_absent_level(row_data[total_idx + 1]),
+                        }
+                    )
 
-                # Sort by total points (Highest first)
-                scored_students.sort(key=lambda x: x["score"], reverse=True)
+                # Sort by total points (Highest first), absent students last
+                scored_students.sort(key=lambda x: (x["absent"], -x["score"]))
 
                 # Assign positions
                 final_list = []
@@ -1084,7 +1089,14 @@ class PP1MarkSheetView(ctk.CTkFrame):
                 
                 # 1. Fetch data
                 # ... (Your existing SQL SELECT query logic here) ...
-                self.db.cursor().execute(query, (self.class_name,))
+                params = (self.class_name,)
+                if self.stream:
+                    query = query.replace(
+                        "WHERE UPPER(s.grade) = UPPER(?)",
+                        "WHERE UPPER(s.grade) = UPPER(?) AND UPPER(TRIM(s.stream)) = UPPER(?)",
+                    )
+                    params = (self.class_name, self.stream)
+                self.db.cursor().execute(query, params)
                 records = self.db.cursor().fetchall()
                 print(
                     f"DEBUG: Loaded {len(records)} students for grade '{self.class_name}' from database"
@@ -1104,10 +1116,17 @@ class PP1MarkSheetView(ctk.CTkFrame):
                         )
                     except (ValueError, TypeError):
                         score = -1
-                    scored_students.append({"data": row, "score": score})
+                    scored_students.append(
+                        {
+                            "data": row,
+                            "score": score
+                            - (10**6 if _is_absent_level(row[total_idx + 1]) else 0),
+                            "absent": _is_absent_level(row[total_idx + 1]),
+                        }
+                    )
 
-                # Sort by total points (Highest first)
-                scored_students.sort(key=lambda x: x["score"], reverse=True)
+                # Sort by total points (Highest first), absent students last
+                scored_students.sort(key=lambda x: (x["absent"], -x["score"]))
 
                 # 3. Assign positions and Sort for UI
                 final_list = []
@@ -1600,7 +1619,7 @@ class PP1MarkSheetView(ctk.CTkFrame):
 
     def generate_summary_data(self):
         """Generate summary data for the current exam matching ClassSummaryView format"""
-        LEVEL_ORDER = ["EE1", "EE2", "ME1", "ME2", "AE1", "AE2", "BE1", "BE2"]
+        LEVEL_ORDER = ["EE", "ME", "AE", "BE"]
 
         # Get subjects from JSON
         subjects = self.get_subjects_from_json()

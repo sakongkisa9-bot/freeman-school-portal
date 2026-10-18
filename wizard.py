@@ -289,7 +289,6 @@ class SchoolSetupWizard(ctk.CTkToplevel):
                 "primary_exam_title": existing_config.get("primary_exam_title", "PRIMARY SCHOOL MERIT LIST"),
                 "jss_exam_title": existing_config.get("jss_exam_title", "JUNIOR SECONDARY ASSESSMENT"),
                 "current_exam_title": existing_config.get("current_exam_title", "ASSESSMENT"),
-                "portal_open": existing_config.get("portal_open", False),
             }
             # Keep subjects chosen via the dashboard Subjects button
             for key in ("subjects", "subject_catalog", "subject_names"):

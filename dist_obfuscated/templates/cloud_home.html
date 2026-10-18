@@ -197,16 +197,25 @@
         </div>
 
         <div class="dev-section">
-            <button id="dev-btn" class="dev-link" style="background: rgba(23, 162, 184, 0.9); color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-size: 0.9rem; display: inline-block; transition: background 0.3s; border: none; cursor: pointer;">
+            <button id="dev-btn" class="dev-link" style="background: rgba(23, 162, 184, 0.9); color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-size: 0.9rem; display: {{ 'none' if session.get('developer') else 'inline-block' }}; transition: background 0.3s; border: none; cursor: pointer;">
                 <i class="fas fa-code"></i> Developer
             </button>
-            <div id="dev-options" style="display: none; margin-top: 16px;">
+            <form id="dev-login" autocomplete="off" style="display: none; margin-top: 16px;">
+                <input type="password" id="dev-password" placeholder="Developer password" autocomplete="off" style="padding: 10px 14px; border-radius: 8px; border: none; min-width: 220px;">
+                <button type="submit" class="dev-link" style="background: rgba(23, 162, 184, 0.9); color: white; padding: 10px 18px; border-radius: 8px; border: none; cursor: pointer;">Unlock</button>
+                <p id="dev-error" style="display: none; color: #ffb4b4; margin-top: 8px;">Incorrect password</p>
+            </form>
+            <div id="dev-options" style="display: {{ 'block' if session.get('developer') else 'none' }}; margin-top: 16px;">
                 <a href="{{ url_for('register') }}" class="dev-link">
                     <i class="fas fa-code"></i> Register School
                 </a>
                 <br><br>
                 <a href="{{ url_for('admin_schools') }}" class="dev-link">
                     <i class="fas fa-cogs"></i> Manage Schools
+                </a>
+                <br><br>
+                <a href="{{ url_for('developer_strands') }}" class="dev-link">
+                    <i class="fas fa-book"></i> Upload Strands
                 </a>
             </div>
         </div>
@@ -224,14 +233,28 @@
 </div>
 
 <script>
-    // Developer password prompt
-    document.getElementById('dev-btn').addEventListener('click', function() {
-        const password = prompt('Enter developer password:');
-        if (password === '16592@FREE man') {
+    // Developer password is typed into a masked field and checked by the server.
+    const devButton = document.getElementById('dev-btn');
+    const devLogin = document.getElementById('dev-login');
+    const devPassword = document.getElementById('dev-password');
+    devButton.addEventListener('click', function() {
+        devButton.style.display = 'none';
+        devLogin.style.display = 'block';
+        devPassword.focus();
+    });
+    devLogin.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        const response = await fetch("{{ url_for('developer_unlock') }}", {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({password: devPassword.value})
+        });
+        devPassword.value = '';
+        if (response.ok) {
+            devLogin.style.display = 'none';
             document.getElementById('dev-options').style.display = 'block';
-            document.getElementById('dev-btn').style.display = 'none';
-        } else if (password !== null) {
-            alert('Incorrect password');
+        } else {
+            document.getElementById('dev-error').style.display = 'block';
         }
     });
 

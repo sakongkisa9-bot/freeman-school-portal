@@ -557,8 +557,13 @@ class FreemanDB:
         self._cursor.execute(query + " ORDER BY exam_date DESC", params)
         return self._cursor.fetchall()
 
-    def get_previous_exam_years(self):
-        self._cursor.execute("SELECT DISTINCT year FROM previous_exams WHERE year IS NOT NULL ORDER BY year DESC")
+    def get_previous_exam_years(self, class_name=None):
+        query = "SELECT DISTINCT year FROM previous_exams WHERE year IS NOT NULL"
+        params = ()
+        if class_name:
+            query += " AND class_name = ?"
+            params = (class_name,)
+        self._cursor.execute(query + " ORDER BY year DESC", params)
         return [row[0] for row in self._cursor.fetchall()]
 
     def backfill_previous_exam_year(self, year):
@@ -566,11 +571,14 @@ class FreemanDB:
         self._cursor.execute("UPDATE previous_exams SET year = ? WHERE year IS NULL", (year,))
         self.conn.commit()
 
-    def get_previous_exams(self, class_name):
-        """Get list of previous exams for a class"""
-        self._cursor.execute('''
-            SELECT exam_name, exam_date FROM previous_exams WHERE class_name = ? ORDER BY exam_date DESC
-        ''', (class_name,))
+    def get_previous_exams(self, class_name, year=None):
+        """Get previous exams for a class, optionally limited to one academic year."""
+        query = "SELECT exam_name, exam_date FROM previous_exams WHERE class_name = ?"
+        params = [class_name]
+        if year is not None:
+            query += " AND year = ?"
+            params.append(year)
+        self._cursor.execute(query + " ORDER BY exam_date DESC", params)
         return self._cursor.fetchall()
 
     def get_previous_exam_data(self, exam_name, class_name, year=None):

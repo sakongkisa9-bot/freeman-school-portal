@@ -190,6 +190,18 @@ class CustomImportHook:
         user_path = os.path.join(self.user_data_dir, module_file)
 
         if os.path.exists(user_path):
+            if fullname == "cloud_service":
+                try:
+                    with open(user_path, "r", encoding="utf-8") as module_file_handle:
+                        user_module_source = module_file_handle.read()
+                except OSError:
+                    user_module_source = ""
+                if "def upload_cba_tasks(" not in user_module_source:
+                    logging.warning(
+                        "Ignoring outdated user cloud_service.py without CBA task publishing support: %s",
+                        user_path,
+                    )
+                    return None
             logging.info(f"[CustomImportHook] Loading {fullname} from user data: {user_path}")
             try:
                 spec = importlib.util.spec_from_file_location(fullname, user_path)

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Developer - Strands | Freeman Portal</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #101a19; color: #f4f7f5; font-family: "Segoe UI", Tahoma, sans-serif; }
+        main { max-width: 900px; margin: 0 auto; padding: 24px; }
+        header { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; border-bottom: 1px solid #41524d; padding-bottom: 18px; margin-bottom: 20px; }
+        h1 { margin: 0; font-size: 25px; }
+        h2 { font-size: 19px; margin: 28px 0 10px; }
+        p, .muted { color: #b7c8c1; line-height: 1.5; }
+        a.button, button { display: inline-block; padding: 10px 14px; border: 1px solid #53776d; border-radius: 5px; background: #19332d; color: #effff8; text-decoration: none; font: inherit; font-weight: 650; cursor: pointer; }
+        a.button:hover, button:hover { background: #285347; }
+        button.save { border-color: #5c9c83; background: #28735b; }
+        button.danger { border-color: #a15050; background: #6e2b2b; padding: 6px 10px; }
+        .message { padding: 10px 12px; margin: 8px 0; border-left: 4px solid #d69c48; background: #26312b; }
+        .message.success { border-color: #4daf86; }
+        .message.danger { border-color: #d26060; }
+        form.panel { display: grid; gap: 12px; max-width: 520px; }
+        label { display: grid; gap: 5px; color: #b7c8c1; font-size: 13px; }
+        input, select { padding: 10px; background: #0d1513; color: white; border: 1px solid #52665f; border-radius: 4px; font: inherit; }
+        table { width: 100%; border-collapse: collapse; border: 1px solid #354943; background: #17221f; }
+        th, td { padding: 10px; border-bottom: 1px solid #354943; text-align: left; }
+        th { background: #20332d; color: #cde9dc; }
+        .strand { background: #17221f; border: 1px solid #354943; border-radius: 6px; padding: 12px 16px; margin: 10px 0; }
+        .strand strong { color: #cde9dc; }
+        .strand ul { margin: 6px 0 0; padding-left: 22px; color: #dce8e2; }
+        .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    </style>
+</head>
+<body>
+<main>
+    <header>
+        <h1>Developer: Strands</h1>
+        <div class="row" style="margin:0">
+            <a class="button" href="{{ url_for('home') }}">Home</a>
+            {% if authed %}<form method="post" action="{{ url_for('developer_logout') }}"><button type="submit">Log out</button></form>{% endif %}
+        </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}<div class="message {{ category }}">{{ message }}</div>{% endfor %}
+    {% endwith %}
+
+    {% if not authed %}
+        <form method="post" class="panel">
+            <input type="hidden" name="action" value="login">
+            <label>Developer password<input type="password" name="password" required autofocus autocomplete="off"></label>
+            <button type="submit" class="save">Unlock</button>
+        </form>
+    {% elif preview %}
+        <h2>Review: {{ preview.area }} · {{ preview.grade }}</h2>
+        <p>Check the strands below. Saving replaces the strands for this class and learning area for every school.</p>
+        {% for strand in preview.strands %}
+        <div class="strand"><strong>{{ strand.name }}</strong>
+            <ul>{% for name in strand.sub_strands %}<li>{{ name }}</li>{% endfor %}</ul>
+        </div>
+        {% endfor %}
+        <form method="post" action="{{ url_for('developer_strands_save') }}" class="row">
+            <input type="hidden" name="grade" value="{{ preview.grade }}">
+            <input type="hidden" name="area" value="{{ preview.area }}">
+            <input type="hidden" name="strands_json" value="{{ preview.json }}">
+            <button type="submit" class="save">Save to Portal</button>
+            <a class="button" href="{{ url_for('developer_strands') }}">Cancel</a>
+        </form>
+    {% else %}
+        <h2>Upload a curriculum design PDF</h2>
+        <p>The strands and sub-strands are read from the PDF and shared by all schools.</p>
+        <form method="post" action="{{ url_for('developer_strands_preview') }}" enctype="multipart/form-data" class="panel">
+            <label>Class<select name="grade" required>{% for grade in grades %}<option>{{ grade }}</option>{% endfor %}</select></label>
+            <label>Learning area<input name="area" list="areaList" required placeholder="e.g. Agriculture">
+                <datalist id="areaList">{% for area in areas %}<option value="{{ area }}">{% endfor %}</datalist></label>
+            <label>Curriculum design PDF<input type="file" name="pdf" accept="application/pdf" required></label>
+            <button type="submit" class="save">Read Strands</button>
+        </form>
+
+        <h2>Publishing status</h2>
+        {% for group in coverage %}
+        <h3>{{ group.title }}</h3>
+        <table>
+            <thead><tr><th>Learning area</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for row in group.rows %}
+            <tr>
+                <td>{{ row.area }}{% if row.custom %} <span class="muted">(custom)</span>{% endif %}</td>
+                <td>{% if row.complete %}All published{% else %}Missing:
+                    {% for g in row.grades if not g.done %}{{ g.grade }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% endfor %}
+
+        <h2>Strands on the portal</h2>
+        {% if stored %}
+        <table>
+            <thead><tr><th>Class</th><th>Learning area</th><th>Strands</th><th>Sub-strands</th><th>Updated</th><th></th></tr></thead>
+            <tbody>
+            {% for item in stored %}
+            <tr>
+                <td>{{ item.grade }}</td><td>{{ item.area }}</td><td>{{ item.strands }}</td><td>{{ item.sub_strands }}</td><td>{{ item.updated_at }}</td>
+                <td><form method="post" action="{{ url_for('developer_strands_delete') }}" onsubmit="return confirm('Remove these strands from the portal?')"><input type="hidden" name="id" value="{{ item.id }}"><button class="danger" type="submit">Delete</button></form></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="muted">No strands have been uploaded yet.</p>
+        {% endif %}
+    {% endif %}
+</main>
+</body>
+</html>

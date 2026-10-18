@@ -18,13 +18,13 @@
     "grace_period_days": 0,
     "trial_days": 0,
     "premium_days": 90,
-    "playgroup_exam_title": "mid term exam",
-    "pp1_exam_title": "mid term exam",
-    "pp2_exam_title": "mid term exam",
-    "lower_exam_title": "mid term exam",
-    "primary_exam_title": "mid term exam",
-    "jss_exam_title": "mid term exam",
-    "current_exam_title": "mid term exam",
+    "playgroup_exam_title": "",
+    "pp1_exam_title": "",
+    "pp2_exam_title": "",
+    "lower_exam_title": "",
+    "primary_exam_title": "",
+    "jss_exam_title": "",
+    "current_exam_title": "",
     "portal_open": true,
     "subjects": {
         "playgroup": [
@@ -98,12 +98,12 @@
             "y": 52
         },
         "dashboard_system_settings_button": {
-            "x": -4,
-            "y": 48
+            "x": 0,
+            "y": 80
         },
         "dashboard_create_exam_button": {
             "x": 0,
-            "y": 96
+            "y": 113
         }
     },
     "bing_wallpaper_interval_hours": 1,
@@ -3170,7 +3170,7 @@
             "Agriculture and Nutrition": {
                 "2026|Term 1": {
                     "academic_year": 2026,
-                    "fetched_at": "2026-10-16 18:29",
+                    "fetched_at": "2026-10-18 20:58",
                     "records": [
                         [
                             "K0040203001",
@@ -3178,7 +3178,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.1 Soil Conservation",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203002",
@@ -3186,7 +3187,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.1 Soil Conservation",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203003",
@@ -3194,7 +3196,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.1 Soil Conservation",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203004",
@@ -3202,7 +3205,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.1 Soil Conservation",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203005",
@@ -3210,7 +3214,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.1 Soil Conservation",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203006",
@@ -3218,7 +3223,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.1 Soil Conservation",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203007",
@@ -3226,7 +3232,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.1 Soil Conservation",
-                            "ME"
+                            "ME",
+                            ""
                         ],
                         [
                             "K0040203008",
@@ -3234,7 +3241,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.1 Soil Conservation",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203009",
@@ -3242,7 +3250,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.1 Soil Conservation",
-                            "ME"
+                            "ME",
+                            ""
                         ],
                         [
                             "K0040203010",
@@ -3250,7 +3259,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.1 Soil Conservation",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203001",
@@ -3258,7 +3268,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.2 Water Conservation",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203002",
@@ -3266,7 +3277,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.2 Water Conservation",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203003",
@@ -3274,7 +3286,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.2 Water Conservation",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203004",
@@ -3282,7 +3295,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.2 Water Conservation",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203005",
@@ -3290,7 +3304,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.2 Water Conservation",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203006",
@@ -3298,7 +3313,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.2 Water Conservation",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203007",
@@ -3306,7 +3322,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.2 Water Conservation",
-                            "ME"
+                            "ME",
+                            ""
                         ],
                         [
                             "K0040203008",
@@ -3314,7 +3331,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.2 Water Conservation",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203009",
@@ -3322,7 +3340,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.2 Water Conservation",
-                            "ME"
+                            "ME",
+                            ""
                         ],
                         [
                             "K0040203010",
@@ -3330,7 +3349,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.2 Water Conservation",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203001",
@@ -3338,7 +3358,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.3 Fuel Conservation",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203002",
@@ -3346,7 +3367,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.3 Fuel Conservation",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203003",
@@ -3354,7 +3376,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.3 Fuel Conservation",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203004",
@@ -3362,7 +3385,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.3 Fuel Conservation",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203005",
@@ -3370,7 +3394,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.3 Fuel Conservation",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203006",
@@ -3378,7 +3403,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.3 Fuel Conservation",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203007",
@@ -3386,7 +3412,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.3 Fuel Conservation",
-                            "ME"
+                            "ME",
+                            ""
                         ],
                         [
                             "K0040203008",
@@ -3394,7 +3421,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.3 Fuel Conservation",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203009",
@@ -3402,7 +3430,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.3 Fuel Conservation",
-                            "ME"
+                            "ME",
+                            ""
                         ],
                         [
                             "K0040203010",
@@ -3410,7 +3439,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.3 Fuel Conservation",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203001",
@@ -3418,7 +3448,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.4 Conserving Wild Animals",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203002",
@@ -3426,7 +3457,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.4 Conserving Wild Animals",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203003",
@@ -3434,7 +3466,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.4 Conserving Wild Animals",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203004",
@@ -3442,7 +3475,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.4 Conserving Wild Animals",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203005",
@@ -3450,7 +3484,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.4 Conserving Wild Animals",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203006",
@@ -3458,7 +3493,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.4 Conserving Wild Animals",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203007",
@@ -3466,7 +3502,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.4 Conserving Wild Animals",
-                            "ME"
+                            "ME",
+                            ""
                         ],
                         [
                             "K0040203008",
@@ -3474,7 +3511,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.4 Conserving Wild Animals",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203009",
@@ -3482,7 +3520,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.4 Conserving Wild Animals",
-                            "ME"
+                            "ME",
+                            ""
                         ],
                         [
                             "K0040203010",
@@ -3490,7 +3529,8 @@
                             "Agriculture and Nutrition",
                             "1.0 Conservation of Resources",
                             "1.4 Conserving Wild Animals",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203001",
@@ -3498,7 +3538,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.1 Direct Sowing of Tiny Seeds",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203002",
@@ -3506,7 +3547,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.1 Direct Sowing of Tiny Seeds",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203003",
@@ -3514,7 +3556,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.1 Direct Sowing of Tiny Seeds",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203004",
@@ -3522,7 +3565,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.1 Direct Sowing of Tiny Seeds",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203005",
@@ -3530,7 +3574,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.1 Direct Sowing of Tiny Seeds",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203006",
@@ -3538,7 +3583,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.1 Direct Sowing of Tiny Seeds",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203007",
@@ -3546,7 +3592,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.1 Direct Sowing of Tiny Seeds",
-                            "ME"
+                            "ME",
+                            ""
                         ],
                         [
                             "K0040203008",
@@ -3554,7 +3601,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.1 Direct Sowing of Tiny Seeds",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203009",
@@ -3562,7 +3610,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.1 Direct Sowing of Tiny Seeds",
-                            "ME"
+                            "ME",
+                            ""
                         ],
                         [
                             "K0040203010",
@@ -3570,7 +3619,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.1 Direct Sowing of Tiny Seeds",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203001",
@@ -3578,7 +3628,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.2 Growing Fruits",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203002",
@@ -3586,7 +3637,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.2 Growing Fruits",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203003",
@@ -3594,7 +3646,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.2 Growing Fruits",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203004",
@@ -3602,7 +3655,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.2 Growing Fruits",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203005",
@@ -3610,7 +3664,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.2 Growing Fruits",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203006",
@@ -3618,7 +3673,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.2 Growing Fruits",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203007",
@@ -3626,7 +3682,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.2 Growing Fruits",
-                            "ME"
+                            "ME",
+                            ""
                         ],
                         [
                             "K0040203008",
@@ -3634,7 +3691,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.2 Growing Fruits",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203009",
@@ -3642,7 +3700,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.2 Growing Fruits",
-                            "ME"
+                            "ME",
+                            ""
                         ],
                         [
                             "K0040203010",
@@ -3650,7 +3709,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.2 Growing Fruits",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203001",
@@ -3658,7 +3718,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.3 Uses of Domestic Animals",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203002",
@@ -3666,7 +3727,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.3 Uses of Domestic Animals",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203003",
@@ -3674,7 +3736,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.3 Uses of Domestic Animals",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203004",
@@ -3682,7 +3745,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.3 Uses of Domestic Animals",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203005",
@@ -3690,7 +3754,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.3 Uses of Domestic Animals",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203006",
@@ -3698,7 +3763,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.3 Uses of Domestic Animals",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203007",
@@ -3706,7 +3772,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.3 Uses of Domestic Animals",
-                            "ME"
+                            "ME",
+                            ""
                         ],
                         [
                             "K0040203008",
@@ -3714,7 +3781,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.3 Uses of Domestic Animals",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203009",
@@ -3722,7 +3790,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.3 Uses of Domestic Animals",
-                            "ME"
+                            "ME",
+                            ""
                         ],
                         [
                             "K0040203010",
@@ -3730,7 +3799,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.3 Uses of Domestic Animals",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203001",
@@ -3738,7 +3808,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.4 Balanced Meal",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203002",
@@ -3746,7 +3817,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.4 Balanced Meal",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203003",
@@ -3754,7 +3826,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.4 Balanced Meal",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203004",
@@ -3762,7 +3835,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.4 Balanced Meal",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203005",
@@ -3770,7 +3844,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.4 Balanced Meal",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203006",
@@ -3778,7 +3853,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.4 Balanced Meal",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203007",
@@ -3786,7 +3862,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.4 Balanced Meal",
-                            "ME"
+                            "ME",
+                            ""
                         ],
                         [
                             "K0040203008",
@@ -3794,7 +3871,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.4 Balanced Meal",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203009",
@@ -3802,7 +3880,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.4 Balanced Meal",
-                            "ME"
+                            "ME",
+                            ""
                         ],
                         [
                             "K0040203010",
@@ -3810,7 +3889,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.4 Balanced Meal",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203001",
@@ -3818,7 +3898,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.5 Cooking Food",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203002",
@@ -3826,7 +3907,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.5 Cooking Food",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203003",
@@ -3834,7 +3916,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.5 Cooking Food",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203004",
@@ -3842,7 +3925,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.5 Cooking Food",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203005",
@@ -3850,7 +3934,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.5 Cooking Food",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203006",
@@ -3858,7 +3943,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.5 Cooking Food",
-                            "EE"
+                            "EE",
+                            ""
                         ],
                         [
                             "K0040203007",
@@ -3866,7 +3952,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.5 Cooking Food",
-                            "ME"
+                            "ME",
+                            ""
                         ],
                         [
                             "K0040203008",
@@ -3874,7 +3961,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.5 Cooking Food",
-                            "AE"
+                            "AE",
+                            ""
                         ],
                         [
                             "K0040203009",
@@ -3882,7 +3970,8 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.5 Cooking Food",
-                            "ME"
+                            "ME",
+                            ""
                         ],
                         [
                             "K0040203010",
@@ -3890,14 +3979,632 @@
                             "Agriculture and Nutrition",
                             "2.0 Food Production Processes",
                             "2.5 Cooking Food",
-                            "EE"
+                            "EE",
+                            ""
                         ]
                     ]
+                }
+            },
+            "English": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Kiswahili": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Mathematics": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "SCI": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Social Studies": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "ARTS": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "CRE": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            }
+        },
+        "playgroup": {
+            "LANG": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Mathematics": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "ENV": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "CREAT": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            }
+        },
+        "pp1": {
+            "LANG": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Mathematics": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "ENV": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "CREAT": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "RE": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            }
+        },
+        "pp2": {
+            "LANG": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Mathematics": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "ENV": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "CREAT": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "RE": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            }
+        },
+        "Grade 1": {
+            "English": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Kiswahili": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Mathematics": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "ENV": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "CREAT": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "CRE": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "LIT": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            }
+        },
+        "Grade 2": {
+            "English": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Kiswahili": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Mathematics": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "ENV": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "CREAT": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "CRE": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "LIT": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            }
+        },
+        "Grade 3": {
+            "English": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Kiswahili": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Mathematics": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "ENV": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "CREAT": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "CRE": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "LIT": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            }
+        },
+        "Grade 5": {
+            "English": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Kiswahili": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Mathematics": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "SCI": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Agriculture and Nutrition": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Social Studies": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "ARTS": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "CRE": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            }
+        },
+        "Grade 6": {
+            "English": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Kiswahili": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Mathematics": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "SCI": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Agriculture and Nutrition": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Social Studies": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "ARTS": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "CRE": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            }
+        },
+        "Grade 7": {
+            "Mathematics": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "English": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Kiswahili": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "INT SCI": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Pre-Technical Studies": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Social Studies": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Agriculture and Nutrition": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Creative Arts": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "CRE": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            }
+        },
+        "Grade 8": {
+            "Mathematics": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "English": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Kiswahili": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "INT SCI": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Pre-Technical Studies": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Social Studies": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Agriculture and Nutrition": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Creative Arts": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "CRE": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            }
+        },
+        "Grade 9": {
+            "Mathematics": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "English": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Kiswahili": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "INT SCI": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Pre-Technical Studies": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Social Studies": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Agriculture and Nutrition": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "Creative Arts": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
+                }
+            },
+            "CRE": {
+                "2026|Term 1": {
+                    "academic_year": 2026,
+                    "fetched_at": "2026-10-18 20:58",
+                    "records": []
                 }
             }
         }
     },
-    "marksheet_term": "Term 1",
+    "marksheet_term": "Term 2",
     "marksheet_style": "New style",
     "subject_catalog": {
         "playgroup": [
@@ -4161,12 +4868,14 @@
             "CRE": "Religious Education"
         }
     },
-    "playgroup_exam_term": "Term 1",
-    "pp1_exam_term": "Term 1",
-    "pp2_exam_term": "Term 1",
-    "lower_exam_term": "Term 1",
-    "primary_exam_term": "Term 1",
-    "jss_exam_term": "Term 1",
-    "academic_year": 2026,
-    "current_term": "Term 1"
+    "playgroup_exam_term": "",
+    "pp1_exam_term": "",
+    "pp2_exam_term": "",
+    "lower_exam_term": "",
+    "primary_exam_term": "",
+    "jss_exam_term": "",
+    "academic_year": 2027,
+    "current_term": "Term 1",
+    "summary_style": "New style",
+    "viewing_year": 2027
 }

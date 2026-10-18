@@ -1,5 +1,10 @@
 import os
 import json
+import math
+import sys
+import threading
+import time
+import tkinter as tk
 from urllib.parse import urlparse
 from tkinter import messagebox
 from tkinter.simpledialog import askstring
@@ -12,6 +17,31 @@ except ImportError:
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(PROJECT_DIR, "school_config.json")
 DEFAULT_CLOUD_URL = "http://localhost:7000"
+
+
+def _config_candidates(parent=None):
+    candidates = []
+    parent_data_dir = getattr(parent, "USER_DATA_DIR", None)
+    if parent_data_dir:
+        candidates.append(os.path.join(parent_data_dir, "school_config.json"))
+    if getattr(sys, "frozen", False):
+        candidates.append(
+            os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal", "school_config.json")
+        )
+    candidates.append(CONFIG_PATH)
+    return list(dict.fromkeys(candidates))
+
+
+def _load_school_config(parent=None):
+    for path in _config_candidates(parent):
+        try:
+            with open(path, "r", encoding="utf-8") as config_file:
+                config = json.load(config_file)
+            if isinstance(config, dict):
+                return config
+        except (OSError, json.JSONDecodeError):
+            continue
+    return {}
 
 
 def normalize_cloud_url(url):
@@ -27,22 +57,25 @@ def normalize_cloud_url(url):
 
 
 def get_cloud_url():
-    try:
-        if os.path.exists(CONFIG_PATH):
-            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                config = json.load(f)
-                return (
-                    normalize_cloud_url(
-                        config.get("cloud_portal_url", DEFAULT_CLOUD_URL)
-                    )
-                    or DEFAULT_CLOUD_URL
-                )
-    except Exception:
-        pass
-    return DEFAULT_CLOUD_URL
+    config = _load_school_config()
+    return (
+        normalize_cloud_url(config.get("cloud_portal_url", DEFAULT_CLOUD_URL))
+        or DEFAULT_CLOUD_URL
+    )
 
 
 def ask_cloud_credentials(parent=None):
+    config = _load_school_config(parent)
+    school_code = config.get("cloud_school_code")
+    username = config.get("cloud_teacher_username")
+    password = config.get("cloud_teacher_password")
+    if all(isinstance(value, str) and value.strip() for value in (school_code, username, password)):
+        return {
+            "school_code": school_code.strip(),
+            "username": username.strip(),
+            "password": password,
+        }
+
     school_code = askstring(
         "Cloud School Code", "Enter your school code:", parent=parent
     )
@@ -66,10 +99,117 @@ def ask_cloud_credentials(parent=None):
     }
 
 
+def _run_with_indicator(root, request, message):
+    if root is None or threading.current_thread() is not threading.main_thread():
+        return request()
+
+    result = {}
+    indicator = None
+    canvas = None
+    animation_id = None
+    worker = None
+    try:
+        root.update_idletasks()
+        indicator = tk.Toplevel(root)
+        indicator.transient(root)
+        indicator.attributes("-topmost", True)
+        indicator.configure(bg="#252525")
+        indicator.title("Please wait")
+        indicator.resizable(False, False)
+        width, height = 330, 76
+        x = root.winfo_rootx() + max(0, (root.winfo_width() - width) // 2)
+        y = root.winfo_rooty() + max(0, (root.winfo_height() - height) // 2)
+        indicator.geometry(f"{width}x{height}+{x}+{y}")
+        canvas = tk.Canvas(
+            indicator, width=38, height=38, bg="#252525", highlightthickness=0
+        )
+        canvas.pack(side="left", padx=(14, 8), pady=12)
+        tk.Label(
+            indicator,
+            text=message,
+            bg="#252525",
+            fg="#f2f2f2",
+            font=("Segoe UI", 11, "bold"),
+        ).pack(side="left", padx=(0, 14))
+
+        frame = {"step": 0}
+
+        def animate():
+            nonlocal animation_id
+            canvas.delete("all")
+            for dot in range(8):
+                angle = math.radians(dot * 45 - 90)
+                dot_x = 17 + 11 * math.cos(angle)
+                dot_y = 17 + 11 * math.sin(angle)
+                brightness = (dot - frame["step"]) % 8
+                color = "#3b9b70" if brightness == 0 else "#777777"
+                radius = 2.5 if brightness == 0 else 2
+                canvas.create_oval(
+                    dot_x - radius,
+                    dot_y - radius,
+                    dot_x + radius,
+                    dot_y + radius,
+                    fill=color,
+                    outline="",
+                )
+            frame["step"] = (frame["step"] + 1) % 8
+            if indicator.winfo_exists():
+                animation_id = indicator.after(90, animate)
+
+        def run_request():
+            try:
+                result["response"] = request()
+            except Exception as error:
+                result["error"] = error
+
+        animate()
+        indicator.deiconify()
+        indicator.lift()
+        indicator.focus_force()
+        indicator.wait_visibility()
+        indicator.update()
+        worker = threading.Thread(target=run_request, daemon=True)
+        worker.start()
+        while worker.is_alive():
+            try:
+                root.update()
+            except tk.TclError:
+                break
+            time.sleep(0.025)
+        worker.join()
+        if "error" in result:
+            raise result["error"]
+        return result.get("response")
+    except tk.TclError:
+        if worker is None:
+            return request()
+        worker.join()
+        if "error" in result:
+            raise result["error"]
+        return result.get("response")
+    finally:
+        if indicator is not None:
+            try:
+                if animation_id is not None:
+                    indicator.after_cancel(animation_id)
+                indicator.destroy()
+            except tk.TclError:
+                pass
+
+
+def run_with_search_indicator(parent, operation, message="Please wait, searching..."):
+    return _run_with_indicator(parent, operation, message)
+
+
+def _post_with_indicator(root, request):
+    return _run_with_indicator(root, request, "Please wait, contacting the cloud portal...")
+
+
 class CloudService:
-    def __init__(self):
+    def __init__(self, parent=None):
         self.base_url = get_cloud_url()
         self.session = requests.Session() if requests else None
+        self.parent = parent
 
     def _ensure_requests(self):
         if requests is None:
@@ -89,7 +229,10 @@ class CloudService:
             # --- DEBUG PRINT ---
             print(f"SYNC ATTEMPT: Sending data to {url}")
 
-            response = self.session.post(url, json=payload, timeout=20)
+            response = _post_with_indicator(
+                self.parent or getattr(tk, "_default_root", None),
+                lambda: self.session.post(url, json=payload, timeout=20),
+            )
 
             if response.status_code != 200:
                 # This will pop up a window telling us exactly what Railway said

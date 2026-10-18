@@ -1,18 +1,18 @@
 qlite
-2026-10-17 18:34:41,704 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpa63dm6gc\cbc-test.sqlite
-2026-10-17 18:34:42,617 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpa63dm6gc\cbc-test.sqlite
-2026-10-17 18:34:43,158 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpa63dm6gc\cbc-test.sqlite
-.2026-10-17 18:34:43,843 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpi14mgn8x\cbc-test.sqlite
-2026-10-17 18:34:50,824 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpi14mgn8x\cbc-test.sqlite
-2026-10-17 18:34:51,629 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpi14mgn8x\cbc-test.sqlite
-2026-10-17 18:34:52,840 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpi14mgn8x\cbc-test.sqlite
-.2026-10-17 18:34:55,662 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmpazljfp04\legacy-cbc.sqlite
+2026-10-18 21:23:57,458 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmp56g8xsbl\cbc-test.sqlite
+2026-10-18 21:23:58,141 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmp56g8xsbl\cbc-test.sqlite
+2026-10-18 21:23:58,849 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmp56g8xsbl\cbc-test.sqlite
+.2026-10-18 21:23:59,441 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmprl3jwbxt\cbc-test.sqlite
+2026-10-18 21:24:02,933 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmprl3jwbxt\cbc-test.sqlite
+2026-10-18 21:24:03,663 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmprl3jwbxt\cbc-test.sqlite
+2026-10-18 21:24:04,584 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmprl3jwbxt\cbc-test.sqlite
+.2026-10-18 21:24:06,533 - INFO - Database connected at: C:\Users\sakon\AppData\Local\Temp\tmp_rxv9dm5\legacy-cbc.sqlite
 .
 ======================================================================
 FAIL: test_fetch_covered_strands_lists_only_marked_sub_strands (tests.test_cbc_cloud_flow.CBCCloudFlowTests.test_fetch_covered_strands_lists_only_marked_sub_strands)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "C:\Users\sakon\Documents\FreemanTech_Project (2)\FreemanTech_Project\tests\test_cbc_cloud_flow.py", line 324, in test_fetch_covered_strands_lists_only_marked_sub_strands
+  File "C:\Users\sakon\Documents\FreemanTech_Project (2)\FreemanTech_Project\tests\test_cbc_cloud_flow.py", line 333, in test_fetch_covered_strands_lists_only_marked_sub_strands
     self.assertEqual(payload["strands"], [{
     ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
         "name": "Number",
@@ -38,7 +38,7 @@ First differing element 0:
                     {'name': 'Decimals', 'terms': []}]}]
 
 ----------------------------------------------------------------------
-Ran 40 tests in 367.312s
+Ran 40 tests in 199.820s
 
 FAILED (failures=1)
 

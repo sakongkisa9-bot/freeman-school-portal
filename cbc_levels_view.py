@@ -3,10 +3,10 @@ from tkinter import messagebox, ttk
 
 import customtkinter as ctk
 
+from academic_periods import TERMS, available_terms
 from cbc_engine import SUBJECT_TO_LEARNING_AREA
 from cloud_service import CloudService, ask_cloud_credentials
 
-TERMS = ("Term 1", "Term 2", "Term 3")
 LEVELS = ("EE", "ME", "AE", "BE", "AB")
 
 
@@ -14,7 +14,7 @@ class CBCLevelsView(ctk.CTkFrame):
     """Shows each learner's level per strand and sub-strand, as entered on the portal."""
 
     def __init__(self, parent, grade, subjects, school_config, save_config,
-                 back_callback, dashboard_callback):
+                 back_callback, dashboard_callback, view_year=None):
         super().__init__(parent, fg_color="transparent")
         self.grade = grade
         self.subjects = subjects
@@ -26,7 +26,10 @@ class CBCLevelsView(ctk.CTkFrame):
         current_term = school_config.get("current_term")
         self.term_var = ctk.StringVar(value=current_term if current_term in TERMS else TERMS[0])
         self.current_year = self._int_or_none(school_config.get("academic_year")) or datetime.now().year
-        self.year_var = ctk.StringVar(value=str(self.current_year))
+        selected_year = self._int_or_none(view_year) or self.current_year
+        self.dashboard_view_year = self._int_or_none(view_year)
+        self.year_var = ctk.StringVar(value=str(selected_year))
+        self.fetch_buttons = []
         self._build_widgets()
         self._render()
 
@@ -45,6 +48,21 @@ class CBCLevelsView(ctk.CTkFrame):
                 if year:
                     years.add(year)
         return [str(year) for year in sorted(years, reverse=True)]
+
+    def _year_changed(self, _year):
+        self._sync_period_controls()
+        self._render()
+
+    def _sync_period_controls(self):
+        terms = available_terms(
+            self.year_var.get(), self.current_year, self.school_config.get("current_term") or TERMS[0]
+        )
+        self.term_menu.configure(values=list(terms))
+        if self.term_var.get() not in terms:
+            self.term_var.set(terms[-1])
+        state = "disabled" if self.year_var.get() != str(self.current_year) else "normal"
+        for button in self.fetch_buttons:
+            button.configure(state=state)
 
     @property
     def area_name(self):
@@ -71,18 +89,27 @@ class CBCLevelsView(ctk.CTkFrame):
             command=lambda _: self._render(), width=180,
         ).pack(side="left")
         ctk.CTkLabel(controls, text="Term").pack(side="left", padx=(16, 8))
-        ctk.CTkOptionMenu(
+        self.term_menu = ctk.CTkOptionMenu(
             controls, values=list(TERMS), variable=self.term_var,
             command=lambda _: self._render(), width=110,
-        ).pack(side="left")
+        )
+        self.term_menu.pack(side="left")
         ctk.CTkLabel(controls, text="Year").pack(side="left", padx=(16, 8))
-        ctk.CTkOptionMenu(
+        self.year_menu = ctk.CTkOptionMenu(
             controls, values=self._year_options(), variable=self.year_var,
-            command=lambda _: self._render(), width=90,
-        ).pack(side="left")
-        ctk.CTkButton(
+            command=self._year_changed, width=90,
+        )
+        self.year_menu.pack(side="left")
+        if self.dashboard_view_year is not None:
+            self.year_menu.configure(state="disabled")
+        self.fetch_buttons.append(ctk.CTkButton(
             controls, text="Fetch Marked Strands from Portal", height=36, command=self._fetch,
-        ).pack(side="left", padx=16)
+        ))
+        self.fetch_buttons[-1].pack(side="left", padx=16)
+        self.fetch_buttons.append(ctk.CTkButton(
+            controls, text="Fetch All", height=36, command=self._fetch_all,
+        ))
+        self.fetch_buttons[-1].pack(side="left")
 
         self.status = ctk.CTkLabel(self, text="", anchor="w", text_color="gray60")
         self.status.pack(fill="x", padx=26, pady=(0, 6))
@@ -127,14 +154,51 @@ class CBCLevelsView(ctk.CTkFrame):
         if not credentials:
             return
         year = int(self.year_var.get())
+        success, error = self._fetch_area(self.area_name, self.term_var.get(), year, credentials)
+        if not success:
+            messagebox.showerror("Fetch Failed", error, parent=self)
+            return
+        self.save_config({"cbc_levels": self.school_config["cbc_levels"]})
+        self._render()
+
+    def _fetch_all(self):
+        if not self.subjects:
+            messagebox.showwarning("Subject", "No subjects are configured for this class.", parent=self)
+            return
+        credentials = ask_cloud_credentials(self)
+        if not credentials:
+            return
+        year = int(self.year_var.get())
+        term = self.term_var.get()
+        areas = list(dict.fromkeys(
+            SUBJECT_TO_LEARNING_AREA.get(subject.strip().upper(), subject.strip())
+            for subject in self.subjects
+        ))
+        failures = []
+        fetched = 0
+        for area in areas:
+            success, _error = self._fetch_area(area, term, year, credentials)
+            if success:
+                fetched += 1
+            else:
+                failures.append(area)
+        if fetched:
+            self.save_config({"cbc_levels": self.school_config["cbc_levels"]})
+        self._render()
+        if failures:
+            messagebox.showwarning(
+                "Fetch All", f"Fetched {fetched} of {len(areas)} subjects. Failed: {', '.join(failures)}.",
+                parent=self,
+            )
+        else:
+            messagebox.showinfo("Fetch All", f"Fetched marked strands for all {fetched} subjects.", parent=self)
+
+    def _fetch_area(self, area, term, year, credentials):
         result = CloudService().fetch_cbc_ratings(
-            self.grade, self.area_name, self.term_var.get(), year, credentials
+            self.grade, area, term, year, credentials
         )
         if not result.get("success"):
-            messagebox.showerror(
-                "Fetch Failed", result.get("message", "Could not fetch marked strands."), parent=self
-            )
-            return
+            return False, result.get("message", "Could not fetch marked strands.")
         evidence_by_key = {
             (str(row[0]), str(row[3]), str(row[4])): row[6]
             for row in result.get("evidence_records", [])
@@ -145,21 +209,22 @@ class CBCLevelsView(ctk.CTkFrame):
             for row in result.get("records", [])
         ]
         levels = self.school_config.setdefault("cbc_levels", {})
-        by_area = levels.setdefault(self.grade, {}).setdefault(self.area_name, {})
-        by_area[f"{year}|{self.term_var.get()}"] = {
+        by_area = levels.setdefault(self.grade, {}).setdefault(area, {})
+        by_area[f"{year}|{term}"] = {
             "academic_year": year,
             "fetched_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
             "records": records,
         }
-        self.save_config({"cbc_levels": levels})
-        self._render()
+        return True, None
 
     def _render(self):
+        self._sync_period_controls()
         self.tree.delete(*self.tree.get_children())
         record = self._record()
         if not record:
+            note = "Past years are read-only. " if self.year_var.get() != str(self.current_year) else ""
             self.status.configure(
-                text="Nothing fetched for this subject and term yet. Click \"Fetch Marked Strands from Portal\"."
+                text=note + "Nothing fetched for this subject and term yet."
             )
             return
         # Records: assessment number, learner, area, strand, sub-strand, level.
@@ -172,6 +237,7 @@ class CBCLevelsView(ctk.CTkFrame):
         self.status.configure(
             text=f"{self.area_name} \u00b7 {self.term_var.get()} \u00b7 fetched {record['fetched_at']} "
             f"(year {record['academic_year']})"
+            + (" \u00b7 read-only" if self.year_var.get() != str(self.current_year) else "")
         )
         if not strands:
             self.status.configure(text=self.status.cget("text") + " \u00b7 no levels entered yet")

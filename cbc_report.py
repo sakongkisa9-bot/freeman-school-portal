@@ -6,6 +6,7 @@ from kicd_grading import subject_result
 
 LEVEL_VALUES = {"BE": 1, "AE": 2, "ME": 3, "EE": 4}
 VALUE_LEVELS = {value: level for level, value in LEVEL_VALUES.items()}
+CHART_MARKERS = ("circle", "square", "triangle", "cross", "diamond")
 PATHWAY_SUBJECTS = OrderedDict(
     (
         ("STEM", ("Mathematics", "Integrated Science", "Science & Technology", "Pre-Technical Studies", "Agriculture and Nutrition")),
@@ -26,6 +27,10 @@ def normalize_level(value):
         return VALUE_LEVELS.get(int(float(text)), "")
     except (TypeError, ValueError):
         return ""
+
+
+def chart_marker_for_subject(subject_index):
+    return CHART_MARKERS[subject_index % len(CHART_MARKERS)]
 
 
 def group_rubric_records(records):

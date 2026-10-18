@@ -684,6 +684,31 @@ def init_db():
     """)
 
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS homework_assignments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            school_id INTEGER NOT NULL,
+            grade TEXT NOT NULL,
+            teacher_code TEXT,
+            title TEXT NOT NULL,
+            subject TEXT,
+            instructions TEXT NOT NULL DEFAULT '',
+            due_date TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(school_id) REFERENCES schools(id)
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS homework_files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            homework_id INTEGER NOT NULL,
+            filename TEXT NOT NULL,
+            content_type TEXT,
+            file_data BLOB NOT NULL,
+            FOREIGN KEY(homework_id) REFERENCES homework_assignments(id)
+        )
+    """)
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS fcm_tokens (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             student_id INTEGER NOT NULL,
@@ -1222,6 +1247,251 @@ def dashboard():
         exam=exam,
         exam_grades=exam_grades,
     )
+
+
+@app.route("/teacher/homework", methods=["GET", "POST"])
+def teacher_homework():
+    if "school_id" not in session or session.get("role") not in ("teacher", "admin"):
+        return redirect(url_for("teacher_login"))
+
+    conn = get_db()
+    try:
+        school_id = session["school_id"]
+        teacher_code = session.get("teacher_code")
+        if teacher_code:
+            assigned_grades = [
+                row["class_name"]
+                for row in conn.execute(
+                    "SELECT DISTINCT class_name FROM teacher_assignments WHERE school_id = ? AND teacher_code = ? ORDER BY class_name",
+                    (school_id, teacher_code),
+                ).fetchall()
+            ]
+        elif is_admin():
+            assigned_grades = list(GRADE_OPTIONS)
+        else:
+            return redirect(url_for("teacher_login"))
+
+        selected_grade = request.values.get("grade", "").strip()
+        if selected_grade not in assigned_grades:
+            selected_grade = assigned_grades[0] if assigned_grades else ""
+
+        if request.method == "POST":
+            selected_grade = request.form.get("grade", "").strip()
+            title = request.form.get("title", "").strip()
+            subject = request.form.get("subject", "").strip()
+            instructions = request.form.get("instructions", "").strip()
+            due_date = request.form.get("due_date", "").strip()
+            uploaded_files = [
+                uploaded
+                for uploaded in request.files.getlist("files")
+                if uploaded and uploaded.filename
+            ]
+
+            try:
+                parsed_due_date = datetime.strptime(due_date, "%Y-%m-%d").date()
+            except ValueError:
+                parsed_due_date = None
+
+            if selected_grade not in assigned_grades:
+                flash("Choose a class assigned to your account.", "danger")
+            elif not title or not parsed_due_date or parsed_due_date < datetime.now().date():
+                flash("Enter a title and a due date that is today or later.", "danger")
+            elif not instructions and not uploaded_files:
+                flash("Add written instructions or attach at least one file.", "danger")
+            else:
+                cursor = conn.execute(
+                    """INSERT INTO homework_assignments
+                       (school_id, grade, teacher_code, title, subject, instructions, due_date)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        school_id,
+                        selected_grade,
+                        teacher_code,
+                        title,
+                        subject,
+                        instructions,
+                        due_date,
+                    ),
+                )
+                homework_id = cursor.lastrowid
+                for uploaded in uploaded_files:
+                    filename = secure_filename(uploaded.filename) or "attachment"
+                    conn.execute(
+                        "INSERT INTO homework_files (homework_id, filename, content_type, file_data) VALUES (?, ?, ?, ?)",
+                        (homework_id, filename, uploaded.mimetype, uploaded.read()),
+                    )
+
+                students = conn.execute(
+                    "SELECT id FROM students WHERE school_id = ? AND grade = ?",
+                    (school_id, selected_grade),
+                ).fetchall()
+                for student in students:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO parent_view_status (student_id, content_type, content_id, has_viewed) VALUES (?, 'homework', ?, 0)",
+                        (student["id"], homework_id),
+                    )
+                conn.commit()
+
+                try:
+                    from fcm_service import get_fcm_service
+
+                    fcm_service = get_fcm_service()
+                    tokens = [
+                        row["token"]
+                        for row in conn.execute(
+                            """SELECT DISTINCT ft.token FROM fcm_tokens ft
+                               JOIN students s ON s.id = ft.student_id
+                               WHERE s.school_id = ? AND s.grade = ?""",
+                            (school_id, selected_grade),
+                        ).fetchall()
+                    ]
+                    if tokens and fcm_service.is_available():
+                        fcm_service.send_multicast_notification(
+                            tokens=tokens,
+                            title=f"New homework: {title}",
+                            body=f"Homework for {selected_grade} is due {due_date}.",
+                            data={"type": "homework", "homework_id": str(homework_id)},
+                        )
+                except Exception as exc:
+                    logging.warning("Homework notification could not be sent: %s", exc)
+
+                flash("Homework published for " + selected_grade + ".", "success")
+                return redirect(url_for("teacher_homework", grade=selected_grade))
+
+        assignment_rows = conn.execute(
+            """SELECT h.*,
+                      COUNT(pvs.student_id) AS assigned_count,
+                      SUM(CASE WHEN pvs.has_viewed = 1 THEN 1 ELSE 0 END) AS checked_count
+               FROM homework_assignments h
+               LEFT JOIN parent_view_status pvs
+                 ON pvs.content_id = h.id AND pvs.content_type = 'homework'
+               WHERE h.school_id = ? AND h.grade = ?
+               GROUP BY h.id
+               ORDER BY h.due_date DESC, h.created_at DESC""",
+            (school_id, selected_grade),
+        ).fetchall() if selected_grade else []
+        assignments = []
+        for assignment in assignment_rows:
+            assignment_data = dict(assignment)
+            students = conn.execute(
+                """SELECT s.student_name, s.adm_no, pvs.has_viewed
+                   FROM parent_view_status pvs
+                   JOIN students s ON s.id = pvs.student_id
+                   WHERE pvs.content_type = 'homework' AND pvs.content_id = ?
+                     AND s.school_id = ? AND s.grade = ?
+                   ORDER BY s.student_name COLLATE NOCASE, s.adm_no""",
+                (assignment["id"], school_id, selected_grade),
+            ).fetchall()
+            assignment_data["opened_students"] = [
+                student for student in students if student["has_viewed"]
+            ]
+            assignment_data["pending_students"] = [
+                student for student in students if not student["has_viewed"]
+            ]
+            assignments.append(assignment_data)
+
+        return render_template(
+            "cloud_teacher_homework.html",
+            grades=assigned_grades,
+            selected_grade=selected_grade,
+            assignments=assignments,
+            today=datetime.now().date().isoformat(),
+        )
+    finally:
+        conn.close()
+
+
+@app.route("/parent/homework")
+def parent_homework():
+    if "parent_student_id" not in session:
+        return redirect(url_for("parent_login"))
+
+    conn = get_db()
+    try:
+        assignments = conn.execute(
+            """SELECT h.*, COALESCE(pvs.has_viewed, 0) AS has_viewed,
+                      (SELECT COUNT(*) FROM homework_files hf WHERE hf.homework_id = h.id) AS file_count
+               FROM homework_assignments h
+               LEFT JOIN parent_view_status pvs
+                 ON pvs.content_id = h.id AND pvs.content_type = 'homework'
+                AND pvs.student_id = ?
+               WHERE h.school_id = ? AND h.grade = ? AND h.due_date >= date('now')
+               ORDER BY h.due_date, h.created_at DESC""",
+            (session["parent_student_id"], session["parent_school_id"], session["parent_grade"]),
+        ).fetchall()
+        return render_template(
+            "cloud_parent_homework.html",
+            assignments=assignments,
+            school_name=session.get("parent_school_name"),
+            student_name=session.get("parent_student_name"),
+        )
+    finally:
+        conn.close()
+
+
+@app.route("/parent/homework/<int:homework_id>")
+def parent_homework_detail(homework_id):
+    if "parent_student_id" not in session:
+        return redirect(url_for("parent_login"))
+
+    conn = get_db()
+    try:
+        assignment = conn.execute(
+            """SELECT * FROM homework_assignments
+               WHERE id = ? AND school_id = ? AND grade = ? AND due_date >= date('now')""",
+            (homework_id, session["parent_school_id"], session["parent_grade"]),
+        ).fetchone()
+        if not assignment:
+            flash("That homework is no longer available.", "warning")
+            return redirect(url_for("parent_homework"))
+
+        conn.execute(
+            """INSERT OR REPLACE INTO parent_view_status
+               (student_id, content_type, content_id, has_viewed, viewed_at)
+               VALUES (?, 'homework', ?, 1, CURRENT_TIMESTAMP)""",
+            (session["parent_student_id"], homework_id),
+        )
+        conn.commit()
+        files = conn.execute(
+            "SELECT id, filename, content_type FROM homework_files WHERE homework_id = ? ORDER BY id",
+            (homework_id,),
+        ).fetchall()
+        return render_template(
+            "cloud_parent_homework_detail.html",
+            assignment=assignment,
+            files=files,
+            school_name=session.get("parent_school_name"),
+            student_name=session.get("parent_student_name"),
+        )
+    finally:
+        conn.close()
+
+
+@app.route("/parent/homework/file/<int:file_id>")
+def parent_homework_download(file_id):
+    if "parent_student_id" not in session:
+        return redirect(url_for("parent_login"))
+
+    conn = get_db()
+    try:
+        attachment = conn.execute(
+            """SELECT hf.filename, hf.content_type, hf.file_data
+               FROM homework_files hf
+               JOIN homework_assignments h ON h.id = hf.homework_id
+               WHERE hf.id = ? AND h.school_id = ? AND h.grade = ?
+                 AND h.due_date >= date('now')""",
+            (file_id, session["parent_school_id"], session["parent_grade"]),
+        ).fetchone()
+        if not attachment:
+            return "Homework file not found or past its due date.", 404
+        return send_file(
+            io.BytesIO(attachment["file_data"]),
+            mimetype=attachment["content_type"] or "application/octet-stream",
+            as_attachment=True,
+            download_name=attachment["filename"],
+        )
+    finally:
+        conn.close()
 
 
 @app.route("/api/set_period", methods=["POST"])
@@ -4867,6 +5137,7 @@ def parent_login():
             ).fetchone()
 
             if student:
+                session["parent_school_id"] = student["school_id"]
                 # Check if system is locked and payment is required
                 payment_settings = conn.execute(
                     "SELECT * FROM payment_settings ORDER BY id DESC LIMIT 1"
@@ -4951,6 +5222,14 @@ def parent_dashboard():
             (student_id,),
         ).fetchone()["count"]
 
+        unread_homework = conn.execute(
+            """SELECT COUNT(*) AS count FROM parent_view_status pvs
+               JOIN homework_assignments h ON h.id = pvs.content_id
+               WHERE pvs.student_id = ? AND pvs.content_type = 'homework'
+                 AND pvs.has_viewed = 0 AND h.due_date >= date('now')""",
+            (student_id,),
+        ).fetchone()["count"]
+
         return render_template(
             "cloud_parent_landing.html",
             school_name=session.get("parent_school_name"),
@@ -4959,6 +5238,7 @@ def parent_dashboard():
             student_adm_no=session.get("parent_adm_no"),
             unread_newsletters=unread_newsletters,
             unread_reports=unread_reports,
+            unread_homework=unread_homework,
         )
     finally:
         conn.close()

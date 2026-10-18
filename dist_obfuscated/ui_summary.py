@@ -5,6 +5,9 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox
 from fpdf import FPDF
 from grading_logic import get_grade_4_6_rating, get_grade_7_8_rating
+from marksheet_chooser import NEW_STYLE, OLD_STYLE
+from kicd_grading import index_levels, levels_for, subject_result
+from cbc_engine import SUBJECT_TO_LEARNING_AREA
 
 
 def get_app_dir():
@@ -20,8 +23,9 @@ def get_app_dir():
         USER_DATA_DIR = BASE_DIR
     return BASE_DIR, USER_DATA_DIR
 
-LEVEL_ORDER = ["EE1", "EE2", "ME1", "ME2", "AE1", "AE2", "BE1", "BE2"]
+LEVEL_ORDER = ["EE", "ME", "AE", "BE"]
 LEVEL_POINTS = {"EE1": 8, "EE2": 7, "ME1": 6, "ME2": 5, "AE1": 4, "AE2": 3, "BE1": 2, "BE2": 1}
+NEW_LEVEL_ORDER = ("EE", "ME", "AE", "BE")
 
 DEFAULT_SUBJECTS = {
     "playgroup": ["MATH", "CREAT", "ENV"],
@@ -32,16 +36,66 @@ DEFAULT_SUBJECTS = {
     "jss": ["MATH", "ENG", "KISW", "INT SCIE", "PRE-TECH", "SST", "CRE", "AGRI", "C/A"]
 }
 
+
+def normalize_summary_level(level):
+    value = str(level or "").strip().upper().replace(" ", "")
+    if value in NEW_LEVEL_ORDER:
+        return value
+    if value in {"EE1", "EE2"}:
+        return "EE"
+    if value in {"ME1", "ME2"}:
+        return "ME"
+    if value in {"AE1", "AE2"}:
+        return "AE"
+    if value in {"BE1", "BE2"}:
+        return "BE"
+    return ""
+
+
+class SummaryChooser(ctk.CTkFrame):
+    def __init__(self, parent, class_name, load_config, save_config, on_open, on_back):
+        super().__init__(parent, fg_color="transparent")
+        self.class_name = class_name
+        self.load_config = load_config
+        self.save_config = save_config
+        self.on_open = on_open
+        config = load_config()
+        saved_style = config.get("summary_style")
+        self.style_var = ctk.StringVar(value=saved_style if saved_style in (NEW_STYLE, OLD_STYLE) else OLD_STYLE)
+
+        box = ctk.CTkFrame(self, corner_radius=12)
+        box.pack(expand=True)
+        ctk.CTkLabel(box, text=f"{class_name} Student Marks Summary", font=("Arial Bold", 24)).pack(
+            padx=50, pady=(30, 20)
+        )
+        ctk.CTkLabel(box, text="Summary style").pack()
+        ctk.CTkSegmentedButton(
+            box, values=[NEW_STYLE, OLD_STYLE], variable=self.style_var, width=300
+        ).pack(pady=(4, 20))
+        ctk.CTkButton(box, text="Open Summary", width=300, height=42, command=self._open).pack(pady=(0, 10))
+        ctk.CTkButton(
+            box, text="\u2B05 Back", width=300, fg_color="#942727", hover_color="#7a1f1f", command=on_back
+        ).pack(pady=(0, 30))
+
+    def _open(self):
+        style = self.style_var.get()
+        self.save_config({"summary_style": style})
+        self.on_open(style)
+
 class ClassSummaryView(ctk.CTkFrame):
-    def __init__(self, parent, db_connection, class_name):
+    def __init__(self, parent, db_connection, class_name, stream=None, style=OLD_STYLE):
         super().__init__(parent, fg_color="transparent")
         self.db = db_connection
         self.class_name = class_name
+        self.stream = stream
+        self.style = style
         # Initialize proper paths for executable environment
         self.BASE_DIR, self.USER_DATA_DIR = get_app_dir()
         self.grade_type, self.table_name = self.resolve_class_metadata(class_name)
         self.school_config = self.load_school_config()
-        self.subjects = self.get_subjects_from_json(self.grade_type)
+        self.subjects = self.get_subjects_from_json(
+            self.grade_type, selected_only=self.style == NEW_STYLE
+        )
         self.current_exam_title = self.school_config.get(f"{self.grade_type}_exam_title", f"{class_name.upper()} SUMMARY")
         self.summary = self.load_summary_data()
 
@@ -54,7 +108,10 @@ class ClassSummaryView(ctk.CTkFrame):
 
         self.create_header()
         self.create_summary_cards()
-        self.create_details_section()
+        if self.style == NEW_STYLE:
+            self.create_new_style_section()
+        else:
+            self.create_details_section()
         self.create_bottom_controls()
 
     def get_json_path(self):
@@ -93,8 +150,15 @@ class ClassSummaryView(ctk.CTkFrame):
             return "primary", "primary_marks"
         return "jss", "marksheet"
 
-    def get_subjects_from_json(self, section):
+    def get_subjects_from_json(self, section, selected_only=False):
         try:
+            catalog = self.school_config.get("subject_catalog", {}).get(section)
+            if selected_only and isinstance(catalog, list):
+                return [
+                    item["short"].strip()
+                    for item in catalog
+                    if isinstance(item, dict) and item.get("selected") and item.get("short", "").strip()
+                ]
             subjects = self.school_config.get("subjects", {}).get(section)
             if subjects and isinstance(subjects, list):
                 return subjects
@@ -132,6 +196,41 @@ class ClassSummaryView(ctk.CTkFrame):
         except Exception:
             pass
 
+    def _learning_area_for_subject(self, subject):
+        normalized = subject.strip().upper()
+        area = SUBJECT_TO_LEARNING_AREA.get(normalized)
+        if area:
+            return area
+        names = self.school_config.get("subject_names", {}).get(self.grade_type, {})
+        if subject in names:
+            return names[subject]
+        for items in (self.school_config.get("subject_catalog") or {}).values():
+            for item in items:
+                if item.get("short", "").strip().upper() == normalized:
+                    return item.get("name", subject).strip()
+        return subject.strip()
+
+    def _load_new_style_level_indexes(self):
+        config_levels = self.school_config.get("cbc_levels", {}).get(self.class_name, {})
+        term = self.school_config.get("marksheet_term") or self.school_config.get("current_term") or "Term 1"
+        year = str(self.school_config.get("academic_year") or "")
+        indexes = {}
+        for subject in self.subjects:
+            area = self._learning_area_for_subject(subject)
+            area_names = [area]
+            if area == "Agriculture and Nutrition":
+                area_names.append("Agriculture")
+            record = None
+            for area_name in area_names:
+                by_area = config_levels.get(area_name, {})
+                record = by_area.get(f"{year}|{term}") if year else None
+                if record is None:
+                    record = by_area.get(term)
+                if record is not None:
+                    break
+            indexes[subject] = index_levels(record.get("records", [])) if isinstance(record, dict) else {}
+        return indexes
+
     def load_summary_data(self):
         self.ensure_marks_table()
         subject_select = []
@@ -147,17 +246,30 @@ class ClassSummaryView(ctk.CTkFrame):
                 subject_points.append((subject, f"m.{base}_s"))
 
         average_field = "m.average_points" if self.table_name == "marksheet" else "m.average_level"
-        select_columns = ["s.adm_no", "s.name", "s.gender"] + subject_select + ["m.total_points", average_field]
+        if self.style == NEW_STYLE:
+            score_columns = [f"m.{self.clean_column_name(subject)}_s" for subject in self.subjects]
+            select_columns = ["s.adm_no", "s.name", "s.gender", "s.assessment_number"] + score_columns
+            level_indexes = self._load_new_style_level_indexes()
+        else:
+            select_columns = ["s.adm_no", "s.name", "s.gender"] + subject_select + ["m.total_points", average_field]
+            level_indexes = {}
         column_clause = ", ".join(select_columns)
         query = f"SELECT {column_clause} FROM students s LEFT JOIN {self.table_name} m ON s.adm_no = m.adm_no WHERE UPPER(s.grade) = UPPER(?)"
+        params = [self.class_name]
+        if self.stream:
+            query += " AND UPPER(TRIM(s.stream)) = UPPER(?)"
+            params.append(self.stream)
 
         try:
-            self.db.cursor().execute(query, (self.class_name,))
+            self.db.cursor().execute(query, params)
             rows = self.db.cursor().fetchall()
         except Exception:
             rows = []
 
         distribution = {level: 0 for level in LEVEL_ORDER}
+        subject_level_counts = {
+            subject: {level: 0 for level in NEW_LEVEL_ORDER} for subject in self.subjects
+        }
         gender_counts = {"male": 0, "female": 0, "other": 0}
         gender_totals = {"male": 0, "female": 0, "other": 0}
         subject_totals = {subject: 0.0 for subject in self.subjects}
@@ -180,27 +292,35 @@ class ClassSummaryView(ctk.CTkFrame):
 
             gender_counts[gender] += 1
 
-            average_value = row[-1] if len(row) > 0 else None
-            if average_value is not None:
-                average_label = str(average_value).strip().upper().replace(" ", "")
-                if average_label in distribution:
-                    distribution[average_label] += 1
+            if self.style == NEW_STYLE:
+                assessment_number = row[3]
+                start_idx = 4
+                total_points = 0
+            else:
+                average_value = row[-1] if len(row) > 0 else None
+                normalized_level = normalize_summary_level(average_value)
+                if normalized_level:
+                    distribution[normalized_level] += 1
+                total_points = row[-2] if len(row) > 1 and isinstance(row[-2], (int, float)) else 0
+                start_idx = 3
 
-            total_points = row[-2] if len(row) > 1 and isinstance(row[-2], (int, float)) else 0
             if isinstance(total_points, (int, float)):
                 gender_totals[gender] += total_points
 
-            start_idx = 3
             for subject in self.subjects:
-                if self.table_name == "marksheet":
+                if self.style == NEW_STYLE:
                     score = row[start_idx]
-                    remark = row[start_idx + 1]
-                    points = row[start_idx + 2]
+                    start_idx += 1
+                    rating = subject_result(
+                        levels_for(level_indexes.get(subject, {}), assessment_number, row[1]), score
+                    )["R"]
+                    if rating in subject_level_counts[subject]:
+                        subject_level_counts[subject][rating] += 1
+                elif self.table_name == "marksheet":
+                    score = row[start_idx]
                     start_idx += 3
                 else:
                     score = row[start_idx]
-                    remark = row[start_idx + 1]
-                    points = None
                     start_idx += 2
 
                 score_value = 0.0
@@ -212,8 +332,11 @@ class ClassSummaryView(ctk.CTkFrame):
                     except Exception:
                         score_value = 0.0
 
-                subject_totals[subject] += score_value
-                subject_counts[subject] += 1
+                if self.style != NEW_STYLE or (
+                    score is not None and str(score).strip() and str(score).strip().upper() != "AB"
+                ):
+                    subject_totals[subject] += score_value
+                    subject_counts[subject] += 1
 
         subject_averages = []
         for subject in self.subjects:
@@ -244,6 +367,7 @@ class ClassSummaryView(ctk.CTkFrame):
             "gender_counts": gender_counts,
             "gender_totals": gender_totals,
             "subject_averages": subject_averages,
+            "subject_level_counts": subject_level_counts,
             "has_history": has_history,
             "trend_text": trend_text,
         }
@@ -317,6 +441,69 @@ class ClassSummaryView(ctk.CTkFrame):
         chart_frame = ctk.CTkFrame(detail_frame, fg_color="#20232a", corner_radius=10)
         chart_frame.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
         self.render_subject_chart_compact(chart_frame)
+
+    def create_new_style_section(self):
+        chart_panel = ctk.CTkFrame(self.body_frame, fg_color="#20232a", corner_radius=8)
+        chart_panel.pack(fill="x", expand=True, padx=20, pady=(0, 10))
+        ctk.CTkLabel(
+            chart_panel, text="Subject Average and Rank", font=("Arial Bold", 14)
+        ).pack(anchor="w", padx=14, pady=(12, 8))
+
+        canvas_frame = ctk.CTkFrame(chart_panel, fg_color="#111827", corner_radius=6)
+        canvas_frame.pack(fill="x", padx=12, pady=(0, 12))
+        chart_width = max(620, 54 + len(self.subjects) * 78)
+        chart_canvas = ctk.CTkCanvas(
+            canvas_frame, width=620, height=230, bg="#111827", highlightthickness=0
+        )
+        chart_canvas.pack(fill="x", expand=True, padx=5, pady=(5, 0))
+        scrollbar = ctk.CTkScrollbar(canvas_frame, orientation="horizontal", command=chart_canvas.xview)
+        scrollbar.pack(fill="x", padx=5, pady=(0, 5))
+        chart_canvas.configure(xscrollcommand=scrollbar.set, scrollregion=(0, 0, chart_width, 230))
+        chart_canvas.create_line(35, 180, chart_width - 10, 180, fill="#64748b")
+        for value in (25, 50, 75, 100):
+            y = 180 - value * 1.35
+            chart_canvas.create_line(35, y, chart_width - 10, y, fill="#273449")
+            chart_canvas.create_text(28, y, text=str(value), fill="#9ca3af", font=("Arial", 8), anchor="e")
+        for rank, (subject, average) in enumerate(self.summary["subject_averages"], start=1):
+            x = 48 + (rank - 1) * 78
+            height = max(0, min(135, average * 1.35))
+            chart_canvas.create_rectangle(
+                x, 180 - height, x + 38, 180, fill="#38bdf8", outline=""
+            )
+            chart_canvas.create_text(
+                x + 19, 174 - height, text=f"{average:.1f}", fill="#f8fafc", font=("Arial", 8)
+            )
+            chart_canvas.create_text(
+                x + 19, 190, text=f"#{rank} {subject[:8]}", fill="#d1d5db", font=("Arial", 8)
+            )
+
+        table_panel = ctk.CTkFrame(self.body_frame, fg_color="#20232a", corner_radius=8)
+        table_panel.pack(fill="x", expand=True, padx=20, pady=(0, 16))
+        ctk.CTkLabel(
+            table_panel, text="Students by Subject and Level", font=("Arial Bold", 14)
+        ).pack(anchor="w", padx=14, pady=(12, 8))
+        table = ctk.CTkFrame(table_panel, fg_color="transparent")
+        table.pack(fill="x", padx=12, pady=(0, 12))
+        table.grid_columnconfigure(0, weight=3)
+        for column in range(1, len(NEW_LEVEL_ORDER) + 1):
+            table.grid_columnconfigure(column, weight=1, uniform="level-count")
+        headings = ["Subject", *NEW_LEVEL_ORDER]
+        for column, heading in enumerate(headings):
+            ctk.CTkLabel(
+                table, text=heading, font=("Arial Bold", 11), text_color="#bae6fd"
+            ).grid(row=0, column=column, sticky="ew", padx=4, pady=5)
+        for row_index, subject in enumerate(self.subjects, start=1):
+            background = "#111827" if row_index % 2 else "#1f2937"
+            ctk.CTkLabel(
+                table, text=subject, anchor="w", fg_color=background, corner_radius=4
+            ).grid(row=row_index, column=0, sticky="ew", padx=2, pady=2, ipady=5)
+            for column, level in enumerate(NEW_LEVEL_ORDER, start=1):
+                ctk.CTkLabel(
+                    table,
+                    text=str(self.summary["subject_level_counts"][subject][level]),
+                    fg_color=background,
+                    corner_radius=4,
+                ).grid(row=row_index, column=column, sticky="ew", padx=2, pady=2, ipady=5)
 
     def render_distribution_compact(self, parent):
         ctk.CTkLabel(parent, text="Class Level Distribution", font=("Arial Bold", 12)).pack(anchor="w", padx=12, pady=(12, 8))
@@ -426,9 +613,131 @@ class ClassSummaryView(ctk.CTkFrame):
 
         ctk.CTkButton(bottom_bar, text="⬅ Back to Dashboard", fg_color="#ef4444", command=back_callback).pack(side="right", padx=5)
 
+    def generate_new_style_pdf(self, file_path):
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.graphics.shapes import Drawing, Line, Rect, String
+        from reportlab.platypus import KeepInFrame, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+        from xml.sax.saxutils import escape
+
+        page_width, page_height = landscape(A4)
+        styles = getSampleStyleSheet()
+        styles.add(ParagraphStyle(
+            name="SummaryTitle", parent=styles["Title"], fontName="Helvetica-Bold",
+            fontSize=17, leading=21, alignment=TA_CENTER, textColor=colors.HexColor("#17324d"),
+        ))
+        styles.add(ParagraphStyle(
+            name="SummarySubTitle", parent=styles["Normal"], fontSize=10,
+            alignment=TA_CENTER, textColor=colors.HexColor("#475569"),
+        ))
+        subject_data = self.summary["subject_averages"]
+        chart = Drawing(page_width - 48, 155)
+        plot_left, plot_bottom, plot_height = 38, 25, 105
+        plot_width = page_width - 110
+        chart.add(Line(plot_left, plot_bottom, plot_left + plot_width, plot_bottom, strokeColor=colors.grey))
+        for mark in (0, 25, 50, 75, 100):
+            y = plot_bottom + mark / 100 * plot_height
+            chart.add(Line(plot_left, y, plot_left + plot_width, y, strokeColor=colors.HexColor("#e2e8f0")))
+            chart.add(String(3, y - 3, str(mark), fontName="Helvetica", fontSize=7, fillColor=colors.HexColor("#475569")))
+        slot_width = plot_width / max(1, len(subject_data))
+        bar_width = min(38, slot_width * 0.55)
+        for rank, (subject, average) in enumerate(subject_data, start=1):
+            center_x = plot_left + slot_width * (rank - 0.5)
+            bar_height = max(0, min(100, average)) / 100 * plot_height
+            chart.add(Rect(
+                center_x - bar_width / 2, plot_bottom, bar_width, bar_height,
+                fillColor=colors.HexColor("#168aad"), strokeColor=None,
+            ))
+            chart.add(String(
+                center_x, plot_bottom + bar_height + 3, f"{average:.1f}",
+                fontName="Helvetica", fontSize=7, textAnchor="middle", fillColor=colors.HexColor("#17324d"),
+            ))
+            chart.add(String(
+                center_x, 8, f"#{rank} {subject[:8]}",
+                fontName="Helvetica", fontSize=7, textAnchor="middle", fillColor=colors.HexColor("#334155"),
+            ))
+
+        header = Paragraph(
+            f"{escape(str(self.school_config.get('school_name', 'Freeman Tech Solutions')).upper())}",
+            styles["SummaryTitle"],
+        )
+        subtitle = Paragraph(
+            f"{escape(self.class_name.upper())} STUDENT MARKS SUMMARY | {escape(self.current_exam_title)}",
+            styles["SummarySubTitle"],
+        )
+        metrics = [
+            ["Total Students", "Male", "Female", "Other"],
+            [
+                str(self.summary["total_students"]),
+                str(self.summary["gender_counts"]["male"]),
+                str(self.summary["gender_counts"]["female"]),
+                str(self.summary["gender_counts"]["other"]),
+            ],
+        ]
+        metric_table = Table(metrics, colWidths=[(page_width - 48) / 4] * 4)
+        metric_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e8f1f5")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#17324d")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#cbd5e1")),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        levels = [["Subject", *NEW_LEVEL_ORDER]] + [
+            [subject, *[str(self.summary["subject_level_counts"][subject][level]) for level in NEW_LEVEL_ORDER]]
+            for subject in self.subjects
+        ]
+        level_table = Table(levels, colWidths=[page_width - 48 - 4 * 90, 90, 90, 90, 90], repeatRows=1)
+        table_style = TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#17324d")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 7.5),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("ALIGN", (0, 1), (0, -1), "LEFT"),
+            ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#cbd5e1")),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f1f5f9")]),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ])
+        level_table.setStyle(table_style)
+
+        def draw_footer(canvas, document):
+            canvas.saveState()
+            canvas.setStrokeColor(colors.HexColor("#cbd5e1"))
+            canvas.line(24, 24, page_width - 24, 24)
+            canvas.setFont("Helvetica", 8)
+            canvas.setFillColor(colors.HexColor("#64748b"))
+            canvas.drawString(24, 12, "Student Marks Summary")
+            canvas.drawRightString(page_width - 24, 12, f"Page {document.page}")
+            canvas.restoreState()
+
+        document = SimpleDocTemplate(
+            file_path, pagesize=landscape(A4), leftMargin=24, rightMargin=24,
+            topMargin=24, bottomMargin=32, title=f"{self.class_name} Student Marks Summary",
+        )
+        content = [header, subtitle, Spacer(1, 6), metric_table, Spacer(1, 8)]
+        content.extend([Paragraph("Subject Average and Rank", styles["Heading2"]), chart, Spacer(1, 4)])
+        content.extend([Paragraph("Students by Subject and Level", styles["Heading2"]), level_table])
+        page_content = KeepInFrame(
+            page_width - 48, page_height - 56, content, mode="shrink"
+        )
+        document.build([page_content], onFirstPage=draw_footer, onLaterPages=draw_footer)
+        messagebox.showinfo("Report Saved", f"PDF exported to {os.path.basename(file_path)}", parent=self)
+
     def generate_pdf_report(self):
         file_path = filedialog.asksaveasfilename(defaultextension=".pdf", initialfile=f"{self.class_name}_SUMMARY.pdf")
         if not file_path:
+            return
+
+        if self.style == NEW_STYLE:
+            try:
+                self.generate_new_style_pdf(file_path)
+            except Exception as exc:
+                messagebox.showerror("PDF Error", f"Could not create PDF: {exc}", parent=self)
             return
 
         school = self.school_config.get("school_name", "Freeman Tech Solutions").upper()

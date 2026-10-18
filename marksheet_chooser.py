@@ -1,8 +1,8 @@
 import customtkinter as ctk
 
+from academic_periods import TERMS, available_terms
 from teachers_linked import map_class_name_to_config_key
 
-TERMS = ("Term 1", "Term 2", "Term 3")
 NEW_STYLE = "New style"
 OLD_STYLE = "Old style"
 
@@ -13,7 +13,8 @@ class MarksheetChooser(ctk.CTkFrame):
     on_open(style, term, exam_name, is_current) is called when the user presses Open.
     """
 
-    def __init__(self, parent, db, class_name, load_config, save_config, on_open, on_back, stream=None):
+    def __init__(self, parent, db, class_name, load_config, save_config, on_open, on_back,
+                 stream=None, view_year=None):
         super().__init__(parent, fg_color="transparent")
         self.db = db
         self.class_name = class_name
@@ -22,6 +23,7 @@ class MarksheetChooser(ctk.CTkFrame):
         self.load_config = load_config
         self.save_config = save_config
         self.on_open = on_open
+        self.view_year = view_year
         self.grade_type = map_class_name_to_config_key(class_name)
         config = load_config()
 
@@ -30,8 +32,10 @@ class MarksheetChooser(ctk.CTkFrame):
         term_default = config.get("current_term") or config.get(f"{self.grade_type}_exam_term") or config.get("marksheet_term")
         self.term_var = ctk.StringVar(value=term_default if term_default in TERMS else TERMS[0])
         current_year = config.get("academic_year")
-        years = sorted({y for y in [current_year, *db.get_previous_exam_years()] if y}, reverse=True)
-        self.years = [str(y) for y in years] or ["-"]
+        years = {str(year) for year in [current_year, *db.get_previous_exam_years(self.history_class_name)] if year}
+        if self.view_year is not None:
+            years = {str(self.view_year)}
+        self.years = sorted(years, key=lambda year: int(year), reverse=True) or ["-"]
         self.year_var = ctk.StringVar(value=str(current_year) if current_year else self.years[0])
         self.exam_var = ctk.StringVar()
         self.exam_labels = {}
@@ -44,14 +48,18 @@ class MarksheetChooser(ctk.CTkFrame):
         ctk.CTkSegmentedButton(box, values=[NEW_STYLE, OLD_STYLE], variable=self.style_var, width=300).pack(pady=(4, 16))
 
         ctk.CTkLabel(box, text="Year").pack()
-        ctk.CTkOptionMenu(
-            box, values=self.years, variable=self.year_var, width=300, command=lambda _v: self._refresh_exams()
-        ).pack(pady=(4, 16))
+        self.year_menu = ctk.CTkOptionMenu(
+            box, values=self.years, variable=self.year_var, width=300, command=self._year_changed
+        )
+        self.year_menu.pack(pady=(4, 16))
+        if self.view_year is not None:
+            self.year_menu.configure(state="disabled")
 
         ctk.CTkLabel(box, text="Term").pack()
-        ctk.CTkSegmentedButton(
-            box, values=list(TERMS), variable=self.term_var, width=300, command=lambda _v: self._refresh_exams()
-        ).pack(pady=(4, 16))
+        self.term_menu = ctk.CTkSegmentedButton(
+            box, values=list(TERMS), variable=self.term_var, width=300, command=self._term_changed
+        )
+        self.term_menu.pack(pady=(4, 16))
 
         ctk.CTkLabel(box, text="Exam").pack()
         self.exam_menu = ctk.CTkOptionMenu(box, values=["-"], variable=self.exam_var, width=300)
@@ -65,6 +73,22 @@ class MarksheetChooser(ctk.CTkFrame):
         ).pack(pady=(0, 30))
         self._refresh_exams()
 
+    def _available_terms(self):
+        config = self.load_config()
+        return available_terms(
+            self.year_var.get(), config.get("academic_year"), config.get("current_term") or TERMS[0]
+        )
+
+    def _year_changed(self, _year):
+        terms = self._available_terms()
+        self.term_menu.configure(values=list(terms))
+        if self.term_var.get() not in terms:
+            self.term_var.set(terms[-1])
+        self._refresh_exams()
+
+    def _term_changed(self, _term):
+        self._refresh_exams()
+
     def _current_title(self):
         config = self.load_config()
         if self.grade_type == "jss":
@@ -72,6 +96,10 @@ class MarksheetChooser(ctk.CTkFrame):
         return config.get(f"{self.grade_type}_exam_title", "")
 
     def _refresh_exams(self):
+        terms = self._available_terms()
+        self.term_menu.configure(values=list(terms))
+        if self.term_var.get() not in terms:
+            self.term_var.set(terms[-1])
         term = self.term_var.get()
         config = self.load_config()
         current = self._current_title()

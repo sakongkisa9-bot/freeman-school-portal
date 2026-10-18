@@ -153,6 +153,60 @@ class CloudService:
         }
         return self._post_json("/api/upload_cba_tasks", payload)
 
+    def set_period(self, academic_year, term, credentials):
+        payload = {
+            "school_code": credentials["school_code"],
+            "username": credentials["username"],
+            "password": credentials["password"],
+            "academic_year": academic_year,
+            "term": term,
+        }
+        return self._post_json("/api/set_period", payload)
+
+    def start_new_year(self, academic_year, term, credentials):
+        payload = {
+            "school_code": credentials["school_code"],
+            "username": credentials["username"],
+            "password": credentials["password"],
+            "academic_year": academic_year,
+            "term": term,
+        }
+        return self._post_json("/api/start_new_year", payload)
+
+    def create_exam(self, title, all_classes, classes, credentials):
+        payload = {
+            "school_code": credentials["school_code"],
+            "username": credentials["username"],
+            "password": credentials["password"],
+            "title": title,
+            "all_classes": all_classes,
+            "classes": classes,
+        }
+        return self._post_json("/api/create_exam", payload)
+
+    def fetch_cbc_ratings(self, grade, area, term, academic_year, credentials):
+        payload = {
+            "school_code": credentials["school_code"],
+            "username": credentials["username"],
+            "password": credentials["password"],
+            "grade": grade,
+            "area": area,
+            "term": term,
+            "academic_year": academic_year,
+        }
+        return self._post_json("/api/cbc/fetch_ratings", payload)
+
+    def fetch_cbc_covered_strands(self, grade, area, academic_year, credentials):
+        payload = {
+            "school_code": credentials["school_code"],
+            "username": credentials["username"],
+            "password": credentials["password"],
+            "grade": grade,
+            "area": area,
+            "academic_year": academic_year,
+        }
+        return self._post_json("/api/cbc/fetch_covered_strands", payload)
+
     def fetch_cba_results(self, grade, subject, term, credentials):
         payload = {
             "school_code": credentials["school_code"],

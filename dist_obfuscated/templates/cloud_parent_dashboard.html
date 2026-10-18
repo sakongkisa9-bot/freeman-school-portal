@@ -829,7 +829,164 @@
             </div>
         </div>
 
+        <style>
+            .cbc-page-nav { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0; }
+            .cbc-page-nav button { border:0; border-radius:4px; padding:10px 14px; background:#e2e8f0; color:#1f2937; font-weight:700; cursor:pointer; }
+            .cbc-page-nav button.active { background:#2e7d32; color:#fff; }
+            .cbc-report-page { display:none; }
+            .cbc-report-page.active { display:block; }
+            .cbc-report-note { padding:10px 12px; border-left:4px solid #2e7d32; background:#f0fdf4; margin:10px 0; }
+            .cbc-level { color:#fff; font-weight:700; text-align:center; }
+            .cbc-level-BE { background:#b91c1c; }
+            .cbc-level-AE { background:#c2410c; }
+            .cbc-level-ME { background:#1d4ed8; }
+            .cbc-level-EE { background:#15803d; }
+            .cbc-history { height:340px; margin:14px 0; }
+            .cbc-rubric { margin:18px 0; page-break-inside:avoid; }
+            .cbc-recommendation { padding:12px; background:#fff7ed; border-left:4px solid #c2410c; margin:12px 0; }
+            @media print {
+                .cbc-page-nav, .cbc-report-actions { display:none !important; }
+                .cbc-report-page { display:block !important; page-break-after:always !important; }
+                .cbc-report-page:last-child { page-break-after:auto !important; }
+                .cbc-history { display:block !important; height:260px !important; }
+                .report-table { box-shadow:none !important; }
+            }
+        </style>
+
+        {% set report_history = report.get('performance_history', []) %}
+        {% set prior_history = report_history[:-1][-2:] %}
+        {% set latest_previous = prior_history[-1] if prior_history else none %}
+        <nav class="cbc-page-nav" aria-label="Report pages">
+            <button type="button" class="active" data-report-page="summary" onclick="showCBCReportPage('summary', this)">Summary</button>
+            {% for area in report.get('rubric_subjects', []) %}
+            <button type="button" data-report-page="rubric-{{ loop.index0 }}" onclick="showCBCReportPage('rubric-{{ loop.index0 }}', this)">{{ area.name }}</button>
+            {% endfor %}
+            {% if report.get('pathway_recommendation') %}
+            <button type="button" data-report-page="pathway" onclick="showCBCReportPage('pathway', this)">Career Pathways</button>
+            {% endif %}
+            <button type="button" onclick="printLandscape()">Print Full Report</button>
+        </nav>
+
+        <section id="cbc-page-summary" class="cbc-report-page active">
+            <h2 class="history-title">Learner Detailed Performance Summary</h2>
+            <div class="cbc-report-note">
+                Composite level = 70% formative evidence + 30% summative assessment. If no sub-strands are marked, the summative assessment alone determines the level. Earlier exam columns show the scores stored for those exams.
+            </div>
+            <div class="table-responsive">
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th class="left-align" rowspan="2">Learning Area</th>
+                            {% for exam in prior_history %}<th rowspan="2">{{ exam.name }}</th>{% endfor %}
+                            <th colspan="4">{{ report.exam_title|default(current_exam_title) }} (Current Exam)</th>
+                            <th rowspan="2">Improvement</th>
+                            <th rowspan="2">Teacher</th>
+                            <th class="left-align" rowspan="2">Teacher Comment</th>
+                        </tr>
+                        <tr>
+                            <th>Formative (70%)</th><th>Summative (30%)</th>
+                            <th>Composite (Total)</th><th>Level</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for result in report.get('subject_results', []) %}
+                        {% set teacher = teacher_map.get(result.subject, teacher_map.get(result.area, 'Not assigned')) %}
+                        {% set comment_code = {'EE':'EE1', 'ME':'ME1', 'AE':'AE1', 'BE':'BE1'}.get(result.rating, '') %}
+                        <tr>
+                            <td class="left-align">{{ result.area }}</td>
+                            {% for exam in prior_history %}<td>{{ exam.subjects.get(result.subject, '-') }}</td>{% endfor %}
+                            <td>{{ result.formative }}</td><td>{{ result.summative or '-' }}</td>
+                            <td>{{ result.composite_score|int if result.composite_score is not none else '-' }}</td>
+                            <td class="cbc-level cbc-level-{{ result.rating }}">{{ result.rating or '-' }}</td>
+                            {% if result.composite_score is not none and latest_previous and latest_previous.subjects.get(result.subject) is not none %}
+                                {% set difference = (result.composite_score|float - latest_previous.subjects.get(result.subject)|float)|round|int %}
+                                <td>{{ '+' if difference > 0 else '' }}{{ difference }}</td>
+                            {% else %}<td>-</td>{% endif %}
+                            <td>{{ teacher }}</td>
+                            <td class="left-align">{{ comment_code|rating_to_comment(result.subject, report.get('subject_comment_indices', {})) if comment_code else 'No rating comment available' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="cbc-report-note">Rating scale: EE = Exceeding Expectations, ME = Meeting Expectations, AE = Approaching Expectations, BE = Beginning to meet expectations. Improvement compares the current composite with the latest prior exam score.</p>
+            <div class="history-section">
+                <div class="history-title">Subject Progress History</div>
+                <p>Earlier exams show recorded assessment scores; the current exam shows the CBC composite percentage.</p>
+                <div class="cbc-history"><canvas id="historyChart"></canvas></div>
+            </div>
+            {% set overall_code = {'EE':'EE1', 'ME':'ME1', 'AE':'AE1', 'BE':'BE1'}.get(report.get('average_rating'), '') %}
+            {% set teacher_comments = report.get('teacher_comments', {}) %}
+            <div class="history-section">
+                <div class="history-title">Teacher and Administrator Comments</div>
+                <div style="border:1px solid #cbd5e1;padding:10px;margin-bottom:10px;font-size:12px;">
+                    <strong>Class Teacher:</strong> {{ teacher_comments.get('class_teacher') or (overall_code|get_class_teacher_comment if overall_code else 'More assessment evidence is needed.') }}
+                </div>
+                <div style="border:1px solid #cbd5e1;padding:10px;font-size:12px;">
+                    <strong>Head Teacher:</strong> {{ teacher_comments.get('head_teacher') or (overall_code|get_head_teacher_comment if overall_code else 'More assessment evidence is needed.') }}
+                </div>
+            </div>
+            <div class="signature-block">
+                <div class="signature-section">
+                    <div class="signature-label">School Administrator</div>
+                    <div class="signature-name">{{ school_administrator }}</div>
+                    {% if school_signature %}<img src="{{ school_signature }}" alt="Signature" style="height:60px;max-width:200px;">{% else %}<div class="signature-line"></div>{% endif %}
+                    <div class="signature-label">Date: _______________</div>
+                </div>
+            </div>
+        </section>
+
+        {% for area in report.get('rubric_subjects', []) %}
+        <section id="cbc-page-rubric-{{ loop.index0 }}" class="cbc-report-page">
+            <h2 class="history-title">{{ area.name }}: Detailed Performance Rubric</h2>
+            {% if not area.strands %}
+            <p class="cbc-report-note">No strand ratings are available for this learning area and term. The summary rating uses the summative assessment alone.</p>
+            {% else %}
+                {% for strand in area.strands %}
+                <div class="cbc-rubric">
+                    <h3>{{ strand.name }}</h3>
+                    <div class="table-responsive">
+                        <table class="report-table">
+                            <thead><tr><th class="left-align">Sub-strand</th><th>BE (1)</th><th>AE (2)</th><th>ME (3)</th><th>EE (4)</th></tr></thead>
+                            <tbody>
+                                {% for item in strand.sub_strands %}
+                                <tr>
+                                    <td class="left-align">{{ item.name }}</td>
+                                    {% for level in ['BE', 'AE', 'ME', 'EE'] %}
+                                    <td class="cbc-level cbc-level-{{ level }}">{{ 'X' if item.level == level else '' }}</td>
+                                    {% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endfor %}
+            {% endif %}
+            {% if area.recommendations %}
+            <div class="cbc-recommendation"><strong>Revisit focus:</strong> {{ area.recommendations|map(attribute='name')|join(', ') }}. Support the learner in these sub-strands.</div>
+            {% else %}
+            <div class="cbc-recommendation">No specific revisit recommendation: the recorded ratings do not show a lower-level variation.</div>
+            {% endif %}
+        </section>
+        {% endfor %}
+
+        {% if report.get('pathway_recommendation') %}
+        <section id="cbc-page-pathway" class="cbc-report-page">
+            <h2 class="history-title">Junior Career Pathway Guidance</h2>
+            <div class="cbc-report-note"><strong>Indicative recommendation: {{ report.pathway_recommendation.recommended or 'Not enough ratings' }}</strong><br>{{ report.pathway_recommendation.basis }}</div>
+            {% for pathway in report.pathway_recommendation.pathways %}
+            <div class="cbc-rubric">
+                <h3>{{ pathway.name }}{% if pathway.name == report.pathway_recommendation.recommended %} - Recommended{% endif %}</h3>
+                <p>Learning-area performance: {{ '%.1f'|format(pathway.score) if pathway.score is not none else 'No evidence' }}%</p>
+                <ul>{% for subject in pathway.subject_scores %}<li>{{ subject.name }}: {{ '%.1f'|format(subject.score) if subject.score is not none else 'No recorded composite' }}{% if subject.score is not none %}%{% endif %}</li>{% endfor %}</ul>
+            </div>
+            {% endfor %}
+        </section>
+        {% endif %}
+
         <!-- Performance Table -->
+        {% if false %}
         <div class="table-responsive">
             <table class="report-table">
             <thead>
@@ -1065,6 +1222,7 @@
                 <div class="signature-label">Date: _______________</div>
             </div>
         </div>
+        {% endif %}
 
 
         <script>
@@ -1098,96 +1256,98 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 {% if report %}
-// Rating level order from lowest to highest
-const ratingLevels = ['BE2', 'BE1', 'AE2', 'AE1', 'ME2', 'ME1', 'EE2', 'EE1'];
-const ratingPoints = {'BE2': 1, 'BE1': 2, 'AE2': 3, 'AE1': 4, 'ME2': 5, 'ME1': 6, 'EE2': 7, 'EE1': 8};
-
-// Prepare exam data including current exam
-const examLabels = [];
-const examData = [];
-
-// Collect previous exams data (they come in newest-first order from database)
-const previousExamsData = [];
-{% if previous_exams %}
-{% for prev_exam in previous_exams %}
-{# Use pre-calculated average_level from report data #}
-{% set prev_avg = prev_exam.average_level if prev_exam.average_level is defined else 'BE2' %}
-previousExamsData.push({
-    title: '{{ prev_exam.exam_title[:15] }}',
-    avg: '{{ prev_avg }}'
-});
-{% endfor %}
-{% endif %}
-
-// Reverse to get oldest-first order, then add to chart
-for (let i = previousExamsData.length - 1; i >= 0; i--) {
-    examLabels.push(previousExamsData[i].title);
-    examData.push(ratingPoints[previousExamsData[i].avg] || 1);
+function showCBCReportPage(pageName, button) {
+    document.querySelectorAll('.cbc-report-page').forEach(page => page.classList.remove('active'));
+    document.querySelectorAll('.cbc-page-nav button[data-report-page]').forEach(item => item.classList.remove('active'));
+    const page = document.getElementById(`cbc-page-${pageName}`);
+    if (page) page.classList.add('active');
+    if (button) button.classList.add('active');
 }
 
-// Add current exam at the end
-examLabels.push('{{ report.exam_title|default("Current") }}');
-const currentAvg = '{{ report.current_marks.average_level|default("BE2") }}';
-examData.push(ratingPoints[currentAvg] || 1);
+function printLandscape() {
+    const style = document.createElement('style');
+    style.textContent = '@page { size: landscape; margin: 0.5cm; }';
+    document.head.appendChild(style);
+    window.print();
+    setTimeout(() => style.remove(), 1000);
+}
 
-const historyCtx = document.getElementById('historyChart').getContext('2d');
-new Chart(historyCtx, {
-    type: 'bar',
-    data: {
-        labels: examLabels,
-        datasets: [{
-            label: 'Average Level',
-            data: examData,
-            backgroundColor: 'rgba(102, 126, 234, 0.7)',
-            borderColor: '#667eea',
-            borderWidth: 2,
-            borderRadius: 4
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: { display: false }
-        },
-        scales: {
-            y: {
-                min: 0.5,
-                max: 8.5,
-                grid: {
-                    color: '#ccc',
-                    drawBorder: true
-                },
-                ticks: {
-                    callback: function(value, index, values) {
-                        if (value >= 1 && value <= 8 && Number.isInteger(value)) {
-                            return ratingLevels[value - 1];
-                        }
-                        return '';
-                    },
-                    font: {
-                        family: 'Arial',
-                        size: 11,
-                        weight: 'bold'
-                    },
-                    stepSize: 1
-                }
-            },
-            x: {
-                grid: {
-                    color: '#ccc',
-                    drawBorder: true
-                },
-                ticks: {
-                    font: {
-                        family: 'Arial',
-                        size: 10
-                    }
+const reportHistory = {{ report.get('performance_history', [])|tojson }};
+const reportSubjects = {{ report.get('subjects', [])|tojson }};
+const subjectLabels = {{ report.get('subject_labels', {})|tojson }};
+const lineColors = ['#166534', '#2563eb', '#c2410c', '#9333ea', '#0891b2', '#be123c', '#4d7c0f', '#0f766e', '#a16207'];
+const pointStyles = ['circle', 'rect', 'triangle', 'cross', 'rectRot'];
+const historyCanvas = document.getElementById('historyChart');
+if (historyCanvas && typeof Chart !== 'undefined') {
+    const endLabels = {
+        id: 'cbcEndLabels',
+        afterDatasetsDraw(chart) {
+            const {ctx} = chart;
+            const entries = chart.data.datasets.map((dataset, index) => {
+                const meta = chart.getDatasetMeta(index);
+                let lastIndex = dataset.data.length - 1;
+                while (lastIndex >= 0 && (dataset.data[lastIndex] === null || dataset.data[lastIndex] === undefined)) lastIndex--;
+                const lastPoint = lastIndex >= 0 ? meta.data[lastIndex] : null;
+                return lastPoint ? {dataset, point: lastPoint} : null;
+            }).filter(Boolean).sort((left, right) => left.point.y - right.point.y);
+            const top = chart.chartArea.top + 10;
+            const bottom = chart.chartArea.bottom - 6;
+            const gap = 15;
+            const positions = entries.map((entry, index) => Math.max(entry.point.y, top + index * gap));
+            for (let index = 1; index < positions.length; index++) {
+                positions[index] = Math.max(positions[index], positions[index - 1] + gap);
+            }
+            if (positions.length && positions[positions.length - 1] > bottom) {
+                positions[positions.length - 1] = bottom;
+                for (let index = positions.length - 2; index >= 0; index--) {
+                    positions[index] = Math.min(positions[index], positions[index + 1] - gap);
                 }
             }
+            ctx.save();
+            entries.forEach(({dataset, point}, index) => {
+                const labelY = positions[index];
+                ctx.strokeStyle = dataset.borderColor;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(point.x + 4, point.y);
+                ctx.lineTo(point.x + 9, labelY);
+                ctx.stroke();
+                ctx.fillStyle = dataset.borderColor;
+                ctx.font = '600 11px Segoe UI';
+                ctx.fillText(subjectLabels[dataset.label] || dataset.label, point.x + 12, labelY + 4);
+            });
+            ctx.restore();
         }
-    }
-});
+    };
+    new Chart(historyCanvas.getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: reportHistory.map(item => item.name),
+            datasets: reportSubjects.map((subject, index) => ({
+                label: subject,
+                data: reportHistory.map(item => item.subjects?.[subject] ?? null),
+                borderColor: lineColors[index % lineColors.length],
+                backgroundColor: lineColors[index % lineColors.length],
+                pointStyle: pointStyles[index % pointStyles.length],
+                pointRadius: 4,
+                borderWidth: 2,
+                tension: 0,
+                spanGaps: true
+            }))
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: {padding: {right: 245}},
+            plugins: {legend: {display: false}, tooltip: {mode: 'index', intersect: false}},
+            scales: {
+                y: {min: 0, max: 100, title: {display: true, text: 'Composite / score (%)'}},
+                x: {title: {display: true, text: 'Exam'}}
+            }
+        },
+        plugins: [endLabels]
+    });
+}
 {% endif %}
 </script>
 {% endblock %}

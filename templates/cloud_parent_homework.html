@@ -1,0 +1,46 @@
+{% extends "cloud_base.html" %}
+
+{% block title %}Homework - {{ school_name }}{% endblock %}
+
+{% block content %}
+<style>
+    .parent-homework { max-width: 900px; margin: 0 auto; padding: 28px 18px 48px; color: #172126; }
+    .parent-homework header { margin-bottom: 22px; }
+    .parent-homework h1 { margin: 0 0 7px; color: #123c3a; font-size: 29px; }
+    .parent-homework header p { margin: 0; color: #64716f; }
+    .homework-back { display: inline-block; margin-top: 13px; color: #0f766e; font-weight: 700; text-decoration: none; }
+    .parent-assignment { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 19px 0; border-top: 1px solid #dce7e4; text-decoration: none; color: inherit; }
+    .parent-assignment:hover .assignment-title { color: #0f766e; }
+    .assignment-title { margin: 0 0 6px; font-size: 18px; color: #183d39; }
+    .assignment-meta { display: flex; flex-wrap: wrap; gap: 8px 14px; color: #64716f; font-size: 13px; }
+    .assignment-state { flex: 0 0 auto; color: #0f766e; font-size: 12px; font-weight: 800; }
+    .assignment-state.new { color: #a33725; }
+    .homework-empty { margin-top: 20px; padding: 20px; border-left: 4px solid #0f766e; background: #edf6f3; color: #47615d; }
+    @media (max-width: 560px) { .parent-homework { padding: 20px 14px 32px; } .parent-homework h1 { font-size: 25px; } .parent-assignment { align-items: start; flex-direction: column; gap: 8px; } }
+</style>
+
+<main class="parent-homework">
+    <header>
+        <h1>Homework</h1>
+        <p>{{ student_name }} · {{ school_name }}</p>
+        <a class="homework-back" href="{{ url_for('parent_dashboard') }}">Back to student portal</a>
+    </header>
+    {% if assignments %}
+        {% for assignment in assignments %}
+        <a class="parent-assignment" href="{{ url_for('parent_homework_detail', homework_id=assignment.id) }}">
+            <div>
+                <h2 class="assignment-title">{{ assignment.title }}</h2>
+                <div class="assignment-meta">
+                    {% if assignment.subject %}<span>{{ assignment.subject }}</span>{% endif %}
+                    <span>Due {{ assignment.due_date }}</span>
+                    {% if assignment.file_count %}<span>{{ assignment.file_count }} attachment{{ '' if assignment.file_count == 1 else 's' }}</span>{% endif %}
+                </div>
+            </div>
+            <span class="assignment-state {{ 'new' if not assignment.has_viewed else '' }}">{{ 'NEW' if not assignment.has_viewed else 'VIEWED' }}</span>
+        </a>
+        {% endfor %}
+    {% else %}
+        <p class="homework-empty">There is no current homework for this class.</p>
+    {% endif %}
+</main>
+{% endblock %}

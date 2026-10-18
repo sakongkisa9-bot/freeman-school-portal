@@ -46,6 +46,7 @@ class FreemanDB:
         
         # Create all tables (run regardless of connection success)
         self.create_table()
+        self.create_class_streams_table()
         self.create_marksheet_table()
         self.create_playgroup_table()
         self.create_pp1_table()
@@ -170,7 +171,71 @@ class FreemanDB:
             self.conn.commit()
         except:
             pass
+        # Existing databases may predate KNEC assessment numbers
+        try:
+            self._cursor.execute("ALTER TABLE students ADD COLUMN assessment_number TEXT")
+            self.conn.commit()
+        except:
+            pass
         self.conn.commit()
+
+    def create_class_streams_table(self):
+        self._cursor.execute('''
+            CREATE TABLE IF NOT EXISTS class_streams (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                grade TEXT NOT NULL COLLATE NOCASE,
+                stream TEXT NOT NULL COLLATE NOCASE,
+                UNIQUE (grade, stream)
+            )
+        ''')
+        self.conn.commit()
+
+    def get_class_streams(self, grade):
+        self._cursor.execute(
+            "SELECT stream FROM class_streams WHERE grade = ? ORDER BY id",
+            (grade.strip(),),
+        )
+        return [row[0] for row in self._cursor.fetchall()]
+
+    def set_class_streams(self, grade, streams):
+        grade = str(grade or "").strip()
+        if not grade:
+            raise ValueError("A class is required to configure streams.")
+
+        normalized_streams = []
+        seen = set()
+        for stream in streams:
+            stream = str(stream or "").strip()
+            if not stream:
+                raise ValueError("Stream names cannot be empty.")
+            key = stream.casefold()
+            if key not in seen:
+                normalized_streams.append(stream)
+                seen.add(key)
+
+        current_streams = self.get_class_streams(grade)
+        removed_streams = [
+            stream for stream in current_streams if stream.casefold() not in seen
+        ]
+        for removed_stream in removed_streams:
+            self._cursor.execute(
+                "SELECT 1 FROM students WHERE UPPER(TRIM(grade)) = UPPER(?) "
+                "AND UPPER(TRIM(stream)) = UPPER(?) LIMIT 1",
+                (grade, removed_stream),
+            )
+            if self._cursor.fetchone():
+                raise ValueError(
+                    f"Cannot remove stream '{removed_stream}' while students are assigned to it. "
+                    "Move those students to another stream first."
+                )
+
+        self._cursor.execute("DELETE FROM class_streams WHERE grade = ?", (grade,))
+        self._cursor.executemany(
+            "INSERT INTO class_streams (grade, stream) VALUES (?, ?)",
+            [(grade, stream) for stream in normalized_streams],
+        )
+        self.conn.commit()
+        return normalized_streams
 
     def add_student(self, adm, name, grade, gender, phone, photo=None, stream=None, check_footprint=True, assessment_number=None):
         """Add student with optional footprint check for anti-cheating"""
@@ -397,6 +462,31 @@ class FreemanDB:
                 UNIQUE(exam_name, class_name)
             )
         ''')
+        self._cursor.execute("PRAGMA table_info(previous_exams)")
+        if "term" not in [row[1] for row in self._cursor.fetchall()]:
+            self._cursor.execute("ALTER TABLE previous_exams ADD COLUMN term TEXT")
+        self._cursor.execute("PRAGMA table_info(previous_exams)")
+        if "year" not in [row[1] for row in self._cursor.fetchall()]:
+            # The same exam title can recur every year, so uniqueness must include the year.
+            self._cursor.execute("ALTER TABLE previous_exams RENAME TO previous_exams_old")
+            self._cursor.execute('''
+                CREATE TABLE previous_exams (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    exam_name TEXT,
+                    class_name TEXT,
+                    exam_date TEXT,
+                    summary_data TEXT,
+                    marks_data TEXT,
+                    term TEXT,
+                    year INTEGER,
+                    UNIQUE(exam_name, class_name, year)
+                )
+            ''')
+            self._cursor.execute('''
+                INSERT INTO previous_exams (exam_name, class_name, exam_date, summary_data, marks_data, term)
+                SELECT exam_name, class_name, exam_date, summary_data, marks_data, term FROM previous_exams_old
+            ''')
+            self._cursor.execute("DROP TABLE previous_exams_old")
         self.conn.commit()
 
     def create_teachers_table(self):
@@ -429,14 +519,51 @@ class FreemanDB:
         ''')
         self.conn.commit()
 
-    def save_previous_exam(self, exam_name, class_name, summary_data, marks_data):
+    def save_previous_exam(self, exam_name, class_name, summary_data, marks_data, term=None, year=None):
         """Save a previous exam with its summary and marks data"""
         import datetime
+        if year is None:
+            year = self._configured_year()
         exam_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self._cursor.execute('''
-            INSERT OR REPLACE INTO previous_exams (exam_name, class_name, exam_date, summary_data, marks_data)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (exam_name, class_name, exam_date, summary_data, marks_data))
+            INSERT OR REPLACE INTO previous_exams (exam_name, class_name, exam_date, summary_data, marks_data, term, year)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (exam_name, class_name, exam_date, summary_data, marks_data, term, year))
+        self.conn.commit()
+
+    def _configured_year(self):
+        """The school's current academic year from school_config.json, if set."""
+        import json
+        if getattr(sys, 'frozen', False):
+            path = os.path.join(os.path.expanduser("~"), "FreemanSchoolPortal", "school_config.json")
+        else:
+            path = os.path.join(BASE_DIR, "school_config.json")
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                return int(json.load(handle).get("academic_year"))
+        except (OSError, TypeError, ValueError):
+            return None
+
+    def get_previous_exams_for_term(self, class_name, term, year=None):
+        """Saved exams of a term (and year, when given); exams saved before terms existed appear in every term"""
+        query = '''
+            SELECT exam_name, exam_date FROM previous_exams
+            WHERE class_name = ? AND (term = ? OR term IS NULL OR term = '')
+        '''
+        params = [class_name, term]
+        if year is not None:
+            query += " AND year = ?"
+            params.append(year)
+        self._cursor.execute(query + " ORDER BY exam_date DESC", params)
+        return self._cursor.fetchall()
+
+    def get_previous_exam_years(self):
+        self._cursor.execute("SELECT DISTINCT year FROM previous_exams WHERE year IS NOT NULL ORDER BY year DESC")
+        return [row[0] for row in self._cursor.fetchall()]
+
+    def backfill_previous_exam_year(self, year):
+        """Give exams saved before years existed the year the school started using them."""
+        self._cursor.execute("UPDATE previous_exams SET year = ? WHERE year IS NULL", (year,))
         self.conn.commit()
 
     def get_previous_exams(self, class_name):
@@ -446,11 +573,14 @@ class FreemanDB:
         ''', (class_name,))
         return self._cursor.fetchall()
 
-    def get_previous_exam_data(self, exam_name, class_name):
+    def get_previous_exam_data(self, exam_name, class_name, year=None):
         """Get the full data for a specific previous exam"""
-        self._cursor.execute('''
-            SELECT marks_data, summary_data FROM previous_exams WHERE exam_name = ? AND class_name = ?
-        ''', (exam_name, class_name))
+        query = "SELECT marks_data, summary_data FROM previous_exams WHERE exam_name = ? AND class_name = ?"
+        params = [exam_name, class_name]
+        if year is not None:
+            query += " AND year = ?"
+            params.append(year)
+        self._cursor.execute(query, params)
         result = self._cursor.fetchone()
         if result:
             return result[0], result[1]  # marks_data, summary_data

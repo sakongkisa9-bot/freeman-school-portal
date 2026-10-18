@@ -4,10 +4,10 @@ import threading
 import customtkinter as ctk
 from tkinter import messagebox
 
+from academic_periods import TERMS
 from cba_logic import LEVEL_NAMES, validate_tasks
 from cloud_service import CloudService, ask_cloud_credentials
 
-TERMS = ("Term 1", "Term 2", "Term 3")
 SCORING_LEVELS = "Level 4-1 rubric"
 SCORING_MAX = "Max score only"
 
@@ -21,6 +21,7 @@ class CBATaskManager(ctk.CTkToplevel):
         tasks=None,
         tasks_by_term=None,
         term="Term 1",
+        allowed_terms=None,
         targets=None,
         on_publish=None,
         on_change=None,
@@ -31,7 +32,8 @@ class CBATaskManager(ctk.CTkToplevel):
         self.targets = targets or [(grade, subject)]
         self.on_publish = on_publish
         self.on_change = on_change
-        self.term = term if term in TERMS else TERMS[0]
+        self.allowed_terms = tuple(allowed_terms or TERMS)
+        self.term = term if term in self.allowed_terms else self.allowed_terms[-1]
         self.tasks_by_term = {}
         for configured_term, configured_tasks in (tasks_by_term or {}).items():
             try:
@@ -78,9 +80,8 @@ class CBATaskManager(ctk.CTkToplevel):
             font=("Arial Bold", 22),
         ).grid(row=0, column=0, sticky="w")
         ctk.CTkLabel(heading, text="Term").grid(row=0, column=1, padx=(10, 6))
-        available_terms = list(dict.fromkeys((*TERMS, *self.tasks_by_term.keys())))
         self.term_menu = ctk.CTkOptionMenu(
-            heading, values=available_terms, command=self._change_term, width=130
+            heading, values=list(self.allowed_terms), command=self._change_term, width=130
         )
         self.term_menu.set(self.term)
         self.term_menu.grid(row=0, column=2, sticky="e")
@@ -271,6 +272,9 @@ class CBATaskManager(ctk.CTkToplevel):
             self.on_change(self.term, list(self.tasks))
 
     def _change_term(self, term):
+        if term not in self.allowed_terms:
+            self.term_menu.set(self.term)
+            return
         if term == self.term:
             return
         self._persist_current_tasks()

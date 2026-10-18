@@ -160,6 +160,17 @@
         box-shadow: 0 15px 40px rgba(39, 174, 96, 0.6);
     }
 
+    .btn-homework {
+        background: linear-gradient(135deg, #0f766e 0%, #115e59 100%);
+        color: white;
+        box-shadow: 0 8px 25px rgba(15, 118, 110, 0.3);
+    }
+
+    .btn-homework:hover {
+        transform: translateY(-5px) scale(1.02);
+        box-shadow: 0 15px 40px rgba(15, 118, 110, 0.45);
+    }
+
     .action-btn .icon {
         font-size: 24px;
     }
@@ -253,6 +264,14 @@
                 View Academic Report
                 {% if unread_reports > 0 %}
                 <div class="notification-badge red">{{ unread_reports }}</div>
+                {% endif %}
+            </a>
+
+            <a href="{{ url_for('parent_homework') }}" class="action-btn btn-homework" style="position: relative;">
+                <i class="fas fa-book-open icon"></i>
+                View Homework
+                {% if unread_homework > 0 %}
+                <div class="notification-badge red">{{ unread_homework }}</div>
                 {% endif %}
             </a>
             

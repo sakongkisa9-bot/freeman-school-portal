@@ -42,28 +42,8 @@ def get_app_dir():
     return BASE_DIR, USER_DATA_DIR
 
 
-def calculate_junior_grade(score):
-    """Junior School (CBC) Grading Logic"""
-    try:
-        score = int(score)
-        if score >= 90:
-            return "EE1", 8
-        elif score >= 75:
-            return "EE2", 7
-        elif score >= 58:
-            return "ME1", 6
-        elif score >= 41:
-            return "ME2", 5
-        elif score >= 31:
-            return "AE1", 4
-        elif score >= 21:
-            return "AE2", 3
-        elif score >= 11:
-            return "BE1", 2
-        else:
-            return "BE2", 1
-    except ValueError:
-        return "", 0
+from grading_four_level import calculate_junior_grade, calculate_final_level
+from grading_four_level import absent_average_level, is_absent_level
 
 
 def get_clean_col_name(subject_name):
@@ -97,10 +77,14 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         exam_name=None,
         marks_data=None,
         summary_data=None,
+        stream=None,
     ):
         super().__init__(parent, fg_color="transparent")
         self.db = db_connection
         self.class_name = class_name
+        self.stream = stream
+        self.selected_stream = stream
+        self.full_class_mode = False
         self.read_only = read_only
         self.exam_name = exam_name
         self.marks_data = marks_data
@@ -480,10 +464,14 @@ class JuniorMarkSheetView(ctk.CTkFrame):
 
     def auto_fill_results(self, score_entry, col, row_frame):
         # 1. Get the score
-        score_val = score_entry.get()
-
-        # 2. Calculate the Grade (Remark) and Points
-        rating_val, points_val = calculate_junior_grade(score_val)
+        score_val = score_entry.get().strip()
+        if score_val.upper() in ("AB", "A"):
+            score_entry.delete(0, "end")
+            score_entry.insert(0, "AB")
+            rating_val, points_val = "AB", 0
+        else:
+            # 2. Calculate the Grade (Remark) and Points
+            rating_val, points_val = calculate_junior_grade(score_val)
 
         # 3. Find the Remark (R) and Point (P) widgets in the same row_frame
         try:
@@ -510,6 +498,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
     def update_totals(self, row_index):
         total_points_sum = 0
         total_score_sum = 0
+        absent_scores = []
         num_subjects = len(self.subjects)
 
         # Get the row_frame first (it's at column 0, spanning all columns)
@@ -529,6 +518,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                 score_widgets = row_frame.grid_slaves(row=0, column=s_col)
                 if score_widgets:
                     val = score_widgets[0].get()
+                    absent_scores.append(val)
                     if val.isdigit():
                         total_score_sum += int(val)
                 
@@ -555,29 +545,9 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                 total_box.insert(0, str(total_points_sum))
                 total_box.configure(state="disabled")
 
-            # 3. Calculate Average Grade using KNEC percentage standards
-            # Calculate average percentage: total_score_sum / num_subjects
-            if num_subjects > 0:
-                avg_percentage = total_score_sum / num_subjects  # Average percentage per subject (0-100)
-                # Use KNEC percentage ranges
-                if avg_percentage >= 90:
-                    avg_grade = "EE1"  # 90–100%
-                elif avg_percentage >= 75:
-                    avg_grade = "EE2"  # 75–89%
-                elif avg_percentage >= 58:
-                    avg_grade = "ME1"  # 58–74%
-                elif avg_percentage >= 41:
-                    avg_grade = "ME2"  # 41–57%
-                elif avg_percentage >= 31:
-                    avg_grade = "AE1"  # 31–40%
-                elif avg_percentage >= 21:
-                    avg_grade = "AE2"  # 21–30%
-                elif avg_percentage >= 11:
-                    avg_grade = "BE1"  # 11–20%
-                else:
-                    avg_grade = "BE2"  # 1–10%
-            else:
-                avg_grade = "BE2"
+            # 3. Average level from the average score per subject
+            avg_grade = calculate_final_level(total_score_sum, num_subjects=num_subjects)
+            avg_grade = absent_average_level(absent_scores) or avg_grade
 
             # Update Average Level Box (inside row_frame)
             avg_widgets = row_frame.grid_slaves(row=0, column=total_box_col + 1)
@@ -620,7 +590,14 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                     f"ORDER BY CASE WHEN m.rank IS NULL THEN 1 ELSE 0 END, m.rank ASC"
                 )
 
-                self.db.cursor().execute(query, (self.class_name,))
+                params = (self.class_name,)
+                if self.stream:
+                    query = query.replace(
+                        "WHERE UPPER(s.grade) = UPPER(?)",
+                        "WHERE UPPER(s.grade) = UPPER(?) AND UPPER(TRIM(s.stream)) = UPPER(?)",
+                    )
+                    params = (self.class_name, self.stream)
+                self.db.cursor().execute(query, params)
                 records = self.db.cursor().fetchall()
                 print(
                     f"DEBUG: Loaded {len(records)} students for grade '{self.class_name}' from database"
@@ -688,12 +665,6 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             ).pack(side="left", padx=5)
             ctk.CTkButton(
                 self.bottom_bar,
-                text="🆕 New Exam",
-                fg_color="#e67e22",
-                command=self.create_new_exam,
-            ).pack(side="left", padx=5)
-            ctk.CTkButton(
-                self.bottom_bar,
                 text="🔄 Refresh",
                 fg_color="#34495e",
                 command=self.load_students_from_registry,
@@ -705,6 +676,26 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             fg_color="#942727",
             command=self.master.master.return_to_home,
         ).pack(side="right", padx=5)
+
+        if self.selected_stream and not self.read_only:
+            self.btn_full_class = ctk.CTkButton(
+                self.bottom_bar,
+                text="Show Whole Class",
+                command=self.toggle_full_class_view,
+            )
+            self.btn_full_class.pack(side="left", padx=5)
+
+    def toggle_full_class_view(self):
+        self.full_class_mode = not self.full_class_mode
+        self.stream = None if self.full_class_mode else self.selected_stream
+        if hasattr(self, "calculate_primary_rankings"):
+            self.calculate_primary_rankings()
+        if hasattr(self, "calculate_rankings"):
+            self.calculate_rankings()
+        self.btn_full_class.configure(
+            text="Show Stream Only" if self.full_class_mode else "Show Whole Class"
+        )
+        self.load_students_from_registry()
 
     def fetch_cloud_data(self):
         # 1. Get login details
@@ -758,13 +749,10 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             # 6. Save the fetched marks to database (skip reload to preserve cloud values)
             self.save_all_marks(skip_reload=True)
 
-            # 6. Consume marks from cloud (delete them after successful fetch)
-            service.consume_marks(self.class_name, credentials)
-
             # 7. Success Message
             messagebox.showinfo(
                 "Cloud Fetch",
-                f"Successfully synchronized {len(marks_data)} student records. Marks have been removed from cloud.",
+                f"Successfully synchronized {len(marks_data)} student records.",
             )
 
         else:
@@ -776,31 +764,9 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             )
 
     def get_subjects_from_json(self):
-        default_subjects = [
-            "ENG",
-            "KISW",
-            "MATHS",
-            "INT SCIE",
-            "AGRI",
-            "SST",
-            "CRE",
-            "C/A",
-            "PRE-TECH",
-        ]
+        from teachers_linked import get_subjects_for_class
 
-        # Use USER_DATA_DIR for config file (works in both script and executable)
-        json_path = os.path.join(self.USER_DATA_DIR, "school_config.json")
-
-        try:
-            if os.path.exists(json_path):
-                with open(json_path, "r") as f:
-                    config = json.load(f)
-                    # Use the nested structure we found earlier
-                    subjects_dict = config.get("subjects", {})
-                    return subjects_dict.get("jss", default_subjects)
-            return default_subjects
-        except Exception as e:
-            return default_subjects
+        return get_subjects_for_class(self.class_name)
 
     def print_to_pdf(self):
         from fpdf import FPDF
@@ -1137,31 +1103,45 @@ class JuniorMarkSheetView(ctk.CTkFrame):
             SET average_points = CASE 
                 WHEN total_points > 0 THEN (
                     CASE 
-                        WHEN total_points / {len(subjects)} >= 7.5 THEN 'EE1'
-                        WHEN total_points / {len(subjects)} >= 6.5 THEN 'EE2'
-                        WHEN total_points / {len(subjects)} >= 5.5 THEN 'ME1'
-                        WHEN total_points / {len(subjects)} >= 4.5 THEN 'ME2'
-                        WHEN total_points / {len(subjects)} >= 3.5 THEN 'AE1'
-                        WHEN total_points / {len(subjects)} >= 2.5 THEN 'AE2'
-                        WHEN total_points / {len(subjects)} >= 1.5 THEN 'BE1'
-                        ELSE 'BE2'
+                        WHEN total_points * 1.0 / {len(subjects)} >= 3.5 THEN 'EE'
+                        WHEN total_points * 1.0 / {len(subjects)} >= 2.5 THEN 'ME'
+                        WHEN total_points * 1.0 / {len(subjects)} >= 1.5 THEN 'AE'
+                        ELSE 'BE'
                     END
                 )
                 ELSE ''
             END
         """)
 
-        # Get all students for this class sorted by total_points descending
+        # Absent students: X when some subjects are AB, Y when all are AB
+        score_cols = [f"{get_clean_col_name(s)}_s" for s in subjects]
         self.db.cursor().execute(
-            """
+            f"SELECT adm_no, {', '.join(score_cols)} FROM marksheet"
+        )
+        for adm, *scores in self.db.cursor().fetchall():
+            absent_level = absent_average_level(scores)
+            if absent_level:
+                self.db.cursor().execute(
+                    "UPDATE marksheet SET average_points = ? WHERE adm_no = ?",
+                    (absent_level, adm),
+                )
+
+        # Get all students for this class; absent (X/Y) students rank last
+        rank_query = """
             SELECT m.adm_no 
             FROM marksheet m
             JOIN students s ON m.adm_no = s.adm_no
             WHERE UPPER(s.grade) = UPPER(?)
-            ORDER BY m.total_points DESC
-            """,
-            (self.class_name,),
-        )
+            ORDER BY (m.average_points IN ('X', 'Y')), m.total_points DESC
+            """
+        rank_params = (self.class_name,)
+        if self.stream:
+            rank_query = rank_query.replace(
+                "WHERE UPPER(s.grade) = UPPER(?)",
+                "WHERE UPPER(s.grade) = UPPER(?) AND UPPER(TRIM(s.stream)) = UPPER(?)",
+            )
+            rank_params = (self.class_name, self.stream)
+        self.db.cursor().execute(rank_query, rank_params)
         ranked_students = self.db.cursor().fetchall()
 
         # Update the 'rank' column with their position (starting from 1)
@@ -1171,10 +1151,11 @@ class JuniorMarkSheetView(ctk.CTkFrame):
         for i, (adm,) in enumerate(ranked_students, start=1):
             # Get the score for this student
             self.db.cursor().execute(
-                "SELECT total_points FROM marksheet WHERE adm_no = ?", (adm,)
+                "SELECT total_points, average_points FROM marksheet WHERE adm_no = ?",
+                (adm,),
             )
             result = self.db.cursor().fetchone()
-            score = result[0] if result else 0
+            score = (result[0], is_absent_level(result[1])) if result else (0, False)
 
             # Assign rank (handle ties)
             if score != prev_score:
@@ -1273,7 +1254,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
 
     def generate_summary_data(self):
         """Generate summary data for the current exam matching ClassSummaryView format"""
-        LEVEL_ORDER = ["EE1", "EE2", "ME1", "ME2", "AE1", "AE2", "BE1", "BE2"]
+        LEVEL_ORDER = ["EE", "ME", "AE", "BE"]
 
         # Get subjects from JSON
         subjects = self.get_subjects_from_json()
@@ -1507,7 +1488,7 @@ class JuniorMarkSheetView(ctk.CTkFrame):
                     dist_grid.pack(fill="x", padx=15, pady=(0, 15))
 
                     distribution = summary.get("distribution", {})
-                    levels = ["EE1", "EE2", "ME1", "ME2", "AE1", "AE2", "BE1", "BE2"]
+                    levels = list(distribution) or ["EE", "ME", "AE", "BE"]
                     for i, level in enumerate(levels):
                         if i % 4 == 0:
                             row_frame = ctk.CTkFrame(dist_grid, fg_color="transparent")

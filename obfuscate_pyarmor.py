@@ -31,7 +31,14 @@ FILES_TO_OBFUSCATE = [
     "ui_marksheet_lower.py",
     "ui_marksheet_primary.py",
     "ui_marksheet_junior.py",
+    "ui_marksheet_kicd.py",
     "ui_summary.py",
+    "marksheet_chooser.py",
+    "create_exam_dialog.py",
+    "cbc_engine.py",
+    "cbc_levels_view.py",
+    "cbc_strands_view.py",
+    "kicd_grading.py",
     "cloud_service.py",
     "cloud_portal_v2.py",
     "notification_service.py",
@@ -40,8 +47,6 @@ FILES_TO_OBFUSCATE = [
     "mpesa_callback_server.py",  # CRITICAL: Missing in original
     "update_manager.py",
     "newsletter.py",
-    "network_manager.py",
-    "hotspot_server.py",
     "teachers_linked.py",
     "cba_logic.py",
     "cba_task_manager.py",
@@ -52,6 +57,7 @@ FILES_TO_OBFUSCATE = [
     "splash.py",
     "ocr_student_dialog.py",
     "ocr_service.py",
+    "excel_student_import.py",
     "file_loader.py",
     # Additional utility files
     "pyarmor_config.py",
@@ -101,8 +107,6 @@ def copy_project_files():
         "freeman_icon.png",
         "freeman_icon_round.ico",
         "freeman_icon_round.png",
-        # Firebase config (if exists)
-        "firebase-service-account.json",
     ]
 
     for item in items_to_copy:
@@ -185,8 +189,6 @@ def simple_obfuscation():
             "mpesa_service.py",
             "mpesa_callback_server.py",  # CRITICAL: Missing in original
             "update_manager.py",
-            "network_manager.py",
-            "hotspot_server.py",
             "teachers_linked.py",
             "wizard.py",
         ]
@@ -324,14 +326,20 @@ def create_obfuscated_executable():
             "mpesa_callback_server",  # CRITICAL: Missing in original
             "update_manager",
             "newsletter",
-            "network_manager",
-            "hotspot_server",
             "teachers_linked",
             "reportforms",
             "teacher_comments",
             "wizard",
             "splash",
             "file_loader",
+            "marksheet_chooser",
+            "create_exam_dialog",
+            "ui_marksheet_kicd",
+            "cbc_engine",
+            "cbc_levels_view",
+            "cbc_strands_view",
+            "kicd_grading",
+            "excel_student_import",
             "ui_marksheet_playgroup",
             "ui_marksheet_pp1",
             "ui_marksheet_pp2",

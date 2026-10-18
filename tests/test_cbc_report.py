@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 from cbc_report import (
     build_teacher_comments,
     build_subject_results,
+    chart_marker_for_subject,
     group_rubric_records,
     normalize_level,
     pathway_recommendation,
@@ -19,6 +20,12 @@ class CBCReportTests(unittest.TestCase):
         self.assertEqual(
             [normalize_level(value) for value in ("4", "ME", "BE1", "EE2", "AB", "unknown")],
             ["EE", "ME", "BE", "EE", "AB", ""],
+        )
+
+    def test_chart_subject_marker_order_includes_diamond(self):
+        self.assertEqual(
+            [chart_marker_for_subject(index) for index in range(5)],
+            ["circle", "square", "triangle", "cross", "diamond"],
         )
 
     def test_groups_substrands_and_recommends_weakest_variable_levels(self):
@@ -138,10 +145,12 @@ class CBCReportTests(unittest.TestCase):
         )
         for expected in (
             "Subject Progress History", "Mathematics: Detailed Performance Rubric",
-            "Junior Career Pathway Guidance", "Accurate work", "Term 3 Exam (Current Exam)",
+            "Junior Career Pathway Guidance", "Term 3 Exam (Current Exam)",
             "Formative (70%)", "Composite (Total)", "Improvement", "+22",
+            "EE (4)",
         ):
             self.assertIn(expected, html)
+        self.assertNotIn("Teacher Note", html)
         self.assertNotIn("TOTAL SCORES", html)
         self.assertNotIn("EE1 &amp; EE2", html)
 

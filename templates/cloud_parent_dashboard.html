@@ -947,7 +947,7 @@
                     <h3>{{ strand.name }}</h3>
                     <div class="table-responsive">
                         <table class="report-table">
-                            <thead><tr><th class="left-align">Sub-strand</th><th>BE (1)</th><th>AE (2)</th><th>ME (3)</th><th>EE (4)</th><th class="left-align">Teacher Note</th></tr></thead>
+                            <thead><tr><th class="left-align">Sub-strand</th><th>BE (1)</th><th>AE (2)</th><th>ME (3)</th><th>EE (4)</th></tr></thead>
                             <tbody>
                                 {% for item in strand.sub_strands %}
                                 <tr>
@@ -955,7 +955,6 @@
                                     {% for level in ['BE', 'AE', 'ME', 'EE'] %}
                                     <td class="cbc-level cbc-level-{{ level }}">{{ 'X' if item.level == level else '' }}</td>
                                     {% endfor %}
-                                    <td class="left-align">{{ item.evidence|default('No written note recorded') or 'No written note recorded' }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>

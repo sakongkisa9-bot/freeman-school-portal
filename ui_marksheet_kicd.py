@@ -5,6 +5,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import customtkinter as ctk
 
+from academic_periods import TERMS, available_terms
 from cbc_engine import SUBJECT_TO_LEARNING_AREA
 from cloud_service import CloudService, ask_cloud_credentials
 from kicd_grading import ABSENT, LEVEL_POINTS, index_levels, level_from_percent, levels_for, subject_result
@@ -18,7 +19,6 @@ TABLES = {
     "primary": "primary_marks",
     "jss": "marksheet",
 }
-TERMS = ("Term 1", "Term 2", "Term 3")
 
 
 def _column_base(subject, grade_type):
@@ -54,8 +54,12 @@ class KICDMarkSheetView(ctk.CTkFrame):
         self.table = TABLES.get(self.grade_type, "marksheet")
         self.subjects = get_subjects_for_class(class_name)
         config = load_config()
+        current_term = config.get("current_term") if config.get("current_term") in TERMS else TERMS[0]
         saved_term = initial_term or config.get("marksheet_term")
         self.term_var = ctk.StringVar(value=saved_term if saved_term in TERMS else TERMS[0])
+        self.allowed_terms = available_terms(config.get("academic_year"), config.get("academic_year"), current_term)
+        if self.term_var.get() not in self.allowed_terms:
+            self.term_var.set(current_term)
         self.rows = []
         self.level_index = {}
         self.editor = None
@@ -169,7 +173,7 @@ class KICDMarkSheetView(ctk.CTkFrame):
         controls.pack(fill="x", padx=14)
         ctk.CTkLabel(controls, text="Formative term").pack(side="left", padx=(0, 8))
         ctk.CTkOptionMenu(
-            controls, values=list(TERMS), variable=self.term_var, width=110,
+            controls, values=list(self.allowed_terms), variable=self.term_var, width=110,
             command=self._term_changed,
         ).pack(side="left")
         self.status = ctk.CTkLabel(controls, text="", text_color="gray60", anchor="w")

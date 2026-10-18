@@ -36,8 +36,6 @@ SERVICE_FILES = [
     "mpesa_service.py",
     "update_manager.py",
     "newsletter.py",
-    "network_manager.py",
-    "hotspot_server.py",
     "teachers_linked.py",
     "reportforms.py",
     "wizard.py",

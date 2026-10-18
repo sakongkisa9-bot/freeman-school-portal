@@ -317,15 +317,18 @@
         </div>
 
         <div class="grades-grid">
+            {% if not grades %}<p class="welcome-text">No classes are assigned to your teacher code yet.</p>{% endif %}
             {% for grade in grades %}
             <div class="grade-card">
                 <div class="grade-icon">📚</div>
                 <h3 class="grade-title">{{ grade }}</h3>
                 <p class="grade-description">Manage students and marks for this class</p>
                 <div class="card-buttons">
-                    <a href="{{ url_for('manage_students', grade=grade) }}" class="btn-card btn-primary">👥 Students</a>
-                    <a href="{{ url_for('select_subject', grade=grade) }}" class="btn-card btn-secondary">✏️ Percentage Marks</a>
+                    {% if not is_teacher %}<a href="{{ url_for('manage_students', grade=grade) }}" class="btn-card btn-primary">👥 Students</a>{% endif %}
+                    {% if exam and grade in exam_grades %}<a href="{{ url_for('select_exam_subject', grade=grade) }}" class="btn-card btn-primary">📝 {{ exam.title }}</a>{% endif %}
                     <a href="{{ url_for('select_cba_subject', grade=grade) }}" class="btn-card btn-secondary">📋 KNEC CBA</a>
+                    <a href="{{ url_for('cbc_rubric_gradebook', grade=grade) }}" class="btn-card btn-secondary">✓ Competency Gradebook</a>
+                    {% if is_admin %}<a href="{{ url_for('manage_cbc_curriculum', grade=grade) }}" class="btn-card btn-secondary">Curriculum Setup</a>{% endif %}
                 </div>
             </div>
             {% endfor %}

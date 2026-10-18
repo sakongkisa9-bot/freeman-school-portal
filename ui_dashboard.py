@@ -1,37 +1,39 @@
 from ui_marksheet_junior import JuniorMarkSheetView  # Import the new workshop file
+from academic_periods import available_terms
 from ui_marksheet_primary import PrimaryMarkSheetView  # For Grade 4-6
 from ui_marksheet_playgroup import PlaygroupMarkSheetView
 from ui_marksheet_pp1 import PP1MarkSheetView
 from ui_marksheet_pp2 import PP2MarkSheetView
 from ui_marksheet_lower import LowerMarkSheetView
-from ui_summary import ClassSummaryView
+from ui_summary import ClassSummaryView, SummaryChooser
 from teachers_linked import TeachersLinkedView, get_subjects_for_class
 from cba_task_manager import CBATaskManager
 from cba_results_view import CBAResultsView
 from cbc_levels_view import CBCLevelsView
-from ui_marksheet_kicd import KICDMarkSheetView
+from ui_marksheet_kicd import KICDMarkSheetView, TABLES as MARKSHEET_TABLES, _column_base, normalize_score
 from marksheet_chooser import MarksheetChooser, OLD_STYLE
 from teachers_linked import map_class_name_to_config_key
 from cbc_strands_view import CBCStrandsView
+from cbc_engine import SUBJECT_TO_LEARNING_AREA
+from kicd_grading import ABSENT, LEVEL_POINTS, level_from_percent
 from create_exam_dialog import CreateExamDialog
 from reportforms import ReportFormsView, ask_opening_closing_dates, ask_report_print_mode
+from historical_report_forms import ArchivedReportFormsView
 from ocr_student_dialog import show_ocr_dialog
 from excel_student_import import read_student_rows
 import os
 import sys
 import json
-import webbrowser
 from datetime import datetime, timedelta
 import customtkinter as ctk
+import logging
 from tkinter import messagebox
 from database import FreemanDB  # Ensure database.py is in the same folder
 from PIL import Image
 from wizard import SchoolSetupWizard
-import network_manager
-from cloud_service import CloudService, ask_cloud_credentials
+from cloud_service import CloudService, ask_cloud_credentials, run_with_search_indicator
 import io
 import contextlib
-import subprocess
 
 PERIOD_TERMS = ("Term 1", "Term 2", "Term 3")
 
@@ -70,11 +72,22 @@ def get_app_dir():
 class Dashboard(ctk.CTk):
     def __init__(self, school_name_placeholder="Freeman Tech Solutions (Demo)"):
         super().__init__()
+        self._last_navigation = "Dashboard startup"
 
         self.db = FreemanDB()
         self.BASE_DIR, self.USER_DATA_DIR = get_app_dir()
 
         theme_config = self.load_school_config()
+        try:
+            current_year = int(theme_config.get("academic_year"))
+        except (TypeError, ValueError):
+            current_year = None
+        try:
+            self.viewing_year = int(theme_config.get("viewing_year") or current_year)
+        except (TypeError, ValueError):
+            self.viewing_year = None
+        if self.viewing_year not in self.get_available_view_years():
+            self.viewing_year = current_year
         self.dashboard_appearance = theme_config.get("dashboard_appearance", "Dark")
         if self.dashboard_appearance not in ("Light", "Dark"):
             self.dashboard_appearance = "Dark"
@@ -124,7 +137,6 @@ class Dashboard(ctk.CTk):
         # --- ADD THESE TWO LINES HERE ---
         self.search_var = ctk.StringVar()
         self.all_student_rows = []
-        self.portal_open = self.load_portal_state()  # Track portal state from config
         # --------------------------------
 
         self.overrideredirect(True)
@@ -314,17 +326,6 @@ class Dashboard(ctk.CTk):
             self.btn_report_forms,
             self.btn_newsletter,
         ]
-        self.btn_portal = ctk.CTkButton(
-            self.menu_panel,
-            text="📡 Launch Teacher Portal",
-            command=lambda: self.require_auth(self.handle_portal_button),
-            fg_color="green",
-            width=btn_width,
-            height=btn_height,
-        )
-        self.btn_portal.pack(pady=10)
-        self.update_portal_button()  # Set initial button state based on loaded config
-
         self.btn_cloud_sync = ctk.CTkButton(
             self.menu_panel,
             text="🔄 Sync Students Cloud",
@@ -335,18 +336,6 @@ class Dashboard(ctk.CTk):
             height=btn_height,
         )
         self.btn_cloud_sync.pack(pady=10)
-
-        # Exit Button at the bottom
-        self.btn_exit = ctk.CTkButton(
-            self.menu_panel,
-            text="Exit",
-            width=btn_width,
-            height=btn_height,
-            fg_color="#e74c3c",
-            hover_color="#c0392b",  # Red for Exit
-            command=self.exit_app,
-        )
-        self.btn_exit.pack(pady=(0, 30))
 
         # --- 4. MAIN CONTENT PANEL ---
         self.content_panel = ctk.CTkFrame(self, fg_color="transparent")
@@ -390,6 +379,22 @@ class Dashboard(ctk.CTk):
         elif self.dashboard_background_url:
             self.after(1200, self.refresh_online_dashboard_background)
 
+    def report_callback_exception(self, exception_type, exception, traceback_object):
+        logging.error(
+            "Tkinter callback failed during %s",
+            self._last_navigation,
+            exc_info=(exception_type, exception, traceback_object),
+        )
+        try:
+            log_path = os.path.join(self.USER_DATA_DIR, "freeman_portal_debug.txt")
+            messagebox.showerror(
+                "Action failed",
+                f"This action failed. Details were saved to:\n{log_path}",
+                parent=self,
+            )
+        except Exception:
+            logging.exception("Unable to display callback error dialog")
+
     def open_wizard(self):
         # This calls the class we created in the previous step
         SchoolSetupWizard(self, self.db)
@@ -401,7 +406,19 @@ class Dashboard(ctk.CTk):
             font=("Arial Bold", 16),
             text_color="#10b981",
         )
-        self.countdown_label.place(relx=1, rely=0, anchor="ne", x=-12, y=12)
+        self.countdown_label.place(relx=1, rely=0, anchor="ne", x=-12, y=48)
+        self.btn_exit = ctk.CTkButton(
+            self.content_panel,
+            text="Exit",
+            width=68,
+            height=28,
+            font=("Arial Bold", 11),
+            fg_color="#c2413b",
+            hover_color="#a8322d",
+            corner_radius=6,
+            command=self.exit_app,
+        )
+        self.btn_exit.place(relx=1, rely=0, anchor="ne", x=-12, y=12)
         self.period_label = ctk.CTkLabel(
             self.content_panel, text="", font=("Arial Bold", 16), text_color="#10b981"
         )
@@ -439,6 +456,9 @@ class Dashboard(ctk.CTk):
             height=35,
             font=("Arial Bold", 12),
         )
+        self.btn_create_exam.configure(
+            state="disabled" if self.is_historical_view() else "normal"
+        )
         self.btn_check_updates = ctk.CTkButton(
             self.content_panel,
             text="🔄 Update Available",
@@ -470,13 +490,70 @@ class Dashboard(ctk.CTk):
         term = self.load_school_config().get("current_term")
         return term if term in PERIOD_TERMS else PERIOD_TERMS[0]
 
+    def get_available_view_years(self):
+        config = self.load_school_config()
+        years = set()
+        for value in [config.get("academic_year"), *self.db.get_previous_exam_years()]:
+            try:
+                years.add(int(value))
+            except (TypeError, ValueError):
+                continue
+        for grade_data in config.get("cbc_levels", {}).values():
+            if not isinstance(grade_data, dict):
+                continue
+            for area_data in grade_data.values():
+                if not isinstance(area_data, dict):
+                    continue
+                for key, record in area_data.items():
+                    value = record.get("academic_year") if isinstance(record, dict) else None
+                    value = value or str(key).split("|", 1)[0]
+                    try:
+                        years.add(int(value))
+                    except (TypeError, ValueError):
+                        continue
+        for grade_data in config.get("cbc_covered_strands", {}).values():
+            if not isinstance(grade_data, dict):
+                continue
+            for record in grade_data.values():
+                if not isinstance(record, dict):
+                    continue
+                try:
+                    years.add(int(record.get("academic_year")))
+                except (TypeError, ValueError):
+                    continue
+        return sorted(years, reverse=True)
+
+    def is_historical_view(self):
+        return self.viewing_year is not None and self.viewing_year != self.get_academic_year()
+
+    def set_viewing_year(self, year):
+        year = int(year)
+        if year not in self.get_available_view_years():
+            return
+        self.viewing_year = year
+        self.save_school_config({"viewing_year": year})
+        create_exam_button = getattr(self, "btn_create_exam", None)
+        if create_exam_button is not None:
+            create_exam_button.configure(
+                state="disabled" if self.is_historical_view() else "normal"
+            )
+        self.refresh_period_label()
+
     def refresh_period_label(self):
         label = getattr(self, "period_label", None)
         if label is None or not label.winfo_exists():
             return
         year = self.get_academic_year()
+        if not year:
+            viewing_year = getattr(self, "viewing_year", None)
+            label.configure(
+                text=f"Viewing {viewing_year} (READ-ONLY)" if viewing_year else "Set the year and term"
+            )
+            return
+        viewing_year = getattr(self, "viewing_year", year) or year
         label.configure(
-            text=f"{self.get_current_term()} \u00b7 {year}" if year else "Set the year and term"
+            text=f"Active: {self.get_current_term()} \u00b7 {year}"
+            + (f"    Viewing: {viewing_year} (READ-ONLY)" if viewing_year != year else "")
         )
 
     def open_period_dialog(self):
@@ -484,9 +561,35 @@ class Dashboard(ctk.CTk):
         term = self.get_current_term()
         dialog = ctk.CTkToplevel(self)
         dialog.title("Year & Term")
-        dialog.geometry("460x430")
+        dialog.geometry("560x560")
         dialog.transient(self)
         dialog.grab_set()
+
+        ctk.CTkLabel(dialog, text="View saved data for year", font=("Arial Bold", 16)).pack(pady=(18, 4))
+        view_years = [str(value) for value in self.get_available_view_years()]
+        if not view_years:
+            view_years = [str(year)] if year else ["-"]
+        view_year_menu = ctk.CTkOptionMenu(dialog, values=view_years, width=180)
+        selected_view_year = str(getattr(self, "viewing_year", year) or year or view_years[0])
+        view_year_menu.set(selected_view_year if selected_view_year in view_years else view_years[0])
+        view_year_menu.pack(pady=4)
+
+        def apply_view_year():
+            chosen = view_year_menu.get()
+            if chosen.isdigit():
+                self.set_viewing_year(int(chosen))
+                dialog.destroy()
+                self.return_to_home()
+
+        ctk.CTkButton(
+            dialog, text="Apply Viewing Year", height=34, command=apply_view_year
+        ).pack(pady=(2, 12))
+        ctk.CTkLabel(
+            dialog,
+            text="Past-year data is read-only. This does not change the active year or portal.",
+            wraplength=460,
+            text_color="gray",
+        ).pack(pady=(0, 8))
 
         if year is None:
             ctk.CTkLabel(dialog, text="Set the current year", font=("Arial Bold", 20)).pack(pady=(24, 6))
@@ -542,11 +645,13 @@ class Dashboard(ctk.CTk):
             dialog.destroy()
             self.start_next_year()
 
-        ctk.CTkButton(dialog, text="Set Term", height=36, command=set_term).pack(pady=(10, 4))
-        ctk.CTkButton(
+        set_term_button = ctk.CTkButton(dialog, text="Set Term", height=36, command=set_term)
+        set_term_button.pack(pady=(10, 4))
+        reflect_button = ctk.CTkButton(
             dialog, text="Reflect to Portal", height=36, fg_color="#10b981", text_color="black",
             command=reflect,
-        ).pack(pady=4)
+        )
+        reflect_button.pack(pady=4)
         ctk.CTkLabel(dialog, text="New school year", font=("Arial Bold", 14)).pack(pady=(24, 2))
         ctk.CTkLabel(
             dialog,
@@ -554,10 +659,15 @@ class Dashboard(ctk.CTk):
             wraplength=380,
             text_color="gray",
         ).pack()
-        ctk.CTkButton(
+        new_year_button = ctk.CTkButton(
             dialog, text=f"Start {year + 1}", height=36, fg_color="#e67e22", hover_color="#d35400",
             command=next_year,
-        ).pack(pady=8)
+        )
+        new_year_button.pack(pady=8)
+        if self.is_historical_view():
+            set_term_button.configure(state="disabled")
+            reflect_button.configure(state="disabled")
+            new_year_button.configure(state="disabled")
 
     def set_period(self, year, term):
         old_year = self.get_academic_year()
@@ -565,7 +675,14 @@ class Dashboard(ctk.CTk):
             self.db.backfill_previous_exam_year(year)
         elif term != self.get_current_term():
             self.snapshot_exams()
-        self.save_school_config({"academic_year": year, "current_term": term})
+        config = self.load_school_config()
+        allowed_terms = available_terms(year, year, term)
+        selected_term = config.get("marksheet_term")
+        self.save_school_config({
+            "academic_year": year,
+            "current_term": term,
+            "marksheet_term": selected_term if selected_term in allowed_terms else term,
+        })
         self.refresh_period_label()
 
     def snapshot_exams(self):
@@ -580,6 +697,9 @@ class Dashboard(ctk.CTk):
         self.save_school_config(cleared)
 
     def start_next_year(self):
+        if self.is_historical_view():
+            messagebox.showinfo("Read-only year", "Return to the active year before starting a new year.", parent=self)
+            return
         year = self.get_academic_year()
         if not year:
             return
@@ -617,7 +737,13 @@ class Dashboard(ctk.CTk):
             cursor.execute(f"DELETE FROM {table_name}")
         self.db.conn.commit()
         self.execute_student_promotion()
-        self.save_school_config({"academic_year": new_year, "current_term": PERIOD_TERMS[0]})
+        self.save_school_config({
+            "academic_year": new_year,
+            "current_term": PERIOD_TERMS[0],
+            "marksheet_term": PERIOD_TERMS[0],
+            "viewing_year": new_year,
+        })
+        self.viewing_year = new_year
         self.refresh_period_label()
         if portal_rollover:
             messagebox.showinfo(
@@ -700,6 +826,9 @@ class Dashboard(ctk.CTk):
         return True, ""
 
     def reflect_period_to_portal(self):
+        if self.is_historical_view():
+            messagebox.showinfo("Read-only year", "Portal updates are disabled while viewing a previous year.", parent=self)
+            return
         year = self.get_academic_year()
         if not year:
             messagebox.showwarning("Year & Term", "Set the year and term first.")
@@ -2067,21 +2196,6 @@ class Dashboard(ctk.CTk):
             pass
         return {}
 
-    def load_portal_state(self):
-        """Load portal state from config file"""
-        try:
-            config = self.load_school_config()
-            return config.get("portal_open", False)
-        except Exception:
-            return False
-
-    def save_portal_state(self, state):
-        """Save portal state to config file"""
-        try:
-            self.save_school_config({"portal_open": state})
-        except Exception as e:
-            print(f"Unable to save portal state: {e}")
-
     def save_school_config(self, updates):
         try:
             json_path = os.path.join(self.USER_DATA_DIR, "school_config.json")
@@ -2229,149 +2343,8 @@ class Dashboard(ctk.CTk):
         )
         return True
 
-    def handle_portal_button(self):
-        cloud_config = self.load_school_config()
-        cloud_url = cloud_config.get("cloud_portal_url", "").strip()
-        cloud_school_code = cloud_config.get("cloud_school_code", "").strip()
-        cloud_teacher_username = cloud_config.get("cloud_teacher_username", "").strip()
-
-        # Toggle portal state
-        if not self.portal_open:
-            # Launch portal
-            school = self.load_school_name()
-            success, message = network_manager.launch_sync_portal(school)
-
-            if success:
-                portal_text = []
-                if message.startswith("HOTSPOT|"):
-                    _, ssid, password, server_url = message.split("|", 3)
-                    portal_text.append(f"WiFi Name: {ssid}")
-                    portal_text.append(f"Password: {password}")
-                    portal_text.append(f"Offline Portal: {server_url}")
-                elif message.startswith("SERVER_ONLY|"):
-                    _, server_url, error_message = message.split("|", 2)
-                    portal_text.append(f"Offline Portal: {server_url}")
-                    portal_text.append(f"Hotspot error: {error_message}")
-                    portal_text.append(
-                        "Enable Windows Mobile Hotspot manually if you want a local Wi-Fi network."
-                    )
-                else:
-                    portal_text.append(f"Offline Portal: {message}")
-
-                if cloud_url:
-                    portal_text.append(f"Cloud Portal: {cloud_url}")
-
-                messagebox.showinfo("Portal Active", "\n".join(portal_text))
-
-                # Toggle cloud portal if configured
-                if cloud_school_code and cloud_teacher_username and cloud_url:
-                    cloud_teacher_password = cloud_config.get(
-                        "cloud_teacher_password", ""
-                    ).strip()
-                    if cloud_teacher_password:
-                        credentials = {
-                            "school_code": cloud_school_code,
-                            "username": cloud_teacher_username,
-                            "password": cloud_teacher_password,
-                        }
-                    else:
-                        credentials = ask_cloud_credentials(self)
-                        if not credentials:
-                            # Still update local state even if cloud auth fails
-                            self.portal_open = True
-                            self.update_portal_button()
-                            return
-
-                    # Toggle cloud portal to open
-                    service = CloudService()
-                    result = service.toggle_portal(credentials)
-                    if result.get("success"):
-                        print(f"Cloud portal opened: {result.get('message')}")
-                    else:
-                        print(f"Failed to open cloud portal: {result.get('message')}")
-
-                    self.sync_students_to_cloud(credentials)
-                    self.sync_teachers_to_cloud(credentials)
-                    # Commented out to prevent Chrome redirection
-                    # try:
-                    #     webbrowser.open(cloud_url)
-                    # except Exception:
-                    #     pass
-                elif cloud_url and not cloud_school_code:
-                    if messagebox.askyesno(
-                        "Cloud Portal", "Open the cloud portal in the browser?"
-                    ):
-                        # Commented out to prevent Chrome redirection
-                        # try:
-                        #     webbrowser.open(cloud_url)
-                        # except Exception:
-                        #     pass
-                        pass
-
-                # Update state and button
-                self.portal_open = True
-                self.save_portal_state(True)
-                self.update_portal_button()
-            else:
-                messagebox.showerror("Portal Error", f"Failed to start: {message}")
-        else:
-            # Close portal
-            cloud_close_success = True
-            if cloud_school_code and cloud_teacher_username and cloud_url:
-                cloud_teacher_password = cloud_config.get(
-                    "cloud_teacher_password", ""
-                ).strip()
-                if cloud_teacher_password:
-                    credentials = {
-                        "school_code": cloud_school_code,
-                        "username": cloud_teacher_username,
-                        "password": cloud_teacher_password,
-                    }
-                else:
-                    credentials = ask_cloud_credentials(self)
-                    if not credentials:
-                        # Still close locally even if user cancels cloud auth
-                        cloud_close_success = False
-
-                # Toggle cloud portal to close
-                if credentials:
-                    service = CloudService()
-                    result = service.toggle_portal(credentials)
-                    if result.get("success"):
-                        messagebox.showinfo(
-                            "Portal Closed",
-                            "Teachers portal has been closed. Teachers can no longer enter marks.",
-                        )
-                    else:
-                        messagebox.showerror(
-                            "Portal Error",
-                            f"Failed to close cloud portal: {result.get('message')}",
-                        )
-                        cloud_close_success = False
-            else:
-                messagebox.showinfo(
-                    "Portal Closed",
-                    "Teachers portal has been closed. Teachers can no longer enter marks.",
-                )
-
-            # Only update local state and button if close operation succeeded
-            if cloud_close_success:
-                self.portal_open = False
-                self.save_portal_state(False)
-                self.update_portal_button()
-
-    def update_portal_button(self):
-        """Update portal button text and color based on state"""
-        if self.portal_open:
-            self.btn_portal.configure(
-                text="🔒 Close Teacher Portal", fg_color="#e74c3c"
-            )
-        else:
-            self.btn_portal.configure(text="📡 Launch Teacher Portal", fg_color="green")
-
     def handle_cloud_sync_button(self):
         config = self.load_school_config()
-        cloud_url = config.get("cloud_portal_url", "").strip()
         cloud_school_code = config.get("cloud_school_code", "").strip()
         cloud_teacher_username = config.get("cloud_teacher_username", "").strip()
         cloud_teacher_password = config.get("cloud_teacher_password", "").strip()
@@ -2397,16 +2370,6 @@ class Dashboard(ctk.CTk):
         success = self.sync_students_to_cloud(credentials)
         if success:
             self.sync_teachers_to_cloud(credentials)
-            if messagebox.askyesno(
-                "Cloud Portal",
-                "Students and teachers synced successfully. Open the cloud portal now?",
-            ):
-                # Commented out to prevent Chrome redirection
-                # try:
-                #     webbrowser.open(cloud_url)
-                # except Exception:
-                #     pass
-                pass
 
     def add_empty_row(self):
         # 1. Create the Row Frame with a slightly lighter dark color
@@ -3305,33 +3268,30 @@ class Dashboard(ctk.CTk):
     def stage_imported_students(
         self, class_name, grade, assigned_students, skipped_duplicates, skipped_streams
     ):
+        saved_count = 0
+        failed_count = 0
         for student, stream_name in assigned_students:
-            self.add_empty_row()
-            row_frame = self.all_student_rows[-1]
-            entries = {
-                int(widget.grid_info()["column"]): widget
-                for widget in row_frame.winfo_children()
-                if isinstance(widget, ctk.CTkEntry)
-            }
-            values = {
-                0: self.next_registry_admission_number(),
-                1: student["assessment_number"],
-                2: student["name"],
-                3: grade,
-                4: student.get("gender", ""),
-                5: student.get("phone", ""),
-                6: stream_name,
-            }
-            for column, value in values.items():
-                entries[column].delete(0, "end")
-                entries[column].insert(0, value)
+            saved = self.db.add_student(
+                self.next_registry_admission_number(),
+                student["name"],
+                grade,
+                student.get("gender", ""),
+                student.get("phone", ""),
+                stream=stream_name,
+                check_footprint=True,
+                assessment_number=student["assessment_number"],
+            )
+            if saved:
+                saved_count += 1
+            else:
+                failed_count += 1
 
         messagebox.showinfo(
             "Excel Import",
-            f"Loaded {len(assigned_students)} students for review. "
+            f"Saved {saved_count} student(s) to the selected streams. "
+            f"{failed_count} student(s) could not be saved. "
             f"{skipped_duplicates} duplicate assessment number(s) skipped. "
-            f"{skipped_streams} row(s) from other streams skipped. "
-            "Save each row to register it.",
+            f"{skipped_streams} row(s) from other streams skipped.",
         )
 
     def open_ocr_dialog(self, class_name):
@@ -3380,6 +3340,9 @@ class Dashboard(ctk.CTk):
         ).pack(pady=10)
 
     def open_create_exam_dialog(self):
+        if self.is_historical_view():
+            messagebox.showinfo("Read-only year", "Return to the active year to create an exam.", parent=self)
+            return
         if not self.get_academic_year():
             messagebox.showwarning("Year & Term", "Set the academic year and term first (top left of the dashboard).")
             return
@@ -3606,27 +3569,31 @@ class Dashboard(ctk.CTk):
         term_menu.pack(pady=10)
 
         def update_terms(selected_subject):
+            current_config = self.load_school_config()
+            allowed_terms = available_terms(
+                current_config.get("academic_year"),
+                current_config.get("academic_year"),
+                current_config.get("current_term") if current_config.get("current_term") in PERIOD_TERMS else PERIOD_TERMS[0],
+            )
             class_tasks = (
-                self.load_school_config()
-                .get("cba_tasks", {})
+                current_config.get("cba_tasks", {})
                 .get(class_name, {})
                 .get(selected_subject, {})
             )
-            available_terms = (
-                list(class_tasks.keys())
+            selectable_terms = (
+                [term for term in class_tasks if term in allowed_terms]
                 if isinstance(class_tasks, dict)
-                else ["Term 1"]
+                else [allowed_terms[0]]
             )
-            if not available_terms:
-                available_terms = ["Term 1", "Term 2", "Term 3"]
-            term_menu.configure(values=available_terms)
+            if not selectable_terms:
+                selectable_terms = list(allowed_terms)
+            term_menu.configure(values=selectable_terms)
             active_term = (
-                self.load_school_config()
-                .get("cba_active_terms", {})
+                current_config.get("cba_active_terms", {})
                 .get(class_name, {})
                 .get(selected_subject)
             )
-            term_menu.set(active_term if active_term in available_terms else available_terms[0])
+            term_menu.set(active_term if active_term in selectable_terms else selectable_terms[0])
 
         subject_menu.configure(command=update_terms)
         update_terms(subject_menu.get())
@@ -3707,6 +3674,9 @@ class Dashboard(ctk.CTk):
         ).pack(pady=18)
 
     def open_cba_task_manager(self, class_name, subject, targets=None):
+        if self.is_historical_view():
+            messagebox.showinfo("Read-only year", "CBA task settings are not archived by year.", parent=self)
+            return
         targets = targets or [(class_name, subject)]
         config = self.load_school_config()
         subject_tasks = (
@@ -3721,14 +3691,19 @@ class Dashboard(ctk.CTk):
         active_term = (
             config.get("cba_active_terms", {}).get(class_name, {}).get(subject)
         )
-        if active_term not in ("Term 1", "Term 2", "Term 3"):
+        current_period_terms = available_terms(
+            config.get("academic_year"),
+            config.get("academic_year"),
+            config.get("current_term") if config.get("current_term") in PERIOD_TERMS else PERIOD_TERMS[0],
+        )
+        if active_term not in current_period_terms:
             active_term = next(
                 (
                     term
-                    for term in reversed(("Term 1", "Term 2", "Term 3"))
+                    for term in reversed(current_period_terms)
                     if tasks_by_term.get(term)
                 ),
-                "Term 1",
+                current_period_terms[0],
             )
 
         def save_tasks_for_term(term, saved_tasks):
@@ -3753,6 +3728,7 @@ class Dashboard(ctk.CTk):
             subject,
             tasks_by_term=tasks_by_term,
             term=active_term,
+            allowed_terms=current_period_terms,
             targets=targets,
             on_change=save_tasks_for_term,
         )
@@ -4008,6 +3984,13 @@ class Dashboard(ctk.CTk):
                 )
 
     def show_class_selection(self, action_type, button_object):
+        if self.is_historical_view() and action_type not in {
+            "Viewing Marks", "Summary", "Report Forms", "Performance Dashboard", "Strands"
+        }:
+            messagebox.showinfo(
+                "Read-only year", "This action is unavailable while viewing a previous year.", parent=self
+            )
+            return
         # Trigger the visual highlight first
         self.highlight_button(button_object)
 
@@ -4027,8 +4010,25 @@ class Dashboard(ctk.CTk):
         )
         self.class_frame.pack(pady=40, expand=True)
         self.class_selection_buttons = []
+        classes = [
+            "playgroup",
+            "pp1",
+            "pp2",
+            "Grade 1",
+            "Grade 2",
+            "Grade 3",
+            "Grade 4",
+            "Grade 5",
+            "Grade 6",
+            "Grade 7",
+            "Grade 8",
+            "Grade 9",
+            "Grade 10",
+            "Grade 11",
+            "Grade 12",
+        ]
 
-        if action_type in ("Strands", "Performance Dashboard"):
+        if action_type in ("Strands", "Performance Dashboard", "Viewing Marks"):
             ctk.CTkButton(
                 self.class_frame,
                 text="← Back to Dashboard",
@@ -4040,8 +4040,36 @@ class Dashboard(ctk.CTk):
                 command=self.show_dashboard_workspace,
             ).pack(pady=(0, 20))
 
+        if action_type == "Strands" and not self.is_historical_view():
+            ctk.CTkButton(
+                self.class_frame,
+                text="Fetch All Strands for All Classes",
+                width=300,
+                height=45,
+                command=lambda: self.fetch_all_class_strands(classes),
+            ).pack(pady=(0, 12))
+
+        if action_type == "Performance Dashboard" and not self.is_historical_view():
+            self.performance_fetch_button = ctk.CTkButton(
+                self.class_frame,
+                text="Fetch All Performance for All Classes",
+                width=300,
+                height=45,
+                command=lambda: self.fetch_all_class_performance(classes),
+            )
+            self.performance_fetch_button.pack(pady=(0, 12))
+
+        if action_type == "Viewing Marks" and not self.is_historical_view():
+            ctk.CTkButton(
+                self.class_frame,
+                text="Fetch All Marksheets",
+                width=300,
+                height=45,
+                command=lambda: self.fetch_all_class_marks(classes),
+            ).pack(pady=(0, 12))
+
         # Add Send All Reports to Portal and Print All Reports buttons for Report Forms
-        if action_type == "Report Forms":
+        if action_type == "Report Forms" and not self.is_historical_view():
             send_all_btn = ctk.CTkButton(
                 self.class_frame,
                 text="📤 Send All Reports to Portal",
@@ -4076,23 +4104,6 @@ class Dashboard(ctk.CTk):
             )
             back_btn.pack(pady=(0, 20))
 
-        classes = [
-            "playgroup",
-            "pp1",
-            "pp2",
-            "Grade 1",
-            "Grade 2",
-            "Grade 3",
-            "Grade 4",
-            "Grade 5",
-            "Grade 6",
-            "Grade 7",
-            "Grade 8",
-            "Grade 9",
-            "Grade 10",
-            "Grade 11",
-            "Grade 12",
-        ]
         for class_name in classes:
             btn = ctk.CTkButton(
                 self.class_frame,
@@ -4106,7 +4117,239 @@ class Dashboard(ctk.CTk):
             btn.pack(pady=10)
             self.class_selection_buttons.append(btn)
 
+    def fetch_all_class_strands(self, classes):
+        credentials = ask_cloud_credentials(self)
+        if not credentials:
+            return
+        config = self.load_school_config()
+        try:
+            year = int(config.get("academic_year"))
+        except (TypeError, ValueError):
+            year = datetime.now().year
+        by_grade = config.setdefault("cbc_covered_strands", {})
+        service = CloudService()
+        failures = []
+        fetched = 0
+        attempted = 0
+        for class_name in classes:
+            subjects = get_subjects_for_class(class_name)
+            areas = list(dict.fromkeys(
+                SUBJECT_TO_LEARNING_AREA.get(subject.strip().upper(), subject.strip())
+                for subject in subjects
+            ))
+            for area in areas:
+                attempted += 1
+                result = service.fetch_cbc_covered_strands(class_name, area, year, credentials)
+                if not result.get("success"):
+                    failures.append(f"{class_name} / {area}")
+                    continue
+                grade_records = by_grade.get(class_name)
+                if not isinstance(grade_records, dict) or "areas" in grade_records:
+                    grade_records = {}
+                grade_records[area] = {
+                    "academic_year": year,
+                    "fetched_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "strands": result.get("strands", []),
+                }
+                by_grade[class_name] = grade_records
+                fetched += 1
+        if fetched:
+            self.save_school_config({"cbc_covered_strands": by_grade})
+        summary = f"Fetched strands for {fetched} of {attempted} class subjects."
+        if failures:
+            summary += "\nFailed: " + "; ".join(failures)
+            messagebox.showwarning("Fetch All Strands", summary, parent=self)
+        else:
+            messagebox.showinfo("Fetch All Strands", summary, parent=self)
+
+    def fetch_all_class_performance(self, classes):
+        button = getattr(self, "performance_fetch_button", None)
+        credentials = ask_cloud_credentials(self)
+        if not credentials:
+            return
+        config = self.load_school_config()
+        try:
+            year = int(config.get("academic_year"))
+        except (TypeError, ValueError):
+            year = datetime.now().year
+        term = config.get("current_term")
+        if term not in PERIOD_TERMS:
+            term = config.get("marksheet_term")
+        if term not in PERIOD_TERMS:
+            term = PERIOD_TERMS[0]
+
+        by_grade = config.setdefault("cbc_levels", {})
+        service = CloudService(parent=self)
+        failures = []
+        fetched = 0
+        attempted = 0
+        fetched_at = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+        jobs = [
+            (class_name, area)
+            for class_name in classes
+            for area in dict.fromkeys(
+                SUBJECT_TO_LEARNING_AREA.get(subject.strip().upper(), subject.strip())
+                for subject in get_subjects_for_class(class_name)
+            )
+        ]
+
+        if button is not None:
+            button.configure(text="Please wait...", state="disabled")
+            button.update_idletasks()
+
+        def fetch_performance():
+            return [
+                (class_name, area, service.fetch_cbc_ratings(class_name, area, term, year, credentials))
+                for class_name, area in jobs
+            ]
+
+        try:
+            results = run_with_search_indicator(
+                self, fetch_performance, "Please wait, fetching performance..."
+            )
+        finally:
+            if button is not None and button.winfo_exists():
+                button.configure(
+                    text="Fetch All Performance for All Classes", state="normal"
+                )
+        attempted = len(results)
+        for class_name, area, result in results:
+            if not result.get("success"):
+                failures.append(f"{class_name} / {area}")
+                continue
+            evidence_by_key = {
+                (str(row[0]), str(row[3]), str(row[4])): row[6]
+                for row in result.get("evidence_records", [])
+                if len(row) > 6
+            }
+            records = [
+                [*row, evidence_by_key.get((str(row[0]), str(row[3]), str(row[4])), "")]
+                for row in result.get("records", [])
+            ]
+            grade_records = by_grade.setdefault(class_name, {})
+            if not isinstance(grade_records, dict):
+                grade_records = {}
+                by_grade[class_name] = grade_records
+            area_records = grade_records.setdefault(area, {})
+            if not isinstance(area_records, dict):
+                area_records = {}
+                grade_records[area] = area_records
+            area_records[f"{year}|{term}"] = {
+                "academic_year": year,
+                "fetched_at": fetched_at,
+                "records": records,
+            }
+            fetched += 1
+        if fetched:
+            self.save_school_config({"cbc_levels": by_grade})
+        summary = f"Fetched performance for {fetched} of {attempted} class subjects ({term}, {year})."
+        if failures:
+            summary += "\nFailed: " + "; ".join(failures)
+            messagebox.showwarning("Fetch All Performance", summary, parent=self)
+        else:
+            messagebox.showinfo("Fetch All Performance", summary, parent=self)
+
+    def fetch_all_class_marks(self, classes):
+        credentials = ask_cloud_credentials(self)
+        if not credentials:
+            return
+        config = self.load_school_config()
+        service = CloudService()
+        failures = []
+        fetched = 0
+        for class_name in classes:
+            subjects = get_subjects_for_class(class_name)
+            result = service.fetch_marks(class_name, credentials)
+            if not result.get("success"):
+                failures.append(class_name)
+                continue
+            try:
+                synced = self._save_portal_class_marks(class_name, subjects, result.get("marks", []), config)
+            except Exception as error:
+                logging.exception("Could not save portal marks for %s", class_name)
+                failures.append(f"{class_name} (save failed: {error})")
+                continue
+            fetched += 1
+            self.db.conn.commit()
+        summary = f"Fetched marks for {fetched} of {len(classes)} classes."
+        if failures:
+            summary += "\nFailed: " + "; ".join(failures)
+            messagebox.showwarning("Fetch All Marksheets", summary, parent=self)
+        else:
+            messagebox.showinfo("Fetch All Marksheets", summary, parent=self)
+
+    def _save_portal_class_marks(self, class_name, subjects, records, config):
+        grade_type = map_class_name_to_config_key(class_name)
+        table = MARKSHEET_TABLES.get(grade_type, "marksheet")
+        cursor = self.db.cursor()
+        cursor.execute(f"CREATE TABLE IF NOT EXISTS {table} (adm_no TEXT PRIMARY KEY)")
+        cursor.execute(f"PRAGMA table_info({table})")
+        existing = {row[1].lower() for row in cursor.fetchall()}
+        for subject in subjects:
+            base = _column_base(subject, grade_type)
+            for suffix, kind in (("_s", "INTEGER"), ("_r", "TEXT"), ("_p", "INTEGER")):
+                if f"{base}{suffix}" not in existing:
+                    cursor.execute(f"ALTER TABLE {table} ADD COLUMN {base}{suffix} {kind}")
+                    existing.add(f"{base}{suffix}")
+
+        cursor.execute("SELECT adm_no, name FROM students WHERE UPPER(grade) = UPPER(?)", (class_name,))
+        students = cursor.fetchall()
+        by_adm = {str(adm_no or "").strip(): (adm_no, name or "") for adm_no, name in students}
+        by_name = {"".join(str(name).split()).casefold(): (adm_no, name or "") for adm_no, name in students}
+        subject_names = config.get("subject_names", {}).get(grade_type, {})
+        updated = 0
+        for record in records:
+            student = by_adm.get(str(record.get("adm_no", "")).strip())
+            if student is None:
+                student = by_name.get("".join(str(record.get("student_name", "")).split()).casefold())
+            if student is None:
+                continue
+            adm_no = student[0]
+            scores = record.get("scores") or {}
+            assignments = []
+            values = []
+            for subject in subjects:
+                aliases = {subject.strip().casefold()}
+                full_name = subject_names.get(subject)
+                if full_name:
+                    aliases.add(full_name.strip().casefold())
+                score_key = next(
+                    (name for name in scores if str(name).strip().casefold() in aliases), None
+                )
+                if score_key is None:
+                    continue
+                entry = scores[score_key]
+                raw_score = entry.get("score", entry.get("raw", "")) if isinstance(entry, dict) else entry
+                score = normalize_score(raw_score)
+                rating = ABSENT if score == ABSENT else level_from_percent(score) if score else None
+                points = LEVEL_POINTS.get(rating, 0)
+                base = _column_base(subject, grade_type)
+                assignments.extend((f"{base}_s = ?", f"{base}_r = ?", f"{base}_p = ?"))
+                values.extend((score if score == ABSENT else int(score) if score else None, rating, points))
+            if not assignments:
+                continue
+            cursor.execute(f"INSERT OR IGNORE INTO {table} (adm_no) VALUES (?)", (adm_no,))
+            cursor.execute(
+                f"UPDATE {table} SET {', '.join(assignments)} WHERE adm_no = ?",
+                (*values, adm_no),
+            )
+            updated += 1
+        return updated
+
     def open_class_action(self, class_selected, action_type, stream=None):
+        if self.is_historical_view() and action_type not in {
+            "Viewing Marks", "Summary", "Report Forms", "Performance Dashboard", "Strands"
+        }:
+            messagebox.showinfo(
+                "Read-only year", "This action is unavailable while viewing a previous year.", parent=self
+            )
+            return
+        self._last_navigation = (
+            f"Opening {action_type} for {class_selected}"
+            + (f" / stream {stream}" if stream else "")
+        )
+        logging.info("Navigation requested: %s", self._last_navigation)
         configured_streams = self.db.get_class_streams(class_selected)
         if action_type not in ("Registration", "Registering") and configured_streams and stream is None:
             self.show_stream_selection(class_selected, action_type, configured_streams)
@@ -4132,28 +4375,54 @@ class Dashboard(ctk.CTk):
             self.content_panel.grid(
                 row=0, column=0, columnspan=2, sticky="nsew"
             )  # Content takes all columns
-
-            self.current_view = MarksheetChooser(
-                self.content_panel,
-                self.db,
-                class_selected,
-                self.load_school_config,
-                self.save_school_config,
-                lambda style, term, exam, is_current, year=None: self.open_chosen_marksheet(
-                    class_selected, style, term, exam, is_current, year, stream
-                ),
-                self.return_to_home,
-                stream=stream,
-            )
-            self.current_view.pack(fill="both", expand=True)
+            try:
+                self.current_view = MarksheetChooser(
+                    self.content_panel,
+                    self.db,
+                    class_selected,
+                    self.load_school_config,
+                    self.save_school_config,
+                    lambda style, term, exam, is_current, year=None: self.open_chosen_marksheet(
+                        class_selected, style, term, exam, is_current, year, stream
+                    ),
+                    self.return_to_home,
+                    stream=stream,
+                    view_year=self.viewing_year,
+                )
+                self.current_view.pack(fill="both", expand=True)
+            except Exception as error:
+                logging.exception("Unable to open the marksheet chooser")
+                self.return_to_home()
+                messagebox.showerror(
+                    "Marksheet unavailable",
+                    f"The marksheet could not be opened.\n\n{error}",
+                    parent=self,
+                )
 
         elif action_type == "Summary":
-            # --- FULL SCREEN SUMMARY ---
+            # --- FULL SCREEN SUMMARY STYLE SELECTION ---
             self.menu_panel.grid_forget()
             self.grid_columnconfigure(0, weight=0, minsize=0)
             self.content_panel.grid(row=0, column=0, columnspan=2, sticky="nsew")
-            self.current_view = ClassSummaryView(
-                self.content_panel, self.db, class_selected, stream=stream
+            config = self.load_school_config()
+            grade_type = map_class_name_to_config_key(class_selected)
+            current_exam = config.get(f"{grade_type}_exam_title") or config.get("current_exam_title")
+            history_class = f"{class_selected} [{stream}]" if stream else class_selected
+            self.current_view = SummaryChooser(
+                self.content_panel,
+                class_selected,
+                self.load_school_config,
+                self.save_school_config,
+                lambda style, term=None, exam=None, year=None: self.open_class_summary(
+                    class_selected, style, stream, term, exam, year
+                ),
+                self.return_to_home,
+                db=self.db,
+                view_year=self.viewing_year,
+                current_year=self.get_academic_year(),
+                current_term=self.get_current_term(),
+                current_exam=current_exam,
+                history_class_name=history_class,
             )
             self.current_view.pack(fill="both", expand=True)
 
@@ -4175,6 +4444,7 @@ class Dashboard(ctk.CTk):
                 self.save_school_config,
                 self.return_to_performance,
                 self.show_dashboard_workspace,
+                view_year=self.viewing_year,
             )
             self.current_view.pack(fill="both", expand=True)
 
@@ -4190,6 +4460,7 @@ class Dashboard(ctk.CTk):
                 self.save_school_config,
                 self.return_to_strands,
                 self.show_dashboard_workspace,
+                view_year=self.viewing_year,
             )
             self.current_view.pack(fill="both", expand=True)
 
@@ -4262,6 +4533,21 @@ class Dashboard(ctk.CTk):
             ).pack(pady=10)
 
     def show_report_forms_class_view(self, class_name, stream=None):
+        if self.is_historical_view():
+            for widget in self.content_panel.winfo_children():
+                if widget != self.header_frame and widget != self.theme_frame:
+                    widget.destroy()
+            self.current_view = ArchivedReportFormsView(
+                self.content_panel,
+                self.db,
+                class_name,
+                self.viewing_year,
+                self.load_school_config(),
+                self.open_report_forms,
+                stream=stream,
+            )
+            self.current_view.pack(fill="both", expand=True)
+            return
         # Clear the old view completely
         for widget in self.content_panel.winfo_children():
             if widget != self.header_frame and widget != self.theme_frame:
@@ -4781,6 +5067,27 @@ class Dashboard(ctk.CTk):
             "Success",
             f"Generated {total_success}/{total_students} PDF reports for all classes.",
         )
+
+    def open_class_summary(self, class_name, style, stream=None, term=None, exam_name=None, year=None):
+        for widget in self.content_panel.winfo_children():
+            if widget != self.header_frame and widget != self.theme_frame:
+                widget.destroy()
+        self.menu_panel.grid_forget()
+        self.grid_columnconfigure(0, weight=0, minsize=0)
+        self.content_panel.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        archive_data = None
+        if exam_name and year is not None:
+            history_class = f"{class_name} [{stream}]" if stream else class_name
+            archive_data = self.db.get_previous_exam_data(exam_name, history_class, year)
+            if not archive_data or not archive_data[0]:
+                messagebox.showinfo("No Archived Data", "This exam has no saved marks to summarize.", parent=self)
+                self.return_to_home()
+                return
+        self.current_view = ClassSummaryView(
+            self.content_panel, self.db, class_name, stream=stream, style=style,
+            archive_data=archive_data, archive_year=year, archive_term=term, exam_name=exam_name,
+        )
+        self.current_view.pack(fill="both", expand=True)
 
     def open_chosen_marksheet(self, class_name, style, term, exam_name, is_current, year=None, stream=None):
         if exam_name is None:
@@ -5652,7 +5959,6 @@ class Dashboard(ctk.CTk):
             "btn_teachers",
             "btn_report_forms",
             "btn_newsletter",
-            "btn_portal",
             "btn_cloud_sync",
             "period_button",
             "btn_system_settings",
@@ -5678,7 +5984,6 @@ class Dashboard(ctk.CTk):
             "btn_teachers",
             "btn_report_forms",
             "btn_newsletter",
-            "btn_portal",
             "btn_cloud_sync",
             "period_button",
             "btn_system_settings",

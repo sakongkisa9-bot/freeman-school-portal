@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ grade }} Competency Gradebook | Freeman Portal</title>
+    <style>
+        :root { color-scheme: dark; --page: #10221f; --surface: #192f2a; --line: #3b5b51; --text: #f1f7f3; --muted: #b6c9c0; --accent: #83c7a8; --danger: #e28a80; }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: linear-gradient(145deg, #132b26, #101b1b 65%); color: var(--text); font: 15px "Segoe UI", sans-serif; min-height: 100vh; }
+        main { width: min(100% - 32px, 1500px); margin: 0 auto; padding: 24px 0 50px; }
+        header { display: flex; justify-content: space-between; align-items: center; gap: 16px; border-bottom: 1px solid var(--line); padding-bottom: 16px; }
+        h1 { margin: 0; font-size: 24px; } p { color: var(--muted); }
+        a, button { color: var(--text); background: #24483d; border: 1px solid #5d907a; border-radius: 4px; padding: 10px 14px; text-decoration: none; font: inherit; cursor: pointer; }
+        button.save { background: #39775c; }
+        .toolbar { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; padding: 16px 0; }
+        label { display: grid; gap: 5px; color: var(--muted); font-size: 13px; }
+        select, input[type=number] { min-height: 38px; background: #0e1917; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 7px 9px; }
+        .table-wrap { overflow: auto; max-height: 70vh; border: 1px solid var(--line); background: #172622; }
+        table { border-collapse: collapse; width: auto; max-width: 100%; }
+        th, td { padding: 9px; border-bottom: 1px solid #31473f; text-align: left; }
+        th { position: sticky; top: 0; z-index: 2; background: #244239; color: #e1f2e9; }
+        .student { position: sticky; left: 0; z-index: 1; background: #172622; min-width: 245px; }
+        th.student { z-index: 3; background: #244239; }
+        .sub { display: block; color: #b6c9c0; font-size: 11px; margin-top: 4px; }
+        .rating { min-width: 115px; width: 100%; }
+        .missing { color: var(--danger); font-weight: 650; }
+        .message { margin: 12px 0; padding: 10px 12px; background: var(--surface); border-left: 3px solid var(--accent); }
+        .message.danger { border-color: var(--danger); }
+        .save-row { display: flex; justify-content: flex-end; margin-top: 14px; }
+        .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        a.button { display: inline-block; }
+        input[type=search] { min-height: 38px; width: min(100%, 360px); background: #0e1917; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 7px 9px; font: inherit; }
+        .roster-count { color: var(--muted); font-size: 13px; }
+        .student-name { font-weight: 650; }
+        td select.rating { width: 120px; }
+        .coverage { border: 1px solid var(--line); background: #172622; border-radius: 6px; margin: 4px 0 12px; padding: 10px 14px; }
+        .coverage summary { cursor: pointer; font-weight: 650; }
+        .coverage .covered-total { color: var(--accent); }
+        .coverage ul { list-style: none; margin: 8px 0 0; padding: 0; }
+        .coverage li { padding: 3px 0; color: var(--muted); }
+        .coverage li.done { color: #e1f2e9; }
+        .coverage .strand-line { margin-top: 10px; font-weight: 650; color: #e1f2e9; }
+        .coverage .strand-done { color: var(--accent); }
+        dialog { background: #172622; color: var(--text); border: 1px solid #5d907a; border-radius: 8px; padding: 20px; width: min(560px, 92vw); }
+        dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+        dialog h2 { margin: 0 0 8px; font-size: 20px; }
+        .strand-group { margin: 12px 0; }
+        .strand-group strong { display: block; color: #e1f2e9; margin-bottom: 4px; }
+        .check { display: flex; flex-direction: row; gap: 8px; align-items: center; color: var(--text); font-size: 15px; padding: 3px 0; }
+        .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+        .absent-warning { border-left: 3px solid #d69c48; background: #2c3027; padding: 8px 10px; color: #f8e9cd; }
+        @media (max-width: 640px) { header { align-items: flex-start; flex-direction: column; } main { width: calc(100% - 20px); } th, td { padding: 8px 6px; } }
+    </style>
+</head>
+<body>
+<main>
+    <header>
+        <div><h1>{{ grade }} Competency Gradebook</h1><p>{{ area }} · {{ term }} · {{ selected_strand.name }} · {{ selected_sub_strand.sub_strand_name }}</p></div>
+        <nav class="actions">
+            <button type="button" id="openAutofill">Auto-fill from Local Assessment</button>
+            <a class="button" href="{{ url_for('dashboard') }}">Dashboard</a>
+        </nav>
+    </header>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}<div class="message {{ category }}">{{ message }}</div>{% endfor %}
+    {% endwith %}
+    <form method="get" class="toolbar">
+        <label>Learning Area<select name="area" onchange="this.form.submit()">{% for item in areas %}<option value="{{ item.name }}"{% if item.name == area %} selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></label>
+        <label>Strand<select name="strand_id" onchange="this.form.elements.sub_strand_id.disabled = true; this.form.submit()">{% for item in strand_progress %}<option value="{{ item.id }}"{% if item.id == selected_strand.id %} selected{% endif %}>{{ item.name }} ({{ item.covered_count }}/{{ item.sub_strands|length }})</option>{% endfor %}</select></label>
+        <label>Sub-strand<select name="sub_strand_id" onchange="this.form.submit()">{% for item in selected_strand_sub_strands %}<option value="{{ item.id }}"{% if item.id == selected_sub_strand.id %} selected{% endif %}>{% if item.id in covered_ids %}✓ {% endif %}{{ item.sub_strand_name }}</option>{% endfor %}</select></label>
+        <span class="period">{{ term }} · {{ academic_year }}</span>
+    </form>
+    {% set total_sub = namespace(count=0, covered=0, strands_done=0) %}
+    {% for strand in strand_progress %}{% set total_sub.count = total_sub.count + strand.sub_strands|length %}{% set total_sub.covered = total_sub.covered + strand.covered_count %}{% if strand.covered_count == strand.sub_strands|length %}{% set total_sub.strands_done = total_sub.strands_done + 1 %}{% endif %}{% endfor %}
+    <details class="coverage">
+        <summary>Coverage ({{ term }}): <span class="covered-total">{{ total_sub.strands_done }} of {{ strand_progress|length }} strands</span> · {{ total_sub.covered }} of {{ total_sub.count }} sub-strands covered</summary>
+        {% for strand in strand_progress %}
+        <div class="strand-line{% if strand.covered_count == strand.sub_strands|length %} strand-done{% endif %}">{% if strand.covered_count == strand.sub_strands|length %}✓ {% endif %}{{ strand.name }} ({{ strand.covered_count }}/{{ strand.sub_strands|length }})</div>
+        <ul>{% for item in strand.sub_strands %}<li class="{% if item.covered %}done{% endif %}">{% if item.covered %}✓ Covered{% else %}○ Not covered{% endif %} – {{ item.name }}</li>{% endfor %}</ul>
+        {% endfor %}
+    </details>
+    <div class="toolbar">
+        <input id="studentSearch" type="search" placeholder="Search learner">
+        <span class="roster-count" id="rosterCount"></span>
+    </div>
+    <form method="post" action="{{ url_for('cbc_rubric_gradebook', grade=grade, area=area, term=term, academic_year=academic_year, strand_id=selected_strand.id, sub_strand_id=selected_sub_strand.id) }}">
+        <div class="table-wrap"><table>
+            <thead><tr><th>Learner</th><th>{{ selected_sub_strand.sub_strand_name }}</th></tr></thead>
+            <tbody>
+            {% for student in students %}
+            <tr class="student-row" data-search="{{ student.student_name }} {{ student.adm_no }} {{ student.assessment_number or '' }}">
+                <td class="student-name">{{ student.student_name }}</td>
+                <td><select class="rating" name="rating_{{ student.id }}_{{ selected_sub_strand.id }}" aria-label="{{ student.student_name }} level"{% if not student.assessment_number %} disabled title="Missing Assessment Number"{% endif %}>
+                    <option value="">Select level</option>
+                    {% for value, label in [(4, "EE"), (3, "ME"), (2, "AE"), (1, "BE"), ("AB", "AB")] %}
+                    <option value="{{ value }}"{% if rating_map.get(student.assessment_number)|string == value|string %} selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table></div>
+        <div class="save-row"><button class="save" type="submit">Save Competency Levels</button></div>
+    </form>
+</main>
+<dialog id="autofillDialog">
+    <form method="post" action="{{ url_for('cbc_rubric_gradebook', grade=grade, area=area, term=term, academic_year=academic_year, strand_id=selected_strand.id, sub_strand_id=selected_sub_strand.id) }}">
+        <input type="hidden" name="action" value="autofill">
+        <h2>Auto-fill from Local Assessment</h2>
+        {% if current_exam %}
+        <p>Current exam: <strong>{{ current_exam }}</strong>. Select the sub-strands covered in it. Each learner's exam percentage sets the level: 80-100% EE, 50-79% ME, 30-49% AE, 0-29% BE.</p>
+        {% if absent_names %}
+        <p class="absent-warning">Absent (AB) in this exam: <strong>{{ absent_names|join(", ") }}</strong>. All the sub-strands you select will be written AB for these learners.</p>
+        {% endif %}
+        {% for strand in strands %}
+        <div class="strand-group">
+            <strong>{{ strand.name }}</strong>
+            {% for item in sub_strands if item.strand_name == strand.name %}
+            <label class="check"><input type="checkbox" name="covered_sub_strand_ids" value="{{ item.id }}"> {{ item.sub_strand_name }}{% if item.id in covered_ids %} ✓{% endif %}</label>
+            {% endfor %}
+        </div>
+        {% endfor %}
+        {% else %}
+        <p>No current exam with marks for this subject was found. Enter the exam percentage marks first.</p>
+        {% endif %}
+        <div class="dialog-actions">
+            <button type="button" id="closeAutofill">Cancel</button>
+            {% if current_exam %}<button type="submit" class="save">OK</button>{% endif %}
+        </div>
+    </form>
+</dialog>
+<script>
+    const searchInput = document.getElementById("studentSearch");
+    const studentRows = Array.from(document.querySelectorAll(".student-row"));
+    const rosterCount = document.getElementById("rosterCount");
+    function filterRoster() {
+        const query = searchInput.value.trim().toLocaleLowerCase();
+        let visible = 0;
+        for (const row of studentRows) {
+            const matches = row.dataset.search.toLocaleLowerCase().includes(query);
+            row.hidden = !matches;
+            if (matches) visible += 1;
+        }
+        rosterCount.textContent = `${visible} of ${studentRows.length} learners`;
+    }
+    searchInput.addEventListener("input", filterRoster);
+    filterRoster();
+    const dialog = document.getElementById("autofillDialog");
+    document.getElementById("openAutofill").addEventListener("click", () => dialog.showModal());
+    document.getElementById("closeAutofill").addEventListener("click", () => dialog.close());
+</script>
+</body>
+</html>

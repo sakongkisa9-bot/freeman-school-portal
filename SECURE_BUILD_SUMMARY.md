@@ -36,8 +36,6 @@ The following core files have been code-obfuscated to prevent reverse engineerin
 - ✅ `fcm_service.py` - Firebase Cloud Messaging
 - ✅ `mpesa_service.py` - M-Pesa payment integration
 - ✅ `update_manager.py` - Update system
-- ✅ `network_manager.py` - Network operations
-- ✅ `hotspot_server.py` - Hotspot functionality
 - ✅ `teachers_linked.py` - Teacher management
 - ✅ `wizard.py` - Setup wizard
 - ✅ `splash.py` - Splash screen

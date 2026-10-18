@@ -1,0 +1,121 @@
+{% extends "cloud_base.html" %}
+
+{% block title %}Set Homework - Freeman Portal{% endblock %}
+
+{% block content %}
+<style>
+    .homework-page { max-width: 1120px; margin: 0 auto; padding: 28px 18px 48px; color: #172126; }
+    .homework-head { display: flex; justify-content: space-between; align-items: end; gap: 18px; margin-bottom: 22px; }
+    .homework-head h1 { margin: 0 0 6px; font-size: 30px; color: #123c3a; }
+    .homework-head p { margin: 0; color: #64716f; }
+    .homework-back { color: #0f766e; font-weight: 700; text-decoration: none; white-space: nowrap; }
+    .homework-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(300px, .9fr); gap: 22px; align-items: start; }
+    .homework-panel { background: #fff; border: 1px solid #dce7e4; border-radius: 8px; padding: 24px; box-shadow: 0 8px 24px rgba(19, 54, 50, .07); }
+    .homework-panel h2 { margin: 0 0 18px; font-size: 20px; color: #123c3a; }
+    .homework-form { display: grid; gap: 15px; }
+    .homework-form label { display: grid; gap: 7px; color: #344542; font-size: 14px; font-weight: 700; }
+    .homework-form input, .homework-form select, .homework-form textarea { width: 100%; min-height: 44px; border: 1px solid #cbd8d5; border-radius: 5px; padding: 10px 12px; background: #fff; color: #172126; font: inherit; }
+    .homework-form textarea { min-height: 150px; resize: vertical; }
+    .homework-form input:focus, .homework-form select:focus, .homework-form textarea:focus { outline: 3px solid rgba(15, 118, 110, .16); border-color: #0f766e; }
+    .homework-help { color: #64716f; font-size: 12px; font-weight: 400; }
+    .homework-submit { min-height: 48px; border: 0; border-radius: 5px; background: #0f766e; color: #fff; font: inherit; font-weight: 800; cursor: pointer; }
+    .homework-submit:hover { background: #115e59; }
+    .flash-note { border-radius: 5px; padding: 12px 14px; margin-bottom: 14px; background: #e8f5f2; color: #115e59; }
+    .flash-note.danger { background: #fff0ed; color: #a33725; }
+    .assignment-list { display: grid; gap: 12px; }
+    .assignment-row { border-top: 1px solid #e4ecea; padding-top: 14px; }
+    .assignment-row:first-child { border-top: 0; padding-top: 0; }
+    .assignment-row h3 { margin: 0 0 6px; font-size: 16px; color: #163d39; }
+    .assignment-meta { display: flex; flex-wrap: wrap; gap: 8px 14px; color: #64716f; font-size: 13px; }
+    .assignment-count { margin-top: 9px; color: #0f766e; font-size: 13px; font-weight: 800; }
+    .student-status-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+    .student-status h4 { margin: 0 0 7px; color: #344542; font-size: 12px; text-transform: uppercase; }
+    .student-status ul { max-height: 160px; overflow: auto; margin: 0; padding: 0; list-style: none; }
+    .student-status li { padding: 5px 0; color: #344542; font-size: 13px; overflow-wrap: anywhere; }
+    .student-status li span { display: block; color: #788582; font-size: 11px; }
+    .student-status.pending h4 { color: #9b522d; }
+    .student-status-empty { color: #788582; font-size: 12px; font-style: italic; }
+    .empty-note { padding: 18px 0; color: #64716f; }
+    @media (max-width: 760px) {
+        .homework-page { padding: 20px 14px 32px; }
+        .homework-head { align-items: start; flex-direction: column; }
+        .homework-head h1 { font-size: 25px; }
+        .homework-grid { grid-template-columns: 1fr; }
+        .homework-panel { padding: 19px; }
+    }
+</style>
+
+<main class="homework-page">
+    <header class="homework-head">
+        <div><h1>Set Homework</h1><p>Publish classwork for students and families to view until its due date.</p></div>
+        <a class="homework-back" href="{{ url_for('dashboard') }}">Back to dashboard</a>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}<div class="flash-note {{ 'danger' if category == 'danger' else '' }}">{{ message }}</div>{% endfor %}
+    {% endwith %}
+
+    <div class="homework-grid">
+        <section class="homework-panel">
+            <h2>Assignment details</h2>
+            <form class="homework-form" method="post" enctype="multipart/form-data">
+                <label>Class
+                    <select name="grade" required>
+                        {% for grade in grades %}<option value="{{ grade }}" {% if grade == selected_grade %}selected{% endif %}>{{ grade }}</option>{% endfor %}
+                    </select>
+                </label>
+                <label>Assignment title
+                    <input name="title" maxlength="120" required placeholder="e.g. Fractions practice">
+                </label>
+                <label>Subject <span class="homework-help">Optional</span>
+                    <input name="subject" maxlength="80" placeholder="e.g. Mathematics">
+                </label>
+                <label>Instructions
+                    <textarea name="instructions" maxlength="10000" placeholder="Write the assignment or instructions here..."></textarea>
+                </label>
+                <label>Attach files <span class="homework-help">Choose one or more files, up to 20 MB total.</span>
+                    <input type="file" name="files" multiple>
+                </label>
+                <label>Due date
+                    <input type="date" name="due_date" min="{{ today }}" required>
+                </label>
+                <button class="homework-submit" type="submit">Publish homework</button>
+            </form>
+        </section>
+
+        <section class="homework-panel">
+            <h2>Published for {{ selected_grade or 'your classes' }}</h2>
+            {% if assignments %}
+                <div class="assignment-list">
+                    {% for assignment in assignments %}
+                    <article class="assignment-row">
+                        <h3>{{ assignment.title }}</h3>
+                        <div class="assignment-meta">
+                            {% if assignment.subject %}<span>{{ assignment.subject }}</span>{% endif %}
+                            <span>Due {{ assignment.due_date }}</span>
+                        </div>
+                        <div class="assignment-count">{{ assignment.checked_count or 0 }} of {{ assignment.assigned_count or 0 }} students checked</div>
+                        <div class="student-status-grid">
+                            <div class="student-status">
+                                <h4>Opened ({{ assignment.opened_students|length }})</h4>
+                                {% if assignment.opened_students %}
+                                <ul>{% for student in assignment.opened_students %}<li>{{ student.student_name }}<span>Adm: {{ student.adm_no }}</span></li>{% endfor %}</ul>
+                                {% else %}<div class="student-status-empty">No students yet</div>{% endif %}
+                            </div>
+                            <div class="student-status pending">
+                                <h4>Not opened ({{ assignment.pending_students|length }})</h4>
+                                {% if assignment.pending_students %}
+                                <ul>{% for student in assignment.pending_students %}<li>{{ student.student_name }}<span>Adm: {{ student.adm_no }}</span></li>{% endfor %}</ul>
+                                {% else %}<div class="student-status-empty">Everyone has opened it</div>{% endif %}
+                            </div>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="empty-note">No homework has been published for this class yet.</p>
+            {% endif %}
+        </section>
+    </div>
+</main>
+{% endblock %}

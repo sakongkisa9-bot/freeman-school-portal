@@ -7,6 +7,7 @@ When running as executable, prioritizes user data directory over bundled files
 import os
 import sys
 import shutil
+import ast
 import importlib.util
 from importlib.machinery import ModuleSpec
 import logging
@@ -137,14 +138,9 @@ def sync_updated_files():
     if not getattr(sys, 'frozen', False):
         return  # Not needed for script mode
     
-    # Ensure user data directory is at the front of sys.path
-    # This ensures updated modules are loaded before bundled ones
-    # Remove if already present to avoid duplicates
-    if user_data_dir in sys.path:
+    # Updated modules are resolved by CustomImportHook after API validation.
+    while user_data_dir in sys.path:
         sys.path.remove(user_data_dir)
-    
-    # Insert at the very beginning for highest priority
-    sys.path.insert(0, user_data_dir)
     
     # Also ensure bundled dir is in path (but after user data)
     if bundled_dir not in sys.path:
@@ -152,7 +148,7 @@ def sync_updated_files():
     
     print(f"[FileLoader] Bundled dir: {bundled_dir}")
     print(f"[FileLoader] User data dir: {user_data_dir}")
-    print(f"[FileLoader] User data dir added to sys.path for module priority")
+    print("[FileLoader] User-data modules will be loaded only after API validation")
     print(f"[FileLoader] Current sys.path: {sys.path[:3]}")
     
     # Install custom import hook for PyInstaller compatibility
@@ -168,6 +164,80 @@ class CustomImportHook:
     def __init__(self, user_data_dir, bundled_dir):
         self.user_data_dir = user_data_dir
         self.bundled_dir = bundled_dir
+
+    @staticmethod
+    def _module_definitions(path):
+        try:
+            with open(path, "r", encoding="utf-8") as source_file:
+                tree = ast.parse(source_file.read(), filename=path)
+        except (OSError, SyntaxError, UnicodeError) as error:
+            return None, f"cannot parse override: {error}"
+
+        functions = {
+            node.name
+            for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        classes = {
+            node.name: {
+                method.name: method
+                for method in node.body
+                if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef))
+            }
+            for node in tree.body
+            if isinstance(node, ast.ClassDef)
+        }
+        return (functions, classes), None
+
+    @classmethod
+    def _validate_override(cls, module_name, path):
+        definitions, error = cls._module_definitions(path)
+        if error:
+            return error
+
+        functions, classes = definitions
+        required_methods = {
+            "cloud_service": {
+                "CloudService": (
+                    "create_exam",
+                    "set_period",
+                    "start_new_year",
+                    "upload_cba_tasks",
+                    "fetch_cbc_ratings",
+                    "fetch_cbc_covered_strands",
+                    "fetch_cba_results",
+                ),
+            },
+            "teachers_linked": {"TeachersLinkedView": ("__init__",)},
+            "ui_marksheet_junior": {"JuniorMarkSheetView": ("__init__",)},
+            "ui_marksheet_primary": {"PrimaryMarkSheetView": ("__init__",)},
+            "ui_marksheet_lower": {"LowerMarkSheetView": ("__init__",)},
+            "ui_marksheet_playgroup": {"PlaygroupMarkSheetView": ("__init__",)},
+            "ui_marksheet_pp1": {"PP1MarkSheetView": ("__init__",)},
+            "ui_marksheet_pp2": {"PP2MarkSheetView": ("__init__",)},
+        }.get(module_name, {})
+
+        missing = []
+        for class_name, methods in required_methods.items():
+            class_methods = classes.get(class_name, {})
+            for method_name in methods:
+                method = class_methods.get(method_name)
+                if method is None:
+                    missing.append(f"{class_name}.{method_name}")
+                    continue
+                if module_name != "cloud_service":
+                    parameters = {arg.arg for arg in method.args.args + method.args.kwonlyargs}
+                    if "stream" not in parameters and method.args.kwarg is None:
+                        missing.append(f"{class_name}.{method_name}(stream=...)")
+
+        if module_name == "cloud_service":
+            for function_name in ("ask_cloud_credentials", "apply_cloud_records_to_table"):
+                if function_name not in functions:
+                    missing.append(function_name)
+
+        if missing:
+            return "missing required API: " + ", ".join(missing)
+        return None
 
     def find_spec(self, fullname, path, target=None):
         """
@@ -190,18 +260,15 @@ class CustomImportHook:
         user_path = os.path.join(self.user_data_dir, module_file)
 
         if os.path.exists(user_path):
-            if fullname == "cloud_service":
-                try:
-                    with open(user_path, "r", encoding="utf-8") as module_file_handle:
-                        user_module_source = module_file_handle.read()
-                except OSError:
-                    user_module_source = ""
-                if "def upload_cba_tasks(" not in user_module_source:
-                    logging.warning(
-                        "Ignoring outdated user cloud_service.py without CBA task publishing support: %s",
-                        user_path,
-                    )
-                    return None
+            compatibility_error = self._validate_override(fullname, user_path)
+            if compatibility_error:
+                logging.warning(
+                    "Ignoring incompatible user module %s at %s: %s",
+                    fullname,
+                    user_path,
+                    compatibility_error,
+                )
+                return None
             logging.info(f"[CustomImportHook] Loading {fullname} from user data: {user_path}")
             try:
                 spec = importlib.util.spec_from_file_location(fullname, user_path)

@@ -14,6 +14,7 @@ from cbc_engine import SUBJECT_TO_LEARNING_AREA
 from cbc_report import (
     build_teacher_comments,
     build_subject_results,
+    chart_marker_for_subject,
     group_rubric_records,
     normalize_level,
     pathway_recommendation,
@@ -477,29 +478,33 @@ class ReportFormsView(ctk.CTkToplevel):
         learning_area_header = ctk.CTkLabel(
             table, text="Learning Area", width=widths[0], height=68, fg_color="#2e7d32",
             text_color="white", font=("Arial Bold", 10), wraplength=widths[0] - 8,
+            border_width=1, border_color="#111827",
         )
         learning_area_header.grid(row=0, column=0, rowspan=2, sticky="nsew", padx=1, pady=1)
         for index, exam in enumerate(previous, start=1):
             ctk.CTkLabel(
                 table, text=exam.get("exam_name", "Previous"), width=widths[index], height=68, fg_color="#2e7d32",
                 text_color="white", font=("Arial Bold", 10), wraplength=widths[index] - 8,
+                border_width=1, border_color="#111827",
             ).grid(row=0, column=index, rowspan=2, sticky="nsew", padx=1, pady=1)
 
         current_start = 1 + len(previous)
         current_columns = ("Formative (70%)", "Summative (30%)", "Composite (Total)", "Level")
         ctk.CTkLabel(
             table, text=current_exam, height=32, fg_color="#1b5e20", text_color="white",
-            font=("Arial Bold", 11),
+            font=("Arial Bold", 11), border_width=1, border_color="#111827",
         ).grid(row=0, column=current_start, columnspan=4, sticky="nsew", padx=1, pady=1)
         ctk.CTkLabel(
             table, text="Improvement", width=widths[-1], height=68, fg_color="#2e7d32",
             text_color="white", font=("Arial Bold", 10), wraplength=widths[-1] - 8,
+            border_width=1, border_color="#111827",
         ).grid(row=0, column=current_start + 4, rowspan=2, sticky="nsew", padx=1, pady=1)
         for offset, heading in enumerate(current_columns):
             column = current_start + offset
             ctk.CTkLabel(
                 table, text=heading, width=widths[column], height=34, fg_color="#2e7d32",
                 text_color="white", font=("Arial Bold", 10), wraplength=widths[column] - 8,
+                border_width=1, border_color="#111827",
             ).grid(row=1, column=column, sticky="nsew", padx=1, pady=1)
 
         latest_previous = report_data.get("previous_exams", [])
@@ -531,7 +536,7 @@ class ReportFormsView(ctk.CTkToplevel):
                 ctk.CTkLabel(
                     table, text=str(value), width=width, height=34, fg_color=self._level_color(level) if level else background,
                     text_color="white" if level else "#1f2937", anchor="w" if column == 0 else "center",
-                    wraplength=width - 8,
+                    wraplength=width - 8, border_width=1, border_color="#111827",
                 ).grid(row=row_index, column=column, sticky="nsew", padx=1, pady=1)
 
     def create_subject_history_chart(self, container, report_data):
@@ -617,22 +622,19 @@ class ReportFormsView(ctk.CTkToplevel):
             ).pack(fill="x", padx=12, pady=(8, 2))
             table = ctk.CTkFrame(container, fg_color="white", border_width=1, border_color="#d1d5db")
             table.pack(fill="x", padx=12, pady=(0, 4))
-            headers = (("Sub-strand", 380), ("BE (1)", 86), ("AE (2)", 86), ("ME (3)", 86), ("EE (4)", 86), ("Teacher note", 260))
+            headers = (("Sub-strand", 380), ("BE (1)", 86), ("AE (2)", 86), ("ME (3)", 86), ("EE (4)", 86))
             for col, (label, col_width) in enumerate(headers):
                 ctk.CTkLabel(table, text=label, width=col_width, height=34, fg_color="#2e7d32", text_color="white", font=("Arial Bold", 10)).grid(row=0, column=col, sticky="nsew", padx=1, pady=1)
             for row_index, row in enumerate(strand["sub_strands"], start=1):
                 cells = [row["name"]]
                 cells.extend("X" if row.get("level") == level else "" for level in ("BE", "AE", "ME", "EE"))
-                cells.append(row.get("evidence") or (
-                    "Absent (AB)" if row.get("level") == "AB" else "No written note recorded"
-                ))
                 for col, ((label, col_width), value) in enumerate(zip(headers, cells)):
                     level = row.get("level") if 1 <= col <= 4 else ""
                     ctk.CTkLabel(
                         table, text=value, width=col_width, height=32,
                         fg_color=colors.get(level, "#f8fafc" if row_index % 2 else "white"),
                         text_color="white" if level else "#334155",
-                        anchor="w" if col in (0, 5) else "center", wraplength=col_width - 8,
+                        anchor="w" if col == 0 else "center", wraplength=col_width - 8,
                     ).grid(row=row_index, column=col, sticky="nsew", padx=1, pady=1)
         recommendations = subject.get("recommendations", [])
         if recommendations:
@@ -1849,15 +1851,18 @@ class ReportFormsView(ctk.CTkToplevel):
             pdf.cell(277, 6, pdf_text(text), border=0, ln=1, fill=True)
             pdf.set_text_color(*dark)
 
-        def draw_history_chart(y, height=34):
+        def draw_history_chart(y, height=36):
             history = report.get("performance_history", [])
             subjects = report.get("subjects", [])
-            x_left, x_plot_right = 20, 238
-            x_label = 241
-            y_top, y_bottom = y + 3, y + height - 6
+            subject_labels = report.get("subject_labels", {})
+            x_left, x_plot_right = 20, 205
+            y_top, y_bottom = y + 9, y + 25
+            pdf.set_draw_color(148, 163, 184)
+            pdf.set_fill_color(255, 255, 255)
+            pdf.rect(10, y, 277, height, style="DF")
             pdf.set_font("Helvetica", "B", 7)
             pdf.set_text_color(*dark)
-            pdf.text(10, y + 4, "Composite / exam score (%)")
+            pdf.text(13, y + 5, "SUBJECT PERFORMANCE HISTORY  |  Composite / exam score (%)")
             for value in (0, 50, 100):
                 point_y = y_bottom - (y_bottom - y_top) * value / 100
                 pdf.set_draw_color(218, 226, 232)
@@ -1869,9 +1874,29 @@ class ReportFormsView(ctk.CTkToplevel):
                 x = x_left + (x_plot_right - x_left) * exam_index / max(1, len(history) - 1)
                 pdf.set_font("Helvetica", "", 6)
                 pdf.text(x - 8, y_bottom + 4, pdf_text(str(exam.get("name", "Exam"))[:18]))
+
+            def draw_marker(x, marker_y, marker, size):
+                if marker == "circle":
+                    pdf.ellipse(x - size, marker_y - size, size * 2, size * 2, style="F")
+                elif marker == "square":
+                    pdf.rect(x - size, marker_y - size, size * 2, size * 2, style="F")
+                elif marker == "triangle":
+                    pdf.line(x, marker_y - size, x - size, marker_y + size * 0.7)
+                    pdf.line(x - size, marker_y + size * 0.7, x + size, marker_y + size * 0.7)
+                    pdf.line(x + size, marker_y + size * 0.7, x, marker_y - size)
+                elif marker == "cross":
+                    pdf.line(x - size, marker_y, x + size, marker_y)
+                    pdf.line(x, marker_y - size, x, marker_y + size)
+                else:
+                    pdf.line(x, marker_y - size, x + size, marker_y)
+                    pdf.line(x + size, marker_y, x, marker_y + size)
+                    pdf.line(x, marker_y + size, x - size, marker_y)
+                    pdf.line(x - size, marker_y, x, marker_y - size)
+
             palette = [(22, 101, 52), (37, 99, 235), (194, 65, 12), (147, 51, 234), (8, 145, 178), (190, 18, 60), (77, 124, 15), (15, 118, 110), (161, 98, 7)]
             for subject_index, subject in enumerate(subjects):
                 color = palette[subject_index % len(palette)]
+                marker_shape = chart_marker_for_subject(subject_index)
                 points = []
                 for exam_index, exam in enumerate(history):
                     score = exam.get("subjects", {}).get(subject)
@@ -1882,31 +1907,24 @@ class ReportFormsView(ctk.CTkToplevel):
                     points.append((x, point_y))
                 pdf.set_draw_color(*color)
                 pdf.set_fill_color(*color)
-                pdf.set_line_width(0.5)
+                pdf.set_line_width(0.2)
                 for first, second in zip(points, points[1:]):
                     pdf.line(first[0], first[1], second[0], second[1])
-                for point_index, (x, point_y) in enumerate(points):
-                    shape = subject_index % 5
-                    if shape == 0:
-                        pdf.ellipse(x - 1.2, point_y - 1.2, 2.4, 2.4, style="F")
-                    elif shape == 1:
-                        pdf.rect(x - 1.2, point_y - 1.2, 2.4, 2.4, style="F")
-                    elif shape == 2:
-                        pdf.line(x, point_y - 1.5, x - 1.5, point_y + 1.2)
-                        pdf.line(x - 1.5, point_y + 1.2, x + 1.5, point_y + 1.2)
-                        pdf.line(x + 1.5, point_y + 1.2, x, point_y - 1.5)
-                    elif shape == 3:
-                        pdf.line(x - 1.4, point_y, x + 1.4, point_y)
-                        pdf.line(x, point_y - 1.4, x, point_y + 1.4)
-                    else:
-                        pdf.line(x, point_y - 1.5, x + 1.5, point_y)
-                        pdf.line(x + 1.5, point_y, x, point_y + 1.5)
-                        pdf.line(x, point_y + 1.5, x - 1.5, point_y)
-                        pdf.line(x - 1.5, point_y, x, point_y - 1.5)
-                if points:
-                    pdf.set_text_color(*color)
-                    pdf.set_font("Helvetica", "B", 6)
-                    pdf.text(x_label, points[-1][1] + 1, pdf_text(subject)[:24])
+                for x, point_y in points:
+                    draw_marker(x, point_y, marker_shape, 1.2)
+                legend_column = subject_index // 5
+                legend_row = subject_index % 5
+                legend_x = 212 + legend_column * 37
+                legend_y = y + 9 + legend_row * 5
+                pdf.set_draw_color(*color)
+                pdf.set_fill_color(*color)
+                pdf.line(legend_x, legend_y, legend_x + 5, legend_y)
+                marker_position = (legend_x + 2.5, legend_y)
+                draw_marker(marker_position[0], marker_position[1], marker_shape, 0.8)
+                pdf.set_text_color(*dark)
+                pdf.set_font("Helvetica", "", 5)
+                label = pdf_text(subject_labels.get(subject, subject))[:24]
+                pdf.text(legend_x + 7, legend_y + 1, label)
             pdf.set_text_color(*dark)
 
         try:
@@ -1932,7 +1950,8 @@ class ReportFormsView(ctk.CTkToplevel):
 
             def header_cell(x, cell_y, cell_width, cell_height, label, color=green):
                 pdf.set_fill_color(*color)
-                pdf.set_draw_color(255, 255, 255)
+                pdf.set_draw_color(31, 41, 55)
+                pdf.set_line_width(0.2)
                 pdf.rect(x, cell_y, cell_width, cell_height, style="DF")
                 pdf.set_text_color(255, 255, 255)
                 pdf.set_font("Helvetica", "B", 6)
@@ -1987,7 +2006,8 @@ class ReportFormsView(ctk.CTkToplevel):
                 for column, (value, cell_width) in enumerate(zip(values, widths)):
                     row_color = (248, 250, 252) if row_index % 2 == 0 else (255, 255, 255)
                     pdf.set_fill_color(*level_colors.get(item.get("rating"), row_color) if column == 1 + len(previous) + 3 else row_color)
-                    pdf.set_draw_color(203, 213, 225)
+                    pdf.set_draw_color(31, 41, 55)
+                    pdf.set_line_width(0.2)
                     pdf.rect(x, y, cell_width, 7, style="DF")
                     pdf.set_xy(x, y)
                     if column == 1 + len(previous) + 3:
@@ -2000,7 +2020,7 @@ class ReportFormsView(ctk.CTkToplevel):
                 y += 7
             pdf.set_y(y)
             chart_y = max(pdf.get_y() + 2, 128)
-            draw_history_chart(chart_y, 27)
+            draw_history_chart(chart_y, 36)
             teacher_comments = report.get("teacher_comments") or build_teacher_comments(
                 report.get("subject_results", []), report.get("rubric_subjects", []), student_name
             )
@@ -2021,7 +2041,7 @@ class ReportFormsView(ctk.CTkToplevel):
                 pdf.multi_cell(220, 3, pdf_text(text))
                 return y + frame_height + 1
 
-            comment_y = chart_y + 29
+            comment_y = chart_y + 37
             comment_y = draw_comment_frame(
                 comment_y, "CLASS TEACHER", teacher_comments["class_teacher"], (240, 249, 244)
             )
@@ -2063,7 +2083,7 @@ class ReportFormsView(ctk.CTkToplevel):
                             pdf.set_font("Helvetica", "B", 8)
                             pdf.cell(277, 6, pdf_text(strand["name"]), ln=1, fill=True)
                             pdf.set_text_color(*dark)
-                            header = (("Sub-strand", 135), ("BE (1)", 20), ("AE (2)", 20), ("ME (3)", 20), ("EE (4)", 20), ("Teacher note", 62))
+                            header = (("Sub-strand", 197), ("BE (1)", 20), ("AE (2)", 20), ("ME (3)", 20), ("EE (4)", 20))
                             pdf.set_font("Helvetica", "B", 7)
                             pdf.set_fill_color(*green)
                             pdf.set_text_color(255, 255, 255)
@@ -2083,15 +2103,11 @@ class ReportFormsView(ctk.CTkToplevel):
                                 pdf.set_font("Helvetica", "", 7)
                                 pdf.set_text_color(*dark)
                                 pdf.set_fill_color(248, 250, 252)
-                                pdf.cell(135, 6, pdf_text(row["name"]), border=1, fill=True)
+                                pdf.cell(197, 6, pdf_text(row["name"]), border=1, fill=True)
                                 for level in ("BE", "AE", "ME", "EE"):
                                     pdf.set_fill_color(*level_colors[level])
                                     pdf.set_text_color(255, 255, 255)
                                     pdf.cell(20, 6, "X" if row.get("level") == level else "", border=1, align="C", fill=True)
-                                pdf.set_fill_color(248, 250, 252)
-                                pdf.set_text_color(100, 116, 139)
-                                evidence = row.get("evidence") or ("AB" if row.get("level") == "AB" else "No written note recorded")
-                                pdf.cell(62, 6, pdf_text(evidence), border=1, align="C", fill=True)
                                 pdf.ln()
                     recommendations = subject.get("recommendations", [])
                     if pdf.get_y() > 183:
@@ -3113,6 +3129,7 @@ class ReportFormsView(ctk.CTkToplevel):
         print(f"DEBUG: generate_report_data called for {student.get('name', 'Unknown')} in {student['grade']}")
         print(f"DEBUG: generate_report_data - Student keys: {list(student.keys())}")
         print(f"DEBUG: generate_report_data - Photo field: {student.get('photo', 'NOT FOUND')}")
+        year = self.school_config.get("academic_year")
         current_marks = self.get_student_current_marks(student['adm_no'], student['grade'])
         
         # If no current marks, return None - don't print report
@@ -3126,7 +3143,7 @@ class ReportFormsView(ctk.CTkToplevel):
         
         # Fetch previous exams for this student
         previous_exams_data = []
-        previous_exams_list = self.db.get_previous_exams(student['grade'])
+        previous_exams_list = self.db.get_previous_exams(student['grade'], year)
         print(f"DEBUG: Found {len(previous_exams_list)} previous exams in database for grade {student['grade']}")
         for exam_name, exam_date in previous_exams_list:
             print(f"DEBUG: Previous exam: {exam_name} at {exam_date}")
@@ -3137,7 +3154,9 @@ class ReportFormsView(ctk.CTkToplevel):
         print(f"DEBUG: Subject names from config: {subject_names}")
         
         for exam_name, exam_date in previous_exams_list:  # Get all previous exams
-            marks_data, summary_data = self.db.get_previous_exam_data(exam_name, student['grade'])
+            marks_data, summary_data = self.db.get_previous_exam_data(
+                exam_name, student['grade'], year
+            )
             print(f"DEBUG: Got marks_data for {exam_name}: {marks_data is not None}")
             if marks_data:
                 # Parse the marks data to extract this student's marks
@@ -3363,7 +3382,6 @@ class ReportFormsView(ctk.CTkToplevel):
 
         subjects = self.get_subjects_for_grade(student["grade"])
         term = self.school_config.get("marksheet_term") or self.school_config.get("current_term") or "Term 1"
-        year = self.school_config.get("academic_year")
         rubric_records = self._report_cbc_records(student, subjects, term, year)
         subject_areas = [
             (subject, self._report_learning_area(subject, student["grade"]))
