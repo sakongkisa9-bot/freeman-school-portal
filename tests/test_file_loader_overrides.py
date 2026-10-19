@@ -52,6 +52,24 @@ class UserModuleOverrideTests(unittest.TestCase):
 
         self.assertIsNone(error)
 
+    def test_rejects_legacy_wizard_override(self):
+        with tempfile.TemporaryDirectory() as directory:
+            override = Path(directory) / "wizard.py"
+            override.write_text(
+                "class SchoolSetupWizard:\n"
+                "    pass\n",
+                encoding="utf-8",
+            )
+
+            error = CustomImportHook._validate_override("wizard", str(override))
+
+            self.assertIn("compatible setup wizard API version", error)
+
+    def test_accepts_current_wizard_override(self):
+        error = CustomImportHook._validate_override("wizard", str(PROJECT_DIR / "wizard.py"))
+
+        self.assertIsNone(error)
+
     def test_sync_removes_user_directory_from_import_search_path(self):
         with tempfile.TemporaryDirectory() as user_directory:
             bundled_directory = str(PROJECT_DIR)

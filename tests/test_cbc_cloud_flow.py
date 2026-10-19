@@ -52,6 +52,65 @@ class CBCCloudFlowTests(unittest.TestCase):
             },
         )
 
+    def test_teacher_dashboard_includes_stream_specific_class_assignments(self):
+        connection = cloud_portal_v2.get_db()
+        connection.execute(
+            "INSERT INTO teacher_assignments (school_id, class_name, subject, teacher_name, teacher_code) VALUES (?, 'Grade 3 [East]', 'MATH', 'Teacher', 'T001')",
+            (self.school_id,),
+        )
+        connection.commit()
+        connection.close()
+
+        response = self.client.get("/dashboard")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Grade 3 [East]", response.data)
+        self.assertNotIn(b"No classes are assigned to your teacher code yet.", response.data)
+
+        connection = cloud_portal_v2.get_db()
+        connection.executemany(
+            "INSERT INTO students (school_id, grade, adm_no, student_name, gender, stream, assessment_number) VALUES (?, 'Grade 3', ?, ?, 'F', ?, ?)",
+            [
+                (self.school_id, "E001", "East Learner", "East", "K0010203003"),
+                (self.school_id, "W001", "West Learner", "West", "K0010203004"),
+            ],
+        )
+        connection.execute(
+            "INSERT INTO cba_term_task_configs (school_id, grade, subject, term, tasks_json, updated_at) VALUES (?, 'Grade 3', 'MATH', 'Term 1', ?, 'now')",
+            (
+                self.school_id,
+                '[{"name":"Task 1","ranges":{"Level 1":{"min":0,"max":2},"Level 2":{"min":3,"max":5},"Level 3":{"min":6,"max":8},"Level 4":{"min":9,"max":10}}}]',
+            ),
+        )
+        connection.commit()
+        connection.close()
+
+        subject_page = self.client.get("/cba/select_subject/Grade%203%20%5BEast%5D")
+        self.assertEqual(subject_page.status_code, 200)
+        self.assertIn(b"MATH", subject_page.data)
+
+        marks_page = self.client.get(
+            "/cba/marks/Grade%203%20%5BEast%5D?subject=MATH&term=Term%201"
+        )
+        self.assertEqual(marks_page.status_code, 200)
+        self.assertIn(b"East Learner", marks_page.data)
+        self.assertNotIn(b"West Learner", marks_page.data)
+
+        connection = cloud_portal_v2.get_db()
+        connection.execute(
+            "INSERT INTO global_curriculum (grade, area, strands_json, updated_at) VALUES ('Grade 3', 'Mathematics', ?, 'now')",
+            ('[{"name":"Number","sub_strands":["Fractions"]}]',),
+        )
+        connection.commit()
+        connection.close()
+
+        gradebook_page = self.client.get(
+            "/cbc/gradebook/Grade%203%20%5BEast%5D?area=Mathematics"
+        )
+        self.assertEqual(gradebook_page.status_code, 200)
+        self.assertIn(b"East Learner", gradebook_page.data)
+        self.assertNotIn(b"West Learner", gradebook_page.data)
+
     def _seed_global(self, grade, area, strands):
         connection = sqlite3.connect(self.db_path)
         connection.execute(

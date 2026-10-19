@@ -335,6 +335,22 @@ GRADE_OPTIONS = [
     "Grade 12",
 ]
 
+def _class_grade_and_stream(class_name):
+    """Return a stream class's base grade and optional stream name."""
+    base_grade, separator, stream = class_name.rpartition(" [")
+    if separator and stream.endswith("]") and base_grade in GRADE_OPTIONS:
+        return base_grade, stream[:-1]
+    return class_name, None
+
+
+def _class_student_filter(class_name):
+    """Return a SQL filter and parameters for one grade or grade-stream class."""
+    base_grade, stream = _class_grade_and_stream(class_name)
+    if stream is not None:
+        return "grade = ? AND stream = ?", (base_grade, stream)
+    return "grade = ?", (base_grade,)
+
+
 GRADE_SUBJECTS = {
     "playgroup": ["LANG", "MATH", "ENV", "CREAT"],
     "pp1": ["LANG", "MATH", "ENV", "PSYCH", "REL"],
@@ -1225,7 +1241,7 @@ def dashboard():
                 (session["school_id"], teacher_code),
             ).fetchall()
         }
-        visible_grades = [grade for grade in GRADE_OPTIONS if grade in assigned_classes]
+        visible_grades = sorted(assigned_classes)
         for grade in visible_grades:
             if _open_exam_subjects(conn, session["school_id"], grade, teacher_code)[1]:
                 exam_grades.add(grade)
@@ -1323,9 +1339,10 @@ def teacher_homework():
                         (homework_id, filename, uploaded.mimetype, uploaded.read()),
                     )
 
+                student_filter, student_params = _class_student_filter(selected_grade)
                 students = conn.execute(
-                    "SELECT id FROM students WHERE school_id = ? AND grade = ?",
-                    (school_id, selected_grade),
+                    f"SELECT id FROM students WHERE school_id = ? AND {student_filter}",
+                    (school_id, *student_params),
                 ).fetchall()
                 for student in students:
                     conn.execute(
@@ -2035,7 +2052,8 @@ def _exam_covers_grade(exam, grade):
         scope = json.loads(exam["scope_json"])
     except (TypeError, ValueError):
         return False
-    return bool(scope.get("all")) or grade in scope.get("classes", [])
+    base_grade, _stream = _class_grade_and_stream(grade)
+    return bool(scope.get("all")) or grade in scope.get("classes", []) or base_grade in scope.get("classes", [])
 
 
 def _open_exam_subjects(conn, school_id, grade, teacher_code):
@@ -2257,9 +2275,10 @@ def enter_exam_marks(grade):
         flash("This exam is not open for you in this class and subject, or it is already finished.", "warning")
         return redirect(url_for("dashboard"))
 
+    student_filter, student_params = _class_student_filter(grade)
     students = conn.execute(
-        "SELECT adm_no, student_name FROM students WHERE school_id = ? AND grade = ? ORDER BY student_name COLLATE NOCASE",
-        (session["school_id"], grade),
+        f"SELECT adm_no, student_name FROM students WHERE school_id = ? AND {student_filter} ORDER BY student_name COLLATE NOCASE",
+        (session["school_id"], *student_params),
     ).fetchall()
     submission = conn.execute(
         "SELECT out_of FROM exam_submissions WHERE school_id = ? AND exam_id = ? AND grade = ? AND subject = ?",
@@ -2437,9 +2456,10 @@ def enter_marks(grade):
         return redirect(url_for("select_subject", grade=grade))
 
     # Fetch students for this grade
+    student_filter, student_params = _class_student_filter(grade)
     students = conn.execute(
-        "SELECT * FROM students WHERE school_id = ? AND grade = ? ORDER BY student_name ASC",
-        (session["school_id"], grade),
+        f"SELECT * FROM students WHERE school_id = ? AND {student_filter} ORDER BY student_name ASC",
+        (session["school_id"], *student_params),
     ).fetchall()
 
     exam_title = request.args.get("exam_title", EXAM_TITLE_DEFAULT)
@@ -2599,7 +2619,8 @@ def _subject_full_names(grade):
         conn.close()
     from subject_catalog import DEFAULT_CATALOG
 
-    config_key = map_grade_to_config_key(grade)
+    base_grade, _stream = _class_grade_and_stream(grade)
+    config_key = map_grade_to_config_key(base_grade)
     group = "pp" if config_key in ("pp1", "pp2") else config_key
     # Defaults let the gradebook work before the school's first sync.
     names = {short: name for name, short in DEFAULT_CATALOG.get(group, [])}
@@ -2731,9 +2752,10 @@ def enter_cba_marks(grade):
         flash("You are not assigned to this class and subject.", "danger")
         return redirect(url_for("select_cba_subject", grade=grade))
 
+    base_grade, _stream = _class_grade_and_stream(grade)
     term_rows = conn.execute(
         "SELECT term FROM cba_term_task_configs WHERE school_id = ? AND grade = ? AND subject = ? ORDER BY updated_at DESC",
-        (session["school_id"], grade, subject),
+        (session["school_id"], base_grade, subject),
     ).fetchall()
     terms = list(dict.fromkeys(row["term"] for row in term_rows))
     if not terms:
@@ -2753,7 +2775,7 @@ def enter_cba_marks(grade):
 
     config = conn.execute(
         "SELECT tasks_json FROM cba_term_task_configs WHERE school_id = ? AND grade = ? AND subject = ? AND term = ?",
-        (session["school_id"], grade, subject, term),
+        (session["school_id"], base_grade, subject, term),
     ).fetchone()
     if not config:
         conn.close()
@@ -2769,9 +2791,10 @@ def enter_cba_marks(grade):
         flash(f"The CBA task configuration is invalid: {error}", "danger")
         return redirect(url_for("dashboard"))
 
+    student_filter, student_params = _class_student_filter(grade)
     students = conn.execute(
-        "SELECT id, adm_no, student_name, gender, assessment_number FROM students WHERE school_id = ? AND grade = ? ORDER BY student_name",
-        (session["school_id"], grade),
+        f"SELECT id, adm_no, student_name, gender, assessment_number FROM students WHERE school_id = ? AND {student_filter} ORDER BY student_name",
+        (session["school_id"], *student_params),
     ).fetchall()
 
     if request.method == "POST":
@@ -3392,6 +3415,7 @@ def cbc_rubric_gradebook(grade):
         return redirect(url_for("teacher_login"))
 
     conn = get_db()
+    base_grade, _stream = _class_grade_and_stream(grade)
     subject_names = _subject_full_names(grade)
     school = conn.execute(
         "SELECT portal_open FROM schools WHERE id = ?", (session["school_id"],)
@@ -3407,10 +3431,10 @@ def cbc_rubric_gradebook(grade):
         _learning_area_for(row["subject"], subject_names)
         for row in assignments
     ]
-    _sync_global_curriculum(conn, session["school_id"], grade)
+    _sync_global_curriculum(conn, session["school_id"], base_grade)
     configured_areas = conn.execute(
         "SELECT id, name FROM cbc_learning_areas WHERE school_id = ? AND grade = ? ORDER BY name",
-        (session["school_id"], grade),
+        (session["school_id"], base_grade),
     ).fetchall()
     available_areas = [area for area in configured_areas if area["name"] in assigned_areas]
     area_name = request.values.get("area", "").strip()
@@ -3474,9 +3498,10 @@ def cbc_rubric_gradebook(grade):
         ),
         selected_strand_sub_strands[0],
     )
+    student_filter, student_params = _class_student_filter(grade)
     students = conn.execute(
-        "SELECT id, adm_no, assessment_number, student_name, gender FROM students WHERE school_id = ? AND grade = ? ORDER BY student_name COLLATE NOCASE",
-        (session["school_id"], grade),
+        f"SELECT id, adm_no, assessment_number, student_name, gender FROM students WHERE school_id = ? AND {student_filter} ORDER BY student_name COLLATE NOCASE",
+        (session["school_id"], *student_params),
     ).fetchall()
 
     area_subject_codes = [

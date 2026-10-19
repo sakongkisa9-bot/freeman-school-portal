@@ -42,7 +42,7 @@ class MarksheetChooser(ctk.CTkFrame):
 
         box = ctk.CTkFrame(self, corner_radius=12)
         box.pack(expand=True)
-        ctk.CTkLabel(box, text=f"{class_name} Marksheet", font=("Arial Bold", 24)).pack(padx=60, pady=(30, 20))
+        ctk.CTkLabel(box, text=f"{self.history_class_name} Marksheet", font=("Arial Bold", 24)).pack(padx=60, pady=(30, 20))
 
         ctk.CTkLabel(box, text="Marksheet style").pack()
         ctk.CTkSegmentedButton(box, values=[NEW_STYLE, OLD_STYLE], variable=self.style_var, width=300).pack(pady=(4, 16))

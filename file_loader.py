@@ -178,6 +178,18 @@ class CustomImportHook:
             for node in tree.body
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         }
+        constants = {}
+        for node in tree.body:
+            if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                try:
+                    constants[node.targets[0].id] = ast.literal_eval(node.value)
+                except (ValueError, TypeError):
+                    pass
+            elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.value is not None:
+                try:
+                    constants[node.target.id] = ast.literal_eval(node.value)
+                except (ValueError, TypeError):
+                    pass
         classes = {
             node.name: {
                 method.name: method
@@ -187,7 +199,7 @@ class CustomImportHook:
             for node in tree.body
             if isinstance(node, ast.ClassDef)
         }
-        return (functions, classes), None
+        return (functions, classes, constants), None
 
     @classmethod
     def _validate_override(cls, module_name, path):
@@ -195,7 +207,10 @@ class CustomImportHook:
         if error:
             return error
 
-        functions, classes = definitions
+        functions, classes, constants = definitions
+        if module_name == "wizard" and constants.get("SETUP_WIZARD_API_VERSION") != 2:
+            return "missing compatible setup wizard API version"
+
         required_methods = {
             "cloud_service": {
                 "CloudService": (

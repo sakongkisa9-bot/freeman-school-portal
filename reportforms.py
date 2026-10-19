@@ -659,6 +659,7 @@ class ReportFormsView(ctk.CTkToplevel):
             container,
             text=f"Indicative pathway: {recommendation.get('recommended') or 'Not enough ratings'}\n{recommendation.get('basis', '')}",
             anchor="w", justify="left", wraplength=1000, fg_color="#e8f5e9",
+            text_color="#1f2937",
         ).pack(fill="x", padx=12, pady=8)
         score_lookup = {item["subject"]: item.get("composite_score") for item in report_data.get("subject_results", [])}
         aliases = {
@@ -673,13 +674,16 @@ class ReportFormsView(ctk.CTkToplevel):
             score = pathway.get("score")
             panel = ctk.CTkFrame(container, fg_color="#f8fafc", border_width=1, border_color="#cbd5e1", corner_radius=6)
             panel.pack(fill="x", padx=12, pady=6)
-            ctk.CTkLabel(panel, text=f"{pathway['name']}  |  {score if score is not None else 'No evidence'}%", font=("Arial Bold", 15), anchor="w").pack(fill="x", padx=12, pady=(8, 4))
+            ctk.CTkLabel(
+                panel, text=f"{pathway['name']}  |  {score if score is not None else 'No evidence'}%",
+                font=("Arial Bold", 15), anchor="w", text_color="#1f2937",
+            ).pack(fill="x", padx=12, pady=(8, 4))
             for subject in pathway["subjects"]:
                 match = next((name for name in score_lookup if aliases.get(name, name) == subject), None)
                 mark = score_lookup.get(match) if match else None
                 ctk.CTkLabel(
                     panel, text=f"{subject}: {mark:g}%" if mark is not None else f"{subject}: no recorded composite",
-                    anchor="w", text_color="#475569",
+                    anchor="w", text_color="#1f2937",
                 ).pack(fill="x", padx=18, pady=1)
     
     def create_school_header(self, container, student):
@@ -2128,6 +2132,7 @@ class ReportFormsView(ctk.CTkToplevel):
                 if pathway:
                     page_header("JUNIOR CAREER PATHWAY GUIDANCE")
                     pdf.set_font("Helvetica", "", 8)
+                    pdf.set_text_color(*dark)
                     pdf.multi_cell(277, 5, pdf_text(pathway.get("basis", "")))
                     score_lookup = {item["subject"]: item.get("composite_score") for item in report.get("subject_results", [])}
                     aliases = {
@@ -2143,11 +2148,13 @@ class ReportFormsView(ctk.CTkToplevel):
                         is_recommended = item["name"] == pathway.get("recommended")
                         pdf.set_fill_color(*(232, 245, 233) if is_recommended else (241, 245, 249))
                         pdf.set_font("Helvetica", "B", 9)
+                        pdf.set_text_color(*dark)
                         label = f"{item['name']}  |  {score if score is not None else 'No evidence'}%"
                         if is_recommended:
                             label += "  |  INDICATIVE RECOMMENDATION"
                         pdf.cell(277, 7, pdf_text(label), ln=1, fill=True)
                         pdf.set_font("Helvetica", "", 7)
+                        pdf.set_text_color(*dark)
                         for subject_name in item["subjects"]:
                             match = next((name for name in score_lookup if aliases.get(name.casefold(), name.casefold()) == subject_name.casefold()), None)
                             mark = score_lookup.get(match) if match else None

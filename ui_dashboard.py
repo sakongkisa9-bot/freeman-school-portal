@@ -2345,6 +2345,7 @@ class Dashboard(ctk.CTk):
 
     def handle_cloud_sync_button(self):
         config = self.load_school_config()
+        cloud_url = config.get("cloud_portal_url", "").strip()
         cloud_school_code = config.get("cloud_school_code", "").strip()
         cloud_teacher_username = config.get("cloud_teacher_username", "").strip()
         cloud_teacher_password = config.get("cloud_teacher_password", "").strip()

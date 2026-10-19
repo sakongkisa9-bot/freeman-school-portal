@@ -4,6 +4,8 @@ import json
 import os
 from urllib.parse import urlparse
 
+SETUP_WIZARD_API_VERSION = 2
+
 class SchoolSetupWizard(ctk.CTkToplevel):
     def __init__(self, parent, db):
         super().__init__(parent)
